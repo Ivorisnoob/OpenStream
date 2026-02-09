@@ -1,9 +1,11 @@
 package com.ivor.openanime.presentation.player
 
 import android.annotation.SuppressLint
+import android.util.Log
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
+import android.webkit.WebSettings
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -81,8 +83,11 @@ fun PlayerScreen(
                         WebView(context).apply {
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
+                            settings.mediaPlaybackRequiresUserGesture = false
+                            settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                            
                             // User Agent is CRITICAL for some embed sites to serve content
-                            settings.userAgentString = "Mozilla/5.0 (Linux; Android 10; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Mobile Safari/537.36"
+                            settings.userAgentString = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
                             
                             webViewClient = object : WebViewClient() {
                                 override fun shouldInterceptRequest(
@@ -90,15 +95,18 @@ fun PlayerScreen(
                                     request: WebResourceRequest?
                                 ): WebResourceResponse? {
                                     val url = request?.url?.toString()
-                                    if (url != null && (url.contains(".m3u8") || url.contains(".mp4"))) {
-                                        // Found a potential video URL!
-                                        // Filter out common ad urls if needed
-                                        if (!url.contains("googleads") && !url.contains("doubleclick")) {
-                                            view?.post {
-                                                if (videoUrl.value == null) {
-                                                    videoUrl.value = url
-                                                    isLoading.value = false
-                                                    view.stopLoading()
+                                    if (url != null) {
+                                        Log.d("PlayerSniffer", "Intercepting: $url")
+                                        if (url.contains(".m3u8") || url.contains(".mp4") || url.contains(".m4s") || url.contains("/manifest")) {
+                                            // Found a potential video URL!
+                                            if (!url.contains("googleads") && !url.contains("doubleclick") && !url.contains("telemetry")) {
+                                                view?.post {
+                                                    if (videoUrl.value == null) {
+                                                        Log.i("PlayerSniffer", "Video URL Found: $url")
+                                                        videoUrl.value = url
+                                                        isLoading.value = false
+                                                        view.stopLoading()
+                                                    }
                                                 }
                                             }
                                         }
