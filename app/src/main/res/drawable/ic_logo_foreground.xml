@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Foreground Symbol: Play Triangle -->
+    <!-- Centered in 108x108. Safe zone is roughly 66x66 in center. -->
+    <!-- Original 24x24: center 12,12. Triangle M9.5,7.5v9l7,-4.5z -->
+    <!-- Scaled by 3x (72x72) to fit nicely in center. -->
+    <!-- Center offset: (108-72)/2 = 18. -->
+    <!-- Path data scaled: M(9.5*3+18),(7.5*3+18) ... -->
+    <!-- New M46.5,40.5 v27 l21,-13.5z -->
+    <!-- Let's adjust to be visually centered. -->
+    
+    <path
+        android:pathData="M42,36 v36 l28,-18 z"
+        android:fillColor="?attr/colorOnPrimary"/>
+        
+</vector>

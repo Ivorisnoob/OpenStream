@@ -1,6 +1,7 @@
 package com.ivor.openanime.presentation.details
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -39,6 +40,18 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.ivor.openanime.ui.theme.ExpressiveShapes
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import com.ivor.openanime.data.remote.model.AnimeDetailsDto
+import com.ivor.openanime.data.remote.model.SeasonDto
+import com.ivor.openanime.data.remote.model.EpisodeDto
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,13 +69,13 @@ fun DetailsScreen(
                     IconButton(onClick = onBackClick) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = "Back",
+                            tint = Color.White // Force white for visibility over image
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    navigationIconContentColor = Color.White
+                    containerColor = Color.Transparent
                 )
             )
         }
@@ -81,99 +94,157 @@ fun DetailsScreen(
                 }
                 is DetailsUiState.Success -> {
                     val details = state.details
+                    val seasonDetails = state.selectedSeasonDetails
+                    val isLoadingEpisodes = state.isLoadingEpisodes
                     
-                    // Background Image
-                    AsyncImage(
-                        model = "https://image.tmdb.org/t/p/w1280${details.backdropPath ?: details.posterPath}",
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(400.dp)
-                            .align(Alignment.TopCenter)
-                    )
-                    
-                    // Gradient Scrim
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(400.dp)
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color.Transparent,
-                                        MaterialTheme.colorScheme.background
-                                    ),
-                                    startY = 0f, 
-                                    endY = 1000f // Approximate height in px, fallback
-                                )
-                            )
-                    )
-
-                    // Content
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding)
-                            .verticalScroll(rememberScrollState())
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        // Remove contentPadding here or handle it carefully with full-screen header
+                        // We want the image to go under the status bar, so no strict top padding here ideally
+                        // But innerPadding forces it. Let's ignore innerPadding top for image effect if edge-to-edge
                     ) {
-                        Spacer(modifier = Modifier.height(250.dp)) // Push content down
-                        
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
-                        ) {
-                            Text(
-                                text = details.name,
-                                style = MaterialTheme.typography.displaySmall,
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                            
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
-                            Text(
-                                text = "Rating: ${String.format("%.1f", details.voteAverage)} • ${details.firstAirDate?.take(4)}",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Button(
-                                onClick = { /* TODO: Play */ },
-                                shape = ExpressiveShapes.large, // 28.dp Pill-ish
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Filled.PlayArrow, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Play Now")
+                        // Header Item
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth().height(400.dp)) {
+                                AsyncImage(
+                                    model = "https://image.tmdb.org/t/p/w1280${details.backdropPath ?: details.posterPath}",
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                // Scrim
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                colors = listOf(Color.Transparent, MaterialTheme.colorScheme.background),
+                                                startY = 0f,
+                                                endY = 1000f
+                                            )
+                                        )
+                                )
+                                
+                                Column(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomStart)
+                                        .padding(16.dp)
+                                ) {
+                                    Text(
+                                        text = details.name,
+                                        style = MaterialTheme.typography.displaySmall,
+                                        color = MaterialTheme.colorScheme.onBackground
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = "Rating: ${String.format("%.1f", details.voteAverage)} • ${details.firstAirDate?.take(4)}",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
+                        }
 
-                            Spacer(modifier = Modifier.height(24.dp))
+                        // Actions & Overview
+                        item {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Button(
+                                    onClick = { /* TODO: Play */ },
+                                    shape = ExpressiveShapes.large,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Filled.PlayArrow, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Play Now")
+                                }
+                                
+                                Spacer(modifier = Modifier.height(24.dp))
+                                Text("Overview", style = MaterialTheme.typography.titleMedium)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = details.overview,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(24.dp))
+                            }
+                        }
 
+                        // Season Selector
+                        item {
                             Text(
-                                text = "Overview",
-                                style = MaterialTheme.typography.titleMedium
+                                text = "Seasons",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(horizontal = 16.dp)
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = details.overview,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            
-                            Spacer(modifier = Modifier.height(24.dp))
-                            
-                            Text(
-                                text = "Seasons (${details.numberOfSeasons})",
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            // TODO: Add Season List Here
+                            LazyRow(
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
+                                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(
+                                    items = details.seasons,
+                                    key = { it.seasonNumber }
+                                ) { season ->
+                                    val isSelected = seasonDetails?.seasonNumber == season.seasonNumber
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { viewModel.loadSeason(season.seasonNumber) },
+                                        label = { Text(season.name) },
+                                        shape = ExpressiveShapes.small
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+
+                        // Episodes List
+                        if (isLoadingEpisodes) {
+                            item {
+                                Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator()
+                                }
+                            }
+                        } else {
+                            seasonDetails?.episodes?.let { episodes ->
+                                items(
+                                    items = episodes,
+                                    key = { it.id }
+                                ) { episode ->
+                                    EpisodeItem(episode = episode)
+                                }
+                            }
+                        }
+                        
+                        // Bottom Padding for Navigation Bar
+                        item {
+                            Spacer(modifier = Modifier.height(innerPadding.calculateBottomPadding()))
                         }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+fun EpisodeItem(episode: EpisodeDto) {
+    ListItem(
+        headlineContent = { Text(episode.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        supportingContent = { Text("Episode ${episode.episodeNumber} • ${episode.voteAverage}", maxLines = 1) },
+        leadingContent = {
+            Card(
+                shape = ExpressiveShapes.small,
+                modifier = Modifier.size(width = 120.dp, height = 68.dp)
+            ) {
+                AsyncImage(
+                    model = "https://image.tmdb.org/t/p/w300${episode.stillPath}",
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        },
+        modifier = Modifier.clickable { /* TODO: Play Episode */ }
+    )
 }
