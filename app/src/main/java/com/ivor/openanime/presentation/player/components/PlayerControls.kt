@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FastForward
@@ -47,6 +48,7 @@ fun PlayerControls(
     onSeek: (Long) -> Unit,
     onForward: () -> Unit,
     onRewind: () -> Unit,
+    onSettingsClick: () -> Unit,
     onBackClick: () -> Unit
 ) {
     val duration = if (totalTime > 0) totalTime else 0L
@@ -69,7 +71,7 @@ fun PlayerControls(
                 .background(Color.Black.copy(alpha = 0.4f))
                 .fillMaxSize()
         ) {
-            // Top Bar (Title and Back)
+            // Top Bar (Title and Options)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -84,20 +86,34 @@ fun PlayerControls(
                     )
                     .padding(16.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBackClick) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onBackClick) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.White
+                            )
+                        }
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White,
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+                    
+                    IconButton(onClick = onSettingsClick) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = "Settings",
                             tint = Color.White
                         )
                     }
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color.White,
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
                 }
             }
 

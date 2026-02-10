@@ -13,10 +13,6 @@
 .externalNativeBuild
 .cxx
 local.properties
-components.md
-DesignMindset.md
-material-3-expressive-guide.md
-Material3ExpressiveDesignGuide.md
 rules.md
 MVP.md
 shapes.md

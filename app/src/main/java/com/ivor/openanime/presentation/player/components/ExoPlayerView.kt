@@ -154,6 +154,10 @@ fun ExoPlayerView(
                 currentTime = exoPlayer.currentPosition
                 areControlsVisible = true
             },
+            onSettingsClick = {
+                // TODO: Implement Track Selection Dialog
+                // context.toast("Settings clicked - Quality/Captions support coming soon")
+            },
             onBackClick = onBackClick
         )
     }
