@@ -30,7 +30,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -83,7 +86,14 @@ fun ExoPlayerView(
     // Subtitle rendering state -- rendered in Compose, not PlayerView
     var currentSubtitleText by remember { mutableStateOf("") }
 
-    val trackSelector = remember { DefaultTrackSelector(context) }
+    val trackSelector = remember { 
+        DefaultTrackSelector(context).apply {
+            parameters = buildUponParameters()
+                .setPreferredTextLanguage("en")
+                .setSelectUndeterminedTextLanguage(true)
+                .build()
+        }
+    }
 
     val exoPlayer = remember {
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
@@ -136,11 +146,13 @@ fun ExoPlayerView(
                 C.TRACK_TYPE_TEXT -> {
                     for (trackIndex in 0 until group.length) {
                         val format = group.getTrackFormat(trackIndex)
-                        val label = format.label
-                            ?: format.language?.let { lang ->
+                        val label = if (format.label == "English (Extracted)" || format.id == "extracted") {
+                            "English (Extracted)"
+                        } else {
+                            format.label ?: format.language?.let { lang ->
                                 java.util.Locale.forLanguageTag(lang).displayLanguage
-                            }
-                            ?: "Subtitle ${subtitles.size + 1}"
+                            } ?: "Subtitle ${subtitles.size + 1}"
+                        }
 
                         Log.d("PlayerSubtitles", "Found text track: label=$label, lang=${format.language}, mimeType=${format.sampleMimeType}, groupIndex=$groupIndex, trackIndex=$trackIndex")
 
@@ -164,6 +176,27 @@ fun ExoPlayerView(
         if (selectedQuality == null) {
             selectedQuality = qualityOptions.firstOrNull()
         }
+
+        // Auto-select extracted subtitle if none selected
+        if (selectedSubtitle == null || selectedSubtitle?.isDisabled == true) {
+            val extracted = subtitles.find { it.label == "English (Extracted)" }
+            if (extracted != null) {
+                Log.i("PlayerSubtitles", "Auto-selecting extracted subtitle: ${extracted.label}")
+                selectedSubtitle = extracted
+                
+                // Programmatically apply selection if player is ready
+                val override = TrackSelectionOverride(
+                    tracks.groups[extracted.groupIndex].mediaTrackGroup,
+                    listOf(extracted.trackIndex)
+                )
+                exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                    .buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                    .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                    .addOverride(override)
+                    .build()
+            }
+        }
     }
 
     LaunchedEffect(videoUrl, subtitleUrl) {
@@ -176,11 +209,14 @@ fun ExoPlayerView(
             val mediaItemBuilder = MediaItem.Builder().setUri(videoUrl)
             
             subtitleUrl?.let { url ->
+                val format = if (url.lowercase().contains(".srt")) "application/x-subrip" else "text/vtt"
                 val subtitleConfig = MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(url))
-                    .setMimeType(if (url.contains("format=srt")) "application/x-subrip" else "text/vtt")
+                    .setMimeType(format)
                     .setLanguage("en")
                     .setLabel("English (Extracted)")
+                    .setId("extracted")
                     .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                    .setRoleFlags(C.ROLE_FLAG_SUBTITLE)
                     .build()
                 mediaItemBuilder.setSubtitleConfigurations(listOf(subtitleConfig))
             }
@@ -199,11 +235,14 @@ fun ExoPlayerView(
             val wasPlaying = exoPlayer.isPlaying
             
             val mediaItemBuilder = MediaItem.Builder().setUri(videoUrl)
+            val format = if (subtitleUrl!!.lowercase().contains(".srt")) "application/x-subrip" else "text/vtt"
             val subtitleConfig = MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(subtitleUrl!!))
-                .setMimeType(if (subtitleUrl!!.contains("format=srt")) "application/x-subrip" else "text/vtt")
+                .setMimeType(format)
                 .setLanguage("en")
                 .setLabel("English (Extracted)")
+                .setId("extracted")
                 .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                .setRoleFlags(C.ROLE_FLAG_SUBTITLE)
                 .build()
             mediaItemBuilder.setSubtitleConfigurations(listOf(subtitleConfig))
             
@@ -326,21 +365,28 @@ fun ExoPlayerView(
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 48.dp, start = 16.dp, end = 16.dp)
+                    .padding(bottom = if (isFullscreen) 64.dp else 40.dp, start = 12.dp, end = 12.dp)
                     .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = currentSubtitleText,
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    textAlign = TextAlign.Center,
+                    style = TextStyle(
+                        color = Color.White,
+                        fontSize = if (isFullscreen) 18.sp else 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                        shadow = Shadow(
+                            color = Color.Black,
+                            blurRadius = 4f
+                        )
+                    ),
                     modifier = Modifier
                         .background(
-                            Color.Black.copy(alpha = 0.7f),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+                            Color.Black.copy(alpha = 0.6f),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
                         )
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 )
             }
         }
