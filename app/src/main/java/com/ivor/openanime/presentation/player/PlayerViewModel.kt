@@ -10,6 +10,10 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
 import javax.inject.Inject
 
 @HiltViewModel
@@ -45,11 +49,23 @@ class PlayerViewModel @Inject constructor(
             
             // Fetch subtitles independently
             try {
-                val subs = subtitleApi.searchSubtitles(tmdbId)
+                val jsonElement = subtitleApi.searchSubtitles(tmdbId)
+                val json = Json { ignoreUnknownKeys = true }
+                
+                val subs = when (jsonElement) {
+                    is JsonArray -> {
+                        jsonElement.map { json.decodeFromJsonElement<SubtitleDto>(it) }
+                    }
+                    is JsonObject -> {
+                        jsonElement.values.map { json.decodeFromJsonElement<SubtitleDto>(it) }
+                    }
+                    else -> emptyList()
+                }
+                
                 _remoteSubtitles.value = subs
                 android.util.Log.i("PlayerViewModel", "Fetched ${subs.size} subtitles for ID $tmdbId")
             } catch (e: Exception) {
-                android.util.Log.e("PlayerViewModel", "Failed to fetch subtitles: ${e.message}")
+                android.util.Log.e("PlayerViewModel", "Failed to fetch subtitles: ${e.message}", e)
             }
         }
     }

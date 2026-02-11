@@ -147,12 +147,13 @@ fun ExoPlayerView(
                 C.TRACK_TYPE_TEXT -> {
                     for (trackIndex in 0 until group.length) {
                         val format = group.getTrackFormat(trackIndex)
+                        val remoteMatch = remoteSubtitles.find { it.id == format.id }
                         val label = when {
+                            remoteMatch != null -> remoteMatch.display ?: remoteMatch.language?.uppercase() ?: "English"
                             format.label == "English (Extracted)" || format.id == "extracted" -> "English (Extracted)"
                             format.label != null -> format.label!!
                             format.language != null -> {
                                 val lang = format.language!!
-                                // Use Locale(lang) for short codes (en, eng), forLanguageTag for BCP47 (en-US)
                                 val locale = if (lang.length <= 3) java.util.Locale(lang) 
                                              else java.util.Locale.forLanguageTag(lang.replace("_", "-"))
                                 
@@ -163,7 +164,7 @@ fun ExoPlayerView(
                                     lang.uppercase()
                                 }
                             }
-                            else -> "Subtitle ${subtitles.size + 1}"
+                            else -> "Track ${subtitles.size + 1}"
                         }
 
                         Log.d("PlayerSubtitles", "Found text track: label=$label, lang=${format.language}, mimeType=${format.sampleMimeType}, groupIndex=$groupIndex, trackIndex=$trackIndex")

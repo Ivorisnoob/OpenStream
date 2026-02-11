@@ -8,5 +8,5 @@ interface SubtitleApi {
     @GET("https://sub.wyzie.ru/search")
     suspend fun searchSubtitles(
         @Query("id") tmdbId: Int
-    ): List<SubtitleDto>
+    ): kotlinx.serialization.json.JsonElement
 }
