@@ -148,6 +148,7 @@ fun PlayerScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .padding(if (isFullscreen) PaddingValues(0.dp) else WindowInsets.statusBars.asPaddingValues())
     ) {
         // 1. Video Player Area - Always present, size depends on isFullscreen
         val videoModifier = if (isFullscreen) {
@@ -161,7 +162,6 @@ fun PlayerScreen(
         Box(
             modifier = videoModifier
                 .background(Color.Black)
-                .padding(if (isFullscreen) PaddingValues(0.dp) else WindowInsets.statusBars.asPaddingValues())
         ) {
             if (videoUrl != null) {
                 ExoPlayerView(

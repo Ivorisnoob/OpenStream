@@ -91,7 +91,7 @@ fun PlayerControls(
                             )
                         )
                     )
-                    .padding(16.dp)
+                    .padding(if (isFullscreen) 16.dp else 4.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -126,12 +126,17 @@ fun PlayerControls(
 
             // Center Controls (Play/Pause, Rewind, Forward) -- hidden when buffering
             if (!isBuffering) {
+                val centerIconSize = if (isFullscreen) 64.dp else 48.dp
+                val sideIconSize = if (isFullscreen) 40.dp else 32.dp
+                val iconSize = if (isFullscreen) 32.dp else 24.dp
+                val spacing = if (isFullscreen) 32.dp else 16.dp
+
                 Row(
                     modifier = Modifier.align(Alignment.Center),
-                    horizontalArrangement = Arrangement.spacedBy(32.dp),
+                    horizontalArrangement = Arrangement.spacedBy(spacing),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = onRewind, modifier = Modifier.size(40.dp)) {
+                    IconButton(onClick = onRewind, modifier = Modifier.size(sideIconSize)) {
                         Icon(
                             imageVector = Icons.Default.FastRewind,
                             contentDescription = "Rewind 10s",
@@ -143,7 +148,7 @@ fun PlayerControls(
                     IconButton(
                         onClick = onPauseToggle,
                         modifier = Modifier
-                            .size(64.dp)
+                            .size(centerIconSize)
                             .background(
                                 color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
                                 shape = MaterialTheme.shapes.extraLarge
@@ -153,11 +158,11 @@ fun PlayerControls(
                             imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                             contentDescription = if (isPlaying) "Pause" else "Play",
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(iconSize)
                         )
                     }
 
-                    IconButton(onClick = onForward, modifier = Modifier.size(40.dp)) {
+                    IconButton(onClick = onForward, modifier = Modifier.size(sideIconSize)) {
                         Icon(
                             imageVector = Icons.Default.FastForward,
                             contentDescription = "Forward 10s",
@@ -181,7 +186,12 @@ fun PlayerControls(
                             )
                         )
                     )
-                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp)
+                    .padding(
+                        start = if (isFullscreen) 16.dp else 8.dp,
+                        end = if (isFullscreen) 16.dp else 8.dp,
+                        top = if (isFullscreen) 16.dp else 0.dp,
+                        bottom = if (isFullscreen) 8.dp else 0.dp
+                    )
             ) {
                 Slider(
                     value = sliderValue,
