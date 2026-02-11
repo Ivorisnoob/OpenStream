@@ -1,17 +1,22 @@
 package com.ivor.openanime.presentation.player
 
 import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.util.Log
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebSettings
 import android.webkit.WebViewClient
+import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
@@ -36,21 +41,28 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import coil3.compose.AsyncImage
@@ -65,11 +77,18 @@ fun PlayerScreen(
     season: Int,
     episode: Int,
     onBackClick: () -> Unit,
+    onEpisodeClick: (Int) -> Unit,
     viewModel: PlayerViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
+    val activity = context as? Activity
+
     // Collect specific state updates
     val nextEpisodes by viewModel.nextEpisodes.collectAsState()
     val isLoadingEpisodes by viewModel.isLoadingEpisodes.collectAsState()
+
+    // Fullscreen state
+    var isFullscreen by rememberSaveable { mutableStateOf(false) }
 
     // Trigger data fetch
     LaunchedEffect(tmdbId, season, episode) {
@@ -78,30 +97,84 @@ fun PlayerScreen(
 
     // Embed URL for extraction
     val embedUrl = "https://www.vidking.net/embed/tv/$tmdbId/$season/$episode?autoPlay=true&color=663399" 
-    val videoUrl = remember { mutableStateOf<String?>(null) }
+    var videoUrl by rememberSaveable { mutableStateOf<String?>(null) }
+    var subtitleUrl by rememberSaveable { mutableStateOf<String?>(null) }
     
     val currentTitle = "Season $season - Episode $episode"
+
+    // Fullscreen management
+    fun enterFullscreen() {
+        activity?.let { act ->
+            act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            val window = act.window
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            val controller = WindowInsetsControllerCompat(window, window.decorView)
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+        isFullscreen = true
+    }
+
+    fun exitFullscreen() {
+        activity?.let { act ->
+            act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            val window = act.window
+            WindowCompat.setDecorFitsSystemWindows(window, true)
+            val controller = WindowInsetsControllerCompat(window, window.decorView)
+            controller.show(WindowInsetsCompat.Type.systemBars())
+        }
+        isFullscreen = false
+    }
+
+    // Handle back press in fullscreen -- exit fullscreen instead of navigating back
+    BackHandler(enabled = isFullscreen) {
+        exitFullscreen()
+    }
+
+    // Clean up on dispose -- restore orientation and system bars
+    DisposableEffect(Unit) {
+        onDispose {
+            activity?.let { act ->
+                act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                val window = act.window
+                WindowCompat.setDecorFitsSystemWindows(window, true)
+                val controller = WindowInsetsControllerCompat(window, window.decorView)
+                controller.show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            // Add top padding for status bar (immersive feel but content below status bar)
-            .padding(WindowInsets.statusBars.asPaddingValues())
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // 1. Video Player Area 
-        // Increased height for better visibility (approx 16:9 but slightly taller container for controls)
-        Box(
-            modifier = Modifier
+        // 1. Video Player Area - Always present, size depends on isFullscreen
+        val videoModifier = if (isFullscreen) {
+            Modifier.fillMaxSize()
+        } else {
+            Modifier
                 .fillMaxWidth()
-                .aspectRatio(16f / 9f) 
+                .aspectRatio(16f / 9f)
+        }
+
+        Box(
+            modifier = videoModifier
                 .background(Color.Black)
+                .padding(if (isFullscreen) PaddingValues(0.dp) else WindowInsets.statusBars.asPaddingValues())
         ) {
-            if (videoUrl.value != null) {
+            if (videoUrl != null) {
                 ExoPlayerView(
-                    videoUrl = videoUrl.value!!,
+                    videoUrl = videoUrl!!,
+                    subtitleUrl = subtitleUrl,
                     title = currentTitle,
-                    onBackClick = onBackClick,
+                    isFullscreen = isFullscreen,
+                    onFullscreenToggle = {
+                        if (isFullscreen) exitFullscreen() else enterFullscreen()
+                    },
+                    onBackClick = {
+                        if (isFullscreen) exitFullscreen() else onBackClick()
+                    },
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
@@ -125,10 +198,18 @@ fun PlayerScreen(
                                         if (url.contains(".m3u8") || url.contains(".mp4") || url.contains(".m4s") || url.contains("/manifest")) {
                                             if (!url.contains("googleads") && !url.contains("doubleclick") && !url.contains("telemetry")) {
                                                 view?.post {
-                                                    if (videoUrl.value == null) {
+                                                    if (videoUrl == null) {
                                                         Log.i("PlayerSniffer", "Video URL Found: $url")
-                                                        videoUrl.value = url
-                                                        view.stopLoading()
+                                                        videoUrl = url
+                                                    }
+                                                }
+                                            }
+                                        } else if (url.contains("sub.wyzie.ru") || url.contains(".vtt") || url.contains(".srt") || url.contains("subtitle")) {
+                                            if (!url.contains("googleads")) {
+                                                view?.post {
+                                                    if (subtitleUrl == null) {
+                                                        Log.i("PlayerSniffer", "Subtitle URL Found: $url")
+                                                        subtitleUrl = url
                                                     }
                                                 }
                                             }
@@ -176,107 +257,114 @@ fun PlayerScreen(
             }
         }
 
-        // 2. Details and Next Episodes
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .weight(1f)
-        ) {
-            // Title and Description
-            item {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Season $season Episode $episode",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Release Date: 2024 • Rating: 4.8", 
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                }
-            }
-
-            // Next Episodes Header
-            item {
-                Text(
-                    text = "Up Next",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-            }
-            
-            if (isLoadingEpisodes) {
+        // 2. Details and Next Episodes - Only visible when NOT in fullscreen
+        if (!isFullscreen) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .weight(1f)
+            ) {
+                // Title and Description
                 item {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        LoadingIndicator()
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "Season $season Episode $episode",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Release Date: 2024 • Rating: 4.8", 
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
                 }
-            }
 
-            items(nextEpisodes) { episodeItem ->
-                ListItem(
-                    headlineContent = { 
-                        Text(
-                            text = episodeItem.name, 
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        ) 
-                    },
-                    supportingContent = { 
-                        Text(
-                            text = "Episode ${episodeItem.episodeNumber} • ${episodeItem.runtime ?: "?"}m", 
-                            style = MaterialTheme.typography.bodySmall
-                        ) 
-                    },
-                    leadingContent = {
+                // Next Episodes Header
+                item {
+                    Text(
+                        text = "Up Next",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+                
+                if (isLoadingEpisodes) {
+                    item {
                         Box(
-                            modifier = Modifier
-                                .width(120.dp)
-                                .height(68.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (episodeItem.stillPath != null) {
-                                AsyncImage(
-                                    model = "https://image.tmdb.org/t/p/w500${episodeItem.stillPath}",
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                             
-                            // Play icon overlay
+                            LoadingIndicator()
+                        }
+                    }
+                }
+
+                items(nextEpisodes) { ep ->
+                    ListItem(
+                        headlineContent = { 
+                            Text(
+                                text = ep.name, 
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            ) 
+                        },
+                        supportingContent = { 
+                            Text(
+                                text = "Episode ${ep.episodeNumber} • ${ep.runtime ?: "?"}m", 
+                                style = MaterialTheme.typography.bodySmall
+                            ) 
+                        },
+                        leadingContent = {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(Color.Black.copy(alpha = 0.3f)),
+                                    .width(120.dp)
+                                    .height(68.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.PlayArrow,
-                                    contentDescription = null,
-                                    tint = Color.White
-                                )
+                                if (ep.stillPath != null) {
+                                    AsyncImage(
+                                        model = "https://image.tmdb.org/t/p/w500${ep.stillPath}",
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                                 
+                                // Play icon overlay
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color.Black.copy(alpha = 0.3f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = null,
+                                        tint = Color.White
+                                    )
+                                }
                             }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                // Reset state for new episode
+                                videoUrl = null
+                                subtitleUrl = null
+                                onEpisodeClick(ep.episodeNumber)
+                            }
+                    )
+                }
             }
         }
     }
 }
-
-

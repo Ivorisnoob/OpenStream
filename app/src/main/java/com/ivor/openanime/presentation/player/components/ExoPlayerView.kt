@@ -1,5 +1,6 @@
 package com.ivor.openanime.presentation.player.components
 
+import android.util.Log
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.annotation.OptIn
@@ -11,8 +12,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -26,12 +30,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
+import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -46,8 +54,11 @@ import kotlinx.coroutines.delay
 fun ExoPlayerView(
     videoUrl: String,
     title: String,
+    isFullscreen: Boolean,
+    onFullscreenToggle: () -> Unit,
     onBackClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    subtitleUrl: String? = null
 ) {
     val context = LocalContext.current
 
@@ -68,6 +79,9 @@ fun ExoPlayerView(
     var selectedQuality by remember { mutableStateOf<QualityOption?>(null) }
     var subtitleOptions by remember { mutableStateOf<List<SubtitleOption>>(emptyList()) }
     var selectedSubtitle by remember { mutableStateOf<SubtitleOption?>(null) }
+
+    // Subtitle rendering state -- rendered in Compose, not PlayerView
+    var currentSubtitleText by remember { mutableStateOf("") }
 
     val trackSelector = remember { DefaultTrackSelector(context) }
 
@@ -128,6 +142,8 @@ fun ExoPlayerView(
                             }
                             ?: "Subtitle ${subtitles.size + 1}"
 
+                        Log.d("PlayerSubtitles", "Found text track: label=$label, lang=${format.language}, mimeType=${format.sampleMimeType}, groupIndex=$groupIndex, trackIndex=$trackIndex")
+
                         subtitles.add(
                             SubtitleOption(
                                 label = label,
@@ -150,11 +166,30 @@ fun ExoPlayerView(
         }
     }
 
-    LaunchedEffect(videoUrl) {
-        val mediaItem = MediaItem.fromUri(videoUrl)
-        exoPlayer.setMediaItem(mediaItem)
-        exoPlayer.prepare()
-        isBuffering = true
+    LaunchedEffect(videoUrl, subtitleUrl) {
+        val currentMediaItem = exoPlayer.currentMediaItem
+        val newUri = android.net.Uri.parse(videoUrl)
+        
+        // Only update if the base video URL has changed
+        if (currentMediaItem?.localConfiguration?.uri != newUri) {
+            val mediaItemBuilder = MediaItem.Builder().setUri(videoUrl)
+            
+            subtitleUrl?.let { url ->
+                val subtitleConfig = MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(url))
+                    .setMimeType(if (url.contains("format=srt")) "application/x-subrip" else "text/vtt")
+                    .setLanguage("en")
+                    .setLabel("English (Extracted)")
+                    .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                    .build()
+                mediaItemBuilder.setSubtitleConfigurations(listOf(subtitleConfig))
+            }
+
+            val mediaItem = mediaItemBuilder.build()
+            exoPlayer.setMediaItem(mediaItem)
+            exoPlayer.prepare()
+            exoPlayer.play() // Explicitly start playing
+            isBuffering = true
+        }
     }
 
     // Polling for position updates
@@ -163,6 +198,10 @@ fun ExoPlayerView(
             currentTime = exoPlayer.currentPosition
             totalTime = exoPlayer.duration.coerceAtLeast(0L)
             bufferPercentage = exoPlayer.bufferedPercentage
+            // Safety net: if player is actively playing, clear buffering state
+            if (exoPlayer.isPlaying && isBuffering) {
+                isBuffering = false
+            }
             delay(500)
         }
     }
@@ -180,7 +219,9 @@ fun ExoPlayerView(
             override fun onPlaybackStateChanged(playbackState: Int) {
                 when (playbackState) {
                     Player.STATE_BUFFERING -> {
-                        isBuffering = true
+                        // Only show buffering overlay if player is not already playing
+                        // HLS streams can report buffering on video while audio plays fine
+                        isBuffering = !exoPlayer.isPlaying
                     }
                     Player.STATE_READY -> {
                         isBuffering = false
@@ -199,10 +240,23 @@ fun ExoPlayerView(
 
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
+                // If player starts producing output, it is not buffering
+                if (playing) {
+                    isBuffering = false
+                }
             }
 
             override fun onTracksChanged(tracks: Tracks) {
                 parseTracksFromPlayer(tracks)
+            }
+
+            override fun onCues(cueGroup: CueGroup) {
+                // Render subtitle cues in Compose instead of relying on PlayerView's SubtitleView
+                val text = cueGroup.cues.joinToString("\n") { cue ->
+                    cue.text?.toString() ?: ""
+                }.trim()
+                Log.d("PlayerSubtitles", "onCues: ${cueGroup.cues.size} cues, text='$text'")
+                currentSubtitleText = text
             }
         }
         exoPlayer.addListener(listener)
@@ -222,6 +276,8 @@ fun ExoPlayerView(
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
                     useController = false
+                    // Disable PlayerView's own subtitle rendering since we render in Compose
+                    subtitleView?.visibility = android.view.View.GONE
                 }
             },
             modifier = Modifier
@@ -234,26 +290,34 @@ fun ExoPlayerView(
                 }
         )
 
-        // Buffering indicator overlay
-        AnimatedVisibility(
-            visible = isBuffering,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier.align(Alignment.Center)
-        ) {
+        // Compose-rendered subtitles -- always on top of video, below controls
+        if (currentSubtitleText.isNotEmpty()) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.3f)),
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 48.dp, start = 16.dp, end = 16.dp)
+                    .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                LoadingIndicator()
+                Text(
+                    text = currentSubtitleText,
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .background(
+                            Color.Black.copy(alpha = 0.7f),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+                        )
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                )
             }
         }
 
         PlayerControls(
             isVisible = areControlsVisible,
             isPlaying = isPlaying,
+            isBuffering = isBuffering,
             title = title,
             currentTime = currentTime,
             totalTime = totalTime,
@@ -284,8 +348,30 @@ fun ExoPlayerView(
                 showSettingsSheet = true
                 areControlsVisible = false
             },
+            isFullscreen = isFullscreen,
+            onFullscreenToggle = {
+                onFullscreenToggle()
+                areControlsVisible = true
+            },
             onBackClick = onBackClick
         )
+
+        // Buffering indicator overlay -- drawn AFTER controls so it renders on top
+        AnimatedVisibility(
+            visible = isBuffering,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.3f)),
+                contentAlignment = Alignment.Center
+            ) {
+                LoadingIndicator()
+            }
+        }
     }
 
     // Settings Bottom Sheet
@@ -325,10 +411,12 @@ fun ExoPlayerView(
                 selectedSubtitle = option
                 if (option == null) {
                     // Disable subtitles
+                    currentSubtitleText = ""
                     exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
                         .buildUpon()
                         .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
                         .build()
+                    exoPlayer.play() // Ensure it continues playing
                 } else {
                     // Enable selected subtitle track
                     val tracks = exoPlayer.currentTracks
@@ -343,6 +431,7 @@ fun ExoPlayerView(
                             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                             .setOverrideForType(override)
                             .build()
+                        exoPlayer.play() // Ensure it continues playing
                     }
                 }
             }

@@ -8,15 +8,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
@@ -41,6 +45,8 @@ fun PlayerControls(
     modifier: Modifier = Modifier,
     isVisible: Boolean,
     isPlaying: Boolean,
+    isBuffering: Boolean = false,
+    isFullscreen: Boolean = false,
     title: String,
     currentTime: Long,
     totalTime: Long,
@@ -49,6 +55,7 @@ fun PlayerControls(
     onForward: () -> Unit,
     onRewind: () -> Unit,
     onSettingsClick: () -> Unit,
+    onFullscreenToggle: () -> Unit = {},
     onBackClick: () -> Unit
 ) {
     val duration = if (totalTime > 0) totalTime else 0L
@@ -117,49 +124,51 @@ fun PlayerControls(
                 }
             }
 
-            // Center Controls (Play/Pause, Rewind, Forward)
-            Row(
-                modifier = Modifier.align(Alignment.Center),
-                horizontalArrangement = Arrangement.spacedBy(32.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onRewind, modifier = Modifier.size(40.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.FastRewind,
-                        contentDescription = "Rewind 10s",
-                        tint = Color.White,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-
-                IconButton(
-                    onClick = onPauseToggle,
-                    modifier = Modifier
-                        .size(64.dp)
-                        .background(
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
-                            shape = MaterialTheme.shapes.extraLarge
-                        )
+            // Center Controls (Play/Pause, Rewind, Forward) -- hidden when buffering
+            if (!isBuffering) {
+                Row(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalArrangement = Arrangement.spacedBy(32.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Play",
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
+                    IconButton(onClick = onRewind, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.FastRewind,
+                            contentDescription = "Rewind 10s",
+                            tint = Color.White,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
 
-                IconButton(onClick = onForward, modifier = Modifier.size(40.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.FastForward,
-                        contentDescription = "Forward 10s",
-                        tint = Color.White,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    IconButton(
+                        onClick = onPauseToggle,
+                        modifier = Modifier
+                            .size(64.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                                shape = MaterialTheme.shapes.extraLarge
+                            )
+                    ) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (isPlaying) "Pause" else "Play",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+
+                    IconButton(onClick = onForward, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.FastForward,
+                            contentDescription = "Forward 10s",
+                            tint = Color.White,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
 
-            // Bottom Controls (Seekbar, Time)
+            // Bottom Controls (Seekbar, Time, Fullscreen)
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -172,24 +181,8 @@ fun PlayerControls(
                             )
                         )
                     )
-                    .padding(16.dp)
+                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = formatTime(if (isDragging) (dragProgress * duration).toLong() else currentTime),
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelMedium
-                    )
-                    Text(
-                        text = formatTime(duration),
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelMedium
-                    )
-                }
-                
                 Slider(
                     value = sliderValue,
                     onValueChange = { 
@@ -207,6 +200,28 @@ fun PlayerControls(
                         inactiveTrackColor = Color.Gray.copy(alpha = 0.5f)
                     )
                 )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Time labels
+                    Text(
+                        text = "${formatTime(if (isDragging) (dragProgress * duration).toLong() else currentTime)} / ${formatTime(duration)}",
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelMedium
+                    )
+
+                    // Fullscreen button
+                    IconButton(onClick = onFullscreenToggle) {
+                        Icon(
+                            imageVector = if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                            contentDescription = if (isFullscreen) "Exit Fullscreen" else "Fullscreen",
+                            tint = Color.White
+                        )
+                    }
+                }
             }
         }
     }
@@ -214,8 +229,12 @@ fun PlayerControls(
 
 fun formatTime(millis: Long): String {
     val totalSeconds = millis / 1000
-    val minutes = totalSeconds / 60
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
     val seconds = totalSeconds % 60
-    return String.format("%02d:%02d", minutes, seconds)
+    return if (hours > 0) {
+        String.format("%d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        String.format("%02d:%02d", minutes, seconds)
+    }
 }
-

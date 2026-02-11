@@ -94,7 +94,13 @@ fun AppNavigation(
                 tmdbId = animeId,
                 season = season,
                 episode = episode,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                onEpisodeClick = { newEpisode ->
+                    navController.navigate(Screen.Player.createRoute(animeId, season, newEpisode)) {
+                        // Pop up to the current player screen to avoid deep stacking
+                        popUpTo(Screen.Player.route) { inclusive = true }
+                    }
+                }
             )
         }
     }
