@@ -66,6 +66,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import coil3.compose.AsyncImage
+import com.ivor.openanime.data.remote.model.SubtitleDto
 import com.ivor.openanime.presentation.player.components.ExoPlayerView
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -86,6 +87,13 @@ fun PlayerScreen(
     // Collect specific state updates
     val nextEpisodes by viewModel.nextEpisodes.collectAsState()
     val isLoadingEpisodes by viewModel.isLoadingEpisodes.collectAsState()
+    val remoteSubtitles by viewModel.remoteSubtitles.collectAsState()
+
+    var sniffedSubtitles by remember { mutableStateOf<List<SubtitleDto>>(emptyList()) }
+
+    val allSubtitles = remember(remoteSubtitles, sniffedSubtitles) {
+        (remoteSubtitles + sniffedSubtitles).distinctBy { it.url }
+    }
 
     // Fullscreen state
     var isFullscreen by rememberSaveable { mutableStateOf(false) }
@@ -98,7 +106,6 @@ fun PlayerScreen(
     // Embed URL for extraction
     val embedUrl = "https://www.vidking.net/embed/tv/$tmdbId/$season/$episode?autoPlay=true&color=663399" 
     var videoUrl by rememberSaveable { mutableStateOf<String?>(null) }
-    var subtitleUrl by rememberSaveable { mutableStateOf<String?>(null) }
     
     val currentTitle = "Season $season - Episode $episode"
 
@@ -166,7 +173,6 @@ fun PlayerScreen(
             if (videoUrl != null) {
                 ExoPlayerView(
                     videoUrl = videoUrl!!,
-                    subtitleUrl = subtitleUrl,
                     title = currentTitle,
                     isFullscreen = isFullscreen,
                     onFullscreenToggle = {
@@ -175,7 +181,8 @@ fun PlayerScreen(
                     onBackClick = {
                         if (isFullscreen) exitFullscreen() else onBackClick()
                     },
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    remoteSubtitles = allSubtitles
                 )
             } else {
                 // Invisible WebView for extraction
@@ -207,9 +214,13 @@ fun PlayerScreen(
                                         } else if (url.contains("sub.wyzie.ru") || url.contains(".vtt") || url.contains(".srt") || url.contains("subtitle")) {
                                             if (!url.contains("googleads")) {
                                                 view?.post {
-                                                    if (subtitleUrl == null) {
+                                                    if (sniffedSubtitles.none { it.url == url }) {
                                                         Log.i("PlayerSniffer", "Subtitle URL Found: $url")
-                                                        subtitleUrl = url
+                                                        sniffedSubtitles = sniffedSubtitles + SubtitleDto(
+                                                            id = "sniffed_${url.hashCode()}",
+                                                            url = url,
+                                                            display = "Detected Subtitle ${sniffedSubtitles.size + 1}"
+                                                        )
                                                     }
                                                 }
                                             }
@@ -359,7 +370,7 @@ fun PlayerScreen(
                             .clickable {
                                 // Reset state for new episode
                                 videoUrl = null
-                                subtitleUrl = null
+                                sniffedSubtitles = emptyList()
                                 onEpisodeClick(ep.episodeNumber)
                             }
                     )

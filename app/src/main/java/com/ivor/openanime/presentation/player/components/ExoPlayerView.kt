@@ -3,6 +3,7 @@ package com.ivor.openanime.presentation.player.components
 import android.util.Log
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import com.ivor.openanime.data.remote.model.SubtitleDto
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -61,7 +62,7 @@ fun ExoPlayerView(
     onFullscreenToggle: () -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
-    subtitleUrl: String? = null
+    remoteSubtitles: List<SubtitleDto> = emptyList()
 ) {
     val context = LocalContext.current
 
@@ -146,12 +147,23 @@ fun ExoPlayerView(
                 C.TRACK_TYPE_TEXT -> {
                     for (trackIndex in 0 until group.length) {
                         val format = group.getTrackFormat(trackIndex)
-                        val label = if (format.label == "English (Extracted)" || format.id == "extracted") {
-                            "English (Extracted)"
-                        } else {
-                            format.label ?: format.language?.let { lang ->
-                                java.util.Locale.forLanguageTag(lang).displayLanguage
-                            } ?: "Subtitle ${subtitles.size + 1}"
+                        val label = when {
+                            format.label == "English (Extracted)" || format.id == "extracted" -> "English (Extracted)"
+                            format.label != null -> format.label!!
+                            format.language != null -> {
+                                val lang = format.language!!
+                                // Use Locale(lang) for short codes (en, eng), forLanguageTag for BCP47 (en-US)
+                                val locale = if (lang.length <= 3) java.util.Locale(lang) 
+                                             else java.util.Locale.forLanguageTag(lang.replace("_", "-"))
+                                
+                                val display = locale.getDisplayLanguage(java.util.Locale.ENGLISH)
+                                if (display.isNotEmpty() && !display.equals(lang, ignoreCase = true)) {
+                                    display
+                                } else {
+                                    lang.uppercase()
+                                }
+                            }
+                            else -> "Subtitle ${subtitles.size + 1}"
                         }
 
                         Log.d("PlayerSubtitles", "Found text track: label=$label, lang=${format.language}, mimeType=${format.sampleMimeType}, groupIndex=$groupIndex, trackIndex=$trackIndex")
@@ -199,26 +211,31 @@ fun ExoPlayerView(
         }
     }
 
-    LaunchedEffect(videoUrl, subtitleUrl) {
+    LaunchedEffect(videoUrl, remoteSubtitles) {
         val currentMediaItem = exoPlayer.currentMediaItem
         val currentUri = currentMediaItem?.localConfiguration?.uri
         val newUri = android.net.Uri.parse(videoUrl)
         
-        // CASE 1: Video URL changed (Episode switch) -> Full Reset
-        if (currentUri != newUri) {
-            val mediaItemBuilder = MediaItem.Builder().setUri(videoUrl)
-            
-            subtitleUrl?.let { url ->
-                val format = if (url.lowercase().contains(".srt")) "application/x-subrip" else "text/vtt"
-                val subtitleConfig = MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(url))
+        fun buildSubtitleConfigs(subs: List<SubtitleDto>): List<MediaItem.SubtitleConfiguration> {
+            return subs.map { sub ->
+                val format = if (sub.url.lowercase().contains(".srt")) "application/x-subrip" else "text/vtt"
+                MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(sub.url))
                     .setMimeType(format)
-                    .setLanguage("en")
-                    .setLabel("English (Extracted)")
-                    .setId("extracted")
+                    .setLanguage(sub.language ?: "en")
+                    .setLabel(sub.display ?: "English (Extracted)")
+                    .setId(sub.id)
                     .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
                     .setRoleFlags(C.ROLE_FLAG_SUBTITLE)
                     .build()
-                mediaItemBuilder.setSubtitleConfigurations(listOf(subtitleConfig))
+            }
+        }
+
+        // CASE 1: Video URL changed (Episode switch) -> Full Reset
+        if (currentUri != newUri) {
+            val mediaItemBuilder = MediaItem.Builder().setUri(videoUrl)
+            val configs = buildSubtitleConfigs(remoteSubtitles)
+            if (configs.isNotEmpty()) {
+                mediaItemBuilder.setSubtitleConfigurations(configs)
             }
 
             val mediaItem = mediaItemBuilder.build()
@@ -227,30 +244,22 @@ fun ExoPlayerView(
             exoPlayer.play()
             isBuffering = true
         } 
-        // CASE 2: Subtitle URL arrived later (extraction finished) -> Hot Update
-        else if (subtitleUrl != null && 
-                 currentMediaItem?.localConfiguration?.subtitleConfigurations?.isEmpty() == true) {
+        // CASE 2: Subtitles arrived later (API finish) -> Hot Update
+        else if (remoteSubtitles.isNotEmpty() && 
+                 currentMediaItem?.localConfiguration?.subtitleConfigurations?.size != remoteSubtitles.size) {
             
             val currentPosition = exoPlayer.currentPosition
             val wasPlaying = exoPlayer.isPlaying
             
             val mediaItemBuilder = MediaItem.Builder().setUri(videoUrl)
-            val format = if (subtitleUrl!!.lowercase().contains(".srt")) "application/x-subrip" else "text/vtt"
-            val subtitleConfig = MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(subtitleUrl!!))
-                .setMimeType(format)
-                .setLanguage("en")
-                .setLabel("English (Extracted)")
-                .setId("extracted")
-                .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
-                .setRoleFlags(C.ROLE_FLAG_SUBTITLE)
-                .build()
-            mediaItemBuilder.setSubtitleConfigurations(listOf(subtitleConfig))
+            val configs = buildSubtitleConfigs(remoteSubtitles)
+            mediaItemBuilder.setSubtitleConfigurations(configs)
             
             // Replace media item without resetting position if possible
             exoPlayer.setMediaItem(mediaItemBuilder.build(), false)
             exoPlayer.prepare() // Need to re-prepare to discover new text tracks
             if (wasPlaying) exoPlayer.play()
-            Log.i("PlayerSubtitles", "Sideloaded subtitle successfully at $currentPosition")
+            Log.i("PlayerSubtitles", "Sideloaded ${configs.size} subtitles successfully")
         }
     }
 

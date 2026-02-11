@@ -57,7 +57,7 @@ fun HomeScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("OpenAnime") },
+                title = { Text("OpenStream") },
                 actions = {
                     IconButton(onClick = onSearchClick) {
                         Icon(

@@ -14,15 +14,22 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.HighQuality
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -326,52 +333,108 @@ private fun SubtitleSettingsMenu(
     onSelect: (SubtitleOption?) -> Unit,
     onBack: () -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    var searchQuery by remember { mutableStateOf("") }
+    
+    // Sort options: English (Extracted) > English > Others
+    val sortedOptions = remember(options) {
+        options.filter { !it.isDisabled }.sortedWith(
+            compareByDescending<SubtitleOption> { it.label == "English (Extracted)" }
+                .thenByDescending { it.label.contains("English", ignoreCase = true) }
+                .thenBy { it.label }
+        )
+    }
+    
+    val filteredOptions = if (searchQuery.isEmpty()) {
+        sortedOptions
+    } else {
+        sortedOptions.filter { it.label.contains(searchQuery, ignoreCase = true) }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.7f)) {
         SubPageHeader(title = "Subtitles / CC", onBack = onBack)
 
-        // "Off" option
-        val isOffSelected = selected == null || selected.isDisabled
-        ListItem(
-            headlineContent = {
-                Text(
-                    text = "Off",
-                    fontWeight = if (isOffSelected) FontWeight.Bold else FontWeight.Normal
-                )
-            },
-            trailingContent = {
-                if (isOffSelected) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = "Selected",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+        // Search Bar
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            placeholder = { Text("Search languages...") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Icon(Icons.Default.Clear, contentDescription = "Clear")
+                    }
                 }
             },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-            modifier = Modifier.clickable { onSelect(null) }
+            singleLine = true,
+            shape = MaterialTheme.shapes.medium,
+            colors = OutlinedTextFieldDefaults.colors(
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                focusedBorderColor = MaterialTheme.colorScheme.primary
+            )
         )
 
-        options.filter { !it.isDisabled }.forEach { option ->
-            val isSelected = option == selected
-            ListItem(
-                headlineContent = {
-                    Text(
-                        text = option.label,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                    )
-                },
-                trailingContent = {
-                    if (isSelected) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = "Selected",
-                            tint = MaterialTheme.colorScheme.primary
+        LazyColumn(modifier = Modifier.fillMaxWidth()) {
+            // "Off" option
+            item {
+                val isOffSelected = selected == null || selected.isDisabled
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            text = "Off",
+                            fontWeight = if (isOffSelected) FontWeight.Bold else FontWeight.Normal
                         )
-                    }
-                },
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                modifier = Modifier.clickable { onSelect(option) }
-            )
+                    },
+                    trailingContent = {
+                        if (isOffSelected) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Selected",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    modifier = Modifier.clickable { onSelect(null) }
+                )
+            }
+
+            items(filteredOptions) { option ->
+                val isSelected = option == selected
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            text = option.label,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    },
+                    trailingContent = {
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Selected",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    modifier = Modifier.clickable { onSelect(option) }
+                )
+            }
+
+            if (filteredOptions.isEmpty() && searchQuery.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "No languages found for \"$searchQuery\"",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(24.dp)
+                    )
+                }
+            }
         }
     }
 }
