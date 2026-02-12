@@ -50,7 +50,12 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import java.net.URL
 
 @OptIn(UnstableApi::class)
 @kotlin.OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -86,6 +91,56 @@ fun ExoPlayerView(
 
     // Subtitle rendering state -- rendered in Compose, not PlayerView
     var currentSubtitleText by remember { mutableStateOf("") }
+    var manualCues by remember { mutableStateOf<List<SubtitleCue>>(emptyList()) }
+    var subtitleLoadingState by remember { mutableStateOf<SubtitleLoadingState>(SubtitleLoadingState.IDLE) }
+
+    // Reset subtitle state when switching videos
+    LaunchedEffect(videoUrl) {
+        selectedSubtitle = null
+        manualCues = emptyList()
+        currentSubtitleText = ""
+        subtitleLoadingState = SubtitleLoadingState.IDLE
+    }
+
+    LaunchedEffect(selectedSubtitle) {
+        val urlStr = selectedSubtitle?.url
+        if (urlStr != null) {
+            subtitleLoadingState = SubtitleLoadingState.LOADING
+            withContext(Dispatchers.IO) {
+                try {
+                    val url = java.net.URL(urlStr)
+                    val connection = url.openConnection() as java.net.HttpURLConnection
+                    connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                    connection.setRequestProperty("Referer", "https://www.vidking.net/")
+                    connection.connectTimeout = 10000
+                    connection.readTimeout = 10000
+                    
+                    if (connection.responseCode != 200) {
+                        throw Exception("Server returned code ${connection.responseCode} (Subtitles might be restricted)")
+                    }
+
+                    val raw = connection.inputStream.bufferedReader().use { it.readText() }
+                    Log.d("PlayerSubtitles", "Downloaded raw data: ${raw.take(100)}...")
+                    
+                    if (raw.trim().isEmpty()) {
+                        throw Exception("Subtitle file is empty")
+                    }
+
+                    manualCues = parseSubtitles(raw)
+                    subtitleLoadingState = if (manualCues.isNotEmpty()) SubtitleLoadingState.SUCCESS else SubtitleLoadingState.ERROR
+                    
+                    Log.i("PlayerSubtitles", "Parsed ${manualCues.size} cues for manual sync")
+                } catch (e: Exception) {
+                    Log.e("PlayerSubtitles", "Failed to parse sideloaded subtitles: ${e.message}")
+                    manualCues = emptyList()
+                    subtitleLoadingState = SubtitleLoadingState.ERROR
+                }
+            }
+        } else {
+            manualCues = emptyList()
+            subtitleLoadingState = SubtitleLoadingState.IDLE
+        }
+    }
 
     val trackSelector = remember { 
         DefaultTrackSelector(context).apply {
@@ -147,37 +202,53 @@ fun ExoPlayerView(
                 C.TRACK_TYPE_TEXT -> {
                     for (trackIndex in 0 until group.length) {
                         val format = group.getTrackFormat(trackIndex)
-                        val remoteMatch = remoteSubtitles.find { it.id == format.id }
+                        val trackId = format.id ?: "none"
+                        // Match with endsWith to handle HLS group prefixes like "1:195..."
+                        val remoteMatch = remoteSubtitles.find { 
+                            it.id == trackId || trackId.endsWith(":${it.id}") 
+                        }
+                        
                         val label = when {
                             remoteMatch != null -> remoteMatch.display ?: remoteMatch.language?.uppercase() ?: "English"
-                            format.label == "English (Extracted)" || format.id == "extracted" -> "English (Extracted)"
+                            format.label == "English (Extracted)" || trackId == "extracted" -> "English (Extracted)"
                             format.label != null -> format.label!!
                             format.language != null -> {
                                 val lang = format.language!!
                                 val locale = if (lang.length <= 3) java.util.Locale(lang) 
-                                             else java.util.Locale.forLanguageTag(lang.replace("_", "-"))
+                                             else try { java.util.Locale.forLanguageTag(lang.replace("_", "-")) } catch(e:Exception) { java.util.Locale.ENGLISH }
                                 
                                 val display = locale.getDisplayLanguage(java.util.Locale.ENGLISH)
-                                if (display.isNotEmpty() && !display.equals(lang, ignoreCase = true)) {
-                                    display
-                                } else {
-                                    lang.uppercase()
-                                }
+                                if (display.isNotEmpty() && !display.equals(lang, ignoreCase = true)) display else lang.uppercase()
                             }
                             else -> "Track ${subtitles.size + 1}"
                         }
-
-                        Log.d("PlayerSubtitles", "Found text track: label=$label, lang=${format.language}, mimeType=${format.sampleMimeType}, groupIndex=$groupIndex, trackIndex=$trackIndex")
 
                         subtitles.add(
                             SubtitleOption(
                                 label = label,
                                 trackIndex = trackIndex,
-                                groupIndex = groupIndex
+                                groupIndex = groupIndex,
+                                url = remoteMatch?.url,
+                                subLabel = remoteMatch?.let { "${it.release ?: ""} (${it.source ?: ""})".trim() }.takeIf { it?.isNotEmpty() == true }
                             )
                         )
                     }
                 }
+            }
+        }
+
+        // 3. Merge in any remote subtitles that weren't matched to a track
+        for (remote in remoteSubtitles) {
+            if (subtitles.none { it.url == remote.url }) {
+                subtitles.add(
+                    SubtitleOption(
+                        label = remote.display ?: remote.language?.uppercase() ?: "English",
+                        trackIndex = -1, // No internal track
+                        groupIndex = -1,
+                        url = remote.url,
+                        subLabel = "${remote.release ?: ""} (${remote.source ?: "External"})".trim()
+                    )
+                )
             }
         }
 
@@ -219,11 +290,14 @@ fun ExoPlayerView(
         
         fun buildSubtitleConfigs(subs: List<SubtitleDto>): List<MediaItem.SubtitleConfiguration> {
             return subs.map { sub ->
-                val format = if (sub.url.lowercase().contains(".srt")) "application/x-subrip" else "text/vtt"
+                // More robust MIME type detection
+                val isSrt = sub.url.lowercase().contains("srt") || sub.url.lowercase().contains("subrip")
+                val format = if (isSrt) "application/x-subrip" else "text/vtt"
+                
                 MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(sub.url))
                     .setMimeType(format)
                     .setLanguage(sub.language ?: "en")
-                    .setLabel(sub.display ?: "English (Extracted)")
+                    .setLabel(sub.display ?: "English")
                     .setId(sub.id)
                     .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
                     .setRoleFlags(C.ROLE_FLAG_SUBTITLE)
@@ -274,7 +348,7 @@ fun ExoPlayerView(
             if (exoPlayer.isPlaying && isBuffering) {
                 isBuffering = false
             }
-            delay(500)
+            delay(200)
         }
     }
 
@@ -335,7 +409,9 @@ fun ExoPlayerView(
                 val text = cueGroup.cues.joinToString("\n") { cue ->
                     cue.text?.toString() ?: ""
                 }.trim()
-                Log.d("PlayerSubtitles", "onCues: ${cueGroup.cues.size} cues, text='$text'")
+                if (cueGroup.cues.isNotEmpty()) {
+                    Log.d("PlayerSubtitles", "onCues: ${cueGroup.cues.size} cues, first='${cueGroup.cues.first().text}'")
+                }
                 currentSubtitleText = text
             }
         }
@@ -371,7 +447,15 @@ fun ExoPlayerView(
         )
 
         // Compose-rendered subtitles -- always on top of video, below controls
-        if (currentSubtitleText.isNotEmpty()) {
+        val displaySubtitleText = remember(currentTime, currentSubtitleText, manualCues) {
+            if (manualCues.isNotEmpty()) {
+                manualCues.find { currentTime in it.startMs..it.endMs }?.text ?: ""
+            } else {
+                currentSubtitleText
+            }
+        }
+
+        if (displaySubtitleText.isNotEmpty()) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -380,7 +464,7 @@ fun ExoPlayerView(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = currentSubtitleText,
+                    text = displaySubtitleText,
                     style = TextStyle(
                         color = Color.White,
                         fontSize = if (isFullscreen) 18.sp else 16.sp,
@@ -497,7 +581,6 @@ fun ExoPlayerView(
             onSubtitleSelected = { option ->
                 selectedSubtitle = option
                 if (option == null) {
-                    // Disable subtitles explicitly for text type only
                     exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
                         .buildUpon()
                         .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
@@ -505,26 +588,149 @@ fun ExoPlayerView(
                         .build()
                     currentSubtitleText = ""
                 } else {
-                    // Enable selected subtitle track using a specific override
-                    val tracks = exoPlayer.currentTracks
-                    if (option.groupIndex < tracks.groups.size) {
-                        val group = tracks.groups[option.groupIndex]
-                        val override = TrackSelectionOverride(
-                            group.mediaTrackGroup,
-                            listOf(option.trackIndex)
-                        )
-                        
+                    if (option.trackIndex != -1) {
+                        // Enable internal track
+                        val tracks = exoPlayer.currentTracks
+                        if (option.groupIndex < tracks.groups.size) {
+                            val group = tracks.groups[option.groupIndex]
+                            val override = TrackSelectionOverride(
+                                group.mediaTrackGroup,
+                                listOf(option.trackIndex)
+                            )
+                            
+                            exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                                .buildUpon()
+                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                                .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                                .addOverride(override)
+                                .build()
+                        }
+                    } else {
+                        // Purely external - disable internal text tracks to avoid mixing
                         exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
                             .buildUpon()
-                            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
                             .clearOverridesOfType(C.TRACK_TYPE_TEXT)
-                            .addOverride(override)
                             .build()
+                        currentSubtitleText = ""
                     }
                 }
-                // Always force play after parameter change to avoid "stuck on pause"
                 exoPlayer.play()
-            }
+            },
+            subtitleLoadingState = subtitleLoadingState
         )
     }
+}
+
+enum class SubtitleLoadingState {
+    IDLE,
+    LOADING,
+    SUCCESS,
+    ERROR
+}
+
+data class SubtitleCue(val startMs: Long, val endMs: Long, val text: String)
+
+private fun parseSubtitles(content: String): List<SubtitleCue> {
+    val cues = mutableListOf<SubtitleCue>()
+    val cleanContent = content.replace("\ufeff", "").replace("\r\n", "\n").replace("\r", "\n")
+
+    if (cleanContent.contains("[Events]")) {
+        Log.i("PlayerSubtitles", "Detected ASS/SSA format")
+        val lines = cleanContent.lines()
+        val eventsIndex = lines.indexOfFirst { it.trim().contains("[Events]", ignoreCase = true) }
+        if (eventsIndex != -1) {
+            val dialogueLines = lines.drop(eventsIndex + 1).filter { it.trim().startsWith("Dialogue:", ignoreCase = true) }
+            Log.d("PlayerSubtitles", "Found ${dialogueLines.size} Dialogue lines")
+            for (line in dialogueLines) {
+                try {
+                    // Dialogue: 0,0:00:28.57,0:00:30.40,Default,,0,0,0,,Text
+                    // Limit is 10 because the text part can contain commas
+                    val parts = line.split(",", limit = 10)
+                    if (parts.size >= 10) {
+                        val start = parseAssTimestamp(parts[1])
+                        val end = parseAssTimestamp(parts[2])
+                        // Strip ASS override tags like {\fn...} and handle \N (newline)
+                        val text = parts[9].replace(Regex("\\{[^}]*\\}"), "")
+                                       .replace("\\N", "\n")
+                                       .replace("\\n", "\n")
+                                       .replace("\\h", " ")
+                                       .trim()
+                        if (text.isNotEmpty()) {
+                            cues.add(SubtitleCue(start, end, text))
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Skip malformed lines
+                }
+            }
+        }
+    } else {
+        Log.i("PlayerSubtitles", "Detected SRT/VTT format")
+        val timestampRegex = Regex("(\\d{2}:\\d{2}:\\d{2}[,.]\\d{3})\\s*-->\\s*(\\d{2}:\\d{2}:\\d{2}[,.]\\d{3})")
+        val blocks = cleanContent.split(Regex("\\n\\s*\\n")).filter { it.isNotBlank() }
+        
+        for (block in blocks) {
+            val lines = block.lines().filter { it.isNotBlank() }
+            val match = timestampRegex.find(block)
+            
+            if (match != null) {
+                val start = parseTimestamp(match.groupValues[1])
+                val end = parseTimestamp(match.groupValues[2])
+                
+                val textLines = lines.dropWhile { !it.contains("-->") }.drop(1)
+                val textRaw = textLines.joinToString("\n").trim()
+                
+                if (textRaw.isNotEmpty()) {
+                    val cleanedText = textRaw.replace(Regex("<[^>]*>"), "").trim()
+                    if (cleanedText.isNotEmpty()) {
+                        cues.add(SubtitleCue(start, end, cleanedText))
+                    }
+                }
+            }
+        }
+    }
+    
+    if (cues.isNotEmpty()) {
+        Log.i("PlayerSubtitles", "Successfully parsed ${cues.size} cues. First: ${cues.first().text}")
+    } else {
+        Log.w("PlayerSubtitles", "Parsed 0 cues from content length: ${cleanContent.length}")
+    }
+    return cues
+}
+
+private fun parseAssTimestamp(ts: String): Long {
+    try {
+        val parts = ts.trim().split(':')
+        if (parts.size < 3) return 0L
+        val h = parts[0].toLongOrNull() ?: 0L
+        val m = parts[1].toLongOrNull() ?: 0L
+        val sParts = parts[2].split('.')
+        val s = sParts[0].toLongOrNull() ?: 0L
+        val ms = if (sParts.size > 1) {
+            // ASS usually has 2 decimals, e.g. .57 -> 570ms
+            val msStr = sParts[1].padEnd(3, '0').take(3)
+            msStr.toLongOrNull() ?: 0L
+        } else 0L
+        return (h * 3600 + m * 60 + s) * 1000 + ms
+    } catch (e: Exception) {
+        return 0L
+    }
+}
+
+private fun parseTimestamp(ts: String): Long {
+    val clean = ts.replace(',', '.')
+    val parts = clean.split(':')
+    if (parts.size < 3) return 0L
+    
+    val secondsParts = parts[2].split('.')
+    
+    val h = parts[0].toLongOrNull() ?: 0L
+    val m = parts[1].toLongOrNull() ?: 0L
+    val s = secondsParts[0].toLongOrNull() ?: 0L
+    val ms = if (secondsParts.size > 1) {
+        secondsParts[1].padEnd(3, '0').take(3).toLongOrNull() ?: 0L
+    } else 0L
+    
+    return (h * 3600 + m * 60 + s) * 1000 + ms
 }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -53,6 +54,8 @@ import com.ivor.openanime.data.remote.model.AnimeDetailsDto
 import com.ivor.openanime.data.remote.model.SeasonDto
 import com.ivor.openanime.data.remote.model.EpisodeDto
 
+import com.ivor.openanime.presentation.components.ExpressiveBackButton
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetailsScreen(
@@ -64,25 +67,18 @@ fun DetailsScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {}, // Transparent title
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White // Force white for visibility over image
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent
-                )
-            )
-        }
+        // Remove topBar to let content go under status bar
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
+            // Success/Content State... (Details logic follows)
+            // Overlay Back Button
+            ExpressiveBackButton(
+                onClick = onBackClick,
+                modifier = Modifier
+                    .statusBarsPadding()
+                    .padding(8.dp)
+                    .align(Alignment.TopStart)
+            )
             when (val state = uiState) {
                 is DetailsUiState.Loading -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

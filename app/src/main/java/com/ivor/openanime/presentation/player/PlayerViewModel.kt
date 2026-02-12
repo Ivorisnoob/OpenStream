@@ -53,7 +53,11 @@ class PlayerViewModel @Inject constructor(
 
             // Fetch subtitles independently
             try {
-                val jsonElement = subtitleApi.searchSubtitles(tmdbId)
+                val jsonElement = if (mediaType == "tv") {
+                    subtitleApi.searchSubtitles(tmdbId, seasonNumber, currentEpisodeNumber)
+                } else {
+                    subtitleApi.searchSubtitles(tmdbId)
+                }
                 val json = Json { ignoreUnknownKeys = true }
                 
                 val subs = when (jsonElement) {

@@ -10,5 +10,7 @@ data class SubtitleDto(
     @SerialName("display") val display: String? = null,
     @SerialName("language") val language: String? = null,
     @SerialName("isHearingImpaired") val isHearingImpaired: Boolean = false,
-    @SerialName("source") val source: String? = null
+    @SerialName("source") val source: String? = null,
+    @SerialName("release") val release: String? = null,
+    @SerialName("origin") val origin: String? = null
 )

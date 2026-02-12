@@ -19,7 +19,19 @@ interface TmdbApi {
     ): TmdbResponse<AnimeDto>
 
     @GET("search/multi")
-    suspend fun searchAnime(
+    suspend fun searchMulti(
+        @Query("query") query: String,
+        @Query("page") page: Int = 1
+    ): TmdbResponse<AnimeDto>
+
+    @GET("search/movie")
+    suspend fun searchMovie(
+        @Query("query") query: String,
+        @Query("page") page: Int = 1
+    ): TmdbResponse<AnimeDto>
+
+    @GET("search/tv")
+    suspend fun searchTv(
         @Query("query") query: String,
         @Query("page") page: Int = 1
     ): TmdbResponse<AnimeDto>

@@ -14,17 +14,23 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.HighQuality
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.HourglassBottom
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -65,7 +71,9 @@ data class SubtitleOption(
     val label: String,
     val trackIndex: Int,
     val groupIndex: Int,
-    val isDisabled: Boolean = false
+    val isDisabled: Boolean = false,
+    val url: String? = null,
+    val subLabel: String? = null
 )
 
 private enum class SettingsPage {
@@ -85,7 +93,8 @@ fun PlayerSettingsSheet(
     onSpeedSelected: (Float) -> Unit,
     subtitleOptions: List<SubtitleOption>,
     selectedSubtitle: SubtitleOption?,
-    onSubtitleSelected: (SubtitleOption?) -> Unit
+    onSubtitleSelected: (SubtitleOption?) -> Unit,
+    subtitleLoadingState: SubtitleLoadingState = SubtitleLoadingState.IDLE
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var currentPage by remember { mutableStateOf(SettingsPage.MAIN) }
@@ -146,6 +155,7 @@ fun PlayerSettingsSheet(
                         onSubtitleSelected(option)
                         currentPage = SettingsPage.MAIN
                     },
+                    loadingState = subtitleLoadingState,
                     onBack = { currentPage = SettingsPage.MAIN }
                 )
             }
@@ -331,6 +341,7 @@ private fun SubtitleSettingsMenu(
     options: List<SubtitleOption>,
     selected: SubtitleOption?,
     onSelect: (SubtitleOption?) -> Unit,
+    loadingState: SubtitleLoadingState,
     onBack: () -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -350,7 +361,7 @@ private fun SubtitleSettingsMenu(
         sortedOptions.filter { it.label.contains(searchQuery, ignoreCase = true) }
     }
 
-    Column(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.7f)) {
+    Column(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.8f)) {
         SubPageHeader(title = "Subtitles / CC", onBack = onBack)
 
         // Search Bar
@@ -411,13 +422,44 @@ private fun SubtitleSettingsMenu(
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                         )
                     },
+                    supportingContent = option.subLabel?.let { 
+                        { Text(text = it, style = MaterialTheme.typography.labelSmall) }
+                    },
                     trailingContent = {
-                        if (isSelected) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = "Selected",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (isSelected) {
+                                when (loadingState) {
+                                    SubtitleLoadingState.LOADING -> {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    SubtitleLoadingState.ERROR -> {
+                                        Icon(
+                                            imageVector = Icons.Default.Error,
+                                            contentDescription = "Error",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    else -> {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Selected",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                            } else if (option.url != null) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudDownload,
+                                    contentDescription = "Sideloadable",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
                     },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),

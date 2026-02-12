@@ -37,6 +37,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.SearchBarValue
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSearchBarState
 import androidx.compose.runtime.Composable
@@ -52,6 +55,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ivor.openanime.presentation.home.AnimeCard
 import kotlinx.coroutines.launch
+
+import com.ivor.openanime.presentation.components.ExpressiveBackButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,13 +96,11 @@ fun SearchScreen(
             },
             leadingIcon = {
                 if (searchBarState.currentValue == SearchBarValue.Expanded) {
-                    IconButton(
+                    ExpressiveBackButton(
                         onClick = {
                             scope.launch { searchBarState.animateToCollapsed() }
                         }
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
+                    )
                 } else {
                     Icon(Icons.Default.Search, contentDescription = null)
                 }
@@ -124,12 +127,7 @@ fun SearchScreen(
                 state = searchBarState,
                 inputField = inputField,
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Navigate back"
-                        )
-                    }
+                    ExpressiveBackButton(onClick = onBackClick)
                 },
             )
             ExpandedFullScreenSearchBar(
@@ -197,15 +195,43 @@ fun SearchScreen(
             }
         }
     ) { innerPadding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            when {
-                uiState.isLoading -> {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            SingleChoiceSegmentedButtonRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                SearchFilter.entries.forEachIndexed { index, filter ->
+                    SegmentedButton(
+                        selected = uiState.filter == filter,
+                        onClick = { viewModel.onFilterSelected(filter) },
+                        shape = SegmentedButtonDefaults.itemShape(
+                            index = index,
+                            count = SearchFilter.entries.size
+                        ),
+                        label = {
+                            Text(
+                                when (filter) {
+                                    SearchFilter.ALL -> "All"
+                                    SearchFilter.MOVIE -> "Movies"
+                                    SearchFilter.TV -> "TV Shows"
+                                }
+                            )
+                        }
+                    )
                 }
+            }
+            Box(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                when {
+                    uiState.isLoading -> {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    }
                 uiState.error != null -> {
                     Column(
                         modifier = Modifier.align(Alignment.Center),
@@ -225,7 +251,7 @@ fun SearchScreen(
                     }
                 }
                 uiState.searchResults.isNotEmpty() -> {
-                    AnimatedVisibility(
+                    androidx.compose.animation.AnimatedVisibility(
                         visible = true,
                         enter = fadeIn() + slideInVertically { it / 3 },
                     ) {
@@ -265,4 +291,5 @@ fun SearchScreen(
             }
         }
     }
+}
 }

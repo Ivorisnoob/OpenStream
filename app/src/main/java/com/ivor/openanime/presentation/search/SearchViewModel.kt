@@ -15,12 +15,17 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 
+enum class SearchFilter {
+    ALL, MOVIE, TV
+}
+
 data class SearchUiState(
     val query: String = "",
     val history: List<String> = emptyList(),
     val searchResults: List<AnimeDto> = emptyList(),
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val filter: SearchFilter = SearchFilter.ALL
 )
 
 @HiltViewModel
@@ -49,14 +54,32 @@ class SearchViewModel @Inject constructor(
         }
     }
 
+    fun onFilterSelected(filter: SearchFilter) {
+        if (_uiState.value.filter == filter) return
+        _uiState.update { it.copy(filter = filter) }
+        val query = _uiState.value.query
+        if (query.isNotBlank()) {
+            performSearch(query)
+        }
+    }
+
     fun onSearch(query: String) {
         if (query.isBlank()) return
-
         saveToHistory(query)
+        performSearch(query)
+    }
+
+    private fun performSearch(query: String) {
         _uiState.update { it.copy(query = query, isLoading = true, error = null) }
 
+        val filterString = when (_uiState.value.filter) {
+            SearchFilter.ALL -> "all"
+            SearchFilter.MOVIE -> "movie"
+            SearchFilter.TV -> "tv"
+        }
+
         viewModelScope.launch {
-            repository.searchAnime(query, 1).fold(
+            repository.searchAnime(query, 1, filterString).fold(
                 onSuccess = { animeList ->
                     _uiState.update { it.copy(isLoading = false, searchResults = animeList) }
                 },

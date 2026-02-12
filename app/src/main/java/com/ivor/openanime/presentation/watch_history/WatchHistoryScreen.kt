@@ -39,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ivor.openanime.presentation.home.AnimeCard
 
+import com.ivor.openanime.presentation.components.ExpressiveBackButton
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun WatchHistoryScreen(
@@ -71,12 +73,7 @@ fun WatchHistoryScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
-                    }
+                    ExpressiveBackButton(onClick = onBackClick)
                 },
                 actions = {
                     if (uiState.history.isNotEmpty()) {

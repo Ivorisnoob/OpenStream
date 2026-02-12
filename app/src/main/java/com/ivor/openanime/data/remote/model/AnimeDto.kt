@@ -15,7 +15,8 @@ data class AnimeDto(
     @SerialName("release_date") val releaseDate: String? = null,
     @SerialName("vote_average") val voteAverage: Double? = null,
     @SerialName("genre_ids") val genreIds: List<Int>? = null,
-    @SerialName("media_type") val mediaType: String? = "tv"
+    @SerialName("media_type") val mediaType: String? = "tv",
+    @SerialName("original_language") val originalLanguage: String? = null
 ) {
     val name: String
         get() = movieTitle ?: tvName ?: ""
@@ -48,6 +49,21 @@ data class AnimeDetailsDto(
 
     val date: String
         get() = releaseDate ?: firstAirDate ?: ""
+}
+
+fun AnimeDetailsDto.toAnimeDto(mediaType: String): AnimeDto {
+    return AnimeDto(
+        id = id,
+        tvName = tvName,
+        movieTitle = movieTitle,
+        overview = overview,
+        posterPath = posterPath,
+        backdropPath = backdropPath,
+        firstAirDate = firstAirDate,
+        releaseDate = releaseDate,
+        voteAverage = voteAverage,
+        mediaType = mediaType
+    )
 }
 
 @Serializable
