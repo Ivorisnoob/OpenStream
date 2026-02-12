@@ -1,9 +1,9 @@
 package com.ivor.openanime.presentation.watch_history
 
-import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ivor.openanime.data.remote.model.AnimeDto
+import com.ivor.openanime.domain.repository.AnimeRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,46 +21,43 @@ data class WatchHistoryUiState(
 
 @HiltViewModel
 class WatchHistoryViewModel @Inject constructor(
-    private val sharedPreferences: SharedPreferences,
-    private val json: Json
+    private val repository: AnimeRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(WatchHistoryUiState())
     val uiState: StateFlow<WatchHistoryUiState> = _uiState.asStateFlow()
-
-    private val HISTORY_KEY = "watch_history_list"
 
     init {
         loadHistory()
     }
 
     private fun loadHistory() {
-        _uiState.update { it.copy(isLoading = true) }
-        val historyJson = sharedPreferences.getString(HISTORY_KEY, "[]") ?: "[]"
-        try {
-            val historyList = json.decodeFromString<List<AnimeDto>>(historyJson)
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            val historyList = repository.getWatchHistory()
             _uiState.update { it.copy(history = historyList, isLoading = false) }
-        } catch (e: Exception) {
-            _uiState.update { it.copy(history = emptyList(), isLoading = false) }
         }
     }
 
     fun clearHistory() {
-        _uiState.update { it.copy(history = emptyList()) }
-        sharedPreferences.edit().remove(HISTORY_KEY).apply()
+        viewModelScope.launch {
+            repository.clearWatchHistory()
+            _uiState.update { it.copy(history = emptyList()) }
+        }
     }
     
     fun removeFromHistory(animeId: Int) {
-        val currentList = _uiState.value.history.toMutableList()
-        currentList.removeIf { it.id == animeId }
-        _uiState.update { it.copy(history = currentList) }
-        saveHistory(currentList)
-    }
-    
-    private fun saveHistory(list: List<AnimeDto>) {
         viewModelScope.launch {
-            val jsonString = json.encodeToString(list)
-            sharedPreferences.edit().putString(HISTORY_KEY, jsonString).apply()
+            // Re-use clear logic or add a remove method to repository
+            val history = repository.getWatchHistory().toMutableList()
+            history.removeIf { it.id == animeId }
+            // Currently repo only has addToHistory which overwrites/adds. 
+            // We can just clear and re-add or better, just leave it as is if repo handles duplicates.
+            // Actually, I'll just clear and re-add for now or add a remove method if needed.
+            // But repo.addToHistory already handles duplicates by removing first.
+            repository.clearWatchHistory()
+            history.forEach { repository.addToWatchHistory(it) }
+            _uiState.update { it.copy(history = history) }
         }
     }
 }

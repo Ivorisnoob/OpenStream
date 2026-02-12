@@ -11,4 +11,9 @@ interface AnimeRepository {
     suspend fun getMovieDetails(id: Int): Result<AnimeDetailsDto>
     suspend fun getMediaDetails(id: Int, mediaType: String): Result<AnimeDetailsDto>
     suspend fun getSeasonDetails(animeId: Int, seasonNumber: Int): Result<SeasonDetailsDto>
+    
+    // Watch History
+    suspend fun addToWatchHistory(anime: AnimeDto)
+    suspend fun getWatchHistory(): List<AnimeDto>
+    suspend fun clearWatchHistory()
 }

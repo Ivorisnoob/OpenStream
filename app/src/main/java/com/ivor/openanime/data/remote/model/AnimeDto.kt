@@ -51,6 +51,21 @@ data class AnimeDetailsDto(
         get() = releaseDate ?: firstAirDate ?: ""
 }
 
+fun AnimeDetailsDto.toAnimeDto(mediaType: String): AnimeDto {
+    return AnimeDto(
+        id = id,
+        tvName = tvName,
+        movieTitle = movieTitle,
+        overview = overview,
+        posterPath = posterPath,
+        backdropPath = backdropPath,
+        firstAirDate = firstAirDate,
+        releaseDate = releaseDate,
+        voteAverage = voteAverage,
+        mediaType = mediaType
+    )
+}
+
 @Serializable
 data class SeasonDto(
     @SerialName("id") val id: Int,

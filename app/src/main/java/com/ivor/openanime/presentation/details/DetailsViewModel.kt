@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ivor.openanime.data.remote.model.AnimeDetailsDto
 import com.ivor.openanime.data.remote.model.SeasonDetailsDto
+import com.ivor.openanime.data.remote.model.toAnimeDto
 import com.ivor.openanime.domain.repository.AnimeRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,8 +36,11 @@ class DetailsViewModel @Inject constructor(
             repository.getMediaDetails(animeId, mediaType)
                 .onSuccess { details ->
                     _uiState.value = DetailsUiState.Success(details)
-                    // Load the first season by default - usually season 1 or the first in list
-                    // Filter out season 0 (Specials) if desired, but for now just take first.
+                    // Add to watch history
+                    viewModelScope.launch {
+                        repository.addToWatchHistory(details.toAnimeDto(mediaType))
+                    }
+                    // Load the first season by default
                     details.seasons?.let { seasons ->
                         val defaultSeason = seasons.find { it.seasonNumber == 1 } ?: seasons.firstOrNull()
                         defaultSeason?.let { season ->

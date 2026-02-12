@@ -94,14 +94,18 @@ fun ExoPlayerView(
     var manualCues by remember { mutableStateOf<List<SubtitleCue>>(emptyList()) }
     var subtitleLoadingState by remember { mutableStateOf<SubtitleLoadingState>(SubtitleLoadingState.IDLE) }
 
-    // Fetch and parse external subtitles for manual sync support
+    // Reset subtitle state when switching videos
+    LaunchedEffect(videoUrl) {
+        selectedSubtitle = null
+        manualCues = emptyList()
+        currentSubtitleText = ""
+        subtitleLoadingState = SubtitleLoadingState.IDLE
+    }
+
     LaunchedEffect(selectedSubtitle) {
         val urlStr = selectedSubtitle?.url
         if (urlStr != null) {
             subtitleLoadingState = SubtitleLoadingState.LOADING
-            withContext(Dispatchers.Main) {
-                android.widget.Toast.makeText(context, "Loading external subtitles...", android.widget.Toast.LENGTH_SHORT).show()
-            }
             withContext(Dispatchers.IO) {
                 try {
                     val url = java.net.URL(urlStr)
@@ -125,31 +129,16 @@ fun ExoPlayerView(
                     manualCues = parseSubtitles(raw)
                     subtitleLoadingState = if (manualCues.isNotEmpty()) SubtitleLoadingState.SUCCESS else SubtitleLoadingState.ERROR
                     
-                    withContext(Dispatchers.Main) {
-                        if (manualCues.isNotEmpty()) {
-                            android.widget.Toast.makeText(context, "Matched & Loaded: ${manualCues.size} lines", android.widget.Toast.LENGTH_SHORT).show()
-                        } else {
-                            android.widget.Toast.makeText(context, "Failed to parse downloaded content", android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                    }
                     Log.i("PlayerSubtitles", "Parsed ${manualCues.size} cues for manual sync")
                 } catch (e: Exception) {
                     Log.e("PlayerSubtitles", "Failed to parse sideloaded subtitles: ${e.message}")
                     manualCues = emptyList()
                     subtitleLoadingState = SubtitleLoadingState.ERROR
-                    withContext(Dispatchers.Main) {
-                        android.widget.Toast.makeText(context, "Subtitle error: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
-                    }
                 }
             }
         } else {
             manualCues = emptyList()
             subtitleLoadingState = SubtitleLoadingState.IDLE
-            if (selectedSubtitle != null) {
-                withContext(Dispatchers.Main) {
-                    android.widget.Toast.makeText(context, "Using embedded subtitles", android.widget.Toast.LENGTH_SHORT).show()
-                }
-            }
         }
     }
 
