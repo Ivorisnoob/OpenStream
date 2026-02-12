@@ -50,7 +50,12 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import java.net.URL
 
 @OptIn(UnstableApi::class)
 @kotlin.OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -86,6 +91,36 @@ fun ExoPlayerView(
 
     // Subtitle rendering state -- rendered in Compose, not PlayerView
     var currentSubtitleText by remember { mutableStateOf("") }
+    var manualCues by remember { mutableStateOf<List<SubtitleCue>>(emptyList()) }
+    var subtitleLoadingState by remember { mutableStateOf<SubtitleLoadingState>(SubtitleLoadingState.IDLE) }
+
+    // Fetch and parse external subtitles for manual sync support
+    LaunchedEffect(selectedSubtitle) {
+        val urlStr = selectedSubtitle?.url
+        if (urlStr != null) {
+            subtitleLoadingState = SubtitleLoadingState.LOADING
+            withContext(Dispatchers.IO) {
+                try {
+                    val url = java.net.URL(urlStr)
+                    val connection = url.openConnection() as java.net.HttpURLConnection
+                    connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                    connection.setRequestProperty("Referer", "https://www.vidking.net/")
+                    
+                    val raw = connection.inputStream.bufferedReader().use { it.readText() }
+                    manualCues = parseSubtitles(raw)
+                    subtitleLoadingState = SubtitleLoadingState.SUCCESS
+                    Log.i("PlayerSubtitles", "Parsed ${manualCues.size} cues for manual sync")
+                } catch (e: Exception) {
+                    Log.e("PlayerSubtitles", "Failed to parse sideloaded subtitles: ${e.message}")
+                    manualCues = emptyList()
+                    subtitleLoadingState = SubtitleLoadingState.ERROR
+                }
+            }
+        } else {
+            manualCues = emptyList()
+            subtitleLoadingState = SubtitleLoadingState.IDLE
+        }
+    }
 
     val trackSelector = remember { 
         DefaultTrackSelector(context).apply {
@@ -173,7 +208,9 @@ fun ExoPlayerView(
                             SubtitleOption(
                                 label = label,
                                 trackIndex = trackIndex,
-                                groupIndex = groupIndex
+                                groupIndex = groupIndex,
+                                url = remoteMatch?.url,
+                                subLabel = remoteMatch?.let { "${it.release ?: ""} (${it.source ?: ""})".trim() }.takeIf { it?.isNotEmpty() == true }
                             )
                         )
                     }
@@ -274,7 +311,7 @@ fun ExoPlayerView(
             if (exoPlayer.isPlaying && isBuffering) {
                 isBuffering = false
             }
-            delay(500)
+            delay(200)
         }
     }
 
@@ -371,7 +408,15 @@ fun ExoPlayerView(
         )
 
         // Compose-rendered subtitles -- always on top of video, below controls
-        if (currentSubtitleText.isNotEmpty()) {
+        val displaySubtitleText = remember(currentTime, currentSubtitleText, manualCues) {
+            if (manualCues.isNotEmpty()) {
+                manualCues.find { currentTime in it.startMs..it.endMs }?.text ?: ""
+            } else {
+                currentSubtitleText
+            }
+        }
+
+        if (displaySubtitleText.isNotEmpty()) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -380,7 +425,7 @@ fun ExoPlayerView(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = currentSubtitleText,
+                    text = displaySubtitleText,
                     style = TextStyle(
                         color = Color.White,
                         fontSize = if (isFullscreen) 18.sp else 16.sp,
@@ -524,7 +569,56 @@ fun ExoPlayerView(
                 }
                 // Always force play after parameter change to avoid "stuck on pause"
                 exoPlayer.play()
-            }
+            },
+            subtitleLoadingState = subtitleLoadingState
         )
     }
+}
+
+enum class SubtitleLoadingState {
+    IDLE,
+    LOADING,
+    SUCCESS,
+    ERROR
+}
+
+data class SubtitleCue(val startMs: Long, val endMs: Long, val text: String)
+
+private fun parseSubtitles(content: String): List<SubtitleCue> {
+    val cues = mutableListOf<SubtitleCue>()
+    val timestampRegex = Regex("(\\d{2}:\\d{2}:\\d{2}[,.]\\d{3})\\s*-->\\s*(\\d{2}:\\d{2}:\\d{2}[,.]\\d{3})")
+    
+    // Split into blocks by double newlines or multiple newlines
+    val blocks = content.split(Regex("\\n\\s*\\n"))
+    for (block in blocks) {
+        val match = timestampRegex.find(block)
+        if (match != null) {
+            val start = parseTimestamp(match.groupValues[1])
+            val end = parseTimestamp(match.groupValues[2])
+            
+            // Text is everything after the timestamp line
+            val textRaw = block.substring(match.range.last + 1).trim()
+            if (textRaw.isNotEmpty()) {
+                cues.add(SubtitleCue(start, end, textRaw))
+            }
+        }
+    }
+    return cues
+}
+
+private fun parseTimestamp(ts: String): Long {
+    val clean = ts.replace(',', '.')
+    val parts = clean.split(':')
+    if (parts.size < 3) return 0L
+    
+    val secondsParts = parts[2].split('.')
+    
+    val h = parts[0].toLongOrNull() ?: 0L
+    val m = parts[1].toLongOrNull() ?: 0L
+    val s = secondsParts[0].toLongOrNull() ?: 0L
+    val ms = if (secondsParts.size > 1) {
+        secondsParts[1].padEnd(3, '0').take(3).toLongOrNull() ?: 0L
+    } else 0L
+    
+    return (h * 3600 + m * 60 + s) * 1000 + ms
 }

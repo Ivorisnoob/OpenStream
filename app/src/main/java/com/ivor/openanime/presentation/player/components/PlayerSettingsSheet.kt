@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.HighQuality
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -65,7 +66,9 @@ data class SubtitleOption(
     val label: String,
     val trackIndex: Int,
     val groupIndex: Int,
-    val isDisabled: Boolean = false
+    val isDisabled: Boolean = false,
+    val url: String? = null,
+    val subLabel: String? = null
 )
 
 private enum class SettingsPage {
@@ -350,7 +353,7 @@ private fun SubtitleSettingsMenu(
         sortedOptions.filter { it.label.contains(searchQuery, ignoreCase = true) }
     }
 
-    Column(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.7f)) {
+    Column(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.8f)) {
         SubPageHeader(title = "Subtitles / CC", onBack = onBack)
 
         // Search Bar
@@ -410,6 +413,9 @@ private fun SubtitleSettingsMenu(
                             text = option.label,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                         )
+                    },
+                    supportingContent = option.subLabel?.let { 
+                        { Text(text = it, style = MaterialTheme.typography.labelSmall) }
                     },
                     trailingContent = {
                         if (isSelected) {
