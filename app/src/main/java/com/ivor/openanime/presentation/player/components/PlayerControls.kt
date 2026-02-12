@@ -3,6 +3,7 @@ package com.ivor.openanime.presentation.player.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import com.ivor.openanime.presentation.components.ExpressiveBackButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -99,13 +100,11 @@ fun PlayerControls(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onBackClick) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = Color.White
-                            )
-                        }
+                        ExpressiveBackButton(
+                            onClick = onBackClick,
+                            containerColor = Color.Transparent, // Already inside a gradient background
+                            contentColor = Color.White
+                        )
                         Text(
                             text = title,
                             style = MaterialTheme.typography.titleMedium,

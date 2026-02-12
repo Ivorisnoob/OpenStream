@@ -56,6 +56,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.ivor.openanime.presentation.home.AnimeCard
 import kotlinx.coroutines.launch
 
+import com.ivor.openanime.presentation.components.ExpressiveBackButton
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
@@ -94,13 +96,11 @@ fun SearchScreen(
             },
             leadingIcon = {
                 if (searchBarState.currentValue == SearchBarValue.Expanded) {
-                    IconButton(
+                    ExpressiveBackButton(
                         onClick = {
                             scope.launch { searchBarState.animateToCollapsed() }
                         }
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
+                    )
                 } else {
                     Icon(Icons.Default.Search, contentDescription = null)
                 }
@@ -127,12 +127,7 @@ fun SearchScreen(
                 state = searchBarState,
                 inputField = inputField,
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Navigate back"
-                        )
-                    }
+                    ExpressiveBackButton(onClick = onBackClick)
                 },
             )
             ExpandedFullScreenSearchBar(

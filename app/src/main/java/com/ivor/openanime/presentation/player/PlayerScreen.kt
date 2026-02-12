@@ -68,6 +68,7 @@ import androidx.media3.common.util.UnstableApi
 import coil3.compose.AsyncImage
 import com.ivor.openanime.data.remote.model.SubtitleDto
 import com.ivor.openanime.presentation.player.components.ExoPlayerView
+import com.ivor.openanime.presentation.components.ExpressiveBackButton
 
 @SuppressLint("SetJavaScriptEnabled")
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -251,13 +252,11 @@ fun PlayerScreen(
                 ) {
                     // Back button visible during loading
                     Box(modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
-                        IconButton(onClick = onBackClick) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = Color.White
-                            )
-                        }
+                        ExpressiveBackButton(
+                            onClick = onBackClick,
+                            containerColor = Color.Black.copy(alpha = 0.5f),
+                            contentColor = Color.White
+                        )
                     }
                     
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
