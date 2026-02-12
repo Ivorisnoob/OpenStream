@@ -37,8 +37,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.ivor.openanime.presentation.home.AnimeCard
-
+import com.ivor.openanime.presentation.components.AnimeCard
 import com.ivor.openanime.presentation.components.ExpressiveBackButton
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
