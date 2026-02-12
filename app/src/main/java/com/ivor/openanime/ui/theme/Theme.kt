@@ -53,7 +53,29 @@ fun OpenAnimeTheme(
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        darkTheme -> DarkColorScheme
+        darkTheme -> expressiveLightColorScheme().copy(
+            primary = DarkColorScheme.primary,
+            onPrimary = DarkColorScheme.onPrimary,
+            primaryContainer = DarkColorScheme.primaryContainer,
+            onPrimaryContainer = DarkColorScheme.onPrimaryContainer,
+            secondary = DarkColorScheme.secondary,
+            onSecondary = DarkColorScheme.onSecondary,
+            secondaryContainer = DarkColorScheme.secondaryContainer,
+            onSecondaryContainer = DarkColorScheme.onSecondaryContainer,
+            tertiary = DarkColorScheme.tertiary,
+            onTertiary = DarkColorScheme.onTertiary,
+            tertiaryContainer = DarkColorScheme.tertiaryContainer,
+            onTertiaryContainer = DarkColorScheme.onTertiaryContainer,
+            error = DarkColorScheme.error,
+            onError = DarkColorScheme.onError,
+            errorContainer = DarkColorScheme.errorContainer,
+            onErrorContainer = DarkColorScheme.onErrorContainer,
+            surface = DarkColorScheme.surface,
+            onSurface = DarkColorScheme.onSurface,
+            surfaceVariant = DarkColorScheme.surfaceVariant,
+            onSurfaceVariant = DarkColorScheme.onSurfaceVariant,
+            outline = DarkColorScheme.outline,
+        )
         else -> expressiveLightColorScheme()
     }
 
