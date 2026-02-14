@@ -6,6 +6,8 @@ import com.ivor.openanime.data.remote.SubtitleApi
 import com.ivor.openanime.data.remote.TmdbApi
 import com.ivor.openanime.data.remote.model.EpisodeDto
 import com.ivor.openanime.data.remote.model.SubtitleDto
+import com.ivor.openanime.data.remote.model.toAnimeDto
+import com.ivor.openanime.domain.repository.AnimeRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,7 +21,8 @@ import javax.inject.Inject
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     private val tmdbApi: TmdbApi,
-    private val subtitleApi: SubtitleApi
+    private val subtitleApi: SubtitleApi,
+    private val repository: AnimeRepository // Injected Repository
 ) : ViewModel() {
 
     private val _nextEpisodes = MutableStateFlow<List<EpisodeDto>>(emptyList())
@@ -33,6 +36,22 @@ class PlayerViewModel @Inject constructor(
 
     fun loadSeasonDetails(mediaType: String, tmdbId: Int, seasonNumber: Int, currentEpisodeNumber: Int) {
         viewModelScope.launch {
+            // Save to History
+            launch {
+                try {
+                    val details = if (mediaType == "movie") {
+                        repository.getMovieDetails(tmdbId)
+                    } else {
+                        repository.getAnimeDetails(tmdbId)
+                    }
+                    details.onSuccess {
+                        repository.addToWatchHistory(it.toAnimeDto(mediaType))
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
             if (mediaType != "movie") {
                 _isLoadingEpisodes.value = true
                 try {
@@ -40,7 +59,6 @@ class PlayerViewModel @Inject constructor(
                     val seasonDetails = tmdbApi.getSeasonDetails(tmdbId, seasonNumber)
 
                     // Filter for episodes after the current one
-                    // We keep upcoming episodes.
                     _nextEpisodes.value = seasonDetails.episodes.filter { it.episodeNumber > currentEpisodeNumber }
                 } catch (e: Exception) {
                     e.printStackTrace()

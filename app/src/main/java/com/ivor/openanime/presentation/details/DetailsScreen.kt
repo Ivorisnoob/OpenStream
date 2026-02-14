@@ -2,33 +2,37 @@ package com.ivor.openanime.presentation.details
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -37,27 +41,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
-import com.ivor.openanime.ui.theme.ExpressiveShapes
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import com.ivor.openanime.data.remote.model.AnimeDetailsDto
-import com.ivor.openanime.data.remote.model.SeasonDto
 import com.ivor.openanime.data.remote.model.EpisodeDto
-
 import com.ivor.openanime.presentation.components.ExpressiveBackButton
+import com.ivor.openanime.ui.theme.ExpressiveShapes
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun DetailsScreen(
     mediaType: String,
@@ -67,11 +61,8 @@ fun DetailsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    Scaffold(
-        // Remove topBar to let content go under status bar
-    ) { innerPadding ->
+    Scaffold { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
-            // Success/Content State... (Details logic follows)
             // Overlay Back Button
             ExpressiveBackButton(
                 onClick = onBackClick,
@@ -97,14 +88,13 @@ fun DetailsScreen(
                     val isLoadingEpisodes = state.isLoadingEpisodes
                     
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        // Remove contentPadding here or handle it carefully with full-screen header
-                        // We want the image to go under the status bar, so no strict top padding here ideally
-                        // But innerPadding forces it. Let's ignore innerPadding top for image effect if edge-to-edge
+                        modifier = Modifier.fillMaxSize()
                     ) {
                         // Header Item
                         item {
-                            Box(modifier = Modifier.fillMaxWidth().height(400.dp)) {
+                            Box(modifier = Modifier
+                                .fillMaxWidth()
+                                .height(450.dp)) {
                                 AsyncImage(
                                     model = "https://image.tmdb.org/t/p/w1280${details.backdropPath ?: details.posterPath}",
                                     contentDescription = null,
@@ -117,9 +107,13 @@ fun DetailsScreen(
                                         .fillMaxSize()
                                         .background(
                                             Brush.verticalGradient(
-                                                colors = listOf(Color.Transparent, MaterialTheme.colorScheme.background),
+                                                colors = listOf(
+                                                    Color.Transparent,
+                                                    MaterialTheme.colorScheme.background.copy(alpha = 0.3f),
+                                                    MaterialTheme.colorScheme.background
+                                                ),
                                                 startY = 0f,
-                                                endY = 1000f
+                                                endY = Float.POSITIVE_INFINITY
                                             )
                                         )
                                 )
@@ -131,15 +125,40 @@ fun DetailsScreen(
                                 ) {
                                     Text(
                                         text = details.name,
-                                        style = MaterialTheme.typography.displaySmall,
+                                        style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold),
                                         color = MaterialTheme.colorScheme.onBackground
                                     )
+                                    if (!details.tagline.isNullOrEmpty()) {
+                                        Text(
+                                            text = "\"${details.tagline}\"",
+                                            style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                    }
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
-                                        text = "Rating: ${String.format("%.1f", details.voteAverage)} • ${details.date.take(4)}",
+                                        text = "Rating: ${String.format("%.1f", details.voteAverage)} • ${details.date.take(4)} • ${details.status ?: "Unknown"}",
                                         style = MaterialTheme.typography.labelLarge,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    // Genres
+                                    if (!details.genres.isNullOrEmpty()) {
+                                        FlowRow(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            details.genres.take(4).forEach { genre ->
+                                                AssistChip(
+                                                    onClick = { /* No-op */ },
+                                                    label = { Text(genre.name) },
+                                                    shape = ExpressiveShapes.small
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -149,10 +168,9 @@ fun DetailsScreen(
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Button(
                                     onClick = {
-                                        // Play logic: First episode of selected season, or S1E1 fallback
                                         val seasonNum = seasonDetails?.seasonNumber 
                                             ?: details.seasons?.firstOrNull()?.seasonNumber ?: 1
-                                        val episodeNum = 1 // Default to first episode
+                                        val episodeNum = 1
                                         onPlayClick(seasonNum, episodeNum)
                                     },
                                     shape = ExpressiveShapes.large,
@@ -171,6 +189,32 @@ fun DetailsScreen(
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+
+                                // Additional Metadata (Studios, etc.)
+                                if (!details.productionCompanies.isNullOrEmpty()) {
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text("Studios", style = MaterialTheme.typography.titleSmall)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        details.productionCompanies.forEach { company ->
+                                            Text(
+                                                text = company.name,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier
+                                                    .background(
+                                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                                                        ExpressiveShapes.extraSmall
+                                                    )
+                                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
                                 Spacer(modifier = Modifier.height(24.dp))
                             }
                         }
@@ -185,11 +229,11 @@ fun DetailsScreen(
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 LazyRow(
-                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
-                                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+                                    contentPadding = PaddingValues(horizontal = 16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     items(
-                                        items = details.seasons!!,
+                                        items = details.seasons,
                                         key = { it.seasonNumber }
                                     ) { season ->
                                         val isSelected = seasonDetails?.seasonNumber == season.seasonNumber
@@ -226,7 +270,6 @@ fun DetailsScreen(
                             }
                         }
                         
-                        // Bottom Padding for Navigation Bar
                         item {
                             Spacer(modifier = Modifier.height(innerPadding.calculateBottomPadding()))
                         }

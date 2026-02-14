@@ -24,6 +24,9 @@ import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,6 +58,7 @@ fun PlayerControls(
     onSeek: (Long) -> Unit,
     onForward: () -> Unit,
     onRewind: () -> Unit,
+    onNextClick: (() -> Unit)? = null,
     onSettingsClick: () -> Unit,
     onFullscreenToggle: () -> Unit = {},
     onBackClick: () -> Unit
@@ -168,6 +172,38 @@ fun PlayerControls(
                             tint = Color.White,
                             modifier = Modifier.fillMaxSize()
                         )
+                    }
+
+                    if (onNextClick != null) {
+                         IconButton(onClick = onNextClick, modifier = Modifier.size(sideIconSize)) {
+                            Icon(
+                                imageVector = Icons.Default.SkipNext,
+                                contentDescription = "Next Episode",
+                                tint = Color.White,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                }
+            }
+
+            // "Next Episode" Button Overlay (Bottom Right, above seekbar)
+            if (onNextClick != null && !isBuffering) {
+                 Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(bottom = 80.dp, end = 16.dp)
+                ) {
+                    Button(
+                        onClick = onNextClick,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                    ) {
+                        Text("Next Episode")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(Icons.Default.SkipNext, contentDescription = null)
                     }
                 }
             }

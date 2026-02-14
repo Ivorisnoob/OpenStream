@@ -67,7 +67,8 @@ fun ExoPlayerView(
     onFullscreenToggle: () -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
-    remoteSubtitles: List<SubtitleDto> = emptyList()
+    remoteSubtitles: List<SubtitleDto> = emptyList(),
+    onNextClick: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
 
@@ -515,6 +516,7 @@ fun ExoPlayerView(
                 currentTime = exoPlayer.currentPosition
                 areControlsVisible = true
             },
+            onNextClick = onNextClick,
             onSettingsClick = {
                 showSettingsSheet = true
                 areControlsVisible = false

@@ -157,6 +157,16 @@ fun PlayerScreen(
         }
     }
 
+    // Determine next episode click
+    val nextEpisode = nextEpisodes.firstOrNull { it.episodeNumber > episode }
+    val onNextClick: (() -> Unit)? = if (nextEpisode != null) {
+        {
+            videoUrl = null
+            sniffedSubtitles = emptyList()
+            onEpisodeClick(nextEpisode.episodeNumber)
+        }
+    } else null
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -188,7 +198,8 @@ fun PlayerScreen(
                         if (isFullscreen) exitFullscreen() else onBackClick()
                     },
                     modifier = Modifier.fillMaxSize(),
-                    remoteSubtitles = allSubtitles
+                    remoteSubtitles = allSubtitles,
+                    onNextClick = onNextClick
                 )
             } else {
                 // Invisible WebView for extraction

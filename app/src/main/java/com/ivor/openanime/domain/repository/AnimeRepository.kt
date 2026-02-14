@@ -6,6 +6,10 @@ import com.ivor.openanime.data.remote.model.SeasonDetailsDto
 
 interface AnimeRepository {
     suspend fun getPopularAnime(page: Int): Result<List<AnimeDto>>
+    suspend fun getTrendingAnime(timeWindow: String = "day", page: Int = 1): Result<List<AnimeDto>>
+    suspend fun getTopRatedAnime(page: Int = 1): Result<List<AnimeDto>>
+    suspend fun getAiringTodayAnime(page: Int = 1): Result<List<AnimeDto>>
+
     suspend fun searchAnime(query: String, page: Int, filter: String = "all"): Result<List<AnimeDto>>
     suspend fun getAnimeDetails(id: Int): Result<AnimeDetailsDto>
     suspend fun getMovieDetails(id: Int): Result<AnimeDetailsDto>

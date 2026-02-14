@@ -22,6 +22,18 @@ class AnimeRepositoryImpl @Inject constructor(
         api.getPopularAnime(page = page).results
     }
 
+    override suspend fun getTrendingAnime(timeWindow: String, page: Int): Result<List<AnimeDto>> = runCatching {
+        api.getTrendingAnime(timeWindow, page).results
+    }
+
+    override suspend fun getTopRatedAnime(page: Int): Result<List<AnimeDto>> = runCatching {
+        api.getTopRatedAnime(page).results
+    }
+
+    override suspend fun getAiringTodayAnime(page: Int): Result<List<AnimeDto>> = runCatching {
+        api.getAiringTodayAnime(page).results
+    }
+
     override suspend fun searchAnime(query: String, page: Int, filter: String): Result<List<AnimeDto>> = runCatching {
         when (filter) {
             "movie" -> api.searchMovie(query, page).results.map { it.copy(mediaType = "movie") }
