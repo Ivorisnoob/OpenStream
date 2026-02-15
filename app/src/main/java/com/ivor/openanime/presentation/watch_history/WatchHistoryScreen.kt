@@ -1,8 +1,14 @@
 package com.ivor.openanime.presentation.watch_history
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,12 +17,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -39,6 +46,33 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ivor.openanime.presentation.components.AnimeCard
 import com.ivor.openanime.presentation.components.ExpressiveBackButton
+
+// Expressive Motion Tokens (Spring approximations from M3 specs)
+// Source: https://m3.material.io/styles/motion/overview/specs
+
+// Spatial (Large movements)
+private val ExpressiveDefaultSpatial = CubicBezierEasing(0.38f, 1.21f, 0.22f, 1.00f) // 500ms
+private val ExpressiveDefaultEffects = CubicBezierEasing(0.34f, 0.80f, 0.34f, 1.00f) // 200ms
+
+private const val DurationSpatialDefault = 500
+private const val DurationEffectsDefault = 200
+
+private fun materialSharedAxisYIn(): ContentTransform {
+    return (slideInVertically(
+                animationSpec = tween(DurationSpatialDefault, easing = ExpressiveDefaultSpatial)
+            ) { height -> height / 2 } + 
+            fadeIn(
+                animationSpec = tween(DurationEffectsDefault, delayMillis = 50, easing = ExpressiveDefaultEffects)
+            ))
+        .togetherWith(
+            slideOutVertically(
+                animationSpec = tween(DurationSpatialDefault, easing = ExpressiveDefaultSpatial)
+            ) { height -> -height / 2 } + 
+            fadeOut(
+                animationSpec = tween(DurationEffectsDefault, easing = ExpressiveDefaultEffects)
+            )
+        )
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -88,58 +122,73 @@ fun WatchHistoryScreen(
             )
         }
     ) { innerPadding ->
-        Box(
+        
+        val contentState = when {
+            uiState.isLoading -> WatchHistoryContentState.Loading
+            uiState.history.isEmpty() -> WatchHistoryContentState.Empty
+            else -> WatchHistoryContentState.Content
+        }
+
+        AnimatedContent(
+            targetState = contentState,
+            transitionSpec = { materialSharedAxisYIn() },
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            if (uiState.isLoading) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    LoadingIndicator()
-                }
-            } else {
-                AnimatedVisibility(
-                    visible = uiState.history.isNotEmpty(),
-                    enter = fadeIn(),
-                    exit = fadeOut()
-                ) {
-                    LazyVerticalStaggeredGrid(
-                        columns = StaggeredGridCells.Fixed(2),
-                        contentPadding = PaddingValues(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalItemSpacing = 16.dp,
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        items(uiState.history, key = { it.id }) { anime ->
-                            AnimeCard(
-                                anime = anime,
-                                onClick = { onAnimeClick(anime.id, anime.mediaType ?: "tv") }
+                .padding(innerPadding),
+            label = "WatchHistoryContent"
+        ) { state ->
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (state) {
+                    WatchHistoryContentState.Loading -> {
+                        LoadingIndicator(modifier = Modifier.align(Alignment.Center))
+                    }
+                    WatchHistoryContentState.Empty -> {
+                        Column(
+                            modifier = Modifier.align(Alignment.Center),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.History,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "No history yet",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Titles you watch will appear here",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
-                }
-
-                if (uiState.history.isEmpty() && !uiState.isLoading) {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "No history yet",
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Titles you watch will appear here",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    WatchHistoryContentState.Content -> {
+                        LazyVerticalStaggeredGrid(
+                            columns = StaggeredGridCells.Fixed(2),
+                            contentPadding = PaddingValues(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalItemSpacing = 16.dp,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            items(uiState.history, key = { it.id }) { anime ->
+                                AnimeCard(
+                                    anime = anime,
+                                    onClick = { onAnimeClick(anime.id, anime.mediaType ?: "tv") }
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
     }
+}
+
+private enum class WatchHistoryContentState {
+    Loading, Empty, Content
 }
