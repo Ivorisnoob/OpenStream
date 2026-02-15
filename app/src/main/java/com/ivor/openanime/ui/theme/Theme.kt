@@ -17,30 +17,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private val DarkColorScheme = darkColorScheme(
-    primary = PrimaryDark,
-    onPrimary = OnPrimaryDark,
-    primaryContainer = PrimaryContainerDark,
-    onPrimaryContainer = OnPrimaryContainerDark,
-    secondary = SecondaryDark,
-    onSecondary = OnSecondaryDark,
-    secondaryContainer = SecondaryContainerDark,
-    onSecondaryContainer = OnSecondaryContainerDark,
-    tertiary = TertiaryDark,
-    onTertiary = OnTertiaryDark,
-    tertiaryContainer = TertiaryContainerDark,
-    onTertiaryContainer = OnTertiaryContainerDark,
-    error = ErrorDark,
-    onError = OnErrorDark,
-    errorContainer = ErrorContainerDark,
-    onErrorContainer = OnErrorContainerDark,
-    surface = SurfaceDark,
-    onSurface = OnSurfaceDark,
-    surfaceVariant = SurfaceVariantDark,
-    onSurfaceVariant = OnSurfaceVariantDark,
-    outline = OutlineDark,
-)
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun OpenAnimeTheme(
@@ -53,30 +29,52 @@ fun OpenAnimeTheme(
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        darkTheme -> expressiveLightColorScheme().copy(
-            primary = DarkColorScheme.primary,
-            onPrimary = DarkColorScheme.onPrimary,
-            primaryContainer = DarkColorScheme.primaryContainer,
-            onPrimaryContainer = DarkColorScheme.onPrimaryContainer,
-            secondary = DarkColorScheme.secondary,
-            onSecondary = DarkColorScheme.onSecondary,
-            secondaryContainer = DarkColorScheme.secondaryContainer,
-            onSecondaryContainer = DarkColorScheme.onSecondaryContainer,
-            tertiary = DarkColorScheme.tertiary,
-            onTertiary = DarkColorScheme.onTertiary,
-            tertiaryContainer = DarkColorScheme.tertiaryContainer,
-            onTertiaryContainer = DarkColorScheme.onTertiaryContainer,
-            error = DarkColorScheme.error,
-            onError = DarkColorScheme.onError,
-            errorContainer = DarkColorScheme.errorContainer,
-            onErrorContainer = DarkColorScheme.onErrorContainer,
-            surface = DarkColorScheme.surface,
-            onSurface = DarkColorScheme.onSurface,
-            surfaceVariant = DarkColorScheme.surfaceVariant,
-            onSurfaceVariant = DarkColorScheme.onSurfaceVariant,
-            outline = DarkColorScheme.outline,
+        darkTheme -> darkColorScheme(
+            primary = VibrantPrimaryDark,
+            onPrimary = OnPrimaryDark,
+            primaryContainer = VibrantPrimaryContainerDark,
+            onPrimaryContainer = OnPrimaryContainerDark,
+            secondary = VibrantSecondaryDark,
+            onSecondary = OnSecondaryDark,
+            secondaryContainer = VibrantSecondaryContainerDark,
+            onSecondaryContainer = OnSecondaryContainerDark,
+            tertiary = VibrantTertiaryDark,
+            onTertiary = OnTertiaryDark,
+            tertiaryContainer = VibrantTertiaryContainerDark,
+            onTertiaryContainer = OnTertiaryContainerDark,
+            error = ErrorDark,
+            onError = OnErrorDark,
+            errorContainer = ErrorContainerDark,
+            onErrorContainer = OnErrorContainerDark,
+            surface = SurfaceDark,
+            onSurface = OnSurfaceDark,
+            surfaceVariant = SurfaceVariantDark,
+            onSurfaceVariant = OnSurfaceVariantDark,
+            outline = OutlineDark,
         )
-        else -> expressiveLightColorScheme()
+        else -> androidx.compose.material3.lightColorScheme(
+            primary = VibrantPrimaryLight,
+            onPrimary = OnPrimaryLight,
+            primaryContainer = VibrantPrimaryContainerLight,
+            onPrimaryContainer = OnPrimaryContainerLight,
+            secondary = VibrantSecondaryLight,
+            onSecondary = OnSecondaryLight,
+            secondaryContainer = VibrantSecondaryContainerLight,
+            onSecondaryContainer = OnSecondaryContainerLight,
+            tertiary = VibrantTertiaryLight,
+            onTertiary = OnTertiaryLight,
+            tertiaryContainer = VibrantTertiaryContainerLight,
+            onTertiaryContainer = OnTertiaryContainerLight,
+            error = ErrorLight,
+            onError = OnErrorLight,
+            errorContainer = ErrorContainerLight,
+            onErrorContainer = OnErrorContainerLight,
+            surface = SurfaceLight,
+            onSurface = OnSurfaceLight,
+            surfaceVariant = SurfaceVariantLight,
+            onSurfaceVariant = OnSurfaceVariantLight,
+            outline = OutlineLight,
+        )
     }
 
     val view = LocalView.current
@@ -93,6 +91,7 @@ fun OpenAnimeTheme(
         colorScheme = colorScheme,
         typography = Typography,
         shapes = ExpressiveShapes,
+        motionScheme = MotionScheme.expressive(),
         content = content
     )
 }

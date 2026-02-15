@@ -58,21 +58,6 @@ fun HomeScreen(
             CenterAlignedTopAppBar(
                 title = { Text("OpenStream") },
                 scrollBehavior = scrollBehavior,
-                actions = {
-                    IconButton(onClick = onSearchClick) {
-                        // Using a standard search icon for now
-                        Icon(
-                            painter = painterResource(id = android.R.drawable.ic_menu_search),
-                            contentDescription = "Search"
-                        )
-                    }
-                    IconButton(onClick = onHistoryClick) {
-                        Icon(
-                            painter = painterResource(id = android.R.drawable.ic_menu_recent_history),
-                            contentDescription = "History"
-                        )
-                    }
-                }
             )
         }
     ) { innerPadding ->

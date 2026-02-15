@@ -5,7 +5,7 @@ import androidx.compose.ui.graphics.Color
 // Seed Color: Violet
 val SeedColor = Color(0xFF6750A4)
 
-// Light Theme
+// Vibrant Light Theme
 val PrimaryLight = Color(0xFF6750A4)
 val OnPrimaryLight = Color(0xFFFFFFFF)
 val PrimaryContainerLight = Color(0xFFEADDFF)
@@ -28,7 +28,7 @@ val SurfaceVariantLight = Color(0xFFE7E0EC)
 val OnSurfaceVariantLight = Color(0xFF49454F)
 val OutlineLight = Color(0xFF79747E)
 
-// Dark Theme
+// Vibrant Dark Theme
 val PrimaryDark = Color(0xFFD0BCFF)
 val OnPrimaryDark = Color(0xFF381E72)
 val PrimaryContainerDark = Color(0xFF4F378B)
@@ -51,7 +51,17 @@ val SurfaceVariantDark = Color(0xFF49454F)
 val OnSurfaceVariantDark = Color(0xFFCAC4D0)
 val OutlineDark = Color(0xFF938F99)
 
-// Custom Expressive Colors (if needed, e.g., specifically for certain anime genres)
-val AnimeAction = Color(0xFFD32F2F)
-val AnimeRomance = Color(0xFFEC407A)
-val AnimeSciFi = Color(0xFF7B1FA2)
+// Vibrant Overrides (Increased Saturation)
+val VibrantPrimaryLight = Color(0xFF6F43C0) // More vivid
+val VibrantPrimaryContainerLight = Color(0xFFE9DDFF)
+val VibrantSecondaryLight = Color(0xFF6D4EA1) // More purple than gray
+val VibrantSecondaryContainerLight = Color(0xFFEBDDFF)
+val VibrantTertiaryLight = Color(0xFF984061) // More vivid pink
+val VibrantTertiaryContainerLight = Color(0xFFFFD9E2)
+
+val VibrantPrimaryDark = Color(0xFFD0BCFF) // Keep light purple
+val VibrantPrimaryContainerDark = Color(0xFF5636A6) // Darker vivid
+val VibrantSecondaryDark = Color(0xFFD4BBFF)
+val VibrantSecondaryContainerDark = Color(0xFF533887)
+val VibrantTertiaryDark = Color(0xFFFFB0C8)
+val VibrantTertiaryContainerDark = Color(0xFF7B2949)
