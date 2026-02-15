@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ivor.openanime.data.remote.SubtitleApi
 import com.ivor.openanime.data.remote.TmdbApi
+import com.ivor.openanime.data.remote.model.AnimeDetailsDto
 import com.ivor.openanime.data.remote.model.EpisodeDto
 import com.ivor.openanime.data.remote.model.SubtitleDto
 import com.ivor.openanime.data.remote.model.toAnimeDto
@@ -22,7 +23,7 @@ import javax.inject.Inject
 class PlayerViewModel @Inject constructor(
     private val tmdbApi: TmdbApi,
     private val subtitleApi: SubtitleApi,
-    private val repository: AnimeRepository // Injected Repository
+    private val repository: AnimeRepository
 ) : ViewModel() {
 
     private val _nextEpisodes = MutableStateFlow<List<EpisodeDto>>(emptyList())
@@ -34,31 +35,46 @@ class PlayerViewModel @Inject constructor(
     private val _remoteSubtitles = MutableStateFlow<List<SubtitleDto>>(emptyList())
     val remoteSubtitles = _remoteSubtitles.asStateFlow()
 
+    // NEW state for details
+    private val _mediaDetails = MutableStateFlow<AnimeDetailsDto?>(null)
+    val mediaDetails = _mediaDetails.asStateFlow()
+
+    private val _currentEpisode = MutableStateFlow<EpisodeDto?>(null)
+    val currentEpisode = _currentEpisode.asStateFlow()
+
     fun loadSeasonDetails(mediaType: String, tmdbId: Int, seasonNumber: Int, currentEpisodeNumber: Int) {
         viewModelScope.launch {
-            // Save to History
+            // Fetch Media Details (Show or Movie)
             launch {
                 try {
-                    val details = if (mediaType == "movie") {
+                    val result = if (mediaType == "movie") {
                         repository.getMovieDetails(tmdbId)
                     } else {
                         repository.getAnimeDetails(tmdbId)
                     }
-                    details.onSuccess {
-                        repository.addToWatchHistory(it.toAnimeDto(mediaType))
+                    result.onSuccess { details ->
+                        _mediaDetails.value = details
+                        repository.addToWatchHistory(details.toAnimeDto(mediaType))
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
             }
 
+            // Fetch Season Episodes (for TV)
             if (mediaType != "movie") {
                 _isLoadingEpisodes.value = true
                 try {
                     // Fetch full season details
                     val seasonDetails = tmdbApi.getSeasonDetails(tmdbId, seasonNumber)
 
-                    // Filter for episodes after the current one
+                    // Set current episode details
+                    val currentEp = seasonDetails.episodes.find { it.episodeNumber == currentEpisodeNumber }
+                    if (currentEp != null) {
+                        _currentEpisode.value = currentEp
+                    }
+
+                    // Filter for next episodes
                     _nextEpisodes.value = seasonDetails.episodes.filter { it.episodeNumber > currentEpisodeNumber }
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -67,9 +83,10 @@ class PlayerViewModel @Inject constructor(
                 }
             } else {
                 _nextEpisodes.value = emptyList()
+                _currentEpisode.value = null
             }
 
-            // Fetch subtitles independently
+            // Fetch subtitles
             try {
                 val jsonElement = if (mediaType == "tv") {
                     subtitleApi.searchSubtitles(tmdbId, seasonNumber, currentEpisodeNumber)
