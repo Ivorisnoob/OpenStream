@@ -194,8 +194,6 @@ fun PlayerScreen(
     val nextEpisode = nextEpisodes.firstOrNull { it.episodeNumber > episode }
     val onNextClick: (() -> Unit)? = if (nextEpisode != null) {
         {
-            videoUrl = null
-            sniffedSubtitles = emptyList()
             onEpisodeClick(nextEpisode.episodeNumber)
         }
     } else null
