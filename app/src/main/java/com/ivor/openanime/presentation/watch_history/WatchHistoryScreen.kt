@@ -18,9 +18,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.History
@@ -168,11 +168,12 @@ fun WatchHistoryScreen(
                         }
                     }
                     WatchHistoryContentState.Content -> {
-                        LazyVerticalStaggeredGrid(
-                            columns = StaggeredGridCells.Fixed(2),
+                        // Updated to LazyVerticalGrid for better layout consistency
+                        LazyVerticalGrid(
+                            columns = GridCells.Adaptive(minSize = 140.dp),
                             contentPadding = PaddingValues(16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
-                            verticalItemSpacing = 16.dp,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
                             modifier = Modifier.fillMaxSize()
                         ) {
                             items(uiState.history, key = { it.id }) { anime ->

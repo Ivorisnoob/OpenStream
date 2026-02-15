@@ -81,7 +81,7 @@ fun ExoPlayerView(
 
     // UI State
     var areControlsVisible by remember { mutableStateOf(true) }
-    var showSettingsSheet by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
 
     // Settings State
     var playbackSpeed by remember { mutableFloatStateOf(1.0f) }
@@ -518,7 +518,7 @@ fun ExoPlayerView(
             },
             onNextClick = onNextClick,
             onSettingsClick = {
-                showSettingsSheet = true
+                showSettingsDialog = true
                 areControlsVisible = false
             },
             isFullscreen = isFullscreen,
@@ -547,10 +547,10 @@ fun ExoPlayerView(
         }
     }
 
-    // Settings Bottom Sheet
-    if (showSettingsSheet) {
-        PlayerSettingsSheet(
-            onDismiss = { showSettingsSheet = false },
+    // Settings Dialog
+    if (showSettingsDialog) {
+        PlayerSettingsDialog(
+            onDismiss = { showSettingsDialog = false },
             qualityOptions = qualityOptions,
             selectedQuality = selectedQuality,
             onQualitySelected = { option ->
