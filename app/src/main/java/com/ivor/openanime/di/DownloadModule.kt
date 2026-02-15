@@ -41,6 +41,7 @@ object DownloadModule {
     fun provideDataSourceFactory(): DataSource.Factory {
         return DefaultHttpDataSource.Factory()
             .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .setDefaultRequestProperties(mapOf("Referer" to "https://www.vidking.net/"))
     }
 
     @Provides
@@ -58,13 +59,18 @@ object DownloadModule {
         dataSourceFactory: DataSource.Factory,
         executor: Executor
     ): DownloadManager {
-        return DownloadManager(
+        val downloadManager = DownloadManager(
             context,
             databaseProvider,
             cache,
             dataSourceFactory,
             executor
         )
+        // Allow downloading over cellular data
+        downloadManager.requirements = androidx.media3.exoplayer.scheduler.Requirements(
+            androidx.media3.exoplayer.scheduler.Requirements.NETWORK
+        )
+        return downloadManager
     }
 
     @Provides

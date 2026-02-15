@@ -154,31 +154,34 @@ class DownloadRepositoryImpl @Inject constructor(
 
         // 2. Sync HLS Downloads
         val hlsEntities = allEntities.filter { it.downloadId.startsWith("hls_") }
-        for (hls in hlsEntities) {
-            val download = media3DownloadManager.currentDownloads.find { it.request.id == hls.downloadId }
-            if (download != null) {
-                val status = when (download.state) {
-                    androidx.media3.exoplayer.offline.Download.STATE_COMPLETED -> DownloadManager.STATUS_SUCCESSFUL
-                    androidx.media3.exoplayer.offline.Download.STATE_FAILED -> DownloadManager.STATUS_FAILED
-                    androidx.media3.exoplayer.offline.Download.STATE_DOWNLOADING -> DownloadManager.STATUS_RUNNING
-                    androidx.media3.exoplayer.offline.Download.STATE_QUEUED -> DownloadManager.STATUS_PENDING
-                    androidx.media3.exoplayer.offline.Download.STATE_STOPPED -> DownloadManager.STATUS_PAUSED
-                    else -> DownloadManager.STATUS_PENDING
-                }
-                
-                android.util.Log.d("DownloadSync", "HLS Sync [${hls.title}]: ${download.bytesDownloaded} bytes / ${download.contentLength} total (${download.percentDownloaded}%)")
+        if (hlsEntities.isNotEmpty()) {
+            // Ensure the service is active and downloads are not stopped
+            DownloadService.sendResumeDownloads(context, HlsDownloadService::class.java, false)
+            
+            for (hls in hlsEntities) {
+                val download = media3DownloadManager.downloadIndex.getDownload(hls.downloadId)
+                if (download != null) {
+                    val status = when (download.state) {
+                        androidx.media3.exoplayer.offline.Download.STATE_COMPLETED -> DownloadManager.STATUS_SUCCESSFUL
+                        androidx.media3.exoplayer.offline.Download.STATE_FAILED -> DownloadManager.STATUS_FAILED
+                        androidx.media3.exoplayer.offline.Download.STATE_DOWNLOADING -> DownloadManager.STATUS_RUNNING
+                        androidx.media3.exoplayer.offline.Download.STATE_QUEUED -> DownloadManager.STATUS_PENDING
+                        androidx.media3.exoplayer.offline.Download.STATE_STOPPED, 
+                        androidx.media3.exoplayer.offline.Download.STATE_REMOVING,
+                        androidx.media3.exoplayer.offline.Download.STATE_RESTARTING -> DownloadManager.STATUS_PAUSED
+                        else -> DownloadManager.STATUS_PENDING
+                    }
+                    
+                    android.util.Log.d("DownloadSync", "HLS Sync [${hls.title}]: State ${download.state}, ${download.bytesDownloaded} bytes / ${download.contentLength} total (${download.percentDownloaded}%)")
 
-                updateDownloadStatus(
-                    hls.downloadId, 
-                    status, 
-                    download.percentDownloaded.toInt().coerceIn(-1, 100),
-                    download.bytesDownloaded,
-                    download.contentLength
-                )
-            } else {
-                 // Check if it's already in the database as successful but disappeared from active manager
-                 // This happens after some time or app restart in some Media3 versions
-                 // No action needed if progress is already 100% or Successful
+                    updateDownloadStatus(
+                        hls.downloadId, 
+                        status, 
+                        download.percentDownloaded.toInt().coerceIn(-1, 100),
+                        download.bytesDownloaded,
+                        download.contentLength
+                    )
+                }
             }
         }
     }
