@@ -40,7 +40,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.ToggleButton
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -214,34 +219,32 @@ fun SearchScreen(
             
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Filters
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth()
+            // Filters (Connected Button Group)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
             ) {
-                items(SearchFilter.entries) { filter ->
-                    val isSelected = uiState.filter == filter
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { viewModel.onFilterSelected(filter) },
-                        label = {
-                            Text(
-                                when (filter) {
-                                    SearchFilter.ALL -> "All"
-                                    SearchFilter.MOVIE -> "Movies"
-                                    SearchFilter.TV -> "TV Shows"
-                                }
-                            )
-                        },
-                        shape = ExpressiveShapes.medium,
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                            labelColor = MaterialTheme.colorScheme.onSurface
-                        ),
-                        border = null
-                    )
+                SearchFilter.entries.forEachIndexed { index, filter ->
+                    ToggleButton(
+                        checked = uiState.filter == filter,
+                        onCheckedChange = { viewModel.onFilterSelected(filter) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .semantics { role = Role.RadioButton },
+                        shapes = when (index) {
+                            0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                            SearchFilter.entries.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                            else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                        }
+                    ) {
+                        Text(
+                            when (filter) {
+                                SearchFilter.ALL -> "All"
+                                SearchFilter.MOVIE -> "Movies"
+                                SearchFilter.TV -> "TV Shows"
+                            }
+                        )
+                    }
                 }
             }
 
