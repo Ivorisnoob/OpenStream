@@ -6,7 +6,7 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "downloads")
 data class DownloadEntity(
     @PrimaryKey
-    val downloadId: Long,
+    val downloadId: String,
     val tmdbId: Int,
     val title: String,
     val posterPath: String?,
@@ -14,5 +14,7 @@ data class DownloadEntity(
     val uri: String,
     val status: Int,
     val progress: Int,
+    val downloadedBytes: Long = 0,
+    val totalBytes: Long = 0,
     val dateAdded: Long = System.currentTimeMillis()
 )

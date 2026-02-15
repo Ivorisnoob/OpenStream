@@ -41,7 +41,7 @@ class DownloadViewModel @Inject constructor(
         }
     }
 
-    fun removeDownload(downloadId: Long) {
+    fun removeDownload(downloadId: String) {
         viewModelScope.launch {
             repository.removeDownload(downloadId)
         }

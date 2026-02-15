@@ -166,7 +166,7 @@ fun EmptyDownloadsView() {
 @Composable
 fun DownloadsListView(
     downloads: List<DownloadEntity>,
-    onDeleteClick: (Long) -> Unit
+    onDeleteClick: (String) -> Unit
 ) {
     LazyColumn(
         contentPadding = PaddingValues(bottom = 24.dp),
@@ -210,27 +210,63 @@ fun DownloadItem(
                 val statusText = when (item.status) {
                     DownloadManager.STATUS_SUCCESSFUL -> "Downloaded"
                     DownloadManager.STATUS_FAILED -> "Download Failed"
+                    DownloadManager.STATUS_RUNNING -> "Downloading... (${item.progress}%)"
+                    DownloadManager.STATUS_PENDING -> "Waiting to start..."
                     DownloadManager.STATUS_PAUSED -> "Paused"
-                    else -> "Downloading..."
+                    else -> "Processing..."
                 }
-                Text(
-                    text = statusText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (item.status == DownloadManager.STATUS_FAILED) 
-                        MaterialTheme.colorScheme.error 
-                    else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (item.status == DownloadManager.STATUS_RUNNING || item.status == DownloadManager.STATUS_PENDING) {
-                    LinearProgressIndicator(
-                        progress = { if (item.progress > 0) item.progress / 100f else 0f },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp)
-                            .height(6.dp)
-                            .clip(MaterialTheme.shapes.extraSmall),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                
+                val sizeText = when {
+                    item.totalBytes > 0 -> "${formatFileSize(item.downloadedBytes)} / ${formatFileSize(item.totalBytes)}"
+                    item.downloadedBytes > 0 -> "${formatFileSize(item.downloadedBytes)} (Total unknown)"
+                    else -> "Waiting..."
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = statusText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (item.status == DownloadManager.STATUS_FAILED) 
+                            MaterialTheme.colorScheme.error 
+                        else MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    
+                    Text(
+                        text = sizeText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+
+                if (item.status != DownloadManager.STATUS_SUCCESSFUL && item.status != DownloadManager.STATUS_FAILED) {
+                    val progressValue = item.progress / 100f
+                    if (item.progress >= 0 && item.totalBytes > 0) {
+                        LinearProgressIndicator(
+                            progress = { progressValue },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp)
+                                .height(6.dp)
+                                .clip(MaterialTheme.shapes.extraSmall),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                        )
+                    } else {
+                        // Indeterminate progress for HLS with unknown size
+                        LinearProgressIndicator(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp)
+                                .height(6.dp)
+                                .clip(MaterialTheme.shapes.extraSmall),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                        )
+                    }
                 }
             }
         },
@@ -258,6 +294,13 @@ fun DownloadItem(
             containerColor = Color.Transparent
         )
     )
+}
+
+private fun formatFileSize(bytes: Long): String {
+    if (bytes <= 0) return "0 B"
+    val units = arrayOf("B", "KB", "MB", "GB", "TB")
+    val digitGroups = (Math.log10(bytes.toDouble()) / Math.log10(1024.0)).toInt()
+    return java.text.DecimalFormat("#,##0.#").format(bytes / Math.pow(1024.0, digitGroups.toDouble())) + " " + units[digitGroups]
 }
 
 // Helper function removed as androidx.compose.foundation.layout.width is available

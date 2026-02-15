@@ -7,7 +7,7 @@ import com.ivor.openanime.data.local.dao.WatchLaterDao
 import com.ivor.openanime.data.local.entity.DownloadEntity
 import com.ivor.openanime.data.local.entity.WatchLaterEntity
 
-@Database(entities = [WatchLaterEntity::class, DownloadEntity::class], version = 1)
+@Database(entities = [WatchLaterEntity::class, DownloadEntity::class], version = 2)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun watchLaterDao(): WatchLaterDao
     abstract fun downloadDao(): DownloadDao

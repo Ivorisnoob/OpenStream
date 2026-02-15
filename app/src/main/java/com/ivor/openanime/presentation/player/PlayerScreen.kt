@@ -260,11 +260,15 @@ fun PlayerScreen(
                                         ): WebResourceResponse? {
                                             val url = request?.url?.toString()
                                             if (url != null) {
-                                                if (url.contains(".m3u8") || url.contains(".mp4") || url.contains(".m4s") || url.contains("/manifest")) {
+                                                val isHls = url.contains(".m3u8") || url.contains("/manifest")
+                                                val isVideo = url.contains(".mp4") || url.contains(".m4s")
+                                                
+                                                if (isHls || isVideo) {
                                                     if (!url.contains("googleads") && !url.contains("doubleclick") && !url.contains("telemetry")) {
                                                         view?.post {
-                                                            if (videoUrl == null) {
-                                                                Log.i("PlayerSniffer", "Video URL Found: $url")
+                                                            // Prioritize MP4 over M3U8 for downloads/better playback
+                                                            if (videoUrl == null || (videoUrl!!.contains(".m3u8") && isVideo)) {
+                                                                Log.i("PlayerSniffer", "${if (isVideo) "Direct Video" else "HLS Stream"} URL Found: $url")
                                                                 videoUrl = url
                                                             }
                                                         }
@@ -531,6 +535,8 @@ fun PlayerScreen(
 }
 
 private fun startDownload(viewModel: PlayerViewModel, url: String, title: String, mediaType: String, tmdbId: Int) {
-    val fileName = "${title.replace(Regex("[^a-zA-Z0-9.-]"), "_")}.mp4"
+    android.util.Log.d("PlayerDownload", "Starting download for: $url")
+    val typeTag = if (mediaType == "movie") "Movie" else "S${tmdbId}_E${title.filter { it.isDigit() }.take(5)}"
+    val fileName = "${title.replace(Regex("[^a-zA-Z0-9.-]"), "_")}_${tmdbId}.mp4"
     viewModel.downloadVideo(url, title, fileName, mediaType, tmdbId)
 }

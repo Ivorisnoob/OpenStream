@@ -20,8 +20,8 @@ interface DownloadDao {
     suspend fun deleteDownload(item: DownloadEntity)
 
     @Query("DELETE FROM downloads WHERE downloadId = :downloadId")
-    suspend fun deleteDownloadById(downloadId: Long)
+    suspend fun deleteDownloadById(downloadId: String)
 
     @Query("SELECT * FROM downloads WHERE downloadId = :downloadId")
-    suspend fun getDownloadById(downloadId: Long): DownloadEntity?
+    suspend fun getDownloadById(downloadId: String): DownloadEntity?
 }
