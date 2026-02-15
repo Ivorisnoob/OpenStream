@@ -201,19 +201,17 @@ fun SearchScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            SingleChoiceSegmentedButtonRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            // Filter Chips instead of Segmented Buttons for more expressive look
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                SearchFilter.entries.forEachIndexed { index, filter ->
-                    SegmentedButton(
-                        selected = uiState.filter == filter,
+                items(SearchFilter.entries) { filter ->
+                    val isSelected = uiState.filter == filter
+                    FilterChip(
+                        selected = isSelected,
                         onClick = { viewModel.onFilterSelected(filter) },
-                        shape = SegmentedButtonDefaults.itemShape(
-                            index = index,
-                            count = SearchFilter.entries.size
-                        ),
                         label = {
                             Text(
                                 when (filter) {
@@ -222,7 +220,12 @@ fun SearchScreen(
                                     SearchFilter.TV -> "TV Shows"
                                 }
                             )
-                        }
+                        },
+                        shape = ExpressiveShapes.small,
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
                     )
                 }
             }
