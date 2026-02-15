@@ -9,12 +9,16 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.ivor.openanime.presentation.details.DetailsScreen
 import com.ivor.openanime.presentation.home.HomeScreen
+import com.ivor.openanime.presentation.downloads.DownloadsScreen
 import com.ivor.openanime.presentation.player.PlayerScreen
 import com.ivor.openanime.presentation.search.SearchScreen
 import com.ivor.openanime.presentation.watch_history.WatchHistoryScreen
+import com.ivor.openanime.presentation.watch_later.WatchLaterScreen
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
@@ -34,6 +38,8 @@ import androidx.compose.ui.unit.dp
 sealed class Screen(val route: String, val label: String = "", val icon: androidx.compose.ui.graphics.vector.ImageVector? = null) {
     data object Home : Screen("home", "Home", Icons.Default.Home)
     data object Search : Screen("search", "Search", Icons.Default.Search)
+    data object WatchLater : Screen("watch_later", "Saved", Icons.Default.Bookmark)
+    data object Downloads : Screen("downloads", "Downloads", Icons.Default.Download)
     data object History : Screen("history", "History", Icons.Default.History)
     data object Details : Screen("details/{mediaType}/{animeId}") {
         fun createRoute(mediaType: String, animeId: Int) = "details/$mediaType/$animeId"
@@ -50,7 +56,7 @@ fun AppNavigation(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     
-    val bottomNavItems = listOf(Screen.Home, Screen.Search, Screen.History)
+    val bottomNavItems = listOf(Screen.Home, Screen.Search, Screen.WatchLater, Screen.Downloads, Screen.History)
     val showBottomBar = currentDestination?.route in bottomNavItems.map { it.route }
 
     Scaffold(
@@ -98,6 +104,21 @@ fun AppNavigation(
                     onAnimeClick = { animeId, mediaType ->
                         navController.navigate(Screen.Details.createRoute(mediaType, animeId))
                     }
+                )
+            }
+
+            composable(Screen.WatchLater.route) {
+                WatchLaterScreen(
+                    onBackClick = { navController.popBackStack() },
+                    onAnimeClick = { animeId, mediaType ->
+                        navController.navigate(Screen.Details.createRoute(mediaType, animeId))
+                    }
+                )
+            }
+
+            composable(Screen.Downloads.route) {
+                DownloadsScreen(
+                    onBackClick = { navController.popBackStack() }
                 )
             }
 

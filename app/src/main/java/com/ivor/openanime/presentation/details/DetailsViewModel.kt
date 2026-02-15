@@ -4,19 +4,24 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ivor.openanime.data.remote.model.AnimeDetailsDto
+import com.ivor.openanime.data.local.entity.WatchLaterEntity
 import com.ivor.openanime.data.remote.model.SeasonDetailsDto
 import com.ivor.openanime.data.remote.model.toAnimeDto
 import com.ivor.openanime.domain.repository.AnimeRepository
+import com.ivor.openanime.domain.repository.WatchLaterRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class DetailsViewModel @Inject constructor(
     private val repository: AnimeRepository,
+    private val watchLaterRepository: WatchLaterRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -25,6 +30,13 @@ class DetailsViewModel @Inject constructor(
     
     private val _uiState = MutableStateFlow<DetailsUiState>(DetailsUiState.Loading)
     val uiState: StateFlow<DetailsUiState> = _uiState.asStateFlow()
+
+    val isWatchLater: StateFlow<Boolean> = watchLaterRepository.isWatchLater(animeId)
+        .stateIn(
+            scope = viewModelScope,
+            started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
+            initialValue = false
+        )
 
     init {
         loadDetails()
@@ -51,6 +63,27 @@ class DetailsViewModel @Inject constructor(
                 .onFailure { exception ->
                     _uiState.value = DetailsUiState.Error(exception.message ?: "Unknown error")
                 }
+        }
+    }
+
+    fun toggleWatchLater() {
+        val currentState = _uiState.value
+        if (currentState is DetailsUiState.Success) {
+            viewModelScope.launch {
+                val details = currentState.details
+                val item = WatchLaterEntity(
+                    id = details.id,
+                    title = details.name,
+                    posterPath = details.posterPath,
+                    mediaType = mediaType,
+                    voteAverage = details.voteAverage
+                )
+                if (isWatchLater.value) {
+                    watchLaterRepository.removeFromWatchLaterById(details.id)
+                } else {
+                    watchLaterRepository.addToWatchLater(item)
+                }
+            }
         }
     }
 

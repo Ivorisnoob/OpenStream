@@ -45,6 +45,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -423,6 +424,19 @@ fun PlayerScreen(
                             )
                         }
 
+                        // Download Button
+                        if (videoUrl != null) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            SuggestionChip(
+                                onClick = {
+                                    startDownload(viewModel, videoUrl!!, currentTitle, mediaType, tmdbId)
+                                },
+                                label = { Text("Download") },
+                                icon = { Icon(Icons.Default.Download, contentDescription = null) },
+                                shape = ExpressiveShapes.medium
+                            )
+                        }
+
                         Spacer(modifier = Modifier.height(16.dp))
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
@@ -514,4 +528,9 @@ fun PlayerScreen(
             }
         }
     }
+}
+
+private fun startDownload(viewModel: PlayerViewModel, url: String, title: String, mediaType: String, tmdbId: Int) {
+    val fileName = "${title.replace(Regex("[^a-zA-Z0-9.-]"), "_")}.mp4"
+    viewModel.downloadVideo(url, title, fileName, mediaType, tmdbId)
 }

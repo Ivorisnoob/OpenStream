@@ -9,6 +9,7 @@ import com.ivor.openanime.data.remote.model.EpisodeDto
 import com.ivor.openanime.data.remote.model.SubtitleDto
 import com.ivor.openanime.data.remote.model.toAnimeDto
 import com.ivor.openanime.domain.repository.AnimeRepository
+import com.ivor.openanime.domain.repository.DownloadRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,7 +24,8 @@ import javax.inject.Inject
 class PlayerViewModel @Inject constructor(
     private val tmdbApi: TmdbApi,
     private val subtitleApi: SubtitleApi,
-    private val repository: AnimeRepository
+    private val repository: AnimeRepository,
+    private val downloadRepository: DownloadRepository
 ) : ViewModel() {
 
     private val _nextEpisodes = MutableStateFlow<List<EpisodeDto>>(emptyList())
@@ -41,6 +43,22 @@ class PlayerViewModel @Inject constructor(
 
     private val _currentEpisode = MutableStateFlow<EpisodeDto?>(null)
     val currentEpisode = _currentEpisode.asStateFlow()
+
+    fun downloadVideo(url: String, title: String, fileName: String, mediaType: String, tmdbId: Int) {
+        viewModelScope.launch {
+            val details = _mediaDetails.value
+            if (details != null) {
+                downloadRepository.downloadVideo(
+                    url = url,
+                    title = title,
+                    fileName = fileName,
+                    posterPath = details.posterPath,
+                    mediaType = mediaType,
+                    tmdbId = tmdbId
+                )
+            }
+        }
+    }
 
     fun loadSeasonDetails(mediaType: String, tmdbId: Int, seasonNumber: Int, currentEpisodeNumber: Int) {
         viewModelScope.launch {
