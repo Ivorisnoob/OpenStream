@@ -35,6 +35,17 @@ M3 Expressiveは、標準のMaterial 3を拡張し、以下を実現します:
 
 URL: https://m3.material.io/blog/building-with-m3-expressive
 
+### Research & Philosophy (Google Design 2024-2025)
+
+Base on "Expressive Design: Google's UX Research":
+- **Emotional Connection**: 87% of users aged 18-24 prefer expressive designs.
+- **Usability**: Expressive elements (larger, bolder, colorful) help users spot key UI elements up to 4x faster.
+- **Brand Relevance**: Expressive design increases perception of "modernity" (+34%) and "subculture relevance" (+32%).
+- **Context is Key**: Don't sacrifice standard patterns (e.g., lists) for expression if it hurts usability.
+- **Accessibility**: Expressive design (larger targets, high contrast) often improves accessibility for older adults and those with varying abilities.
+
+Key Takeaway: Use bold colors and shapes not just for decoration, but to *guide attention* and *improve task speed*.
+
 ---
 
 ## Usability Principles
