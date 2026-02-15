@@ -45,6 +45,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -103,6 +104,7 @@ fun PlayerScreen(
     tmdbId: Int,
     season: Int,
     episode: Int,
+    downloadId: String? = null,
     onBackClick: () -> Unit,
     onEpisodeClick: (Int) -> Unit,
     viewModel: PlayerViewModel = hiltViewModel()
@@ -117,6 +119,9 @@ fun PlayerScreen(
     val mediaDetails by viewModel.mediaDetails.collectAsState()
     val currentEpisode by viewModel.currentEpisode.collectAsState()
 
+    var videoUrl by rememberSaveable { mutableStateOf<String?>(null) }
+    var isResolvingLocalUri by remember { mutableStateOf(downloadId != null) }
+
     var sniffedSubtitles by remember { mutableStateOf<List<SubtitleDto>>(emptyList()) }
 
     val allSubtitles = remember(remoteSubtitles, sniffedSubtitles) {
@@ -127,17 +132,27 @@ fun PlayerScreen(
     var isFullscreen by rememberSaveable { mutableStateOf(false) }
 
     // Trigger data fetch
-    LaunchedEffect(tmdbId, season, episode) {
+    LaunchedEffect(tmdbId, season, episode, downloadId) {
+        if (downloadId != null) {
+            isResolvingLocalUri = true
+            val uri = viewModel.getPlaybackUri(downloadId)
+            if (uri != null) {
+                videoUrl = uri
+                Log.d("PlayerScreen", "Playing from local/cache: $uri")
+            }
+            isResolvingLocalUri = false
+        }
         viewModel.loadSeasonDetails(mediaType, tmdbId, season, episode)
     }
 
-    // Embed URL for extraction
-    val embedUrl = if (mediaType == "movie") {
-        "https://www.vidking.net/embed/movie/$tmdbId?autoPlay=true&color=663399"
-    } else {
-        "https://www.vidking.net/embed/tv/$tmdbId/$season/$episode?autoPlay=true&color=663399"
-    }
-    var videoUrl by rememberSaveable { mutableStateOf<String?>(null) }
+    // Embed URL for extraction (only if not playing local)
+    val embedUrl = if (videoUrl == null) {
+        if (mediaType == "movie") {
+            "https://www.vidking.net/embed/movie/$tmdbId?autoPlay=true&color=663399"
+        } else {
+            "https://www.vidking.net/embed/tv/$tmdbId/$season/$episode?autoPlay=true&color=663399"
+        }
+    } else null
     
     // Dynamic Title for Player HUD
     val currentTitle = if (mediaType == "movie") {
@@ -229,6 +244,7 @@ fun PlayerScreen(
                     ExoPlayerView(
                         videoUrl = videoUrl!!,
                         title = currentTitle,
+                        dataSourceFactory = viewModel.dataSourceFactory,
                         isFullscreen = isFullscreen,
                         onFullscreenToggle = {
                             if (isFullscreen) exitFullscreen() else enterFullscreen()
@@ -259,11 +275,15 @@ fun PlayerScreen(
                                         ): WebResourceResponse? {
                                             val url = request?.url?.toString()
                                             if (url != null) {
-                                                if (url.contains(".m3u8") || url.contains(".mp4") || url.contains(".m4s") || url.contains("/manifest")) {
+                                                val isHls = url.contains(".m3u8") || url.contains("/manifest")
+                                                val isVideo = url.contains(".mp4") || url.contains(".m4s")
+                                                
+                                                if (isHls || isVideo) {
                                                     if (!url.contains("googleads") && !url.contains("doubleclick") && !url.contains("telemetry")) {
                                                         view?.post {
-                                                            if (videoUrl == null) {
-                                                                Log.i("PlayerSniffer", "Video URL Found: $url")
+                                                            // Prioritize MP4 over M3U8 for downloads/better playback
+                                                            if (videoUrl == null || (videoUrl!!.contains(".m3u8") && isVideo)) {
+                                                                Log.i("PlayerSniffer", "${if (isVideo) "Direct Video" else "HLS Stream"} URL Found: $url")
                                                                 videoUrl = url
                                                             }
                                                         }
@@ -286,7 +306,14 @@ fun PlayerScreen(
                                             return super.shouldInterceptRequest(view, request)
                                         }
                                     }
-                                    loadUrl(embedUrl)
+                                    if (embedUrl != null) {
+                                        loadUrl(embedUrl)
+                                    }
+                                }
+                            },
+                            update = { view ->
+                                if (embedUrl != null && view.url != embedUrl) {
+                                    view.loadUrl(embedUrl)
                                 }
                             },
                             modifier = Modifier
@@ -295,14 +322,15 @@ fun PlayerScreen(
                         )
                         
                         // Loading Overlay
-                        Box(
+                        Column(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .background(Color.Black),
-                            contentAlignment = Alignment.Center
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
                         ) {
                             // Back button visible during loading
-                            Box(modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
+                            Box(modifier = Modifier.align(Alignment.Start).padding(8.dp)) {
                                 ExpressiveBackButton(
                                     onClick = onBackClick,
                                     containerColor = Color.Black.copy(alpha = 0.5f),
@@ -423,6 +451,20 @@ fun PlayerScreen(
                             )
                         }
 
+                        // Download Button
+                        if (videoUrl != null) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            SuggestionChip(
+                                onClick = {
+                                    val fileName = "${currentTitle.replace(Regex("[^a-zA-Z0-9.-]"), "_")}_$tmdbId.mp4"
+                                    viewModel.downloadVideo(videoUrl!!, currentTitle, fileName, mediaType, tmdbId, season, episode)
+                                },
+                                label = { Text("Download") },
+                                icon = { Icon(Icons.Default.Download, contentDescription = null) },
+                                shape = ExpressiveShapes.medium
+                            )
+                        }
+
                         Spacer(modifier = Modifier.height(16.dp))
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
@@ -515,3 +557,4 @@ fun PlayerScreen(
         }
     }
 }
+

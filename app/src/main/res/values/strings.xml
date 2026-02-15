@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">OpenStream</string>
+    <string name="download_channel_name">Downloads</string>
 </resources>

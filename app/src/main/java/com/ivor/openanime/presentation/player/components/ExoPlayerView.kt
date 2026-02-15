@@ -3,6 +3,7 @@ package com.ivor.openanime.presentation.player.components
 import android.util.Log
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.media3.datasource.DataSource
 import com.ivor.openanime.data.remote.model.SubtitleDto
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
@@ -63,6 +64,7 @@ import java.net.URL
 fun ExoPlayerView(
     videoUrl: String,
     title: String,
+    dataSourceFactory: DataSource.Factory,
     isFullscreen: Boolean,
     onFullscreenToggle: () -> Unit,
     onBackClick: () -> Unit,
@@ -153,12 +155,8 @@ fun ExoPlayerView(
     }
 
     val exoPlayer = remember {
-        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-            .setDefaultRequestProperties(mapOf("Referer" to "https://www.vidking.net/"))
-
         val mediaSourceFactory = DefaultMediaSourceFactory(context)
-            .setDataSourceFactory(httpDataSourceFactory)
+            .setDataSourceFactory(dataSourceFactory)
 
         ExoPlayer.Builder(context)
             .setMediaSourceFactory(mediaSourceFactory)

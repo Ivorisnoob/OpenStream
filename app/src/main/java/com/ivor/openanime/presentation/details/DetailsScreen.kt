@@ -28,14 +28,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledIconToggleButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
@@ -104,6 +108,7 @@ fun DetailsScreen(
     viewModel: DetailsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isWatchLater by viewModel.isWatchLater.collectAsState()
     
     val screenState = remember(uiState) {
         when (uiState) {
@@ -344,13 +349,36 @@ fun DetailsScreen(
             }
 
             // Overlay Back Button (Outside AnimatedContent to be stable)
-            ExpressiveBackButton(
-                onClick = onBackClick,
+            Box(
                 modifier = Modifier
                     .statusBarsPadding()
+                    .fillMaxWidth()
                     .padding(8.dp)
-                    .align(Alignment.TopStart)
-            )
+            ) {
+                ExpressiveBackButton(
+                    onClick = onBackClick,
+                    modifier = Modifier.align(Alignment.TopStart)
+                )
+
+                if (uiState is DetailsUiState.Success) {
+                    FilledIconToggleButton(
+                        checked = isWatchLater,
+                        onCheckedChange = { viewModel.toggleWatchLater() },
+                        modifier = Modifier.align(Alignment.TopEnd),
+                        colors = IconButtonDefaults.filledIconToggleButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                            checkedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            checkedContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    ) {
+                        Icon(
+                            imageVector = if (isWatchLater) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
+                            contentDescription = if (isWatchLater) "Remove from Watch Later" else "Add to Watch Later"
+                        )
+                    }
+                }
+            }
         }
     }
 }
