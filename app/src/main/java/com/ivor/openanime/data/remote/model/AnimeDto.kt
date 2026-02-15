@@ -42,7 +42,12 @@ data class AnimeDetailsDto(
     @SerialName("number_of_seasons") val numberOfSeasons: Int? = null,
     @SerialName("number_of_episodes") val numberOfEpisodes: Int? = null,
     @SerialName("seasons") val seasons: List<SeasonDto>? = null,
-    @SerialName("runtime") val runtime: Int? = null
+    @SerialName("runtime") val runtime: Int? = null,
+    @SerialName("status") val status: String? = null,
+    @SerialName("tagline") val tagline: String? = null,
+    @SerialName("genres") val genres: List<GenreDto>? = null,
+    @SerialName("production_companies") val productionCompanies: List<ProductionCompanyDto>? = null,
+    @SerialName("homepage") val homepage: String? = null
 ) {
     val name: String
         get() = movieTitle ?: tvName ?: ""
@@ -50,6 +55,20 @@ data class AnimeDetailsDto(
     val date: String
         get() = releaseDate ?: firstAirDate ?: ""
 }
+
+@Serializable
+data class GenreDto(
+    @SerialName("id") val id: Int,
+    @SerialName("name") val name: String
+)
+
+@Serializable
+data class ProductionCompanyDto(
+    @SerialName("id") val id: Int,
+    @SerialName("name") val name: String,
+    @SerialName("logo_path") val logoPath: String? = null,
+    @SerialName("origin_country") val originCountry: String? = null
+)
 
 fun AnimeDetailsDto.toAnimeDto(mediaType: String): AnimeDto {
     return AnimeDto(

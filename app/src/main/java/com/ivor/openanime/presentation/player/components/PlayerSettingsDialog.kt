@@ -9,15 +9,16 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -25,13 +26,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.HourglassBottom
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
@@ -43,9 +43,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,9 +52,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import com.ivor.openanime.ui.theme.ExpressiveShapes
 
 /**
  * Represents available quality options parsed from ExoPlayer tracks.
@@ -86,7 +88,7 @@ private enum class SettingsPage {
 val SPEED_OPTIONS = listOf(0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
 
 @Composable
-fun PlayerSettingsSheet(
+fun PlayerSettingsDialog(
     onDismiss: () -> Unit,
     qualityOptions: List<QualityOption>,
     selectedQuality: QualityOption?,
@@ -98,72 +100,98 @@ fun PlayerSettingsSheet(
     onSubtitleSelected: (SubtitleOption?) -> Unit,
     subtitleLoadingState: SubtitleLoadingState = SubtitleLoadingState.IDLE
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var currentPage by remember { mutableStateOf(SettingsPage.MAIN) }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentColor = MaterialTheme.colorScheme.onSurface
-    ) {
-        AnimatedContent(
-            targetState = currentPage,
-            transitionSpec = {
-                if (targetState == SettingsPage.MAIN) {
-                    (slideInHorizontally { -it } + fadeIn()) togetherWith
-                            (slideOutHorizontally { it } + fadeOut())
-                } else {
-                    (slideInHorizontally { it } + fadeIn()) togetherWith
-                            (slideOutHorizontally { -it } + fadeOut())
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = ExpressiveShapes.extraLarge,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier
+                .width(360.dp) // Good width for phone/tablet/landscape
+                .heightIn(max = 500.dp)
+                .clip(ExpressiveShapes.extraLarge)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Header (Close Button Only on Main Page)
+                if (currentPage == SettingsPage.MAIN) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 24.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Settings",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
+                        }
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 }
-            },
-            label = "SettingsPageTransition"
-        ) { page ->
-            when (page) {
-                SettingsPage.MAIN -> MainSettingsMenu(
-                    currentQualityLabel = selectedQuality?.label ?: "Auto",
-                    currentSpeedLabel = formatSpeedLabel(currentSpeed),
-                    currentSubtitleLabel = selectedSubtitle?.label ?: "Off",
-                    hasSubtitles = subtitleOptions.isNotEmpty(),
-                    onQualityClick = { currentPage = SettingsPage.QUALITY },
-                    onSpeedClick = { currentPage = SettingsPage.SPEED },
-                    onSubtitlesClick = { currentPage = SettingsPage.SUBTITLES }
-                )
 
-                SettingsPage.QUALITY -> QualitySettingsMenu(
-                    options = qualityOptions,
-                    selected = selectedQuality,
-                    onSelect = { option ->
-                        onQualitySelected(option)
-                        currentPage = SettingsPage.MAIN
+                AnimatedContent(
+                    targetState = currentPage,
+                    transitionSpec = {
+                        if (targetState == SettingsPage.MAIN) {
+                            (slideInHorizontally { -it } + fadeIn()) togetherWith
+                                    (slideOutHorizontally { it } + fadeOut())
+                        } else {
+                            (slideInHorizontally { it } + fadeIn()) togetherWith
+                                    (slideOutHorizontally { -it } + fadeOut())
+                        }
                     },
-                    onBack = { currentPage = SettingsPage.MAIN }
-                )
+                    label = "SettingsPageTransition"
+                ) { page ->
+                    when (page) {
+                        SettingsPage.MAIN -> MainSettingsMenu(
+                            currentQualityLabel = selectedQuality?.label ?: "Auto",
+                            currentSpeedLabel = formatSpeedLabel(currentSpeed),
+                            currentSubtitleLabel = selectedSubtitle?.label ?: "Off",
+                            hasSubtitles = subtitleOptions.isNotEmpty(),
+                            onQualityClick = { currentPage = SettingsPage.QUALITY },
+                            onSpeedClick = { currentPage = SettingsPage.SPEED },
+                            onSubtitlesClick = { currentPage = SettingsPage.SUBTITLES }
+                        )
 
-                SettingsPage.SPEED -> SpeedSettingsMenu(
-                    currentSpeed = currentSpeed,
-                    onSelect = { speed ->
-                        onSpeedSelected(speed)
-                        currentPage = SettingsPage.MAIN
-                    },
-                    onBack = { currentPage = SettingsPage.MAIN }
-                )
+                        SettingsPage.QUALITY -> QualitySettingsMenu(
+                            options = qualityOptions,
+                            selected = selectedQuality,
+                            onSelect = { option ->
+                                onQualitySelected(option)
+                                currentPage = SettingsPage.MAIN
+                            },
+                            onBack = { currentPage = SettingsPage.MAIN }
+                        )
 
-                SettingsPage.SUBTITLES -> SubtitleSettingsMenu(
-                    options = subtitleOptions,
-                    selected = selectedSubtitle,
-                    onSelect = { option ->
-                        onSubtitleSelected(option)
-                        currentPage = SettingsPage.MAIN
-                    },
-                    loadingState = subtitleLoadingState,
-                    onBack = { currentPage = SettingsPage.MAIN }
-                )
+                        SettingsPage.SPEED -> SpeedSettingsMenu(
+                            currentSpeed = currentSpeed,
+                            onSelect = { speed ->
+                                onSpeedSelected(speed)
+                                currentPage = SettingsPage.MAIN
+                            },
+                            onBack = { currentPage = SettingsPage.MAIN }
+                        )
+
+                        SettingsPage.SUBTITLES -> SubtitleSettingsMenu(
+                            options = subtitleOptions,
+                            selected = selectedSubtitle,
+                            onSelect = { option ->
+                                onSubtitleSelected(option)
+                                currentPage = SettingsPage.MAIN
+                            },
+                            loadingState = subtitleLoadingState,
+                            onBack = { currentPage = SettingsPage.MAIN }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -178,15 +206,7 @@ private fun MainSettingsMenu(
     onSubtitlesClick: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "Settings",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
-        )
-
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
+        // Content
         ListItem(
             headlineContent = { Text("Quality") },
             supportingContent = { Text(currentQualityLabel) },
@@ -278,27 +298,29 @@ private fun QualitySettingsMenu(
                 modifier = Modifier.padding(24.dp)
             )
         } else {
-            options.forEach { option ->
-                val isSelected = option == selected
-                ListItem(
-                    headlineContent = {
-                        Text(
-                            text = option.label,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                        )
-                    },
-                    trailingContent = {
-                        if (isSelected) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = "Selected",
-                                tint = MaterialTheme.colorScheme.primary
+            LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                items(options) { option ->
+                    val isSelected = option == selected
+                    ListItem(
+                        headlineContent = {
+                            Text(
+                                text = option.label,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                             )
-                        }
-                    },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    modifier = Modifier.clickable { onSelect(option) }
-                )
+                        },
+                        trailingContent = {
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Selected",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clickable { onSelect(option) }
+                    )
+                }
             }
         }
     }
@@ -313,27 +335,29 @@ private fun SpeedSettingsMenu(
     Column(modifier = Modifier.fillMaxWidth()) {
         SubPageHeader(title = "Playback Speed", onBack = onBack)
 
-        SPEED_OPTIONS.forEach { speed ->
-            val isSelected = speed == currentSpeed
-            ListItem(
-                headlineContent = {
-                    Text(
-                        text = formatSpeedLabel(speed),
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                    )
-                },
-                trailingContent = {
-                    if (isSelected) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = "Selected",
-                            tint = MaterialTheme.colorScheme.primary
+        Column {
+             SPEED_OPTIONS.forEach { speed ->
+                val isSelected = speed == currentSpeed
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            text = formatSpeedLabel(speed),
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                         )
-                    }
-                },
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                modifier = Modifier.clickable { onSelect(speed) }
-            )
+                    },
+                    trailingContent = {
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Selected",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    modifier = Modifier.clickable { onSelect(speed) }
+                )
+            }
         }
     }
 }
@@ -348,7 +372,7 @@ private fun SubtitleSettingsMenu(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     
-    // Sort options: English (Extracted) > English > Others
+    // Sort options logic (same as before)
     val sortedOptions = remember(options) {
         options.filter { !it.isDisabled }.sortedWith(
             compareByDescending<SubtitleOption> { it.label == "English (Extracted)" }
@@ -363,7 +387,7 @@ private fun SubtitleSettingsMenu(
         sortedOptions.filter { it.label.contains(searchQuery, ignoreCase = true) }
     }
 
-    Column(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.8f)) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         SubPageHeader(title = "Subtitles / CC", onBack = onBack)
 
         // Search Bar
@@ -390,7 +414,7 @@ private fun SubtitleSettingsMenu(
             )
         )
 
-        LazyColumn(modifier = Modifier.fillMaxWidth()) {
+        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)) {
             // "Off" option
             item {
                 val isOffSelected = selected == null || selected.isDisabled

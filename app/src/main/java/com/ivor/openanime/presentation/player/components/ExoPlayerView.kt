@@ -67,7 +67,8 @@ fun ExoPlayerView(
     onFullscreenToggle: () -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
-    remoteSubtitles: List<SubtitleDto> = emptyList()
+    remoteSubtitles: List<SubtitleDto> = emptyList(),
+    onNextClick: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
 
@@ -80,7 +81,7 @@ fun ExoPlayerView(
 
     // UI State
     var areControlsVisible by remember { mutableStateOf(true) }
-    var showSettingsSheet by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
 
     // Settings State
     var playbackSpeed by remember { mutableFloatStateOf(1.0f) }
@@ -515,8 +516,9 @@ fun ExoPlayerView(
                 currentTime = exoPlayer.currentPosition
                 areControlsVisible = true
             },
+            onNextClick = onNextClick,
             onSettingsClick = {
-                showSettingsSheet = true
+                showSettingsDialog = true
                 areControlsVisible = false
             },
             isFullscreen = isFullscreen,
@@ -545,10 +547,10 @@ fun ExoPlayerView(
         }
     }
 
-    // Settings Bottom Sheet
-    if (showSettingsSheet) {
-        PlayerSettingsSheet(
-            onDismiss = { showSettingsSheet = false },
+    // Settings Dialog
+    if (showSettingsDialog) {
+        PlayerSettingsDialog(
+            onDismiss = { showSettingsDialog = false },
             qualityOptions = qualityOptions,
             selectedQuality = selectedQuality,
             onQualitySelected = { option ->

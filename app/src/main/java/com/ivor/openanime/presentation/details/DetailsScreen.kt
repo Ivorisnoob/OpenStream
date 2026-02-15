@@ -1,63 +1,101 @@
 package com.ivor.openanime.presentation.details
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
-import com.ivor.openanime.ui.theme.ExpressiveShapes
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import com.ivor.openanime.data.remote.model.AnimeDetailsDto
-import com.ivor.openanime.data.remote.model.SeasonDto
 import com.ivor.openanime.data.remote.model.EpisodeDto
-
 import com.ivor.openanime.presentation.components.ExpressiveBackButton
+import com.ivor.openanime.ui.theme.ExpressiveShapes
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+// Expressive Motion Tokens (Spring approximations from M3 specs)
+// Source: https://m3.material.io/styles/motion/overview/specs
+
+// Spatial (Large movements)
+private val ExpressiveDefaultSpatial = CubicBezierEasing(0.38f, 1.21f, 0.22f, 1.00f) // 500ms
+private val ExpressiveDefaultEffects = CubicBezierEasing(0.34f, 0.80f, 0.34f, 1.00f) // 200ms
+
+private const val DurationSpatialDefault = 500
+private const val DurationEffectsDefault = 200
+
+private fun materialSharedAxisYIn(): ContentTransform {
+    return (slideInVertically(
+                animationSpec = tween(DurationSpatialDefault, easing = ExpressiveDefaultSpatial)
+            ) { height -> height / 2 } + 
+            fadeIn(
+                animationSpec = tween(DurationEffectsDefault, delayMillis = 50, easing = ExpressiveDefaultEffects)
+            ))
+        .togetherWith(
+            slideOutVertically(
+                animationSpec = tween(DurationSpatialDefault, easing = ExpressiveDefaultSpatial)
+            ) { height -> -height / 2 } + 
+            fadeOut(
+                animationSpec = tween(DurationEffectsDefault, easing = ExpressiveDefaultEffects)
+            )
+        )
+}
+
+private enum class ScreenState {
+    Loading, Error, Success
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun DetailsScreen(
     mediaType: String,
@@ -66,13 +104,246 @@ fun DetailsScreen(
     viewModel: DetailsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    
+    val screenState = remember(uiState) {
+        when (uiState) {
+            is DetailsUiState.Loading -> ScreenState.Loading
+            is DetailsUiState.Error -> ScreenState.Error
+            is DetailsUiState.Success -> ScreenState.Success
+        }
+    }
 
     Scaffold(
-        // Remove topBar to let content go under status bar
+        floatingActionButton = {
+            if (uiState is DetailsUiState.Success) {
+                val state = uiState as DetailsUiState.Success
+                val details = state.details
+                val seasonDetails = state.selectedSeasonDetails
+                
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        val seasonNum = seasonDetails?.seasonNumber 
+                            ?: details.seasons?.firstOrNull()?.seasonNumber ?: 1
+                        val episodeNum = 1
+                        onPlayClick(seasonNum, episodeNum)
+                    },
+                    icon = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
+                    text = { Text("Play Now") },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    expanded = true
+                )
+            }
+        }
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
-            // Success/Content State... (Details logic follows)
-            // Overlay Back Button
+            
+            AnimatedContent(
+                targetState = screenState,
+                transitionSpec = { materialSharedAxisYIn() },
+                modifier = Modifier.fillMaxSize(),
+                label = "DetailsContent"
+            ) { targetState ->
+                when (targetState) {
+                    ScreenState.Loading -> {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            LoadingIndicator()
+                        }
+                    }
+                    ScreenState.Error -> {
+                        val errorState = uiState as? DetailsUiState.Error
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "Error: ${errorState?.message ?: "Unknown error"}",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                    ScreenState.Success -> {
+                        val successState = uiState as? DetailsUiState.Success
+                        if (successState != null) {
+                            val details = successState.details
+                            val seasonDetails = successState.selectedSeasonDetails
+                            val isLoadingEpisodes = successState.isLoadingEpisodes
+                            
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(bottom = 80.dp) // Space for FAB
+                            ) {
+                                // Header Item
+                                item {
+                                    Box(modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(500.dp)) { // Taller, more immersive header
+                                        AsyncImage(
+                                            model = "https://image.tmdb.org/t/p/w1280${details.backdropPath ?: details.posterPath}",
+                                            contentDescription = null,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                        // Gradient Scrim
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(
+                                                    Brush.verticalGradient(
+                                                        colors = listOf(
+                                                            Color.Transparent,
+                                                            MaterialTheme.colorScheme.background.copy(alpha = 0.2f),
+                                                            MaterialTheme.colorScheme.background.copy(alpha = 0.8f),
+                                                            MaterialTheme.colorScheme.background
+                                                        ),
+                                                        startY = 0f,
+                                                        endY = Float.POSITIVE_INFINITY
+                                                    )
+                                                )
+                                        )
+                                        
+                                        Column(
+                                            modifier = Modifier
+                                                .align(Alignment.BottomStart)
+                                                .padding(24.dp) // More padding
+                                        ) {
+                                            // Expressive Chips (Vibrant)
+                                            if (!details.genres.isNullOrEmpty()) {
+                                                FlowRow(
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                                    modifier = Modifier.padding(bottom = 12.dp)
+                                                ) {
+                                                    details.genres.take(3).forEach { genre ->
+                                                        SuggestionChip(
+                                                            onClick = { /* No-op */ },
+                                                            label = { 
+                                                                Text(
+                                                                    genre.name, 
+                                                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                                                                ) 
+                                                            },
+                                                            shape = ExpressiveShapes.small,
+                                                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                                                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                                                labelColor = MaterialTheme.colorScheme.onTertiaryContainer
+                                                            ),
+                                                            border = null
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            Text(
+                                                text = details.name,
+                                                style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.ExtraBold), // Bolder
+                                                color = MaterialTheme.colorScheme.onBackground
+                                            )
+                                            if (!details.tagline.isNullOrEmpty()) {
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = details.tagline,
+                                                    style = MaterialTheme.typography.titleMedium.copy(fontStyle = FontStyle.Italic),
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            Text(
+                                                text = "★ ${String.format("%.1f", details.voteAverage)}  •  ${details.date.take(4)}  •  ${details.status ?: "Unknown"}",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Overview & Studios
+                                item {
+                                    Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
+                                        Text(
+                                            text = details.overview,
+                                            style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 24.sp),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+
+                                        // Studios as small expressive tags
+                                        if (!details.productionCompanies.isNullOrEmpty()) {
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                            FlowRow(
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                details.productionCompanies.forEach { company ->
+                                                    Text(
+                                                        text = company.name.uppercase(),
+                                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                        color = MaterialTheme.colorScheme.secondary,
+                                                        modifier = Modifier
+                                                            .background(
+                                                                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                                                                ExpressiveShapes.extraSmall
+                                                            )
+                                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(24.dp))
+                                    }
+                                }
+
+                                // Season Selector (Scrollable Chips)
+                                if (!details.seasons.isNullOrEmpty()) {
+                                    item {
+                                        LazyRow(
+                                            contentPadding = PaddingValues(horizontal = 24.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            items(
+                                                items = details.seasons,
+                                                key = { it.seasonNumber }
+                                            ) { season ->
+                                                val isSelected = seasonDetails?.seasonNumber == season.seasonNumber
+                                                FilterChip(
+                                                    selected = isSelected,
+                                                    onClick = { viewModel.loadSeason(season.seasonNumber) },
+                                                    label = { Text(season.name) },
+                                                    shape = ExpressiveShapes.small,
+                                                    colors = FilterChipDefaults.filterChipColors(
+                                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                                    )
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                    }
+                                }
+
+                                // Episodes List
+                                if (isLoadingEpisodes) {
+                                    item {
+                                        Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                                            LoadingIndicator()
+                                        }
+                                    }
+                                } else {
+                                    seasonDetails?.episodes?.let { episodes ->
+                                        items(
+                                            items = episodes,
+                                            key = { it.id }
+                                        ) { episode ->
+                                            EpisodeItem(
+                                                episode = episode,
+                                                onClick = { onPlayClick(episode.seasonNumber, episode.episodeNumber) }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Overlay Back Button (Outside AnimatedContent to be stable)
             ExpressiveBackButton(
                 onClick = onBackClick,
                 modifier = Modifier
@@ -80,159 +351,6 @@ fun DetailsScreen(
                     .padding(8.dp)
                     .align(Alignment.TopStart)
             )
-            when (val state = uiState) {
-                is DetailsUiState.Loading -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        LoadingIndicator()
-                    }
-                }
-                is DetailsUiState.Error -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(text = "Error: ${state.message}", color = MaterialTheme.colorScheme.error)
-                    }
-                }
-                is DetailsUiState.Success -> {
-                    val details = state.details
-                    val seasonDetails = state.selectedSeasonDetails
-                    val isLoadingEpisodes = state.isLoadingEpisodes
-                    
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        // Remove contentPadding here or handle it carefully with full-screen header
-                        // We want the image to go under the status bar, so no strict top padding here ideally
-                        // But innerPadding forces it. Let's ignore innerPadding top for image effect if edge-to-edge
-                    ) {
-                        // Header Item
-                        item {
-                            Box(modifier = Modifier.fillMaxWidth().height(400.dp)) {
-                                AsyncImage(
-                                    model = "https://image.tmdb.org/t/p/w1280${details.backdropPath ?: details.posterPath}",
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                                // Scrim
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(
-                                            Brush.verticalGradient(
-                                                colors = listOf(Color.Transparent, MaterialTheme.colorScheme.background),
-                                                startY = 0f,
-                                                endY = 1000f
-                                            )
-                                        )
-                                )
-                                
-                                Column(
-                                    modifier = Modifier
-                                        .align(Alignment.BottomStart)
-                                        .padding(16.dp)
-                                ) {
-                                    Text(
-                                        text = details.name,
-                                        style = MaterialTheme.typography.displaySmall,
-                                        color = MaterialTheme.colorScheme.onBackground
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = "Rating: ${String.format("%.1f", details.voteAverage)} • ${details.date.take(4)}",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-
-                        // Actions & Overview
-                        item {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Button(
-                                    onClick = {
-                                        // Play logic: First episode of selected season, or S1E1 fallback
-                                        val seasonNum = seasonDetails?.seasonNumber 
-                                            ?: details.seasons?.firstOrNull()?.seasonNumber ?: 1
-                                        val episodeNum = 1 // Default to first episode
-                                        onPlayClick(seasonNum, episodeNum)
-                                    },
-                                    shape = ExpressiveShapes.large,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Icon(Icons.Filled.PlayArrow, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Play Now")
-                                }
-                                
-                                Spacer(modifier = Modifier.height(24.dp))
-                                Text("Overview", style = MaterialTheme.typography.titleMedium)
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = details.overview,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(24.dp))
-                            }
-                        }
-
-                        // Season Selector
-                        if (!details.seasons.isNullOrEmpty()) {
-                            item {
-                                Text(
-                                    text = "Seasons",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    modifier = Modifier.padding(horizontal = 16.dp)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                LazyRow(
-                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
-                                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
-                                ) {
-                                    items(
-                                        items = details.seasons!!,
-                                        key = { it.seasonNumber }
-                                    ) { season ->
-                                        val isSelected = seasonDetails?.seasonNumber == season.seasonNumber
-                                        FilterChip(
-                                            selected = isSelected,
-                                            onClick = { viewModel.loadSeason(season.seasonNumber) },
-                                            label = { Text(season.name) },
-                                            shape = ExpressiveShapes.small
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(16.dp))
-                            }
-                        }
-
-                        // Episodes List
-                        if (isLoadingEpisodes) {
-                            item {
-                                Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                                    LoadingIndicator()
-                                }
-                            }
-                        } else {
-                            seasonDetails?.episodes?.let { episodes ->
-                                items(
-                                    items = episodes,
-                                    key = { it.id }
-                                ) { episode ->
-                                    EpisodeItem(
-                                        episode = episode,
-                                        onClick = { onPlayClick(episode.seasonNumber, episode.episodeNumber) }
-                                    )
-                                }
-                            }
-                        }
-                        
-                        // Bottom Padding for Navigation Bar
-                        item {
-                            Spacer(modifier = Modifier.height(innerPadding.calculateBottomPadding()))
-                        }
-                    }
-                }
-            }
         }
     }
 }
@@ -243,12 +361,26 @@ fun EpisodeItem(
     onClick: () -> Unit
 ) {
     ListItem(
-        headlineContent = { Text(episode.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = { Text("Episode ${episode.episodeNumber} • ${episode.voteAverage}", maxLines = 1) },
+        headlineContent = { 
+            Text(
+                episode.name, 
+                maxLines = 1, 
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+            ) 
+        },
+        supportingContent = { 
+            Text(
+                "Episode ${episode.episodeNumber} • ${String.format("%.1f", episode.voteAverage)}", 
+                maxLines = 1,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            ) 
+        },
         leadingContent = {
             Card(
                 shape = ExpressiveShapes.small,
-                modifier = Modifier.size(width = 120.dp, height = 68.dp)
+                modifier = Modifier.size(width = 100.dp, height = 56.dp)
             ) {
                 AsyncImage(
                     model = "https://image.tmdb.org/t/p/w300${episode.stillPath}",
@@ -258,6 +390,11 @@ fun EpisodeItem(
                 )
             }
         },
-        modifier = Modifier.clickable(onClick = onClick)
+        colors = ListItemDefaults.colors(
+            containerColor = Color.Transparent // Integrate with background
+        ),
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp) // Indent items slightly
     )
 }

@@ -18,6 +18,25 @@ interface TmdbApi {
         @Query("with_keywords") keywords: String = "210024|287501" // Optionally specify anime-specific keywords
     ): TmdbResponse<AnimeDto>
 
+    @GET("trending/tv/{time_window}")
+    suspend fun getTrendingAnime(
+        @Path("time_window") timeWindow: String = "day",
+        @Query("page") page: Int = 1
+    ): TmdbResponse<AnimeDto>
+
+    @GET("tv/top_rated")
+    suspend fun getTopRatedAnime(
+        @Query("page") page: Int = 1,
+        @Query("language") language: String = "en-US"
+    ): TmdbResponse<AnimeDto>
+
+    @GET("tv/airing_today")
+    suspend fun getAiringTodayAnime(
+        @Query("page") page: Int = 1,
+        @Query("language") language: String = "en-US",
+        @Query("timezone") timezone: String = "America/New_York"
+    ): TmdbResponse<AnimeDto>
+
     @GET("search/multi")
     suspend fun searchMulti(
         @Query("query") query: String,
