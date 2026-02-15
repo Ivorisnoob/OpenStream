@@ -25,7 +25,8 @@ class PlayerViewModel @Inject constructor(
     private val tmdbApi: TmdbApi,
     private val subtitleApi: SubtitleApi,
     private val repository: AnimeRepository,
-    private val downloadRepository: DownloadRepository
+    private val downloadRepository: DownloadRepository,
+    val dataSourceFactory: androidx.media3.datasource.cache.CacheDataSource.Factory
 ) : ViewModel() {
 
     private val _nextEpisodes = MutableStateFlow<List<EpisodeDto>>(emptyList())
@@ -44,7 +45,11 @@ class PlayerViewModel @Inject constructor(
     private val _currentEpisode = MutableStateFlow<EpisodeDto?>(null)
     val currentEpisode = _currentEpisode.asStateFlow()
 
-    fun downloadVideo(url: String, title: String, fileName: String, mediaType: String, tmdbId: Int) {
+    suspend fun getPlaybackUri(downloadId: String): String? {
+        return downloadRepository.getPlaybackUri(downloadId)
+    }
+
+    fun downloadVideo(url: String, title: String, fileName: String, mediaType: String, tmdbId: Int, season: Int, episode: Int) {
         viewModelScope.launch {
             val details = _mediaDetails.value
             if (details != null) {
@@ -54,7 +59,9 @@ class PlayerViewModel @Inject constructor(
                     fileName = fileName,
                     posterPath = details.posterPath,
                     mediaType = mediaType,
-                    tmdbId = tmdbId
+                    tmdbId = tmdbId,
+                    season = season,
+                    episode = episode
                 )
             }
         }

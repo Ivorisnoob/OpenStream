@@ -11,6 +11,8 @@ data class DownloadEntity(
     val title: String,
     val posterPath: String?,
     val mediaType: String,
+    val season: Int = 1,
+    val episode: Int = 1,
     val uri: String,
     val status: Int,
     val progress: Int,

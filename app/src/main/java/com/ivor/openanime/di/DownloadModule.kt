@@ -6,6 +6,7 @@ import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.cache.Cache
+import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.NoOpCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.offline.DownloadManager
@@ -42,6 +43,19 @@ object DownloadModule {
         return DefaultHttpDataSource.Factory()
             .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
             .setDefaultRequestProperties(mapOf("Referer" to "https://www.vidking.net/"))
+    }
+
+    @Provides
+    @Singleton
+    fun provideCacheDataSourceFactory(
+        cache: Cache,
+        dataSourceFactory: DataSource.Factory
+    ): CacheDataSource.Factory {
+        return CacheDataSource.Factory()
+            .setCache(cache)
+            .setUpstreamDataSourceFactory(dataSourceFactory)
+            .setCacheWriteDataSinkFactory(null) // Player should not write to cache, only read
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
     }
 
     @Provides

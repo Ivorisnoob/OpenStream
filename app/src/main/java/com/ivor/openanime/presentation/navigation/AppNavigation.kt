@@ -44,8 +44,11 @@ sealed class Screen(val route: String, val label: String = "", val icon: android
     data object Details : Screen("details/{mediaType}/{animeId}") {
         fun createRoute(mediaType: String, animeId: Int) = "details/$mediaType/$animeId"
     }
-    data object Player : Screen("player/{mediaType}/{animeId}/{season}/{episode}") {
-        fun createRoute(mediaType: String, animeId: Int, season: Int, episode: Int) = "player/$mediaType/$animeId/$season/$episode"
+    data object Player : Screen("player/{mediaType}/{animeId}/{season}/{episode}?downloadId={downloadId}") {
+        fun createRoute(mediaType: String, animeId: Int, season: Int, episode: Int, downloadId: String? = null): String {
+            val base = "player/$mediaType/$animeId/$season/$episode"
+            return if (downloadId != null) "$base?downloadId=$downloadId" else base
+        }
     }
 }
 
@@ -118,7 +121,18 @@ fun AppNavigation(
 
             composable(Screen.Downloads.route) {
                 DownloadsScreen(
-                    onBackClick = { navController.popBackStack() }
+                    onBackClick = { navController.popBackStack() },
+                    onDownloadClick = { download ->
+                        navController.navigate(
+                            Screen.Player.createRoute(
+                                mediaType = download.mediaType,
+                                animeId = download.tmdbId,
+                                season = download.season,
+                                episode = download.episode,
+                                downloadId = download.downloadId
+                            )
+                        )
+                    }
                 )
             }
 
@@ -155,19 +169,26 @@ fun AppNavigation(
                     navArgument("mediaType") { type = NavType.StringType },
                     navArgument("animeId") { type = NavType.IntType },
                     navArgument("season") { type = NavType.IntType },
-                    navArgument("episode") { type = NavType.IntType }
+                    navArgument("episode") { type = NavType.IntType },
+                    navArgument("downloadId") { 
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
                 )
             ) { backStackEntry ->
                 val mediaType = backStackEntry.arguments?.getString("mediaType") ?: "tv"
                 val animeId = backStackEntry.arguments?.getInt("animeId") ?: return@composable
                 val season = backStackEntry.arguments?.getInt("season") ?: return@composable
                 val episode = backStackEntry.arguments?.getInt("episode") ?: return@composable
+                val downloadId = backStackEntry.arguments?.getString("downloadId")
                 
                 PlayerScreen(
                     mediaType = mediaType,
                     tmdbId = animeId,
                     season = season,
                     episode = episode,
+                    downloadId = downloadId,
                     onBackClick = { navController.popBackStack() },
                     onEpisodeClick = { newEpisode ->
                         navController.navigate(Screen.Player.createRoute(mediaType, animeId, season, newEpisode)) {

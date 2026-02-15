@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -82,6 +83,7 @@ private fun materialSharedAxisYIn(): ContentTransform {
 @Composable
 fun DownloadsScreen(
     onBackClick: () -> Unit,
+    onDownloadClick: (DownloadEntity) -> Unit,
     viewModel: DownloadViewModel = hiltViewModel()
 ) {
     val downloads by viewModel.downloads.collectAsState()
@@ -126,7 +128,8 @@ fun DownloadsScreen(
                 } else {
                     DownloadsListView(
                         downloads = downloads,
-                        onDeleteClick = { viewModel.removeDownload(it) }
+                        onDeleteClick = { viewModel.removeDownload(it) },
+                        onItemClick = onDownloadClick
                     )
                 }
             }
@@ -166,7 +169,8 @@ fun EmptyDownloadsView() {
 @Composable
 fun DownloadsListView(
     downloads: List<DownloadEntity>,
-    onDeleteClick: (String) -> Unit
+    onDeleteClick: (String) -> Unit,
+    onItemClick: (DownloadEntity) -> Unit
 ) {
     LazyColumn(
         contentPadding = PaddingValues(bottom = 24.dp),
@@ -185,7 +189,8 @@ fun DownloadsListView(
         items(downloads, key = { it.downloadId }) { item ->
             DownloadItem(
                 item = item,
-                onDeleteClick = { onDeleteClick(item.downloadId) }
+                onDeleteClick = { onDeleteClick(item.downloadId) },
+                onItemClick = { onItemClick(item) }
             )
         }
     }
@@ -194,9 +199,11 @@ fun DownloadsListView(
 @Composable
 fun DownloadItem(
     item: DownloadEntity,
-    onDeleteClick: () -> Unit
+    onDeleteClick: () -> Unit,
+    onItemClick: () -> Unit
 ) {
     ListItem(
+        modifier = Modifier.clickable { onItemClick() },
         headlineContent = {
             Text(
                 text = item.title,

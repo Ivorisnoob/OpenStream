@@ -38,16 +38,18 @@ class DownloadRepositoryImpl @Inject constructor(
         fileName: String,
         posterPath: String?,
         mediaType: String,
-        tmdbId: Int
+        tmdbId: Int,
+        season: Int,
+        episode: Int
     ): String {
         return if (url.contains(".m3u8") || url.contains("/manifest")) {
-            downloadHls(url, title, posterPath, mediaType, tmdbId)
+            downloadHls(url, title, posterPath, mediaType, tmdbId, season, episode)
         } else {
-            downloadSystem(url, title, fileName, posterPath, mediaType, tmdbId)
+            downloadSystem(url, title, fileName, posterPath, mediaType, tmdbId, season, episode)
         }
     }
 
-    private suspend fun downloadSystem(url: String, title: String, fileName: String, posterPath: String?, mediaType: String, tmdbId: Int): String {
+    private suspend fun downloadSystem(url: String, title: String, fileName: String, posterPath: String?, mediaType: String, tmdbId: Int, season: Int, episode: Int): String {
         val request = DownloadManager.Request(Uri.parse(url))
             .setTitle(title)
             .setDescription("Downloading $title")
@@ -65,6 +67,8 @@ class DownloadRepositoryImpl @Inject constructor(
             title = title,
             posterPath = posterPath,
             mediaType = mediaType,
+            season = season,
+            episode = episode,
             uri = url,
             status = DownloadManager.STATUS_PENDING,
             progress = 0
@@ -73,7 +77,7 @@ class DownloadRepositoryImpl @Inject constructor(
         return id
     }
 
-    private suspend fun downloadHls(url: String, title: String, posterPath: String?, mediaType: String, tmdbId: Int): String {
+    private suspend fun downloadHls(url: String, title: String, posterPath: String?, mediaType: String, tmdbId: Int, season: Int, episode: Int): String {
         val id = "hls_${tmdbId}_${title.hashCode()}"
         
         val downloadRequest = DownloadRequest.Builder(id, Uri.parse(url))
@@ -93,6 +97,8 @@ class DownloadRepositoryImpl @Inject constructor(
             title = title,
             posterPath = posterPath,
             mediaType = mediaType,
+            season = season,
+            episode = episode,
             uri = url,
             status = DownloadManager.STATUS_PENDING,
             progress = 0
@@ -126,6 +132,23 @@ class DownloadRepositoryImpl @Inject constructor(
                 downloadedBytes = downloadedBytes,
                 totalBytes = totalBytes
             ))
+        }
+    }
+
+    override suspend fun getPlaybackUri(downloadId: String): String? {
+        val entity = dao.getDownloadById(downloadId) ?: return null
+        
+        return if (downloadId.startsWith("hls_")) {
+            // For HLS, we return the original URI. 
+            // The player will use the CacheDataSource to play from downloaded segments.
+            entity.uri
+        } else {
+            // For system downloads, get the local content URI
+            try {
+                systemDownloadManager.getUriForDownloadedFile(downloadId.toLong())?.toString() ?: entity.uri
+            } catch (e: Exception) {
+                entity.uri
+            }
         }
     }
 
