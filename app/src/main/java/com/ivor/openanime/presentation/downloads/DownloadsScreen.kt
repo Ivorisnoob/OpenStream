@@ -44,7 +44,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -261,6 +261,7 @@ fun SectionHeader(title: String) {
     )
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun DownloadItem(
     item: DownloadEntity,
@@ -355,9 +356,9 @@ fun DownloadItem(
                 when (item.status) {
                     DownloadManager.STATUS_RUNNING -> {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            LinearProgressIndicator(
+                            LinearWavyProgressIndicator(
                                 progress = { if (item.totalBytes > 0) item.downloadedBytes.toFloat() / item.totalBytes else 0f },
-                                modifier = Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(2.dp)),
+                                modifier = Modifier.weight(1f).height(10.dp).clip(RoundedCornerShape(2.dp)),
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(

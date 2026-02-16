@@ -22,10 +22,11 @@ import javax.inject.Inject
 class DetailsViewModel @Inject constructor(
     private val repository: AnimeRepository,
     private val watchLaterRepository: WatchLaterRepository,
+    private val downloadRepository: com.ivor.openanime.domain.repository.DownloadRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    private val animeId: Int = checkNotNull(savedStateHandle["animeId"])
+    val animeId: Int = checkNotNull(savedStateHandle["animeId"])
     private val mediaType: String = checkNotNull(savedStateHandle["mediaType"])
     
     private val _uiState = MutableStateFlow<DetailsUiState>(DetailsUiState.Loading)
@@ -109,7 +110,39 @@ class DetailsViewModel @Inject constructor(
             }
         }
     }
-}
+
+    fun downloadVideo(
+        url: String,
+        title: String,
+        posterPath: String?,
+        mediaType: String,
+        tmdbId: Int,
+        season: Int,
+        episode: Int
+    ) {
+        viewModelScope.launch {
+            try {
+                // Ensure a safe filename
+                var safeTitle = title.replace(Regex("[^a-zA-Z0-9.-]"), "_")
+                if (safeTitle.length > 50) safeTitle = safeTitle.take(50)
+                
+                val fileName = "${safeTitle}_${tmdbId}_S${season}E${episode}.mp4"
+                
+                downloadRepository.downloadVideo(
+                    url = url,
+                    title = title,
+                    fileName = fileName,
+                    posterPath = posterPath,
+                    mediaType = mediaType,
+                    tmdbId = tmdbId,
+                    season = season,
+                    episode = episode
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
 
 sealed interface DetailsUiState {
     data object Loading : DetailsUiState
@@ -119,4 +152,5 @@ sealed interface DetailsUiState {
         val isLoadingEpisodes: Boolean = false
     ) : DetailsUiState
     data class Error(val message: String) : DetailsUiState
+}
 }

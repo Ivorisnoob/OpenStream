@@ -31,6 +31,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.PlayArrow
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -51,6 +56,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,6 +72,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.ivor.openanime.data.remote.model.EpisodeDto
 import com.ivor.openanime.presentation.components.ExpressiveBackButton
+import com.ivor.openanime.presentation.details.DetailsViewModel.DetailsUiState
 import com.ivor.openanime.ui.theme.ExpressiveShapes
 
 // Expressive Motion Tokens (Spring approximations from M3 specs)
@@ -118,6 +125,76 @@ fun DetailsScreen(
         }
     }
 
+    var downloadQueue by remember { androidx.compose.runtime.mutableStateOf<List<EpisodeDto>>(emptyList()) }
+    var userInitiatedDownload by remember { androidx.compose.runtime.mutableStateOf(false) }
+
+    // Hidden Sniffer WebView
+    if (downloadQueue.isNotEmpty()) {
+        val currentEpisode = downloadQueue.first()
+        // Check if properties exist, otherwise default or fix
+        val season = currentEpisode.seasonNumber
+        val episode = currentEpisode.episodeNumber
+        
+        val embedUrl = if (mediaType == "movie") {
+             "https://www.vidking.net/embed/movie/${viewModel.animeId}?autoPlay=true"
+        } else {
+             "https://www.vidking.net/embed/tv/${viewModel.animeId}/$season/$episode?autoPlay=true"
+        }
+
+        androidx.compose.ui.viewinterop.AndroidView(
+            factory = { context ->
+                WebView(context).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.mediaPlaybackRequiresUserGesture = false
+                    settings.userAgentString = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+                    
+                    webViewClient = object : WebViewClient() {
+                        override fun shouldInterceptRequest(
+                            view: WebView?,
+                            request: WebResourceRequest?
+                        ): WebResourceResponse? {
+                            val url = request?.url?.toString()
+                            if (url != null) {
+                                val isHls = url.contains(".m3u8") || url.contains("/manifest")
+                                val isVideo = url.contains(".mp4") || url.contains(".m4s")
+                                
+                                if ((isHls || isVideo) && !url.contains("googleads") && !url.contains("doubleclick")) {
+                                    view?.post {
+                                        // Found video URL!
+                                        // Prioritize MP4 if possible, but triggers on first hit
+                                        
+                                        // Check if we already processed this episode to avoid duplicate triggers
+                                        if (downloadQueue.firstOrNull()?.episodeNumber == episode) {
+                                            viewModel.downloadVideo(
+                                                url = url,
+                                                title = currentEpisode.name,
+                                                posterPath = currentEpisode.stillPath,
+                                                mediaType = mediaType,
+                                                tmdbId = viewModel.animeId,
+                                                season = season,
+                                                episode = episode
+                                            )
+                                            // Move to next
+                                            downloadQueue = downloadQueue.drop(1)
+                                        }
+                                    }
+                                }
+                            }
+                            return super.shouldInterceptRequest(view, request)
+                        }
+                    }
+                }
+            },
+            update = { view ->
+                if (view.url != embedUrl) {
+                    view.loadUrl(embedUrl)
+                }
+            },
+            modifier = Modifier.size(1.dp).background(Color.Transparent) // Hidden but attached
+        )
+    }
+
     Scaffold(
         floatingActionButton = {
             if (uiState is DetailsUiState.Success) {
@@ -125,19 +202,68 @@ fun DetailsScreen(
                 val details = state.details
                 val seasonDetails = state.selectedSeasonDetails
                 
-                ExtendedFloatingActionButton(
-                    onClick = {
-                        val seasonNum = seasonDetails?.seasonNumber 
-                            ?: details.seasons?.firstOrNull()?.seasonNumber ?: 1
-                        val episodeNum = 1
-                        onPlayClick(seasonNum, episodeNum)
-                    },
-                    icon = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
-                    text = { Text("Play Now") },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    expanded = true
-                )
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    // Download FAB (Secondary) - if queue is empty
+                    if (downloadQueue.isEmpty()) {
+                        androidx.compose.material3.SmallFloatingActionButton(
+                            onClick = {
+                                // Add logic: Add all episodes of season OR movie
+                                if (mediaType == "movie") {
+                                    // Make a fake EpisodeDto for movie logic
+                                    val movieEp = EpisodeDto(
+                                        id = details.id,
+                                        name = details.name,
+                                        overview = details.overview,
+                                        voteAverage = details.voteAverage,
+                                        voteCount = 0, // details.voteCount not available
+                                        airDate = details.date,
+                                        episodeNumber = 1,
+                                        seasonNumber = 1,
+                                        stillPath = details.backdropPath,
+                                        productionCode = "",
+                                        runtime = 0,
+                                        showId = details.id
+                                    )
+                                    downloadQueue = listOf(movieEp)
+                                    userInitiatedDownload = true
+                                } else {
+                                    // Download all for current season
+                                    seasonDetails?.episodes?.let { eps ->
+                                        downloadQueue = eps
+                                        userInitiatedDownload = true
+                                    }
+                                }
+                            },
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        ) {
+                            Icon(Icons.Filled.Download, contentDescription = "Download All")
+                        }
+                    } else {
+                        // Show "Downloading..." badge?
+                        androidx.compose.material3.ExtendedFloatingActionButton(
+                            onClick = { downloadQueue = emptyList() },
+                            icon = { LoadingIndicator(modifier = Modifier.size(24.dp)) },
+                            text = { Text("Queue: ${downloadQueue.size}") },
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            expanded = true
+                        )
+                    }
+
+                    ExtendedFloatingActionButton(
+                        onClick = {
+                            val seasonNum = seasonDetails?.seasonNumber 
+                                ?: details.seasons?.firstOrNull()?.seasonNumber ?: 1
+                            val episodeNum = 1
+                            onPlayClick(seasonNum, episodeNum)
+                        },
+                        icon = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
+                        text = { Text("Play Now") },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        expanded = true
+                    )
+                }
             }
         }
     ) { innerPadding ->
@@ -173,7 +299,7 @@ fun DetailsScreen(
                             
                             LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(bottom = 80.dp) // Space for FAB
+                                contentPadding = PaddingValues(bottom = 120.dp) // Space for FABs
                             ) {
                                 // Header Item
                                 item {
@@ -302,7 +428,7 @@ fun DetailsScreen(
                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
                                             items(
-                                                items = details.seasons,
+                                                items = details.seasons ?: emptyList(),
                                                 key = { it.seasonNumber }
                                             ) { season ->
                                                 val isSelected = seasonDetails?.seasonNumber == season.seasonNumber
@@ -337,7 +463,11 @@ fun DetailsScreen(
                                         ) { episode ->
                                             EpisodeItem(
                                                 episode = episode,
-                                                onClick = { onPlayClick(episode.seasonNumber, episode.episodeNumber) }
+                                                onClick = { onPlayClick(episode.seasonNumber, episode.episodeNumber) },
+                                                onDownloadClick = {
+                                                    downloadQueue = downloadQueue + episode
+                                                    userInitiatedDownload = true
+                                                }
                                             )
                                         }
                                     }
@@ -386,7 +516,8 @@ fun DetailsScreen(
 @Composable
 fun EpisodeItem(
     episode: EpisodeDto,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDownloadClick: () -> Unit
 ) {
     ListItem(
         headlineContent = { 
@@ -416,6 +547,11 @@ fun EpisodeItem(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
+            }
+        },
+        trailingContent = {
+            androidx.compose.material3.IconButton(onClick = onDownloadClick) {
+                Icon(Icons.Filled.Download, contentDescription = "Download")
             }
         },
         colors = ListItemDefaults.colors(
