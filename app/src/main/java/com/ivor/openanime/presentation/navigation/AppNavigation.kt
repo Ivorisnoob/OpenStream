@@ -46,6 +46,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 
 sealed class Screen(val route: String, val label: String = "", val icon: androidx.compose.ui.graphics.vector.ImageVector? = null) {
@@ -193,16 +194,15 @@ fun AppNavigation(
         }
 
         // Expressive Floating Navigation
-        androidx.compose.animation.AnimatedVisibility(
+        AnimatedVisibility(
             visible = showBottomBar,
-            enter = androidx.compose.animation.slideInVertically { it } + androidx.compose.animation.fadeIn(),
-            exit = androidx.compose.animation.slideOutVertically { it } + androidx.compose.animation.fadeOut(),
+            enter = slideInVertically { it } + fadeIn(),
+            exit = slideOutVertically { it } + fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
             HorizontalFloatingToolbar(
                 expanded = true,
-                modifier = Modifier
-                    .padding(bottom = 50.dp), // Lift up slightly for floating effect
+                modifier = Modifier.padding(bottom = 50.dp),
                 content = {
                     bottomNavItems.forEach { screen ->
                         val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
@@ -218,7 +218,7 @@ fun AppNavigation(
                                         restoreState = true
                                     }
                                 },
-                                modifier = Modifier.size(56.dp) 
+                                modifier = Modifier.size(50.dp)
                             ) {
                                 Icon(screen.icon!!, contentDescription = screen.label)
                             }
@@ -233,7 +233,7 @@ fun AppNavigation(
                                         restoreState = true
                                     }
                                 },
-                                modifier = Modifier.size(56.dp)
+                                modifier = Modifier.size(50.dp)
                             ) {
                                 Icon(screen.icon!!, contentDescription = screen.label)
                             }
