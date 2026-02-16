@@ -7,6 +7,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import com.ivor.openanime.presentation.details.DetailsScreen
 import com.ivor.openanime.presentation.home.HomeScreen
 import com.ivor.openanime.presentation.downloads.DownloadsScreen
@@ -71,199 +76,171 @@ fun AppNavigation(
     val bottomNavItems = listOf(Screen.Home, Screen.Search, Screen.WatchLater, Screen.Downloads, Screen.History)
     val showBottomBar = currentDestination?.route in bottomNavItems.map { it.route }
 
-    Scaffold(
-        containerColor = Color.Transparent,
-        contentColor = MaterialTheme.colorScheme.onBackground
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        NavHost(
+            navController = navController,
+            startDestination = Screen.Home.route,
+            modifier = Modifier.fillMaxSize()
         ) {
-            NavHost(
-                navController = navController,
-                startDestination = Screen.Home.route,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = if (showBottomBar) 100.dp else 0.dp) // Space for floating toolbar
-            ) {
-                composable(Screen.Home.route) {
-                    HomeScreen(
-                        onAnimeClick = { animeId ->
-                            navController.navigate(Screen.Details.createRoute("tv", animeId))
-                        },
-                        onSearchClick = {},
-                        onHistoryClick = {}
-                    )
-                }
-
-                composable(Screen.Search.route) {
-                    SearchScreen(
-                        onBackClick = { navController.popBackStack() },
-                        onAnimeClick = { animeId, mediaType ->
-                            navController.navigate(Screen.Details.createRoute(mediaType, animeId))
-                        }
-                    )
-                }
-
-                composable(Screen.WatchLater.route) {
-                    WatchLaterScreen(
-                        onBackClick = { navController.popBackStack() },
-                        onAnimeClick = { animeId, mediaType ->
-                            navController.navigate(Screen.Details.createRoute(mediaType, animeId))
-                        }
-                    )
-                }
-
-                composable(Screen.Downloads.route) {
-                    DownloadsScreen(
-                        onBackClick = { navController.popBackStack() },
-                        onDownloadClick = { download ->
-                            navController.navigate(
-                                Screen.Player.createRoute(
-                                    mediaType = download.mediaType,
-                                    animeId = download.tmdbId,
-                                    season = download.season,
-                                    episode = download.episode,
-                                    downloadId = download.downloadId
-                                )
-                            )
-                        }
-                    )
-                }
-
-                composable(Screen.History.route) {
-                    WatchHistoryScreen(
-                        onBackClick = { navController.popBackStack() },
-                        onAnimeClick = { animeId, mediaType ->
-                            navController.navigate(Screen.Details.createRoute(mediaType, animeId))
-                        }
-                    )
-                }
-                
-                composable(
-                    route = Screen.Details.route,
-                    arguments = listOf(
-                        navArgument("mediaType") { type = NavType.StringType },
-                        navArgument("animeId") { type = NavType.IntType }
-                    )
-                ) { backStackEntry ->
-                    val mediaType = backStackEntry.arguments?.getString("mediaType") ?: "tv"
-                    val animeId = backStackEntry.arguments?.getInt("animeId") ?: return@composable
-                    DetailsScreen(
-                        mediaType = mediaType,
-                        onBackClick = { navController.popBackStack() },
-                        onPlayClick = { season, episode ->
-                            navController.navigate(Screen.Player.createRoute(mediaType, animeId, season, episode))
-                        }
-                    )
-                }
-
-                composable(
-                    route = Screen.Player.route,
-                    arguments = listOf(
-                        navArgument("mediaType") { type = NavType.StringType },
-                        navArgument("animeId") { type = NavType.IntType },
-                        navArgument("season") { type = NavType.IntType },
-                        navArgument("episode") { type = NavType.IntType },
-                        navArgument("downloadId") { 
-                            type = NavType.StringType
-                            nullable = true
-                            defaultValue = null
-                        }
-                    )
-                ) { backStackEntry ->
-                    val mediaType = backStackEntry.arguments?.getString("mediaType") ?: "tv"
-                    val animeId = backStackEntry.arguments?.getInt("animeId") ?: return@composable
-                    val season = backStackEntry.arguments?.getInt("season") ?: return@composable
-                    val episode = backStackEntry.arguments?.getInt("episode") ?: return@composable
-                    val downloadId = backStackEntry.arguments?.getString("downloadId")
-                    
-                    PlayerScreen(
-                        mediaType = mediaType,
-                        tmdbId = animeId,
-                        season = season,
-                        episode = episode,
-                        downloadId = downloadId,
-                        onBackClick = { navController.popBackStack() },
-                        onEpisodeClick = { newEpisode ->
-                            navController.navigate(Screen.Player.createRoute(mediaType, animeId, season, newEpisode)) {
-                                popUpTo(Screen.Player.route) { inclusive = true }
-                            }
-                        }
-                    )
-                }
+            composable(Screen.Home.route) {
+                HomeScreen(
+                    onAnimeClick = { animeId ->
+                        navController.navigate(Screen.Details.createRoute("tv", animeId))
+                    },
+                    onSearchClick = {},
+                    onHistoryClick = {}
+                )
             }
 
-            // Expressive Floating Navigation
-            if (showBottomBar) {
-                HorizontalFloatingToolbar(
-                    expanded = true,
-                    floatingActionButton = {
-                        // Main Action (Home?) or just keep it balanced
-                        // Let's use the Home icon as FAB or just regular item?
-                        // User wants it as "bottom navbar".
-                        // Let's put the middle item (WatchLater/Saved?) or Home as FAB?
-                        // "HorizontalFloatingToolbar" structure: FAB + Content.
-                        // If we want equal items, maybe put Home in FAB?
-                        // Or just put all items in `content` and no FAB?
-                        // Let's put all items in `content` and set FAB to empty/null if allowed.
-                        // Actually, `floatingActionButton` is a composable lambda.
-                        // If I pass empty lambda `{}`, it might occupy space?
-                        // Let's try putting all items in `content`.
-                        // The `HorizontalFloatingToolbar` usually has a FAB on one side.
-                        // `FloatingToolbar(floatingActionButton = { ... }, content = { ... })`
-                        // Let's try putting the middle item (WatchLater) as FAB? No, that's weird order.
-                        // Let's just use `content` for all items.
-                        // Be careful with API requirement.
-                        // Checking component definition in `components.md`:
-                        // `floatingActionButton` is a parameter.
-                        // Let's put simple `Spacer` or nothing?
-                        // Or utilize it for "Search"?
-                        // Let's put Home as FAB?
-                        // Let's try standard approach: All items in content.
-                    },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 24.dp), // Lift up slightly
-                    content = {
-                        bottomNavItems.forEach { screen ->
-                             val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
-                             if (selected) {
-                                  FilledIconButton(
-                                      onClick = {
-                                          navController.navigate(screen.route) {
-                                              popUpTo(navController.graph.findStartDestination().id) {
-                                                  saveState = true
-                                              }
-                                              launchSingleTop = true
-                                              restoreState = true
-                                          }
-                                      },
-                                      modifier = Modifier.size(56.dp) // Larger touch target
-                                  ) {
-                                      Icon(screen.icon!!, contentDescription = screen.label)
-                                  }
-                             } else {
-                                  IconButton(
-                                      onClick = {
-                                          navController.navigate(screen.route) {
-                                              popUpTo(navController.graph.findStartDestination().id) {
-                                                  saveState = true
-                                              }
-                                              launchSingleTop = true
-                                              restoreState = true
-                                          }
-                                      },
-                                      modifier = Modifier.size(56.dp)
-                                  ) {
-                                      Icon(screen.icon!!, contentDescription = screen.label)
-                                  }
-                             }
+            composable(Screen.Search.route) {
+                SearchScreen(
+                    onBackClick = { navController.popBackStack() },
+                    onAnimeClick = { animeId, mediaType ->
+                        navController.navigate(Screen.Details.createRoute(mediaType, animeId))
+                    }
+                )
+            }
+
+            composable(Screen.WatchLater.route) {
+                WatchLaterScreen(
+                    onBackClick = { navController.popBackStack() },
+                    onAnimeClick = { animeId, mediaType ->
+                        navController.navigate(Screen.Details.createRoute(mediaType, animeId))
+                    }
+                )
+            }
+
+            composable(Screen.Downloads.route) {
+                DownloadsScreen(
+                    onBackClick = { navController.popBackStack() },
+                    onDownloadClick = { download ->
+                        navController.navigate(
+                            Screen.Player.createRoute(
+                                mediaType = download.mediaType,
+                                animeId = download.tmdbId,
+                                season = download.season,
+                                episode = download.episode,
+                                downloadId = download.downloadId
+                            )
+                        )
+                    }
+                )
+            }
+
+            composable(Screen.History.route) {
+                WatchHistoryScreen(
+                    onBackClick = { navController.popBackStack() },
+                    onAnimeClick = { animeId, mediaType ->
+                        navController.navigate(Screen.Details.createRoute(mediaType, animeId))
+                    }
+                )
+            }
+            
+            composable(
+                route = Screen.Details.route,
+                arguments = listOf(
+                    navArgument("mediaType") { type = NavType.StringType },
+                    navArgument("animeId") { type = NavType.IntType }
+                )
+            ) { backStackEntry ->
+                val mediaType = backStackEntry.arguments?.getString("mediaType") ?: "tv"
+                val animeId = backStackEntry.arguments?.getInt("animeId") ?: return@composable
+                DetailsScreen(
+                    mediaType = mediaType,
+                    onBackClick = { navController.popBackStack() },
+                    onPlayClick = { season, episode ->
+                        navController.navigate(Screen.Player.createRoute(mediaType, animeId, season, episode))
+                    }
+                )
+            }
+
+            composable(
+                route = Screen.Player.route,
+                arguments = listOf(
+                    navArgument("mediaType") { type = NavType.StringType },
+                    navArgument("animeId") { type = NavType.IntType },
+                    navArgument("season") { type = NavType.IntType },
+                    navArgument("episode") { type = NavType.IntType },
+                    navArgument("downloadId") { 
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) { backStackEntry ->
+                val mediaType = backStackEntry.arguments?.getString("mediaType") ?: "tv"
+                val animeId = backStackEntry.arguments?.getInt("animeId") ?: return@composable
+                val season = backStackEntry.arguments?.getInt("season") ?: return@composable
+                val episode = backStackEntry.arguments?.getInt("episode") ?: return@composable
+                val downloadId = backStackEntry.arguments?.getString("downloadId")
+                
+                PlayerScreen(
+                    mediaType = mediaType,
+                    tmdbId = animeId,
+                    season = season,
+                    episode = episode,
+                    downloadId = downloadId,
+                    onBackClick = { navController.popBackStack() },
+                    onEpisodeClick = { newEpisode ->
+                        navController.navigate(Screen.Player.createRoute(mediaType, animeId, season, newEpisode)) {
+                            popUpTo(Screen.Player.route) { inclusive = true }
                         }
                     }
                 )
             }
+        }
+
+        // Expressive Floating Navigation
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showBottomBar,
+            enter = androidx.compose.animation.slideInVertically { it } + androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.slideOutVertically { it } + androidx.compose.animation.fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+            HorizontalFloatingToolbar(
+                expanded = true,
+                modifier = Modifier
+                    .padding(bottom = 50.dp), // Lift up slightly for floating effect
+                content = {
+                    bottomNavItems.forEach { screen ->
+                        val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                        
+                        if (selected) {
+                            FilledIconButton(
+                                onClick = {
+                                    navController.navigate(screen.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                },
+                                modifier = Modifier.size(56.dp) 
+                            ) {
+                                Icon(screen.icon!!, contentDescription = screen.label)
+                            }
+                        } else {
+                            IconButton(
+                                onClick = {
+                                    navController.navigate(screen.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                },
+                                modifier = Modifier.size(56.dp)
+                            ) {
+                                Icon(screen.icon!!, contentDescription = screen.label)
+                            }
+                        }
+                    }
+                }
+            )
         }
     }
 }
