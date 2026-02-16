@@ -208,4 +208,8 @@ class DownloadRepositoryImpl @Inject constructor(
             }
         }
     }
+
+    override fun getDownloadByContent(tmdbId: Int, season: Int, episode: Int, mediaType: String): Flow<DownloadEntity?> {
+        return dao.getDownloadByContent(tmdbId, season, episode, mediaType)
+    }
 }

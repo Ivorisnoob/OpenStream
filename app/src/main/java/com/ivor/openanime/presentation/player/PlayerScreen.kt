@@ -37,16 +37,22 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import android.app.DownloadManager
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
@@ -322,15 +328,17 @@ fun PlayerScreen(
                         )
                         
                         // Loading Overlay
-                        Column(
+                        Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(Color.Black),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
+                                .background(Color.Black)
                         ) {
                             // Back button visible during loading
-                            Box(modifier = Modifier.align(Alignment.Start).padding(8.dp)) {
+                            Box(modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .windowInsetsPadding(WindowInsets.statusBars)
+                                .padding(16.dp)
+                            ) {
                                 ExpressiveBackButton(
                                     onClick = onBackClick,
                                     containerColor = Color.Black.copy(alpha = 0.5f),
@@ -338,7 +346,10 @@ fun PlayerScreen(
                                 )
                             }
                             
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Column(
+                                modifier = Modifier.align(Alignment.Center),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
                                 LoadingIndicator()
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
@@ -451,18 +462,65 @@ fun PlayerScreen(
                             )
                         }
 
-                        // Download Button
-                        if (videoUrl != null) {
+                        val currentDownload by viewModel.currentDownload.collectAsState()
+                        
+                        // Download Status / Button
+                        if (videoUrl != null || currentDownload != null) {
                             Spacer(modifier = Modifier.height(16.dp))
-                            SuggestionChip(
-                                onClick = {
-                                    val fileName = "${currentTitle.replace(Regex("[^a-zA-Z0-9.-]"), "_")}_$tmdbId.mp4"
-                                    viewModel.downloadVideo(videoUrl!!, currentTitle, fileName, mediaType, tmdbId, season, episode)
-                                },
-                                label = { Text("Download") },
-                                icon = { Icon(Icons.Default.Download, contentDescription = null) },
-                                shape = ExpressiveShapes.medium
-                            )
+                            
+                            val downloadState = currentDownload?.status
+                            
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (downloadState == DownloadManager.STATUS_SUCCESSFUL) {
+                                    SuggestionChip(
+                                        onClick = { /* No-op or show delete dialog */ },
+                                        label = { Text("Downloaded") },
+                                        icon = { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                                        shape = ExpressiveShapes.medium,
+                                        colors = SuggestionChipDefaults.suggestionChipColors(
+                                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                        )
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    IconButton(onClick = { 
+                                        currentDownload?.let { viewModel.removeDownload(it.downloadId) } 
+                                    }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete Download", tint = MaterialTheme.colorScheme.error)
+                                    }
+                                } else if (downloadState == DownloadManager.STATUS_RUNNING || downloadState == DownloadManager.STATUS_PENDING) {
+                                    SuggestionChip(
+                                        onClick = { 
+                                            currentDownload?.let { viewModel.removeDownload(it.downloadId) }
+                                        },
+                                        label = { Text(if (downloadState == DownloadManager.STATUS_RUNNING) "${currentDownload?.progress}%" else "Queued") },
+                                        icon = { 
+                                            if (downloadState == DownloadManager.STATUS_RUNNING) {
+                                                androidx.compose.material3.CircularProgressIndicator(
+                                                    modifier = Modifier.size(16.dp),
+                                                    strokeWidth = 2.dp,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                            } else {
+                                                Icon(Icons.Default.Schedule, contentDescription = null)
+                                            }
+                                        },
+                                        shape = ExpressiveShapes.medium
+                                    )
+                                } else {
+                                    SuggestionChip(
+                                        onClick = {
+                                            if (videoUrl != null) {
+                                                val fileName = "${currentTitle.replace(Regex("[^a-zA-Z0-9.-]"), "_")}_$tmdbId.mp4"
+                                                viewModel.downloadVideo(videoUrl!!, currentTitle, fileName, mediaType, tmdbId, season, episode)
+                                            }
+                                        },
+                                        label = { Text("Download") },
+                                        icon = { Icon(Icons.Default.Download, contentDescription = null) },
+                                        shape = ExpressiveShapes.medium,
+                                        enabled = videoUrl != null
+                                    )
+                                }
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
