@@ -37,15 +37,22 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import android.app.DownloadManager
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
@@ -103,6 +110,7 @@ fun PlayerScreen(
     tmdbId: Int,
     season: Int,
     episode: Int,
+    downloadId: String? = null,
     onBackClick: () -> Unit,
     onEpisodeClick: (Int) -> Unit,
     viewModel: PlayerViewModel = hiltViewModel()
@@ -117,6 +125,9 @@ fun PlayerScreen(
     val mediaDetails by viewModel.mediaDetails.collectAsState()
     val currentEpisode by viewModel.currentEpisode.collectAsState()
 
+    var videoUrl by rememberSaveable { mutableStateOf<String?>(null) }
+    var isResolvingLocalUri by remember { mutableStateOf(downloadId != null) }
+
     var sniffedSubtitles by remember { mutableStateOf<List<SubtitleDto>>(emptyList()) }
 
     val allSubtitles = remember(remoteSubtitles, sniffedSubtitles) {
@@ -127,17 +138,27 @@ fun PlayerScreen(
     var isFullscreen by rememberSaveable { mutableStateOf(false) }
 
     // Trigger data fetch
-    LaunchedEffect(tmdbId, season, episode) {
+    LaunchedEffect(tmdbId, season, episode, downloadId) {
+        if (downloadId != null) {
+            isResolvingLocalUri = true
+            val uri = viewModel.getPlaybackUri(downloadId)
+            if (uri != null) {
+                videoUrl = uri
+                Log.d("PlayerScreen", "Playing from local/cache: $uri")
+            }
+            isResolvingLocalUri = false
+        }
         viewModel.loadSeasonDetails(mediaType, tmdbId, season, episode)
     }
 
-    // Embed URL for extraction
-    val embedUrl = if (mediaType == "movie") {
-        "https://www.vidking.net/embed/movie/$tmdbId?autoPlay=true&color=663399"
-    } else {
-        "https://www.vidking.net/embed/tv/$tmdbId/$season/$episode?autoPlay=true&color=663399"
-    }
-    var videoUrl by rememberSaveable { mutableStateOf<String?>(null) }
+    // Embed URL for extraction (only if not playing local)
+    val embedUrl = if (videoUrl == null) {
+        if (mediaType == "movie") {
+            "https://www.vidking.net/embed/movie/$tmdbId?autoPlay=true&color=663399"
+        } else {
+            "https://www.vidking.net/embed/tv/$tmdbId/$season/$episode?autoPlay=true&color=663399"
+        }
+    } else null
     
     // Dynamic Title for Player HUD
     val currentTitle = if (mediaType == "movie") {
@@ -229,6 +250,7 @@ fun PlayerScreen(
                     ExoPlayerView(
                         videoUrl = videoUrl!!,
                         title = currentTitle,
+                        dataSourceFactory = viewModel.dataSourceFactory,
                         isFullscreen = isFullscreen,
                         onFullscreenToggle = {
                             if (isFullscreen) exitFullscreen() else enterFullscreen()
@@ -259,11 +281,15 @@ fun PlayerScreen(
                                         ): WebResourceResponse? {
                                             val url = request?.url?.toString()
                                             if (url != null) {
-                                                if (url.contains(".m3u8") || url.contains(".mp4") || url.contains(".m4s") || url.contains("/manifest")) {
+                                                val isHls = url.contains(".m3u8") || url.contains("/manifest")
+                                                val isVideo = url.contains(".mp4") || url.contains(".m4s")
+                                                
+                                                if (isHls || isVideo) {
                                                     if (!url.contains("googleads") && !url.contains("doubleclick") && !url.contains("telemetry")) {
                                                         view?.post {
-                                                            if (videoUrl == null) {
-                                                                Log.i("PlayerSniffer", "Video URL Found: $url")
+                                                            // Prioritize MP4 over M3U8 for downloads/better playback
+                                                            if (videoUrl == null || (videoUrl!!.contains(".m3u8") && isVideo)) {
+                                                                Log.i("PlayerSniffer", "${if (isVideo) "Direct Video" else "HLS Stream"} URL Found: $url")
                                                                 videoUrl = url
                                                             }
                                                         }
@@ -286,7 +312,14 @@ fun PlayerScreen(
                                             return super.shouldInterceptRequest(view, request)
                                         }
                                     }
-                                    loadUrl(embedUrl)
+                                    if (embedUrl != null) {
+                                        loadUrl(embedUrl)
+                                    }
+                                }
+                            },
+                            update = { view ->
+                                if (embedUrl != null && view.url != embedUrl) {
+                                    view.loadUrl(embedUrl)
                                 }
                             },
                             modifier = Modifier
@@ -298,11 +331,14 @@ fun PlayerScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(Color.Black),
-                            contentAlignment = Alignment.Center
+                                .background(Color.Black)
                         ) {
                             // Back button visible during loading
-                            Box(modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
+                            Box(modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .windowInsetsPadding(WindowInsets.statusBars)
+                                .padding(16.dp)
+                            ) {
                                 ExpressiveBackButton(
                                     onClick = onBackClick,
                                     containerColor = Color.Black.copy(alpha = 0.5f),
@@ -310,7 +346,10 @@ fun PlayerScreen(
                                 )
                             }
                             
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Column(
+                                modifier = Modifier.align(Alignment.Center),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
                                 LoadingIndicator()
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
@@ -423,6 +462,67 @@ fun PlayerScreen(
                             )
                         }
 
+                        val currentDownload by viewModel.currentDownload.collectAsState()
+                        
+                        // Download Status / Button
+                        if (videoUrl != null || currentDownload != null) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            val downloadState = currentDownload?.status
+                            
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (downloadState == DownloadManager.STATUS_SUCCESSFUL) {
+                                    SuggestionChip(
+                                        onClick = { /* No-op or show delete dialog */ },
+                                        label = { Text("Downloaded") },
+                                        icon = { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                                        shape = ExpressiveShapes.medium,
+                                        colors = SuggestionChipDefaults.suggestionChipColors(
+                                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                        )
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    IconButton(onClick = { 
+                                        currentDownload?.let { viewModel.removeDownload(it.downloadId) } 
+                                    }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete Download", tint = MaterialTheme.colorScheme.error)
+                                    }
+                                } else if (downloadState == DownloadManager.STATUS_RUNNING || downloadState == DownloadManager.STATUS_PENDING) {
+                                    SuggestionChip(
+                                        onClick = { 
+                                            currentDownload?.let { viewModel.removeDownload(it.downloadId) }
+                                        },
+                                        label = { Text(if (downloadState == DownloadManager.STATUS_RUNNING) "${currentDownload?.progress}%" else "Queued") },
+                                        icon = { 
+                                            if (downloadState == DownloadManager.STATUS_RUNNING) {
+                                                androidx.compose.material3.CircularProgressIndicator(
+                                                    modifier = Modifier.size(16.dp),
+                                                    strokeWidth = 2.dp,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                            } else {
+                                                Icon(Icons.Default.Schedule, contentDescription = null)
+                                            }
+                                        },
+                                        shape = ExpressiveShapes.medium
+                                    )
+                                } else {
+                                    SuggestionChip(
+                                        onClick = {
+                                            if (videoUrl != null) {
+                                                val fileName = "${currentTitle.replace(Regex("[^a-zA-Z0-9.-]"), "_")}_$tmdbId.mp4"
+                                                viewModel.downloadVideo(videoUrl!!, currentTitle, fileName, mediaType, tmdbId, season, episode)
+                                            }
+                                        },
+                                        label = { Text("Download") },
+                                        icon = { Icon(Icons.Default.Download, contentDescription = null) },
+                                        shape = ExpressiveShapes.medium,
+                                        enabled = videoUrl != null
+                                    )
+                                }
+                            }
+                        }
+
                         Spacer(modifier = Modifier.height(16.dp))
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
@@ -515,3 +615,4 @@ fun PlayerScreen(
         }
     }
 }
+

@@ -9,9 +9,18 @@ import com.ivor.openanime.data.remote.model.EpisodeDto
 import com.ivor.openanime.data.remote.model.SubtitleDto
 import com.ivor.openanime.data.remote.model.toAnimeDto
 import com.ivor.openanime.domain.repository.AnimeRepository
+import com.ivor.openanime.domain.repository.DownloadRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import com.ivor.openanime.data.local.entity.DownloadEntity
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -23,7 +32,9 @@ import javax.inject.Inject
 class PlayerViewModel @Inject constructor(
     private val tmdbApi: TmdbApi,
     private val subtitleApi: SubtitleApi,
-    private val repository: AnimeRepository
+    private val repository: AnimeRepository,
+    private val downloadRepository: DownloadRepository,
+    val dataSourceFactory: androidx.media3.datasource.cache.CacheDataSource.Factory
 ) : ViewModel() {
 
     private val _nextEpisodes = MutableStateFlow<List<EpisodeDto>>(emptyList())
@@ -35,14 +46,62 @@ class PlayerViewModel @Inject constructor(
     private val _remoteSubtitles = MutableStateFlow<List<SubtitleDto>>(emptyList())
     val remoteSubtitles = _remoteSubtitles.asStateFlow()
 
-    // NEW state for details
     private val _mediaDetails = MutableStateFlow<AnimeDetailsDto?>(null)
     val mediaDetails = _mediaDetails.asStateFlow()
 
     private val _currentEpisode = MutableStateFlow<EpisodeDto?>(null)
     val currentEpisode = _currentEpisode.asStateFlow()
 
+    private val _mediaType = MutableStateFlow("tv")
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val currentDownload: StateFlow<DownloadEntity?> = combine(_mediaDetails, _currentEpisode, _mediaType) { details, episode, type ->
+        Triple(details, episode, type)
+    }.flatMapLatest { (details, episode, type) ->
+        if (details == null) {
+            flowOf(null)
+        } else {
+            val season = if (type == "movie") 1 else episode?.seasonNumber ?: 1
+            val epNum = if (type == "movie") 1 else episode?.episodeNumber ?: 1
+            // Use 1 as default if episode is null temporarily, but ideally wait for episode
+            if (type == "tv" && episode == null) {
+                flowOf(null)
+            } else {
+                downloadRepository.getDownloadByContent(details.id, season, epNum, type)
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    suspend fun getPlaybackUri(downloadId: String): String? {
+        return downloadRepository.getPlaybackUri(downloadId)
+    }
+    
+    fun removeDownload(downloadId: String) {
+        viewModelScope.launch {
+            downloadRepository.removeDownload(downloadId)
+        }
+    }
+
+    fun downloadVideo(url: String, title: String, fileName: String, mediaType: String, tmdbId: Int, season: Int, episode: Int) {
+        viewModelScope.launch {
+            val details = _mediaDetails.value
+            if (details != null) {
+                downloadRepository.downloadVideo(
+                    url = url,
+                    title = title,
+                    fileName = fileName,
+                    posterPath = details.posterPath,
+                    mediaType = mediaType,
+                    tmdbId = tmdbId,
+                    season = season,
+                    episode = episode
+                )
+            }
+        }
+    }
+
     fun loadSeasonDetails(mediaType: String, tmdbId: Int, seasonNumber: Int, currentEpisodeNumber: Int) {
+        _mediaType.value = mediaType
         viewModelScope.launch {
             // Fetch Media Details (Show or Movie)
             launch {
