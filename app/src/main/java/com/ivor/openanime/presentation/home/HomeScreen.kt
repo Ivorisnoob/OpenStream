@@ -13,12 +13,18 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -31,14 +37,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ivor.openanime.data.remote.model.AnimeDto
 import com.ivor.openanime.presentation.components.AnimeCard
+import com.ivor.openanime.ui.components.LiquidGlass
+import com.ivor.openanime.ui.components.MotionBackground
 import kotlin.math.absoluteValue
 import androidx.compose.foundation.layout.aspectRatio
 
@@ -52,93 +60,132 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
+    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(rememberTopAppBarState())
 
-    Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            LargeTopAppBar(
-                title = { 
-                    Text(
-                        "OpenStream",
-                        style = MaterialTheme.typography.displaySmall
-                    ) 
-                },
-                scrollBehavior = scrollBehavior,
-                actions = {
-                    // Actions removed as requested previously
+    MotionBackground {
+        Scaffold(
+            modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+            containerColor = Color.Transparent, // Transparent to show MotionBackground
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            topBar = {
+                LiquidGlass(
+                    blurRadius = 30f,
+                    overlayColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+                ) {
+                    CenterAlignedTopAppBar(
+                        title = {
+                            Text(
+                                "OpenStream",
+                                style = MaterialTheme.typography.titleLarge
+                            )
+                        },
+                        scrollBehavior = scrollBehavior,
+                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                            containerColor = Color.Transparent,
+                            scrolledContainerColor = Color.Transparent
+                        )
+                    )
                 }
-            )
-        }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            when (val state = uiState) {
-                is HomeUiState.Loading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+            },
+            bottomBar = {
+                LiquidGlass(
+                    blurRadius = 30f,
+                    overlayColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+                ) {
+                    NavigationBar(
+                        containerColor = Color.Transparent,
+                        tonalElevation = 0.dp
                     ) {
-                        LoadingIndicator()
+                        NavigationBarItem(
+                            selected = true,
+                            onClick = { /* Already here */ },
+                            icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
+                            label = { Text("Home") }
+                        )
+                        NavigationBarItem(
+                            selected = false,
+                            onClick = onSearchClick,
+                            icon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                            label = { Text("Search") }
+                        )
+                        NavigationBarItem(
+                            selected = false,
+                            onClick = onHistoryClick,
+                            icon = { Icon(Icons.Default.History, contentDescription = "History") },
+                            label = { Text("History") }
+                        )
                     }
                 }
-                is HomeUiState.Error -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = "Error loading content", style = MaterialTheme.typography.titleMedium)
-                            Text(text = state.message, color = MaterialTheme.colorScheme.error)
+            }
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
+                when (val state = uiState) {
+                    is HomeUiState.Loading -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            LoadingIndicator()
                         }
                     }
-                }
-                is HomeUiState.Success -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(bottom = 24.dp)
-                    ) {
-                        if (state.trending.isNotEmpty()) {
-                            item {
-                                SectionHeader(title = "Trending Now")
-                                TrendingHeroCarousel(
-                                    animeList = state.trending.take(10), // Limit carousel to top 10
-                                    onAnimeClick = onAnimeClick
-                                )
+                    is HomeUiState.Error -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(text = "Error loading content", style = MaterialTheme.typography.titleMedium)
+                                Text(text = state.message, color = MaterialTheme.colorScheme.error)
                             }
                         }
-
-                        if (state.topRated.isNotEmpty()) {
-                            item {
-                                SectionHeader(title = "Top Rated")
-                                HorizontalAnimeList(
-                                    animeList = state.topRated,
-                                    onAnimeClick = onAnimeClick
-                                )
+                    }
+                    is HomeUiState.Success -> {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(bottom = 24.dp)
+                        ) {
+                            if (state.trending.isNotEmpty()) {
+                                item {
+                                    SectionHeader(title = "Trending Now")
+                                    TrendingHeroCarousel(
+                                        animeList = state.trending.take(10), // Limit carousel to top 10
+                                        onAnimeClick = onAnimeClick
+                                    )
+                                }
                             }
-                        }
 
-                        if (state.airingToday.isNotEmpty()) {
-                            item {
-                                SectionHeader(title = "Airing Today")
-                                HorizontalAnimeList(
-                                    animeList = state.airingToday,
-                                    onAnimeClick = onAnimeClick
-                                )
+                            if (state.topRated.isNotEmpty()) {
+                                item {
+                                    SectionHeader(title = "Top Rated")
+                                    HorizontalAnimeList(
+                                        animeList = state.topRated,
+                                        onAnimeClick = onAnimeClick
+                                    )
+                                }
                             }
-                        }
 
-                        if (state.popular.isNotEmpty()) {
-                            item {
-                                SectionHeader(title = "Popular")
-                                HorizontalAnimeList(
-                                    animeList = state.popular,
-                                    onAnimeClick = onAnimeClick
-                                )
+                            if (state.airingToday.isNotEmpty()) {
+                                item {
+                                    SectionHeader(title = "Airing Today")
+                                    HorizontalAnimeList(
+                                        animeList = state.airingToday,
+                                        onAnimeClick = onAnimeClick
+                                    )
+                                }
+                            }
+
+                            if (state.popular.isNotEmpty()) {
+                                item {
+                                    SectionHeader(title = "Popular")
+                                    HorizontalAnimeList(
+                                        animeList = state.popular,
+                                        onAnimeClick = onAnimeClick
+                                    )
+                                }
                             }
                         }
                     }
