@@ -219,6 +219,17 @@ fun PlayerScreen(
         }
     } else null
 
+    // Metadata Sniffer Bridge
+    val webInterface = remember {
+        object {
+            @android.webkit.JavascriptInterface
+            fun onMetadataFound(json: String) {
+                Log.i("PlayerSniffer", "Metadata Found: $json")
+                // Here we can parse the JSON and look for sources/qualities
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -274,7 +285,51 @@ fun PlayerScreen(
                                     settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                                     settings.userAgentString = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
                                     
+                                    addJavascriptInterface(webInterface, "AndroidSniffer")
+
                                     webViewClient = object : WebViewClient() {
+                                        override fun onPageFinished(view: WebView?, url: String?) {
+                                            super.onPageFinished(view, url)
+                                            // Inject script to hook into XHR and fetch
+                                            val injection = """
+                                                (function() {
+                                                    const originalOpen = XMLHttpRequest.prototype.open;
+                                                    XMLHttpRequest.prototype.open = function(method, url) {
+                                                        this.addEventListener('load', function() {
+                                                            if (url.includes('api') || url.includes('source')) {
+                                                                try {
+                                                                    const response = JSON.parse(this.responseText);
+                                                                    if (response.sources || response.file) {
+                                                                        window.AndroidSniffer.onMetadataFound(this.responseText);
+                                                                    }
+                                                                } catch(e) {}
+                                                            }
+                                                        });
+                                                        originalOpen.apply(this, arguments);
+                                                    };
+
+                                                    const originalFetch = window.fetch;
+                                                    window.fetch = function() {
+                                                        return originalFetch.apply(this, arguments).then(response => {
+                                                            const clone = response.clone();
+                                                            if (clone.url.includes('api') || clone.url.includes('source')) {
+                                                                clone.text().then(text => {
+                                                                    try {
+                                                                        const json = JSON.parse(text);
+                                                                        if (json.sources || json.file) {
+                                                                            window.AndroidSniffer.onMetadataFound(text);
+                                                                        }
+                                                                    } catch(e) {}
+                                                                });
+                                                            }
+                                                            return response;
+                                                        });
+                                                    };
+                                                })();
+                                            """.trimIndent()
+                                            view?.evaluateJavascript(injection, null)
+                                        }
+
                                         override fun shouldInterceptRequest(
                                             view: WebView?,
                                             request: WebResourceRequest?
