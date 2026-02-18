@@ -390,3 +390,5 @@ The `.agent/skills/material-thinking/SKILL.md` file provides a comprehensive wor
 ---
 
 *Last updated: 2026-02-11*
+
+- Metadata Sniffer implemented by Antigravity (OpenClaw Bot) on 2026-02-18
