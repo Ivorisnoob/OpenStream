@@ -128,7 +128,11 @@ fun HomeScreen(
                     ) {
                         if (state.trending.isNotEmpty()) {
                             item {
-                                SectionHeader(title = "Trending Now")
+                                val isTablet = LocalConfiguration.current.screenWidthDp > 600
+                                SectionHeader(
+                                    title = "Trending Now",
+                                    topPadding = if (isTablet) 8.dp else 32.dp
+                                )
                                 TrendingHeroCarousel(
                                     animeList = state.trending.take(10), // Limit carousel to top 10
                                     onAnimeClick = onAnimeClick
@@ -305,12 +309,12 @@ fun HeroAnimeCard(
 }
 
 @Composable
-fun SectionHeader(title: String) {
+fun SectionHeader(title: String, topPadding: androidx.compose.ui.unit.Dp = 32.dp) {
     Text(
         text = title,
-        style = MaterialTheme.typography.headlineSmall, // Larger/bolder header
-        color = MaterialTheme.colorScheme.primary, // Use primary color for emphasis
-        modifier = Modifier.padding(start = 24.dp, top = 32.dp, bottom = 16.dp) // More breathing room
+        style = MaterialTheme.typography.headlineSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 24.dp, top = topPadding, bottom = 16.dp)
     )
 }
 
