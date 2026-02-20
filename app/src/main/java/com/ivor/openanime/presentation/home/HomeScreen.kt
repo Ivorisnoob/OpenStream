@@ -18,6 +18,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -71,18 +72,28 @@ fun HomeScreen(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            LargeTopAppBar(
-                title = { 
-                    Text(
-                        "OpenStream",
-                        style = MaterialTheme.typography.displaySmall
-                    ) 
-                },
-                scrollBehavior = scrollBehavior,
-                actions = {
-                    // Actions removed as requested previously
-                }
-            )
+            val isTablet = LocalConfiguration.current.screenWidthDp > 600
+            if (isTablet) {
+                TopAppBar(
+                    title = { 
+                        Text(
+                            "OpenStream",
+                            style = MaterialTheme.typography.displaySmall
+                        ) 
+                    },
+                    scrollBehavior = scrollBehavior
+                )
+            } else {
+                LargeTopAppBar(
+                    title = { 
+                        Text(
+                            "OpenStream",
+                            style = MaterialTheme.typography.displaySmall
+                        ) 
+                    },
+                    scrollBehavior = scrollBehavior
+                )
+            }
         }
     ) { innerPadding ->
         Box(
@@ -168,8 +179,7 @@ fun TrendingHeroCarousel(
 ) {
     val pagerState = rememberPagerState(pageCount = { animeList.size })
     val configuration = LocalConfiguration.current
-    val heightPercent = if (configuration.screenWidthDp > configuration.screenHeightDp) 0.7f else 0.4f
-    val carouselHeight = (configuration.screenHeightDp * heightPercent).dp
+    val isTablet = configuration.screenWidthDp > 600
 
     Column(modifier = Modifier.fillMaxWidth()) {
         HorizontalPager(
@@ -185,30 +195,44 @@ fun TrendingHeroCarousel(
                     .currentPageOffsetFraction
             ).absoluteValue
 
-            HeroAnimeCard(
-                anime = animeList[page],
-                onClick = { onAnimeClick(animeList[page].id) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(carouselHeight)
-                    .graphicsLayer {
-                        // Expressive Scale Effect: Center item is larger
-                        val scale = lerp(
-                            start = 0.85f,
-                            stop = 1f,
-                            fraction = 1f - pageOffset.coerceIn(0f, 1f)
-                        )
-                        scaleX = scale
-                        scaleY = scale
-                        
-                        // Fade out side items
-                        alpha = lerp(
-                            start = 0.5f,
-                            stop = 1f,
-                            fraction = 1f - pageOffset.coerceIn(0f, 1f)
-                        )
-                    }
-            )
+            val graphicsModifier = Modifier.graphicsLayer {
+                // Expressive Scale Effect: Center item is larger
+                val scale = lerp(
+                    start = 0.85f,
+                    stop = 1f,
+                    fraction = 1f - pageOffset.coerceIn(0f, 1f)
+                )
+                scaleX = scale
+                scaleY = scale
+                
+                // Fade out side items
+                alpha = lerp(
+                    start = 0.5f,
+                    stop = 1f,
+                    fraction = 1f - pageOffset.coerceIn(0f, 1f)
+                )
+            }
+
+            if (isTablet) {
+                val carouselHeight = (configuration.screenHeightDp * 0.7f).dp
+                HeroAnimeCard(
+                    anime = animeList[page],
+                    onClick = { onAnimeClick(animeList[page].id) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(carouselHeight)
+                        .then(graphicsModifier)
+                )
+            } else {
+                AnimeCard(
+                    anime = animeList[page],
+                    onClick = { onAnimeClick(animeList[page].id) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(0.7f)
+                        .then(graphicsModifier)
+                )
+            }
         }
     }
 }
