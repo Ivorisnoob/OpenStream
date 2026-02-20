@@ -48,6 +48,7 @@ import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -103,6 +104,9 @@ fun AppNavigation(
                     NavigationRailItem(
                         selected = selected,
                         onClick = {
+                            if (selected && screen.route == Screen.Search.route) {
+                                navController.currentBackStackEntry?.savedStateHandle?.set("focusSearch", System.currentTimeMillis())
+                            }
                             navController.navigate(screen.route) {
                                 popUpTo(navController.graph.findStartDestination().id) {
                                     saveState = true
@@ -141,12 +145,14 @@ fun AppNavigation(
                 )
             }
 
-            composable(Screen.Search.route) {
+            composable(Screen.Search.route) { backStackEntry ->
+                val focusTrigger = backStackEntry.savedStateHandle.getStateFlow("focusSearch", 0L).collectAsState().value
                 SearchScreen(
                     onBackClick = { navController.popBackStack() },
                     onAnimeClick = { animeId, mediaType ->
                         navController.navigate(Screen.Details.createRoute(mediaType, animeId))
-                    }
+                    },
+                    focusTrigger = focusTrigger
                 )
             }
 
@@ -256,6 +262,9 @@ fun AppNavigation(
                         if (selected) {
                             FilledIconButton(
                                 onClick = {
+                                    if (screen.route == Screen.Search.route) {
+                                        navController.currentBackStackEntry?.savedStateHandle?.set("focusSearch", System.currentTimeMillis())
+                                    }
                                     navController.navigate(screen.route) {
                                         popUpTo(navController.graph.findStartDestination().id) {
                                             saveState = true

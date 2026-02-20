@@ -116,6 +116,7 @@ private fun materialSharedAxisYIn(): ContentTransform {
 fun SearchScreen(
     onBackClick: () -> Unit,
     onAnimeClick: (Int, String) -> Unit,
+    focusTrigger: Long = 0L,
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -126,6 +127,13 @@ fun SearchScreen(
     LaunchedEffect(uiState.query) {
         if (uiState.query != searchQuery) {
             searchQuery = uiState.query
+        }
+    }
+
+    LaunchedEffect(focusTrigger) {
+        if (focusTrigger > 0L) {
+            focusRequester.requestFocus()
+            keyboardController?.show()
         }
     }
 

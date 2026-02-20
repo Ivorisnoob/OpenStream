@@ -43,6 +43,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -242,6 +243,7 @@ fun PlayerScreen(
         } else {
             Modifier
                 .fillMaxWidth()
+                .heightIn(max = 400.dp) // Keeps it from becoming too large on tablets
                 .aspectRatio(16f / 9f)
         }
 

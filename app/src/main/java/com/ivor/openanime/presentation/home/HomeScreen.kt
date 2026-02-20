@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -41,6 +42,18 @@ import com.ivor.openanime.data.remote.model.AnimeDto
 import com.ivor.openanime.presentation.components.AnimeCard
 import kotlin.math.absoluteValue
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
+import com.ivor.openanime.ui.theme.ExpressiveShapes
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.foundation.layout.height
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -154,6 +167,9 @@ fun TrendingHeroCarousel(
     onAnimeClick: (Int) -> Unit
 ) {
     val pagerState = rememberPagerState(pageCount = { animeList.size })
+    val configuration = LocalConfiguration.current
+    val heightPercent = if (configuration.screenWidthDp > configuration.screenHeightDp) 0.7f else 0.4f
+    val carouselHeight = (configuration.screenHeightDp * heightPercent).dp
 
     Column(modifier = Modifier.fillMaxWidth()) {
         HorizontalPager(
@@ -169,12 +185,12 @@ fun TrendingHeroCarousel(
                     .currentPageOffsetFraction
             ).absoluteValue
 
-            AnimeCard(
+            HeroAnimeCard(
                 anime = animeList[page],
                 onClick = { onAnimeClick(animeList[page].id) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(0.7f)
+                    .height(carouselHeight)
                     .graphicsLayer {
                         // Expressive Scale Effect: Center item is larger
                         val scale = lerp(
@@ -192,6 +208,73 @@ fun TrendingHeroCarousel(
                             fraction = 1f - pageOffset.coerceIn(0f, 1f)
                         )
                     }
+            )
+        }
+    }
+}
+
+@Composable
+fun HeroAnimeCard(
+    anime: AnimeDto,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(ExpressiveShapes.large)
+            .clickable(onClick = onClick)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        val imageUrl = if (anime.backdropPath != null) {
+            "https://image.tmdb.org/t/p/w780${anime.backdropPath}"
+        } else {
+            "https://image.tmdb.org/t/p/w500${anime.posterPath}"
+        }
+        
+        AsyncImage(
+            model = imageUrl,
+            contentDescription = anime.name,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+        
+        // Dark gradient overlay from bottom to top
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.2f),
+                            Color.Black.copy(alpha = 0.85f)
+                        )
+                    )
+                )
+        )
+        
+        // Text info overlay
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(16.dp)
+        ) {
+            val typeText = if (anime.mediaType == "movie") "Movie" else "TV Show"
+            val ratingText = if (anime.voteAverage != null && anime.voteAverage > 0) "・ ★ ${String.format("%.1f", anime.voteAverage)}" else ""
+            Text(
+                text = "${typeText} $ratingText",
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.8f),
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            
+            Text(
+                text = anime.name,
+                style = MaterialTheme.typography.titleLarge,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -220,7 +303,8 @@ fun HorizontalAnimeList(
             Box(modifier = Modifier.width(140.dp)) {
                 AnimeCard(
                     anime = anime,
-                    onClick = { onAnimeClick(anime.id) }
+                    onClick = { onAnimeClick(anime.id) },
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }
