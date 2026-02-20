@@ -276,7 +276,7 @@ fun SearchScreen(
                         }
                         SearchContentState.Results -> {
                             LazyVerticalStaggeredGrid(
-                                columns = StaggeredGridCells.Fixed(2),
+                                columns = StaggeredGridCells.Adaptive(150.dp),
                                 verticalItemSpacing = 16.dp,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 contentPadding = PaddingValues(bottom = 24.dp)

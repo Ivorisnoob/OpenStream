@@ -40,23 +40,41 @@ com.ivor.openanime/
 |-- MainActivity.kt              # Single Activity, sets up theme + navigation
 |
 |-- data/
+|   |-- local/
+|   |   |-- AppDatabase.kt       # Room Database definition
+|   |   |-- dao/
+|   |   |   |-- DownloadDao.kt   # DAO for downloaded items
+|   |   |   |-- WatchLaterDao.kt # DAO for watch later lists
+|   |   |-- entity/
+|   |       |-- DownloadEntity.kt  # DB Entity for offline downloads
+|   |       |-- WatchLaterEntity.kt # DB Entity for watch later
 |   |-- remote/
 |   |   |-- TmdbApi.kt           # Retrofit interface for TMDB endpoints
+|   |   |-- SubtitleApi.kt       # Retrofit interface for subtitle endpoints
 |   |   |-- model/
 |   |       |-- AnimeDto.kt      # AnimeDto, AnimeDetailsDto, SeasonDto
 |   |       |-- SeasonDetailsDto.kt  # SeasonDetailsDto, EpisodeDto
+|   |       |-- SubtitleDto.kt   # Subtitle data models
 |   |       |-- TmdbResponse.kt  # Generic paginated TMDB response wrapper
 |   |-- repository/
-|       |-- AnimeRepositoryImpl.kt  # Concrete repository (uses TmdbApi)
+|   |   |-- AnimeRepositoryImpl.kt  # Concrete repository (uses TmdbApi)
+|   |   |-- DownloadRepositoryImpl.kt # Concrete repository for downloads
+|   |   |-- WatchLaterRepositoryImpl.kt # Concrete repository for watch later
+|   |-- service/
+|       |-- HlsDownloadService.kt # Foreground service for HLS video downloading
 |
 |-- domain/
 |   |-- repository/
 |       |-- AnimeRepository.kt   # Repository interface (abstraction)
+|       |-- DownloadRepository.kt # Repository interface
+|       |-- WatchLaterRepository.kt # Repository interface
 |
 |-- di/
 |   |-- AppModule.kt             # Provides SharedPreferences
+|   |-- DatabaseModule.kt        # Provides Room AppDatabase and DAOs
+|   |-- DownloadModule.kt        # Provides video downloading utilities
 |   |-- NetworkModule.kt         # Provides Json, OkHttp, Retrofit, TmdbApi
-|   |-- RepositoryModule.kt      # Binds AnimeRepositoryImpl -> AnimeRepository
+|   |-- RepositoryModule.kt      # Binds repo interfaces to impls
 |
 |-- presentation/
 |   |-- navigation/
@@ -70,6 +88,12 @@ com.ivor.openanime/
 |   |-- watch_history/
 |   |   |-- WatchHistoryScreen.kt    # History grid with LargeFlexibleTopAppBar
 |   |   |-- WatchHistoryViewModel.kt # Loads/clears history from SharedPreferences
+|   |-- watch_later/
+|   |   |-- WatchLaterScreen.kt      # Watch Later list screen
+|   |   |-- WatchLaterViewModel.kt   # Interaction with WatchLaterRepository
+|   |-- downloads/
+|   |   |-- DownloadsScreen.kt       # Displays offline downloaded episodes
+|   |   |-- DownloadViewModel.kt     # Interactions with DownloadRepository
 |   |-- details/
 |   |   |-- DetailsScreen.kt     # Anime details: backdrop, seasons, episodes
 |   |   |-- DetailsViewModel.kt  # Loads anime details + season episodes
@@ -79,7 +103,10 @@ com.ivor.openanime/
 |   |   |-- components/
 |   |       |-- ExoPlayerView.kt # ExoPlayer Compose wrapper
 |   |       |-- PlayerControls.kt # Custom playback controls overlay
-|   |-- components/              # (empty, reserved for shared UI components)
+|   |       |-- PlayerSettingsDialog.kt # Video quality etc settings dialog
+|   |-- components/              
+|       |-- AnimeCard.kt         # Reusable composable for anime grid items
+|       |-- ExpressiveBackButton.kt # Expressive style back button
 |
 |-- ui/
     |-- theme/
@@ -99,9 +126,11 @@ Defined in `AppNavigation.kt` via a `sealed class Screen`:
 |--------------------------------------|----------------------|----------------------------|
 | `home`                               | HomeScreen           | None                       |
 | `search`                             | SearchScreen         | None                       |
+| `watch_later`                        | WatchLaterScreen     | None                       |
+| `downloads`                          | DownloadsScreen      | None                       |
 | `history`                            | WatchHistoryScreen   | None                       |
-| `details/{animeId}`                  | DetailsScreen        | `animeId: Int`             |
-| `player/{animeId}/{season}/{episode}` | PlayerScreen         | `animeId: Int, season: Int, episode: Int` |
+| `details/{mediaType}/{animeId}`      | DetailsScreen        | `mediaType: String, animeId: Int` |
+| `player/{mediaType}/{animeId}/{season}/{episode}?downloadId={downloadId}` | PlayerScreen         | `mediaType: String, animeId: Int, season: Int, episode: Int, downloadId: String?` |
 
 Navigation is handled via `NavHostController`. The `HomeScreen` top app bar provides entry points to Search and History.
 
@@ -113,6 +142,8 @@ Navigation is handled via `NavHostController`. The `HomeScreen` top app bar prov
 - **Base URL:** `https://api.themoviedb.org/3/`
 - **API Key:** Stored in `local.properties` as `TMDB_API_KEY`, injected via `BuildConfig.TMDB_API_KEY`
 - **Auth:** Added as a query parameter (`api_key`) by an OkHttp interceptor in `NetworkModule`
+
+Additionally, standard subtitle downloading APIs are present.
 
 ### Key Endpoints (TmdbApi.kt)
 | Method                   | Endpoint                               | Purpose                          |
@@ -152,14 +183,16 @@ The `PlayerViewModel` fetches episode lists from TMDB so the player can show "ne
 
 ## 7. Local Storage
 
-Currently uses **SharedPreferences** (provided by `AppModule`) for:
+Currently uses both **SharedPreferences** and **Room** database.
 
+**SharedPreferences** (provided by `AppModule`) for:
 - **Search History** (`search_history_list`): JSON-encoded `List<String>` of recent queries. Managed by `SearchViewModel`.
 - **Watch History** (`watch_history_list`): JSON-encoded `List<AnimeDto>` of watched titles. Managed by `WatchHistoryViewModel`.
 
-**Room** is included as a dependency (`2.6.1`) but has no database, DAOs, or entities defined yet. It is available for migration when persistence needs grow.
-
----
+**Room Database** (provided by `DatabaseModule`):
+- **WatchLaterEntity**: Stores anime added to the watch later list.
+- **DownloadEntity**: Stores downloaded episode information and local file paths.
+Access is managed via `WatchLaterDao` and `DownloadDao` through their respective repositories.
 
 ## 8. Theming and Design System
 
@@ -222,17 +255,27 @@ Modules:
     provideOkHttpClient() -> OkHttpClient
     provideRetrofit()     -> Retrofit
     provideTmdbApi()      -> TmdbApi
+    provideSubtitleApi()  -> SubtitleApi
 
   AppModule (SingletonComponent):
     provideSharedPreferences() -> SharedPreferences
 
+  DatabaseModule (SingletonComponent):
+    provideAppDatabase()  -> AppDatabase
+    provideWatchLaterDao() -> WatchLaterDao
+    provideDownloadDao()   -> DownloadDao
+
   RepositoryModule (SingletonComponent):
     binds AnimeRepositoryImpl -> AnimeRepository
+    binds WatchLaterRepositoryImpl -> WatchLaterRepository
+    binds DownloadRepositoryImpl -> DownloadRepository
 
 ViewModels (all @HiltViewModel):
   HomeViewModel(AnimeRepository)
   SearchViewModel(AnimeRepository, SharedPreferences, Json)
   WatchHistoryViewModel(SharedPreferences, Json)
+  WatchLaterViewModel(WatchLaterRepository)
+  DownloadViewModel(DownloadRepository)
   DetailsViewModel(AnimeRepository, SavedStateHandle)
   PlayerViewModel(TmdbApi)  // Note: uses TmdbApi directly, not Repository
 ```
@@ -304,7 +347,6 @@ These are **non-negotiable**:
 | **PlayerViewModel**     | Directly uses `TmdbApi` instead of `AnimeRepository`         | Refactor to go through repository                  |
 | **Error Handling**      | Basic error states, no retry mechanisms                      | Add retry buttons, exponential backoff             |
 | **Search Pagination**   | Only fetches first page of search results                    | Add infinite scroll with Paging 3                  |
-| **`components/` package** | Empty directory, all UI is inline in screen files           | Extract reusable composables (AnimeCard, etc.)     |
 
 ---
 

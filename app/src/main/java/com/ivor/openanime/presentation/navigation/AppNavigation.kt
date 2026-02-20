@@ -12,6 +12,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import com.ivor.openanime.presentation.details.DetailsScreen
 import com.ivor.openanime.presentation.home.HomeScreen
 import com.ivor.openanime.presentation.downloads.DownloadsScreen
@@ -21,9 +23,12 @@ import com.ivor.openanime.presentation.watch_history.WatchHistoryScreen
 import com.ivor.openanime.presentation.watch_later.WatchLaterScreen
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Download
@@ -38,6 +43,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.runtime.getValue
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -69,17 +78,54 @@ sealed class Screen(val route: String, val label: String = "", val icon: android
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun AppNavigation(
-    navController: NavHostController = rememberNavController()
+    navController: NavHostController = rememberNavController(),
+    windowSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     
     val bottomNavItems = listOf(Screen.Home, Screen.Search, Screen.WatchLater, Screen.Downloads, Screen.History)
     val showBottomBar = currentDestination?.route in bottomNavItems.map { it.route }
+    val isCompact = windowSizeClass == WindowWidthSizeClass.Compact
 
-    Box(
-        modifier = Modifier.fillMaxSize()
-    ) {
+    Row(modifier = Modifier.fillMaxSize()) {
+        AnimatedVisibility(
+            visible = showBottomBar && !isCompact,
+            enter = slideInHorizontally { -it } + fadeIn(),
+            exit = slideOutHorizontally { -it } + fadeOut()
+        ) {
+            NavigationRail(
+                modifier = Modifier.fillMaxHeight(),
+                containerColor = MaterialTheme.colorScheme.surfaceContainer
+            ) {
+                bottomNavItems.forEach { screen ->
+                    val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                    NavigationRailItem(
+                        selected = selected,
+                        onClick = {
+                            navController.navigate(screen.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = { Icon(screen.icon!!, contentDescription = screen.label) },
+                        label = { Text(screen.label) },
+                        colors = NavigationRailItemDefaults.colors(
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier.weight(1f).fillMaxHeight()
+        ) {
         NavHost(
             navController = navController,
             startDestination = Screen.Home.route,
@@ -193,9 +239,9 @@ fun AppNavigation(
             }
         }
 
-        // Expressive Floating Navigation
-        AnimatedVisibility(
-            visible = showBottomBar,
+        // Expressive Floating Navigation for Mobile (Compact screens)
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showBottomBar && isCompact,
             enter = slideInVertically { it } + fadeIn(),
             exit = slideOutVertically { it } + fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter)
@@ -243,4 +289,5 @@ fun AppNavigation(
             )
         }
     }
+}
 }
