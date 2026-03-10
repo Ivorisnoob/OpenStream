@@ -57,12 +57,14 @@ interface TmdbApi {
 
     @GET("tv/{id}")
     suspend fun getAnimeDetails(
-        @Path("id") id: Int
+        @Path("id") id: Int,
+        @Query("append_to_response") appendToResponse: String = "videos"
     ): AnimeDetailsDto
 
     @GET("movie/{id}")
     suspend fun getMovieDetails(
-        @Path("id") id: Int
+        @Path("id") id: Int,
+        @Query("append_to_response") appendToResponse: String = "videos"
     ): AnimeDetailsDto
 
     @GET("tv/{id}/season/{season_number}")

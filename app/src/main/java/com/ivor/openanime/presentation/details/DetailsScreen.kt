@@ -62,6 +62,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.material3.ElevatedCard
+import com.ivor.openanime.data.remote.model.VideoDto
+
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -115,6 +119,7 @@ fun DetailsScreen(
     viewModel: DetailsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val uriHandler = LocalUriHandler.current
     val isWatchLater by viewModel.isWatchLater.collectAsState()
     
     val screenState = remember(uiState) {
@@ -417,6 +422,63 @@ fun DetailsScreen(
                                             }
                                         }
                                         Spacer(modifier = Modifier.height(24.dp))
+                                    }
+                                }
+
+
+                                // Trailers & Teasers
+                                val videos = details.videos?.results?.filter {
+                                    it.site == "YouTube" && (it.type == "Trailer" || it.type == "Teaser")
+                                } ?: emptyList()
+
+                                if (videos.isNotEmpty()) {
+                                    item {
+                                        Column(modifier = Modifier.padding(vertical = 16.dp)) {
+                                            Text(
+                                                text = "Trailers & Teasers",
+                                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                                                color = MaterialTheme.colorScheme.onBackground
+                                            )
+
+                                            LazyRow(
+                                                contentPadding = PaddingValues(horizontal = 24.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                            ) {
+                                                items(
+                                                    items = videos,
+                                                    key = { it.id }
+                                                ) { video ->
+                                                    ElevatedCard(
+                                                        shape = ExpressiveShapes.medium,
+                                                        modifier = Modifier
+                                                            .size(width = 240.dp, height = 135.dp) // 16:9 ratio
+                                                    ) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .fillMaxSize()
+                                                                .clickable {
+                                                                    uriHandler.openUri("https://www.youtube.com/watch?v=${video.key}")
+                                                                }
+                                                        ) {
+                                                            AsyncImage(
+                                                                model = "https://img.youtube.com/vi/${video.key}/hqdefault.jpg",
+                                                                contentDescription = video.name,
+                                                                contentScale = ContentScale.Crop,
+                                                                modifier = Modifier.fillMaxSize()
+                                                            )
+                                                            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.3f)))
+                                                            Icon(
+                                                                imageVector = Icons.Filled.PlayArrow,
+                                                                contentDescription = "Play Trailer",
+                                                                tint = Color.White,
+                                                                modifier = Modifier.align(Alignment.Center).size(48.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
 
