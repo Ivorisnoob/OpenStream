@@ -60,6 +60,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
@@ -234,8 +235,18 @@ fun DetailsScreen(
                                 } else {
                                     // Download all for current season
                                     seasonDetails?.episodes?.let { eps ->
-                                        downloadQueue = eps
-                                        userInitiatedDownload = true
+                                        val releasedEps = eps.filter { ep ->
+                                            val dateStr = ep.airDate
+                                            if (dateStr.isNullOrEmpty()) true else {
+                                                try {
+                                                    !java.time.LocalDate.parse(dateStr).isAfter(java.time.LocalDate.now())
+                                                } catch (e: Exception) { true }
+                                            }
+                                        }
+                                        if (releasedEps.isNotEmpty()) {
+                                            downloadQueue = releasedEps
+                                            userInitiatedDownload = true
+                                        }
                                     }
                                 }
                             },
@@ -581,6 +592,22 @@ fun EpisodeItem(
     onClick: () -> Unit,
     onDownloadClick: () -> Unit
 ) {
+    val isReleased = remember(episode.airDate) {
+        val dateStr = episode.airDate
+        if (dateStr.isNullOrEmpty()) {
+            true // fallback for older shows
+        } else {
+            try {
+                val date = java.time.LocalDate.parse(dateStr)
+                !date.isAfter(java.time.LocalDate.now())
+            } catch (e: Exception) {
+                true
+            }
+        }
+    }
+
+    val alpha = if (isReleased) 1f else 0.5f
+
     ListItem(
         headlineContent = { 
             Text(
@@ -591,8 +618,13 @@ fun EpisodeItem(
             ) 
         },
         supportingContent = { 
+            val subtitle = if (isReleased) {
+                "Episode ${episode.episodeNumber} • ${String.format("%.1f", episode.voteAverage)}"
+            } else {
+                "Episode ${episode.episodeNumber} • Upcoming: ${episode.airDate ?: "TBD"}"
+            }
             Text(
-                "Episode ${episode.episodeNumber} • ${String.format("%.1f", episode.voteAverage)}", 
+                subtitle, 
                 maxLines = 1,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -612,15 +644,20 @@ fun EpisodeItem(
             }
         },
         trailingContent = {
-            androidx.compose.material3.IconButton(onClick = onDownloadClick) {
-                Icon(Icons.Filled.Download, contentDescription = "Download")
+            if (isReleased) {
+                androidx.compose.material3.IconButton(onClick = onDownloadClick) {
+                    Icon(Icons.Filled.Download, contentDescription = "Download")
+                }
             }
         },
         colors = ListItemDefaults.colors(
             containerColor = Color.Transparent // Integrate with background
         ),
         modifier = Modifier
-            .clickable(onClick = onClick)
+            .run {
+                if (isReleased) clickable(onClick = onClick) else this
+            }
             .padding(horizontal = 8.dp) // Indent items slightly
+            .alpha(alpha)
     )
 }
