@@ -16,10 +16,10 @@ Some repo docs are stale or use the old product name `OpenStream`. Do not propag
 
 For new work:
 - Prefer the product name `OpenAnime` in code comments, docs, and user-facing copy unless the user explicitly asks for a rename.
-- Verify dependencies in [gradle/libs.versions.toml](/E:/Ivors/Developement/open-source/OpenAnime/gradle/libs.versions.toml).
-- Verify theme behavior in [Theme.kt](/E:/Ivors/Developement/open-source/OpenAnime/app/src/main/java/com/ivor/openanime/ui/theme/Theme.kt).
-- Verify navigation in [AppNavigation.kt](/E:/Ivors/Developement/open-source/OpenAnime/app/src/main/java/com/ivor/openanime/presentation/navigation/AppNavigation.kt).
-- Verify rules in [rules.md](/E:/Ivors/Developement/open-source/OpenAnime/rules.md).
+- Verify dependencies in [gradle/libs.versions.toml](gradle/libs.versions.toml).
+- Verify theme behavior in [Theme.kt](app/src/main/java/com/ivor/openanime/ui/theme/Theme.kt).
+- Verify navigation in [AppNavigation.kt](app/src/main/java/com/ivor/openanime/presentation/navigation/AppNavigation.kt).
+- Verify rules in [rules.md](rules.md).
 
 ## Non-Negotiable Rules
 
@@ -49,8 +49,8 @@ For new work:
 ## Current Codebase Shape
 
 Main app entry:
-- [OpenAnimeApp.kt](/E:/Ivors/Developement/open-source/OpenAnime/app/src/main/java/com/ivor/openanime/OpenAnimeApp.kt)
-- [MainActivity.kt](/E:/Ivors/Developement/open-source/OpenAnime/app/src/main/java/com/ivor/openanime/MainActivity.kt)
+- [OpenAnimeApp.kt](app/src/main/java/com/ivor/openanime/OpenAnimeApp.kt)
+- [MainActivity.kt](MainActivity.kt)
 
 Important layers:
 - `data/remote`: TMDB and subtitle APIs plus DTOs
@@ -88,14 +88,14 @@ Important screens:
 
 ### Navigation
 
-- Routes live in [AppNavigation.kt](/E:/Ivors/Developement/open-source/OpenAnime/app/src/main/java/com/ivor/openanime/presentation/navigation/AppNavigation.kt).
+- Routes live in [AppNavigation.kt](app/src/main/java/com/ivor/openanime/presentation/navigation/AppNavigation.kt).
 - Reuse the existing route patterns and argument style.
 - If a new screen is added, wire the route, typed arguments, and callbacks cleanly.
 
 ### Dependency Injection
 
 - Use Hilt consistently.
-- Add new versions only in [gradle/libs.versions.toml](/E:/Ivors/Developement/open-source/OpenAnime/gradle/libs.versions.toml).
+- Add new versions only in [gradle/libs.versions.toml](gradle/libs.versions.toml).
 - Do not hardcode versions in Gradle files.
 
 ## Material 3 Expressive Philosophy
@@ -150,7 +150,7 @@ The UI must not feel:
 
 ## Material 3 Expressive Rules
 
-1. Start with the theme and component system already present in [Theme.kt](/E:/Ivors/Developement/open-source/OpenAnime/app/src/main/java/com/ivor/openanime/ui/theme/Theme.kt), [Shape.kt](/E:/Ivors/Developement/open-source/OpenAnime/app/src/main/java/com/ivor/openanime/ui/theme/Shape.kt), and [Type.kt](/E:/Ivors/Developement/open-source/OpenAnime/app/src/main/java/com/ivor/openanime/ui/theme/Type.kt).
+1. Start with the theme and component system already present in [Theme.kt](app/src/main/java/com/ivor/openanime/ui/theme/Theme.kt), [Shape.kt](app/src/main/java/com/ivor/openanime/ui/theme/Shape.kt), and [Type.kt](app/src/main/java/com/ivor/openanime/ui/theme/Type.kt).
 2. Prefer expressive components such as `MaterialExpressiveTheme`, `LoadingIndicator`, floating toolbars, connected button groups, and expressive button shapes when available.
 3. Use `MaterialTheme.colorScheme` roles. Do not hardcode random colors into screens unless there is a strong artistic reason and it still harmonizes with the theme.
 4. Favor surface containers over naked backgrounds when grouping content.
@@ -238,7 +238,7 @@ If adding motion:
 ## Engineering Rules For UI Work
 
 - Before creating a custom composable, check whether a Material 3 or expressive component already solves the problem.
-- Reuse existing shared UI pieces such as [AnimeCard.kt](/E:/Ivors/Developement/open-source/OpenAnime/app/src/main/java/com/ivor/openanime/presentation/components/AnimeCard.kt) and [ExpressiveBackButton.kt](/E:/Ivors/Developement/open-source/OpenAnime/app/src/main/java/com/ivor/openanime/presentation/components/ExpressiveBackButton.kt) when appropriate.
+- Reuse existing shared UI pieces such as [AnimeCard.kt](app/src/main/java/com/ivor/openanime/presentation/components/AnimeCard.kt) and [ExpressiveBackButton.kt](app/src/main/java/com/ivor/openanime/presentation/components/ExpressiveBackButton.kt) when appropriate.
 - If an existing shared component is weak, improve it rather than cloning variants across screens.
 - Keep modifier chains readable.
 - Prefer stable, named helper composables when a screen becomes too long.
@@ -276,15 +276,15 @@ If you touch documentation:
 
 ## Recommended Reference Files
 
-- [rules.md](/E:/Ivors/Developement/open-source/OpenAnime/rules.md)
-- [README.md](/E:/Ivors/Developement/open-source/OpenAnime/README.md)
-- [Material3ExpressiveDesignGuide.md](/E:/Ivors/Developement/open-source/OpenAnime/Material3ExpressiveDesignGuide.md)
-- [material-3-expressive-guide.md](/E:/Ivors/Developement/open-source/OpenAnime/material-3-expressive-guide.md)
-- [Theme.kt](/E:/Ivors/Developement/open-source/OpenAnime/app/src/main/java/com/ivor/openanime/ui/theme/Theme.kt)
-- [Shape.kt](/E:/Ivors/Developement/open-source/OpenAnime/app/src/main/java/com/ivor/openanime/ui/theme/Shape.kt)
-- [Type.kt](/E:/Ivors/Developement/open-source/OpenAnime/app/src/main/java/com/ivor/openanime/ui/theme/Type.kt)
-- [AppNavigation.kt](/E:/Ivors/Developement/open-source/OpenAnime/app/src/main/java/com/ivor/openanime/presentation/navigation/AppNavigation.kt)
-- [PlayerScreen.kt](/E:/Ivors/Developement/open-source/OpenAnime/app/src/main/java/com/ivor/openanime/presentation/player/PlayerScreen.kt)
+- [rules.md](rules.md)
+- [README.md](README.md)
+- [Material3ExpressiveDesignGuide.md](Material3ExpressiveDesignGuide.md)
+- [material-3-expressive-guide.md](material-3-expressive-guide.md)
+- [Theme.kt](app/src/main/java/com/ivor/openanime/ui/theme/Theme.kt)
+- [Shape.kt](app/src/main/java/com/ivor/openanime/ui/theme/Shape.kt)
+- [Type.kt](app/src/main/java/com/ivor/openanime/ui/theme/Type.kt)
+- [AppNavigation.kt](app/src/main/java/com/ivor/openanime/presentation/navigation/AppNavigation.kt)
+- [PlayerScreen.kt](app/src/main/java/com/ivor/openanime/presentation/player/PlayerScreen.kt)
 
 ## Final Standard
 
