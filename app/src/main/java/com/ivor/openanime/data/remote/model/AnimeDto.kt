@@ -47,7 +47,8 @@ data class AnimeDetailsDto(
     @SerialName("tagline") val tagline: String? = null,
     @SerialName("genres") val genres: List<GenreDto>? = null,
     @SerialName("production_companies") val productionCompanies: List<ProductionCompanyDto>? = null,
-    @SerialName("homepage") val homepage: String? = null
+    @SerialName("homepage") val homepage: String? = null,
+    @SerialName("videos") val videos: VideoResponseDto? = null
 ) {
     val name: String
         get() = movieTitle ?: tvName ?: ""
@@ -94,4 +95,18 @@ data class SeasonDto(
     @SerialName("season_number") val seasonNumber: Int,
     @SerialName("episode_count") val episodeCount: Int,
     @SerialName("air_date") val airDate: String?
+)
+
+@Serializable
+data class VideoResponseDto(
+    @SerialName("results") val results: List<VideoDto>
+)
+
+@Serializable
+data class VideoDto(
+    @SerialName("id") val id: String,
+    @SerialName("key") val key: String,
+    @SerialName("name") val name: String,
+    @SerialName("site") val site: String,
+    @SerialName("type") val type: String
 )
