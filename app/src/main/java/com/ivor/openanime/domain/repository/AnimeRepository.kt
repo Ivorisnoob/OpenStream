@@ -11,6 +11,7 @@ interface AnimeRepository {
     suspend fun getAiringTodayAnime(page: Int = 1): Result<List<AnimeDto>>
 
     suspend fun searchAnime(query: String, page: Int, filter: String = "all"): Result<List<AnimeDto>>
+    suspend fun discoverWithFilters(query: String, page: Int, mediaType: String, sortBy: String): Result<List<AnimeDto>>
     suspend fun getAnimeDetails(id: Int): Result<AnimeDetailsDto>
     suspend fun getMovieDetails(id: Int): Result<AnimeDetailsDto>
     suspend fun getMediaDetails(id: Int, mediaType: String): Result<AnimeDetailsDto>
