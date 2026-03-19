@@ -1,10 +1,10 @@
-# OpenAnime Agent Guide
+# OpenStream Agent Guide
 
 This file is the operating manual for any agent working in this repository. Follow it strictly.
 
 ## Mission
 
-OpenAnime is a native Android app for discovering and streaming anime using Jetpack Compose, Material 3 Expressive, Hilt, Retrofit, Room, and Media3.
+OpenStream is a native Android app for discovering and streaming anime using Jetpack Compose, Material 3 Expressive, Hilt, Retrofit, Room, and Media3.
 
 The job is not just to make code compile. The job is to keep the app coherent, expressive, maintainable, and unmistakably premium.
 
@@ -15,10 +15,10 @@ When documentation conflicts with code, trust the code.
 Some repo docs are stale or use the old product name `OpenStream`. Do not propagate that drift.
 
 For new work:
-- Prefer the product name `OpenAnime` in code comments, docs, and user-facing copy unless the user explicitly asks for a rename.
+- Prefer the product name `OpenStream` in code comments, docs, and user-facing copy unless the user explicitly asks for a rename.
 - Verify dependencies in [gradle/libs.versions.toml](gradle/libs.versions.toml).
-- Verify theme behavior in [Theme.kt](app/src/main/java/com/ivor/openanime/ui/theme/Theme.kt).
-- Verify navigation in [AppNavigation.kt](app/src/main/java/com/ivor/openanime/presentation/navigation/AppNavigation.kt).
+- Verify theme behavior in [Theme.kt](app/src/main/java/com/ivor/OpenStream/ui/theme/Theme.kt).
+- Verify navigation in [AppNavigation.kt](app/src/main/java/com/ivor/OpenStream/presentation/navigation/AppNavigation.kt).
 - Verify rules in [rules.md](rules.md).
 
 ## Non-Negotiable Rules
@@ -49,7 +49,7 @@ For new work:
 ## Current Codebase Shape
 
 Main app entry:
-- [OpenAnimeApp.kt](app/src/main/java/com/ivor/openanime/OpenAnimeApp.kt)
+- [OpenStreamApp.kt](app/src/main/java/com/ivor/OpenStream/OpenStreamApp.kt)
 - [MainActivity.kt](MainActivity.kt)
 
 Important layers:
@@ -88,7 +88,7 @@ Important screens:
 
 ### Navigation
 
-- Routes live in [AppNavigation.kt](app/src/main/java/com/ivor/openanime/presentation/navigation/AppNavigation.kt).
+- Routes live in [AppNavigation.kt](app/src/main/java/com/ivor/OpenStream/presentation/navigation/AppNavigation.kt).
 - Reuse the existing route patterns and argument style.
 - If a new screen is added, wire the route, typed arguments, and callbacks cleanly.
 
@@ -150,7 +150,7 @@ The UI must not feel:
 
 ## Material 3 Expressive Rules
 
-1. Start with the theme and component system already present in [Theme.kt](app/src/main/java/com/ivor/openanime/ui/theme/Theme.kt), [Shape.kt](app/src/main/java/com/ivor/openanime/ui/theme/Shape.kt), and [Type.kt](app/src/main/java/com/ivor/openanime/ui/theme/Type.kt).
+1. Start with the theme and component system already present in [Theme.kt](app/src/main/java/com/ivor/OpenStream/ui/theme/Theme.kt), [Shape.kt](app/src/main/java/com/ivor/OpenStream/ui/theme/Shape.kt), and [Type.kt](app/src/main/java/com/ivor/OpenStream/ui/theme/Type.kt).
 2. Prefer expressive components such as `MaterialExpressiveTheme`, `LoadingIndicator`, floating toolbars, connected button groups, and expressive button shapes when available.
 3. Use `MaterialTheme.colorScheme` roles. Do not hardcode random colors into screens unless there is a strong artistic reason and it still harmonizes with the theme.
 4. Favor surface containers over naked backgrounds when grouping content.
@@ -238,7 +238,7 @@ If adding motion:
 ## Engineering Rules For UI Work
 
 - Before creating a custom composable, check whether a Material 3 or expressive component already solves the problem.
-- Reuse existing shared UI pieces such as [AnimeCard.kt](app/src/main/java/com/ivor/openanime/presentation/components/AnimeCard.kt) and [ExpressiveBackButton.kt](app/src/main/java/com/ivor/openanime/presentation/components/ExpressiveBackButton.kt) when appropriate.
+- Reuse existing shared UI pieces such as [AnimeCard.kt](app/src/main/java/com/ivor/OpenStream/presentation/components/AnimeCard.kt) and [ExpressiveBackButton.kt](app/src/main/java/com/ivor/OpenStream/presentation/components/ExpressiveBackButton.kt) when appropriate.
 - If an existing shared component is weak, improve it rather than cloning variants across screens.
 - Keep modifier chains readable.
 - Prefer stable, named helper composables when a screen becomes too long.
@@ -270,7 +270,7 @@ If adding motion:
 ## Documentation Hygiene
 
 If you touch documentation:
-- keep product naming consistent with `OpenAnime`
+- keep product naming consistent with `OpenStream`
 - remove stale claims rather than stacking new contradictory notes on top
 - keep docs shorter and truer rather than broader and vaguer
 
@@ -280,11 +280,11 @@ If you touch documentation:
 - [README.md](README.md)
 - [Material3ExpressiveDesignGuide.md](Material3ExpressiveDesignGuide.md)
 - [material-3-expressive-guide.md](material-3-expressive-guide.md)
-- [Theme.kt](app/src/main/java/com/ivor/openanime/ui/theme/Theme.kt)
-- [Shape.kt](app/src/main/java/com/ivor/openanime/ui/theme/Shape.kt)
-- [Type.kt](app/src/main/java/com/ivor/openanime/ui/theme/Type.kt)
-- [AppNavigation.kt](app/src/main/java/com/ivor/openanime/presentation/navigation/AppNavigation.kt)
-- [PlayerScreen.kt](app/src/main/java/com/ivor/openanime/presentation/player/PlayerScreen.kt)
+- [Theme.kt](app/src/main/java/com/ivor/OpenStream/ui/theme/Theme.kt)
+- [Shape.kt](app/src/main/java/com/ivor/OpenStream/ui/theme/Shape.kt)
+- [Type.kt](app/src/main/java/com/ivor/OpenStream/ui/theme/Type.kt)
+- [AppNavigation.kt](app/src/main/java/com/ivor/OpenStream/presentation/navigation/AppNavigation.kt)
+- [PlayerScreen.kt](app/src/main/java/com/ivor/OpenStream/presentation/player/PlayerScreen.kt)
 
 ## Final Standard
 

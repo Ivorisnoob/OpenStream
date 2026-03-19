@@ -21,6 +21,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,7 +47,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
@@ -54,13 +54,18 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedIconButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
@@ -77,10 +82,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -162,12 +172,10 @@ fun PlayerScreen(
     } else null
     
     // Dynamic Title for Player HUD
-    val currentTitle = if (mediaType == "movie") {
-         mediaDetails?.name ?: "Movie"
-    } else {
-         val showName = mediaDetails?.name ?: "Show"
-         val epName = currentEpisode?.name ?: "Episode $episode"
-         "$showName - S$season:E$episode $epName"
+    val playerTitle = if (mediaType == "movie") mediaDetails?.name ?: "Movie" else mediaDetails?.name ?: "Show"
+    val playerSubtitle = if (mediaType == "movie") "" else {
+        val epName = currentEpisode?.name ?: "Episode $episode"
+        "S$season:E$episode • $epName"
     }
 
     // Fullscreen management
@@ -262,7 +270,8 @@ fun PlayerScreen(
                 if (hasUrl) {
                     ExoPlayerView(
                         videoUrl = videoUrl!!,
-                        title = currentTitle,
+                        title = playerTitle,
+                        subtitle = playerSubtitle,
                         dataSourceFactory = viewModel.dataSourceFactory,
                         isFullscreen = isFullscreen,
                         onFullscreenToggle = {
@@ -384,37 +393,94 @@ fun PlayerScreen(
                                 .alpha(0f)
                         )
                         
-                        // Loading Overlay
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black)
-                        ) {
-                            // Back button visible during loading
-                            Box(modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(if (isFullscreen) 16.dp else 12.dp)
+                        // Extraction / Loading Overlay (Cinematic)
+                        AnimatedContent(
+                            targetState = true,
+                            label = "LoadingOverlay"
+                        ) { _ ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black)
                             ) {
-                                ExpressiveBackButton(
-                                    onClick = onBackClick,
-                                    containerColor = Color.Black.copy(alpha = 0.5f),
-                                    contentColor = Color.White
-                                )
-                            }
-                            
-                            Column(
-                                modifier = Modifier.align(Alignment.Center),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                LoadingIndicator()
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = "Extracting Stream...",
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.headlineSmall.copy(
-                                        fontWeight = FontWeight.Bold
+                                // Blurred Backdrop
+                                val backdropPath = mediaDetails?.backdropPath
+                                if (backdropPath != null) {
+                                    AsyncImage(
+                                        model = "https://image.tmdb.org/t/p/w1280$backdropPath",
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .blur(20.dp)
+                                            .drawWithContent {
+                                                drawContent()
+                                                drawRect(
+                                                    brush = Brush.verticalGradient(
+                                                        colors = listOf(
+                                                            Color.Black.copy(alpha = 0.5f),
+                                                            Color.Black.copy(alpha = 0.8f)
+                                                        )
+                                                    ),
+                                                    blendMode = BlendMode.SrcOver
+                                                )
+                                            },
+                                        contentScale = ContentScale.Crop,
+                                        alpha = 0.7f
                                     )
-                                )
+                                }
+
+                                // Centered Loading Content
+                                Column(
+                                    modifier = Modifier.align(Alignment.Center),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                                ) {
+                                    LoadingIndicator(
+                                        modifier = Modifier.size(64.dp),
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            text = playerTitle,
+                                            color = Color.White,
+                                            style = MaterialTheme.typography.displaySmall.copy(
+                                                fontWeight = FontWeight.Black
+                                            ),
+                                            textAlign = TextAlign.Center
+                                        )
+                                        
+                                        if (playerSubtitle.isNotEmpty()) {
+                                            Text(
+                                                text = playerSubtitle,
+                                                color = Color.White.copy(alpha = 0.7f),
+                                                style = MaterialTheme.typography.headlineSmall,
+                                                textAlign = TextAlign.Center,
+                                                modifier = Modifier.padding(top = 8.dp)
+                                            )
+                                        }
+                                        
+                                        Spacer(modifier = Modifier.height(32.dp))
+                                        
+                                        Text(
+                                            text = "Step 1: Extracting Stream...",
+                                            color = Color.White.copy(alpha = 0.5f),
+                                            style = MaterialTheme.typography.labelLarge
+                                        )
+                                    }
+                                }
+
+                                // Back button
+                                Box(modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(if (isFullscreen) 16.dp else 12.dp)
+                                ) {
+                                    ExpressiveBackButton(
+                                        onClick = onBackClick,
+                                        containerColor = Color.White.copy(alpha = 0.1f),
+                                        contentColor = Color.White
+                                    )
+                                }
                             }
                         }
                     }
@@ -434,51 +500,77 @@ fun PlayerScreen(
                 modifier = Modifier
                     .fillMaxSize()
             ) {
-                // Title and Detailed Description
+                // Editorial Header
                 item {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        // Show Title (if TV) or Movie Tagline
+                    Column(
+                        modifier = Modifier
+                            .padding(horizontal = 24.dp, vertical = 32.dp)
+                            .fillMaxWidth()
+                    ) {
+                        // Media Type / Series Context
                         if (mediaType != "movie") {
                             Text(
-                                text = mediaDetails?.name ?: "TV Show",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.primary
+                                text = (mediaDetails?.name ?: "Series").uppercase(),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                letterSpacing = 2.sp,
+                                fontWeight = FontWeight.Bold
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
                         }
-                        
-                        // Main Title (Episode Name or Movie Name)
+
+                        // Main Title (Display Grade)
                         Text(
-                            text = if (mediaType == "movie") mediaDetails?.name ?: "Movie" 
-                                   else currentEpisode?.name ?: "Episode $episode",
-                            style = MaterialTheme.typography.headlineSmall, // Expressive
+                            text = if (mediaType == "movie") playerTitle else currentEpisode?.name ?: "Episode $episode",
+                            style = MaterialTheme.typography.displaySmall,
+                            fontWeight = FontWeight.Black,
                             color = MaterialTheme.colorScheme.onBackground,
-                            fontWeight = FontWeight.Bold
+                            lineHeight = 40.sp
                         )
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        // Metadata Row
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // Metadata Chips Row
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            // S:E pill
                             if (mediaType != "movie") {
-                                Text(
-                                    text = "S$season • E$episode",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
+                                Surface(
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    shape = ExpressiveShapes.small
+                                ) {
+                                    Text(
+                                        text = "S$season : E$episode",
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                }
                             }
-                            
+
+                            // Rating
                             val rating = if (mediaType == "movie") mediaDetails?.voteAverage else currentEpisode?.voteAverage
                             if (rating != null) {
-                                Text(
-                                    text = "★ ${String.format("%.1f", rating)}",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFFB800),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = String.format("%.1f", rating),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
-                            
+
+                            // Year
                             val date = if (mediaType == "movie") mediaDetails?.date else currentEpisode?.airDate
                             if (!date.isNullOrEmpty()) {
                                 Text(
@@ -489,100 +581,116 @@ fun PlayerScreen(
                             }
                         }
 
-                        // Genres Chips
+                        // Genres
                         if (mediaDetails?.genres?.isNotEmpty() == true) {
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(20.dp))
                             FlowRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 mediaDetails?.genres?.take(3)?.forEach { genre ->
-                                    SuggestionChip(
-                                        onClick = { /* No-op */ },
-                                        label = { Text(genre.name) },
-                                        shape = ExpressiveShapes.small,
-                                        colors = SuggestionChipDefaults.suggestionChipColors(
-                                            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                        shape = ExpressiveShapes.extraSmall,
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                    ) {
+                                        Text(
+                                            text = genre.name,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                            style = MaterialTheme.typography.labelMedium
                                         )
-                                    )
+                                    }
                                 }
                             }
                         }
 
-                        // Overview (Plot)
+                        // Overview (Editorial Style)
                         val overview = if (mediaType == "movie") mediaDetails?.overview else currentEpisode?.overview
                         if (!overview.isNullOrEmpty()) {
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(28.dp))
                             Text(
                                 text = overview,
-                                style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 24.sp),
-                                color = MaterialTheme.colorScheme.onSurface
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    lineHeight = 28.sp,
+                                    letterSpacing = 0.2.sp
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                             )
                         }
 
+                        // Download Action (Expressive Button)
                         val currentDownload by viewModel.currentDownload.collectAsState()
+                        val downloadState = currentDownload?.status
                         
-                        // Download Status / Button
-                        if (videoUrl != null || currentDownload != null) {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            
-                            val downloadState = currentDownload?.status
-                            
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (downloadState == DownloadManager.STATUS_SUCCESSFUL) {
-                                    SuggestionChip(
-                                        onClick = { /* No-op or show delete dialog */ },
-                                        label = { Text("Downloaded") },
-                                        icon = { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                                        shape = ExpressiveShapes.medium,
-                                        colors = SuggestionChipDefaults.suggestionChipColors(
-                                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                                        )
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    IconButton(onClick = { 
+                        Spacer(modifier = Modifier.height(32.dp))
+                        
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (downloadState == DownloadManager.STATUS_SUCCESSFUL) {
+                                Button(
+                                    onClick = { /* No-op */ },
+                                    shape = ExpressiveShapes.medium,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    ),
+                                    modifier = Modifier.height(56.dp)
+                                ) {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text("Available Offline")
+                                }
+                                
+                                Spacer(modifier = Modifier.width(12.dp))
+                                
+                                OutlinedIconButton(
+                                    onClick = { 
                                         currentDownload?.let { viewModel.removeDownload(it.downloadId) } 
-                                    }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Delete Download", tint = MaterialTheme.colorScheme.error)
+                                    },
+                                    modifier = Modifier.size(56.dp),
+                                    shape = ExpressiveShapes.medium
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete Download", tint = MaterialTheme.colorScheme.error)
+                                }
+                            } else if (downloadState == DownloadManager.STATUS_RUNNING || downloadState == DownloadManager.STATUS_PENDING) {
+                                OutlinedButton(
+                                    onClick = { 
+                                        currentDownload?.let { viewModel.removeDownload(it.downloadId) }
+                                    },
+                                    shape = ExpressiveShapes.medium,
+                                    modifier = Modifier.height(56.dp)
+                                ) {
+                                    if (downloadState == DownloadManager.STATUS_RUNNING) {
+                                        androidx.compose.material3.CircularProgressIndicator(
+                                            modifier = Modifier.size(20.dp),
+                                            strokeWidth = 3.dp,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Text("${currentDownload?.progress}%")
+                                    } else {
+                                        Icon(Icons.Default.Schedule, contentDescription = null)
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Text("Queued")
                                     }
-                                } else if (downloadState == DownloadManager.STATUS_RUNNING || downloadState == DownloadManager.STATUS_PENDING) {
-                                    SuggestionChip(
-                                        onClick = { 
-                                            currentDownload?.let { viewModel.removeDownload(it.downloadId) }
-                                        },
-                                        label = { Text(if (downloadState == DownloadManager.STATUS_RUNNING) "${currentDownload?.progress}%" else "Queued") },
-                                        icon = { 
-                                            if (downloadState == DownloadManager.STATUS_RUNNING) {
-                                                androidx.compose.material3.CircularProgressIndicator(
-                                                    modifier = Modifier.size(16.dp),
-                                                    strokeWidth = 2.dp,
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                )
-                                            } else {
-                                                Icon(Icons.Default.Schedule, contentDescription = null)
-                                            }
-                                        },
-                                        shape = ExpressiveShapes.medium
-                                    )
-                                } else {
-                                    SuggestionChip(
-                                        onClick = {
-                                            if (videoUrl != null) {
-                                                val fileName = "${currentTitle.replace(Regex("[^a-zA-Z0-9.-]"), "_")}_$tmdbId.mp4"
-                                                viewModel.downloadVideo(videoUrl!!, currentTitle, fileName, mediaType, tmdbId, season, episode)
-                                            }
-                                        },
-                                        label = { Text("Download") },
-                                        icon = { Icon(Icons.Default.Download, contentDescription = null) },
-                                        shape = ExpressiveShapes.medium,
-                                        enabled = videoUrl != null
-                                    )
+                                }
+                            } else {
+                                Button(
+                                    onClick = {
+                                        if (videoUrl != null) {
+                                            val fileName = "${playerTitle.replace(Regex("[^a-zA-Z0-9.-]"), "_")}_$tmdbId.mp4"
+                                            viewModel.downloadVideo(videoUrl!!, playerTitle, fileName, mediaType, tmdbId, season, episode)
+                                        }
+                                    },
+                                    enabled = videoUrl != null,
+                                    shape = ExpressiveShapes.medium,
+                                    modifier = Modifier.height(56.dp)
+                                ) {
+                                    Icon(Icons.Default.Download, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text("Download Details")
                                 }
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
                 }
 
@@ -591,9 +699,10 @@ fun PlayerScreen(
                     item {
                         Text(
                             text = "Up Next",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                            color = MaterialTheme.colorScheme.onBackground
+                            style = MaterialTheme.typography.headlineSmall,
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
+                            color = MaterialTheme.colorScheme.onBackground,
+                            fontWeight = FontWeight.Black
                         )
                     }
                 }
@@ -601,7 +710,7 @@ fun PlayerScreen(
                 if (isLoadingEpisodes) {
                     item {
                         Box(
-                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            modifier = Modifier.fillMaxWidth().padding(32.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             LoadingIndicator()
@@ -610,64 +719,93 @@ fun PlayerScreen(
                 }
 
                 items(nextEpisodes) { ep ->
-                    ListItem(
-                        headlineContent = { 
-                            Text(
-                                text = ep.name, 
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            ) 
-                        },
-                        supportingContent = { 
-                            Text(
-                                text = "Episode ${ep.episodeNumber} • ${ep.runtime ?: "?"}m", 
-                                style = MaterialTheme.typography.bodySmall
-                            ) 
-                        },
-                        leadingContent = {
-                            Box(
-                                modifier = Modifier
-                                    .width(120.dp)
-                                    .height(68.dp)
-                                    .clip(ExpressiveShapes.small) // Expressive Shape
-                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (ep.stillPath != null) {
-                                    AsyncImage(
-                                        model = "https://image.tmdb.org/t/p/w500${ep.stillPath}",
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                }
-                                 
-                                // Play icon overlay
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(Color.Black.copy(alpha = 0.3f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.PlayArrow,
-                                        contentDescription = null,
-                                        tint = Color.White
-                                    )
-                                }
-                            }
+                    Surface(
+                        onClick = {
+                            videoUrl = null
+                            sniffedSubtitles = emptyList()
+                            onEpisodeClick(ep.episodeNumber)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
-                                // Reset state for new episode
-                                videoUrl = null
-                                sniffedSubtitles = emptyList()
-                                onEpisodeClick(ep.episodeNumber)
+                            .padding(horizontal = 24.dp, vertical = 8.dp),
+                        shape = ExpressiveShapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .padding(12.dp)
+                                .fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // High Quality Thumbnail
+                            Box(
+                                modifier = Modifier
+                                    .width(140.dp)
+                                    .height(80.dp)
+                                    .clip(ExpressiveShapes.small)
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                            ) {
+                                AsyncImage(
+                                    model = "https://image.tmdb.org/t/p/w500${ep.stillPath}",
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                    alpha = 0.9f
+                                )
+                                
+                                // Episode Number Badge
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomStart)
+                                        .padding(8.dp)
+                                        .background(
+                                            MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.8f),
+                                            ExpressiveShapes.extraSmall
+                                        )
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "EP ${ep.episodeNumber}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                             }
-                    )
+
+                            Spacer(modifier = Modifier.width(16.dp))
+
+                            // Metadata Column
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = ep.name,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "${ep.runtime ?: "?"} minutes",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.padding(8.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+
+                // Bottom Padding for FAB or spacing
+                item {
+                    Spacer(modifier = Modifier.height(32.dp))
                 }
             }
         }
