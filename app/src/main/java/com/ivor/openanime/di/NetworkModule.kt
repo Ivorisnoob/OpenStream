@@ -3,6 +3,7 @@ package com.ivor.openanime.di
 import com.ivor.openanime.BuildConfig
 import com.ivor.openanime.data.remote.SubtitleApi
 import com.ivor.openanime.data.remote.TmdbApi
+import com.ivor.openanime.data.remote.GithubApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -108,5 +109,27 @@ object NetworkModule {
             .addConverterFactory(json.asConverterFactory(contentType))
             .build()
             .create(SubtitleApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideGithubApi(json: Json): GithubApi {
+        val contentType = "application/json".toMediaType()
+        return Retrofit.Builder()
+            .baseUrl("https://api.github.com/")
+            .client(
+                OkHttpClient.Builder()
+                    .addInterceptor { chain ->
+                        chain.proceed(
+                            chain.request().newBuilder()
+                                .header("Accept", "application/vnd.github+json")
+                                .build()
+                        )
+                    }
+                    .build()
+            )
+            .addConverterFactory(json.asConverterFactory(contentType))
+            .build()
+            .create(GithubApi::class.java)
     }
 }

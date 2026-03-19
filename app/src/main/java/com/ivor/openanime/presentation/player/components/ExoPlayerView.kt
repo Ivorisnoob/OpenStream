@@ -50,13 +50,36 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
-import androidx.media3.ui.PlayerView
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.unit.IntOffset
+import com.ivor.openanime.ui.theme.ExpressiveShapes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.net.URL
+import kotlin.math.roundToInt
+import androidx.media3.ui.PlayerView
+import androidx.compose.runtime.mutableIntStateOf
 
 @OptIn(UnstableApi::class)
 @kotlin.OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -70,9 +93,39 @@ fun ExoPlayerView(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
     remoteSubtitles: List<SubtitleDto> = emptyList(),
+    subtitle: String = "",
     onNextClick: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val activity = remember(context) {
+        var ctx = context
+        while (ctx is android.content.ContextWrapper) {
+            if (ctx is android.app.Activity) break
+            ctx = ctx.baseContext
+        }
+        ctx as? android.app.Activity
+    }
+
+    val trackSelector = remember {
+        DefaultTrackSelector(context).apply {
+            parameters = buildUponParameters()
+                .setPreferredTextLanguage("en")
+                .setSelectUndeterminedTextLanguage(true)
+                .build()
+        }
+    }
+
+    val exoPlayer = remember {
+        val mediaSourceFactory = DefaultMediaSourceFactory(context)
+            .setDataSourceFactory(dataSourceFactory)
+
+        ExoPlayer.Builder(context)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .setTrackSelector(trackSelector)
+            .build().apply {
+                playWhenReady = true
+            }
+    }
 
     // Player State
     var isPlaying by remember { mutableStateOf(true) }
@@ -96,6 +149,13 @@ fun ExoPlayerView(
     var currentSubtitleText by remember { mutableStateOf("") }
     var manualCues by remember { mutableStateOf<List<SubtitleCue>>(emptyList()) }
     var subtitleLoadingState by remember { mutableStateOf<SubtitleLoadingState>(SubtitleLoadingState.IDLE) }
+
+    // Gesture State
+    var brightness by remember { mutableFloatStateOf(1.0f) } // 0.0 to 1.0
+    var volume by remember { mutableFloatStateOf(exoPlayer.volume) }
+    var showBrightnessOverlay by remember { mutableStateOf(false) }
+    var showVolumeOverlay by remember { mutableStateOf(false) }
+    var gestureOverlayTimeout by remember { mutableLongStateOf(0L) }
 
     // Reset subtitle state when switching videos
     LaunchedEffect(videoUrl) {
@@ -145,26 +205,7 @@ fun ExoPlayerView(
         }
     }
 
-    val trackSelector = remember { 
-        DefaultTrackSelector(context).apply {
-            parameters = buildUponParameters()
-                .setPreferredTextLanguage("en")
-                .setSelectUndeterminedTextLanguage(true)
-                .build()
-        }
-    }
 
-    val exoPlayer = remember {
-        val mediaSourceFactory = DefaultMediaSourceFactory(context)
-            .setDataSourceFactory(dataSourceFactory)
-
-        ExoPlayer.Builder(context)
-            .setMediaSourceFactory(mediaSourceFactory)
-            .setTrackSelector(trackSelector)
-            .build().apply {
-                playWhenReady = true
-            }
-    }
 
     // Helper: parse available tracks from ExoPlayer
     fun parseTracksFromPlayer(tracks: Tracks) {
@@ -261,7 +302,7 @@ fun ExoPlayerView(
         }
 
         // Auto-select extracted subtitle if none selected
-        if (selectedSubtitle == null || selectedSubtitle?.isDisabled == true) {
+        if (selectedSubtitle == null) {
             val extracted = subtitles.find { it.label == "English (Extracted)" }
             if (extracted != null) {
                 Log.i("PlayerSubtitles", "Auto-selecting extracted subtitle: ${extracted.label}")
@@ -421,29 +462,111 @@ fun ExoPlayerView(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { areControlsVisible = !areControlsVisible },
+                    onDoubleTap = { offset ->
+                        val isForward = offset.x > size.width / 2
+                        if (isForward) {
+                            exoPlayer.seekTo(exoPlayer.currentPosition + 10000)
+                        } else {
+                            exoPlayer.seekTo(exoPlayer.currentPosition - 10000)
+                        }
+                        currentTime = exoPlayer.currentPosition
+                        areControlsVisible = true
+                    }
+                )
+            }
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragStart = { },
+                    onDragEnd = {
+                        showBrightnessOverlay = false
+                        showVolumeOverlay = false
+                    },
+                    onDragCancel = {
+                        showBrightnessOverlay = false
+                        showVolumeOverlay = false
+                    },
+                    onVerticalDrag = { change, dragAmount ->
+                        change.consume()
+                        val isLeft = change.position.x < size.width / 2
+                        val delta = -dragAmount / size.height // Swipe up to increase
+                        
+                        if (isLeft) {
+                            brightness = (brightness + delta).coerceIn(0f, 1f)
+                            showBrightnessOverlay = true
+                            showVolumeOverlay = false
+                            activity?.let { act ->
+                                val params = act.window.attributes
+                                params.screenBrightness = brightness
+                                act.window.setAttributes(params)
+                            }
+                        } else {
+                            volume = (volume + delta).coerceIn(0f, 1f)
+                            exoPlayer.volume = volume
+                            showVolumeOverlay = true
+                            showBrightnessOverlay = false
+                        }
+                        gestureOverlayTimeout = System.currentTimeMillis() + 2000
+                    }
+                )
+            }
+    ) {
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     player = exoPlayer
                     layoutParams = FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT
                     )
                     useController = false
-                    // Disable PlayerView's own subtitle rendering since we render in Compose
                     subtitleView?.visibility = android.view.View.GONE
                 }
             },
-            modifier = Modifier
-                .fillMaxSize()
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) {
-                    areControlsVisible = !areControlsVisible
-                }
+            modifier = Modifier.fillMaxSize()
         )
+
+        // Gesture Overlays
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showBrightnessOverlay,
+            enter = scaleIn() + fadeIn(),
+            exit = scaleOut() + fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            GestureIndicator(
+                icon = Icons.Default.BrightnessLow,
+                value = (brightness * 100).toInt(),
+                label = "Brightness"
+            )
+        }
+
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showVolumeOverlay,
+            enter = scaleIn() + fadeIn(),
+            exit = scaleOut() + fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            GestureIndicator(
+                icon = Icons.Default.VolumeUp,
+                value = (volume * 100).toInt(),
+                label = "Volume"
+            )
+        }
+
+        // Auto-hide gesture overlays
+        LaunchedEffect(gestureOverlayTimeout) {
+            if (gestureOverlayTimeout > 0) {
+                delay(2000)
+                showBrightnessOverlay = false
+                showVolumeOverlay = false
+                gestureOverlayTimeout = 0
+            }
+        }
 
         // Compose-rendered subtitles -- always on top of video, below controls
         val displaySubtitleText = remember(currentTime, currentSubtitleText, manualCues) {
@@ -489,6 +612,7 @@ fun ExoPlayerView(
             isPlaying = isPlaying,
             isBuffering = isBuffering,
             title = title,
+            subtitle = subtitle,
             currentTime = currentTime,
             totalTime = totalTime,
             onPauseToggle = {
@@ -622,15 +746,6 @@ fun ExoPlayerView(
     }
 }
 
-enum class SubtitleLoadingState {
-    IDLE,
-    LOADING,
-    SUCCESS,
-    ERROR
-}
-
-data class SubtitleCue(val startMs: Long, val endMs: Long, val text: String)
-
 private fun parseSubtitles(content: String): List<SubtitleCue> {
     val cues = mutableListOf<SubtitleCue>()
     val cleanContent = content.replace("\ufeff", "").replace("\r\n", "\n").replace("\r", "\n")
@@ -698,6 +813,48 @@ private fun parseSubtitles(content: String): List<SubtitleCue> {
     }
     return cues
 }
+
+@Composable
+private fun GestureIndicator(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    value: Int,
+    label: String
+) {
+    Surface(
+        color = Color.Black.copy(alpha = 0.5f),
+        shape = ExpressiveShapes.extraLarge,
+        modifier = Modifier
+            .size(140.dp)
+            .padding(16.dp)
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(48.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "$value%",
+                style = MaterialTheme.typography.titleLarge,
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
+private data class SubtitleCue(val startMs: Long, val endMs: Long, val text: String)
 
 private fun parseAssTimestamp(ts: String): Long {
     try {

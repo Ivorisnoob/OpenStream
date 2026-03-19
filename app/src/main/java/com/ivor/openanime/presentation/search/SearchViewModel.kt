@@ -19,13 +19,22 @@ enum class SearchFilter {
     ALL, MOVIE, TV
 }
 
+enum class SortOption(val apiValue: String, val displayName: String) {
+    POPULARITY_DESC("popularity.desc", "Most Popular"),
+    POPULARITY_ASC("popularity.asc", "Least Popular"),
+    RATING_DESC("vote_average.desc", "Highest Rated"),
+    DATE_DESC("first_air_date.desc", "Newest")
+}
+
 data class SearchUiState(
     val query: String = "",
     val history: List<String> = emptyList(),
     val searchResults: List<AnimeDto> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
-    val filter: SearchFilter = SearchFilter.ALL
+    val filter: SearchFilter = SearchFilter.ALL,
+    val sortBy: SortOption = SortOption.POPULARITY_DESC,
+    val isFilterOpen: Boolean = false
 )
 
 @HiltViewModel
@@ -58,9 +67,18 @@ class SearchViewModel @Inject constructor(
         if (_uiState.value.filter == filter) return
         _uiState.update { it.copy(filter = filter) }
         val query = _uiState.value.query
-        if (query.isNotBlank()) {
-            performSearch(query)
-        }
+        performSearch(query)
+    }
+
+    fun onSortSelected(sortOption: SortOption) {
+        if (_uiState.value.sortBy == sortOption) return
+        _uiState.update { it.copy(sortBy = sortOption) }
+        val query = _uiState.value.query
+        performSearch(query)
+    }
+
+    fun toggleFilterPane() {
+        _uiState.update { it.copy(isFilterOpen = !it.isFilterOpen) }
     }
 
     fun onSearch(query: String) {
@@ -77,9 +95,10 @@ class SearchViewModel @Inject constructor(
             SearchFilter.MOVIE -> "movie"
             SearchFilter.TV -> "tv"
         }
+        val sortByString = _uiState.value.sortBy.apiValue
 
         viewModelScope.launch {
-            repository.searchAnime(query, 1, filterString).fold(
+            repository.discoverWithFilters(query, 1, filterString, sortByString).fold(
                 onSuccess = { animeList ->
                     _uiState.update { it.copy(isLoading = false, searchResults = animeList) }
                 },

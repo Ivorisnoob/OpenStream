@@ -16,6 +16,9 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.TopAppBar
@@ -62,6 +65,7 @@ fun HomeScreen(
     onAnimeClick: (Int) -> Unit,
     onSearchClick: () -> Unit,
     onHistoryClick: () -> Unit,
+    onUpdateClick: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -90,6 +94,14 @@ fun HomeScreen(
                             "OpenStream",
                             style = MaterialTheme.typography.displaySmall
                         ) 
+                    },
+                    actions = {
+                        IconButton(onClick = onUpdateClick) {
+                            Icon(
+                                imageVector = Icons.Default.SystemUpdate,
+                                contentDescription = "Check for updates"
+                            )
+                        }
                     },
                     scrollBehavior = scrollBehavior
                 )

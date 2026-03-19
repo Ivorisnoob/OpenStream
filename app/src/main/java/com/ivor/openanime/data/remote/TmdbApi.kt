@@ -4,11 +4,33 @@ import com.ivor.openanime.data.remote.model.AnimeDetailsDto
 import com.ivor.openanime.data.remote.model.AnimeDto
 import com.ivor.openanime.data.remote.model.SeasonDetailsDto
 import com.ivor.openanime.data.remote.model.TmdbResponse
+import com.ivor.openanime.data.remote.model.KeywordDto
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface TmdbApi {
+    @GET("discover/movie")
+    suspend fun discoverMovie(
+        @Query("page") page: Int = 1,
+        @Query("sort_by") sortBy: String? = null,
+        @Query("with_genres") withGenres: String? = null,
+        @Query("with_keywords") withKeywords: String? = null
+    ): TmdbResponse<AnimeDto>
+
+    @GET("discover/tv")
+    suspend fun discoverTv(
+        @Query("page") page: Int = 1,
+        @Query("sort_by") sortBy: String? = null,
+        @Query("with_genres") withGenres: String? = null,
+        @Query("with_keywords") withKeywords: String? = null
+    ): TmdbResponse<AnimeDto>
+
+    @GET("search/keyword")
+    suspend fun searchKeyword(
+        @Query("query") query: String,
+        @Query("page") page: Int = 1
+    ): TmdbResponse<KeywordDto>
     @GET("discover/tv")
     suspend fun getPopularAnime(
         @Query("page") page: Int = 1,

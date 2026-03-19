@@ -81,6 +81,8 @@ data class SubtitleOption(
     val subLabel: String? = null
 )
 
+enum class SubtitleLoadingState { IDLE, LOADING, SUCCESS, ERROR }
+
 private enum class SettingsPage {
     MAIN, QUALITY, SPEED, SUBTITLES
 }
