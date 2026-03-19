@@ -393,8 +393,7 @@ fun PlayerScreen(
                             // Back button visible during loading
                             Box(modifier = Modifier
                                 .align(Alignment.TopStart)
-                                .windowInsetsPadding(WindowInsets.statusBars)
-                                .padding(16.dp)
+                                .padding(if (isFullscreen) 16.dp else 12.dp)
                             ) {
                                 ExpressiveBackButton(
                                     onClick = onBackClick,
@@ -412,7 +411,9 @@ fun PlayerScreen(
                                 Text(
                                     text = "Extracting Stream...",
                                     color = Color.White,
-                                    style = MaterialTheme.typography.titleMedium
+                                    style = MaterialTheme.typography.headlineSmall.copy(
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 )
                             }
                         }
