@@ -2,9 +2,11 @@ package com.ivor.openanime.presentation.player.components
 
 import android.util.Log
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.media3.datasource.DataSource
 import com.ivor.openanime.data.remote.model.SubtitleDto
+import com.ivor.openanime.presentation.player.CaptionStyleSettings
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -94,7 +96,9 @@ fun ExoPlayerView(
     modifier: Modifier = Modifier,
     remoteSubtitles: List<SubtitleDto> = emptyList(),
     subtitle: String = "",
-    onNextClick: (() -> Unit)? = null
+    onNextClick: (() -> Unit)? = null,
+    captionSettings: CaptionStyleSettings = CaptionStyleSettings(),
+    onCaptionSettingsChange: (CaptionStyleSettings) -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = remember(context) {
@@ -400,6 +404,20 @@ fun ExoPlayerView(
         }
     }
 
+    // Keep the screen awake only while video is actively playing. The flag is
+    // cleared on pause/stop and guaranteed cleared when the player leaves composition.
+    DisposableEffect(isPlaying) {
+        val window = activity?.window
+        if (isPlaying) {
+            window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
     DisposableEffect(Unit) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -589,7 +607,7 @@ fun ExoPlayerView(
                     text = displaySubtitleText,
                     style = TextStyle(
                         color = Color.White,
-                        fontSize = if (isFullscreen) 18.sp else 16.sp,
+                        fontSize = captionSettings.textSizeSp.sp,
                         fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center,
                         shadow = Shadow(
@@ -599,7 +617,7 @@ fun ExoPlayerView(
                     ),
                     modifier = Modifier
                         .background(
-                            Color.Black.copy(alpha = 0.6f),
+                            Color.Black.copy(alpha = captionSettings.backgroundOpacity),
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
                         )
                         .padding(horizontal = 12.dp, vertical = 6.dp)
@@ -741,7 +759,9 @@ fun ExoPlayerView(
                 }
                 exoPlayer.play()
             },
-            subtitleLoadingState = subtitleLoadingState
+            subtitleLoadingState = subtitleLoadingState,
+            captionSettings = captionSettings,
+            onCaptionSettingsChange = onCaptionSettingsChange
         )
     }
 }

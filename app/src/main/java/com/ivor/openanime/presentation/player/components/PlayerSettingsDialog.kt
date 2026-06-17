@@ -8,8 +8,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,6 +21,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -28,6 +31,7 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ClosedCaption
+import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Speed
@@ -43,6 +47,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,8 +60,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.ivor.openanime.presentation.player.CaptionStyleSettings
 import com.ivor.openanime.ui.theme.ExpressiveShapes
 
 /**
@@ -84,7 +92,7 @@ data class SubtitleOption(
 enum class SubtitleLoadingState { IDLE, LOADING, SUCCESS, ERROR }
 
 private enum class SettingsPage {
-    MAIN, QUALITY, SPEED, SUBTITLES
+    MAIN, QUALITY, SPEED, SUBTITLES, CAPTIONS
 }
 
 val SPEED_OPTIONS = listOf(0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
@@ -100,7 +108,9 @@ fun PlayerSettingsDialog(
     subtitleOptions: List<SubtitleOption>,
     selectedSubtitle: SubtitleOption?,
     onSubtitleSelected: (SubtitleOption?) -> Unit,
-    subtitleLoadingState: SubtitleLoadingState = SubtitleLoadingState.IDLE
+    subtitleLoadingState: SubtitleLoadingState = SubtitleLoadingState.IDLE,
+    captionSettings: CaptionStyleSettings = CaptionStyleSettings(),
+    onCaptionSettingsChange: (CaptionStyleSettings) -> Unit = {}
 ) {
     var currentPage by remember { mutableStateOf(SettingsPage.MAIN) }
 
@@ -157,7 +167,8 @@ fun PlayerSettingsDialog(
                             hasSubtitles = subtitleOptions.isNotEmpty(),
                             onQualityClick = { currentPage = SettingsPage.QUALITY },
                             onSpeedClick = { currentPage = SettingsPage.SPEED },
-                            onSubtitlesClick = { currentPage = SettingsPage.SUBTITLES }
+                            onSubtitlesClick = { currentPage = SettingsPage.SUBTITLES },
+                            onCaptionStyleClick = { currentPage = SettingsPage.CAPTIONS }
                         )
 
                         SettingsPage.QUALITY -> QualitySettingsMenu(
@@ -189,6 +200,12 @@ fun PlayerSettingsDialog(
                             loadingState = subtitleLoadingState,
                             onBack = { currentPage = SettingsPage.MAIN }
                         )
+
+                        SettingsPage.CAPTIONS -> CaptionStyleMenu(
+                            settings = captionSettings,
+                            onChange = onCaptionSettingsChange,
+                            onBack = { currentPage = SettingsPage.MAIN }
+                        )
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -205,7 +222,8 @@ private fun MainSettingsMenu(
     hasSubtitles: Boolean,
     onQualityClick: () -> Unit,
     onSpeedClick: () -> Unit,
-    onSubtitlesClick: () -> Unit
+    onSubtitlesClick: () -> Unit,
+    onCaptionStyleClick: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         // Content
@@ -252,6 +270,20 @@ private fun MainSettingsMenu(
                 modifier = Modifier.clickable(onClick = onSubtitlesClick)
             )
         }
+
+        ListItem(
+            headlineContent = { Text("Caption style") },
+            supportingContent = { Text("Size and background") },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.Default.FormatSize,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.clickable(onClick = onCaptionStyleClick)
+        )
     }
 }
 
@@ -504,6 +536,82 @@ private fun SubtitleSettingsMenu(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CaptionStyleMenu(
+    settings: CaptionStyleSettings,
+    onChange: (CaptionStyleSettings) -> Unit,
+    onBack: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        SubPageHeader(title = "Caption style", onBack = onBack)
+
+        // Live preview
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .clip(ExpressiveShapes.medium)
+                .background(Color.Black)
+                .padding(vertical = 20.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "The quick brown fox",
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = settings.textSizeSp.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .background(
+                        Color.Black.copy(alpha = settings.backgroundOpacity),
+                        shape = RoundedCornerShape(6.dp)
+                    )
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            )
+        }
+
+        // Text size
+        Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Text size", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    "${settings.textSizeSp.toInt()}sp",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Slider(
+                value = settings.textSizeSp,
+                onValueChange = { onChange(settings.copy(textSizeSp = it)) },
+                valueRange = CaptionStyleSettings.MIN_TEXT_SIZE_SP..CaptionStyleSettings.MAX_TEXT_SIZE_SP
+            )
+        }
+
+        // Background opacity
+        Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Background", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    "${(settings.backgroundOpacity * 100).toInt()}%",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Slider(
+                value = settings.backgroundOpacity,
+                onValueChange = { onChange(settings.copy(backgroundOpacity = it)) },
+                valueRange = 0f..1f
+            )
         }
     }
 }

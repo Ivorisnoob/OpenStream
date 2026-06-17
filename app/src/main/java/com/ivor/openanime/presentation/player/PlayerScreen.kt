@@ -135,6 +135,7 @@ fun PlayerScreen(
     val remoteSubtitles by viewModel.remoteSubtitles.collectAsState()
     val mediaDetails by viewModel.mediaDetails.collectAsState()
     val currentEpisode by viewModel.currentEpisode.collectAsState()
+    val captionSettings by viewModel.captionSettings.collectAsState()
 
     var videoUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var isResolvingLocalUri by remember { mutableStateOf(downloadId != null) }
@@ -267,9 +268,13 @@ fun PlayerScreen(
                 },
                 label = "PlayerState"
             ) { hasUrl ->
-                if (hasUrl) {
+                // Capture the live url so the exiting transition frame (where
+                // targetState still says "has url" but it was just cleared on an
+                // episode switch) can't dereference a null and crash.
+                val currentUrl = videoUrl
+                if (hasUrl && currentUrl != null) {
                     ExoPlayerView(
-                        videoUrl = videoUrl!!,
+                        videoUrl = currentUrl,
                         title = playerTitle,
                         subtitle = playerSubtitle,
                         dataSourceFactory = viewModel.dataSourceFactory,
@@ -282,7 +287,9 @@ fun PlayerScreen(
                         },
                         modifier = Modifier.fillMaxSize(),
                         remoteSubtitles = allSubtitles,
-                        onNextClick = onNextClick
+                        onNextClick = onNextClick,
+                        captionSettings = captionSettings,
+                        onCaptionSettingsChange = viewModel::updateCaptionSettings
                     )
                 } else {
                     Box(Modifier.fillMaxSize()) {
@@ -721,8 +728,8 @@ fun PlayerScreen(
                 items(nextEpisodes) { ep ->
                     Surface(
                         onClick = {
-                            videoUrl = null
-                            sniffedSubtitles = emptyList()
+                            // Navigation replaces this screen with a fresh Player
+                            // (popUpTo inclusive), so no manual state reset is needed.
                             onEpisodeClick(ep.episodeNumber)
                         },
                         modifier = Modifier

@@ -22,11 +22,15 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import javax.inject.Inject
+
+private const val KEY_CAPTION_STYLE = "caption_style"
 
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
@@ -34,8 +38,30 @@ class PlayerViewModel @Inject constructor(
     private val subtitleApi: SubtitleApi,
     private val repository: AnimeRepository,
     private val downloadRepository: DownloadRepository,
+    private val sharedPreferences: android.content.SharedPreferences,
+    private val json: Json,
     val dataSourceFactory: androidx.media3.datasource.cache.CacheDataSource.Factory
 ) : ViewModel() {
+
+    private val _captionSettings = MutableStateFlow(loadCaptionSettings())
+    val captionSettings: StateFlow<CaptionStyleSettings> = _captionSettings.asStateFlow()
+
+    private fun loadCaptionSettings(): CaptionStyleSettings {
+        return try {
+            sharedPreferences.getString(KEY_CAPTION_STYLE, null)
+                ?.let { json.decodeFromString<CaptionStyleSettings>(it) }
+                ?: CaptionStyleSettings()
+        } catch (e: Exception) {
+            CaptionStyleSettings()
+        }
+    }
+
+    fun updateCaptionSettings(settings: CaptionStyleSettings) {
+        _captionSettings.value = settings
+        sharedPreferences.edit()
+            .putString(KEY_CAPTION_STYLE, json.encodeToString(settings))
+            .apply()
+    }
 
     private val _nextEpisodes = MutableStateFlow<List<EpisodeDto>>(emptyList())
     val nextEpisodes = _nextEpisodes.asStateFlow()
