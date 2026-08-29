@@ -194,8 +194,12 @@ class ExtensionRepositoryImpl @Inject constructor(
 
     override fun recordOutcome(key: String, success: Boolean) {
         if (!loaded) return
-        store.recordOutcome(key, success)
-        publish(isSyncing = _catalog.value.isSyncing)
+        // Called once per provider on every stream resolve, from whichever thread collects the
+        // resolution flow — keep the write off it.
+        scope.launch {
+            store.recordOutcome(key, success)
+            publish(isSyncing = _catalog.value.isSyncing)
+        }
     }
 
     private fun ensureLoaded() {
