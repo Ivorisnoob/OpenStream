@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+      - 'claude/**'
+  workflow_dispatch:
 
 permissions:
   contents: read
