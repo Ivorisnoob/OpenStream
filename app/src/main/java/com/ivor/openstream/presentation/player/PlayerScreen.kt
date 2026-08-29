@@ -134,6 +134,13 @@ fun PlayerScreen(
     val activeServer by viewModel.activeServer.collectAsState()
     val currentDownload by viewModel.currentDownload.collectAsState()
 
+    val availableSourceCount = when (val state = serversState) {
+        is ServersState.Resolving -> state.servers.size
+        is ServersState.Ready -> state.servers.size
+        else -> 0
+    }
+    val isResolvingSources = serversState is ServersState.Resolving
+
     var localVideoUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var isResolvingLocalUri by remember { mutableStateOf(downloadId != null) }
     var showServerPicker by rememberSaveable { mutableStateOf(false) }
@@ -288,11 +295,19 @@ fun PlayerScreen(
                             },
                             modifier = Modifier.fillMaxSize(),
                             remoteSubtitles = allSubtitles,
-                            activeServerLabel = if (downloadId != null) {
-                                "Offline"
+                            sourceLabel = if (downloadId != null) {
+                                "Offline copy"
                             } else {
-                                activeServer?.let { "${it.name} · ${it.quality.label}" }
+                                activeServer?.name
                             },
+                            sourceSummary = if (downloadId != null) {
+                                "Stored on this device"
+                            } else {
+                                activeServer?.let { "${it.providerName} · ${it.sourceSummary()}" }
+                            },
+                            sourceCount = availableSourceCount,
+                            canChangeSource = downloadId == null,
+                            isResolvingSources = isResolvingSources,
                             onServersClick = { showServerPicker = true },
                             onNextClick = onNextClick,
                             captionSettings = captionSettings,

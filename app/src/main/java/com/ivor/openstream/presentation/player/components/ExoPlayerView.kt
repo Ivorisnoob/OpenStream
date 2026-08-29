@@ -46,6 +46,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
+import androidx.media3.common.VideoSize
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -101,7 +102,11 @@ fun ExoPlayerView(
     modifier: Modifier = Modifier,
     remoteSubtitles: List<SubtitleDto> = emptyList(),
     subtitle: String = "",
-    activeServerLabel: String? = null,
+    sourceLabel: String? = null,
+    sourceSummary: String? = null,
+    sourceCount: Int = 0,
+    canChangeSource: Boolean = true,
+    isResolvingSources: Boolean = false,
     onServersClick: () -> Unit = {},
     onNextClick: (() -> Unit)? = null,
     captionSettings: CaptionStyleSettings = CaptionStyleSettings(),
@@ -162,11 +167,13 @@ fun ExoPlayerView(
     // UI State
     var areControlsVisible by remember { mutableStateOf(true) }
     var showSettingsDialog by remember { mutableStateOf(false) }
+    var settingsInitialPage by remember { mutableStateOf(PlayerSettingsPage.MAIN) }
 
     // Settings State
     var playbackSpeed by remember { mutableFloatStateOf(1.0f) }
     var qualityOptions by remember { mutableStateOf<List<QualityOption>>(emptyList()) }
     var selectedQuality by remember { mutableStateOf<QualityOption?>(null) }
+    var activeVideoHeight by remember { mutableIntStateOf(0) }
     var subtitleOptions by remember { mutableStateOf<List<SubtitleOption>>(emptyList()) }
     var selectedSubtitle by remember { mutableStateOf<SubtitleOption?>(null) }
 
@@ -184,6 +191,7 @@ fun ExoPlayerView(
 
     // Reset subtitle state when switching videos
     LaunchedEffect(videoUrl) {
+        activeVideoHeight = 0
         selectedSubtitle = null
         manualCues = emptyList()
         currentSubtitleText = ""
@@ -261,7 +269,8 @@ fun ExoPlayerView(
                                     QualityOption(
                                         label = label,
                                         width = format.width,
-                                        height = format.height
+                                        height = format.height,
+                                        bitrate = format.bitrate
                                     )
                                 )
                             }
@@ -490,6 +499,10 @@ fun ExoPlayerView(
                 parseTracksFromPlayer(tracks)
             }
 
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                activeVideoHeight = videoSize.height
+            }
+
             override fun onCues(cueGroup: CueGroup) {
                 // Render subtitle cues in Compose instead of relying on PlayerView's SubtitleView
                 val text = cueGroup.cues.joinToString("\n") { cue ->
@@ -659,7 +672,9 @@ fun ExoPlayerView(
             isBuffering = isBuffering,
             title = title,
             subtitle = subtitle,
-            activeServerLabel = activeServerLabel,
+            sourceLabel = sourceLabel,
+            qualityLabel = qualityDisplayLabel(selectedQuality, activeVideoHeight),
+            hasSubtitles = subtitleOptions.isNotEmpty(),
             currentTime = currentTime,
             totalTime = totalTime,
             onPauseToggle = {
@@ -687,10 +702,24 @@ fun ExoPlayerView(
             },
             onNextClick = onNextClick,
             onSettingsClick = {
+                settingsInitialPage = PlayerSettingsPage.MAIN
                 showSettingsDialog = true
                 areControlsVisible = false
             },
-            onServersClick = onServersClick,
+            onSourcesClick = {
+                areControlsVisible = false
+                onServersClick()
+            },
+            onQualityClick = {
+                settingsInitialPage = PlayerSettingsPage.QUALITY
+                showSettingsDialog = true
+                areControlsVisible = false
+            },
+            onSubtitlesClick = {
+                settingsInitialPage = PlayerSettingsPage.SUBTITLES
+                showSettingsDialog = true
+                areControlsVisible = false
+            },
             isFullscreen = isFullscreen,
             onFullscreenToggle = {
                 onFullscreenToggle()
@@ -721,8 +750,19 @@ fun ExoPlayerView(
     if (showSettingsDialog) {
         PlayerSettingsDialog(
             onDismiss = { showSettingsDialog = false },
+            initialPage = settingsInitialPage,
+            sourceLabel = sourceLabel,
+            sourceSummary = sourceSummary,
+            sourceCount = sourceCount,
+            canChangeSource = canChangeSource,
+            isResolvingSources = isResolvingSources,
+            onSourceClick = {
+                showSettingsDialog = false
+                onServersClick()
+            },
             qualityOptions = qualityOptions,
             selectedQuality = selectedQuality,
+            activeVideoHeight = activeVideoHeight,
             onQualitySelected = { option ->
                 selectedQuality = option
                 if (option.isAuto) {
