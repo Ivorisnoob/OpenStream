@@ -22,6 +22,7 @@ import com.ivor.openstream.presentation.search.SearchScreen
 import com.ivor.openstream.presentation.watch_history.WatchHistoryScreen
 import com.ivor.openstream.presentation.watch_later.WatchLaterScreen
 import com.ivor.openstream.presentation.update.UpdateScreen
+import com.ivor.openstream.presentation.settings.SettingsScreen
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -69,6 +70,7 @@ sealed class Screen(
     data object Downloads : Screen("downloads", "Downloads", Icons.Default.Download)
     data object History : Screen("history", "History", Icons.Default.History)
     data object Update : Screen("update")
+    data object Settings : Screen("settings")
     data object Details : Screen("details/{mediaType}/{animeId}") {
         fun createRoute(mediaType: String, animeId: Int) = "details/$mediaType/$animeId"
     }
@@ -154,8 +156,7 @@ fun AppNavigation(
                         onAnimeClick = { animeId ->
                             navController.navigate(Screen.Details.createRoute("tv", animeId))
                         },
-                        onSearchClick = {},
-                        onHistoryClick = {},
+                        onSettingsClick = { navController.navigate(Screen.Settings.route) },
                         onUpdateClick = { navController.navigate(Screen.Update.route) }
                     )
                 }
@@ -209,6 +210,12 @@ fun AppNavigation(
 
                 composable(Screen.Update.route) {
                     UpdateScreen(
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
+
+                composable(Screen.Settings.route) {
+                    SettingsScreen(
                         onBackClick = { navController.popBackStack() }
                     )
                 }

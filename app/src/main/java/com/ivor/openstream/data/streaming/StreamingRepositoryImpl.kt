@@ -5,6 +5,7 @@ import com.ivor.openstream.domain.model.MediaIdentity
 import com.ivor.openstream.domain.model.ServerResolution
 import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.domain.repository.StreamingRepository
+import com.ivor.openstream.domain.repository.ExtensionRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -25,7 +26,8 @@ class StreamingRepositoryImpl @Inject constructor(
     providers: Set<@JvmSuppressWildcards StreamProvider>,
     private val idMappingService: IdMappingService,
     @Named("StreamingClient") private val client: OkHttpClient,
-    private val preferences: SharedPreferences
+    private val preferences: SharedPreferences,
+    private val extensionRepository: ExtensionRepository
 ) : StreamingRepository {
     private val providers = providers.sortedBy(StreamProvider::priority)
     private val providerPriorities = providers.associate { it.id to it.priority }
@@ -34,7 +36,9 @@ class StreamingRepositoryImpl @Inject constructor(
     override fun resolveServers(identity: MediaIdentity): Flow<ServerResolution> = channelFlow {
         val enrichedIdentity = idMappingService.enrich(identity)
         val enabledProviders = providers.filter {
-            it.isEnabled && (consecutiveFailures[it.id] ?: 0) < CIRCUIT_BREAKER_THRESHOLD
+            it.isEnabled &&
+                extensionRepository.isProviderEnabled(it.id) &&
+                (consecutiveFailures[it.id] ?: 0) < CIRCUIT_BREAKER_THRESHOLD
         }
         val directProviders = enabledProviders.filterNot(StreamProvider::isFallback)
         val fallbackProviders = enabledProviders.filter(StreamProvider::isFallback)
