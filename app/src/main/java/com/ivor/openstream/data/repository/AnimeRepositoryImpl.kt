@@ -6,6 +6,8 @@ import com.ivor.openstream.data.remote.model.AnimeDetailsDto
 import com.ivor.openstream.data.remote.model.AnimeDto
 import com.ivor.openstream.data.remote.model.SeasonDetailsDto
 import com.ivor.openstream.domain.repository.AnimeRepository
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
@@ -34,55 +36,31 @@ class AnimeRepositoryImpl @Inject constructor(
         api.getAiringTodayAnime(page).results
     }
 
-    override suspend fun searchAnime(query: String, page: Int, filter: String): Result<List<AnimeDto>> = runCatching {
-        when (filter) {
-            "movie" -> api.searchMovie(query, page).results.map { it.copy(mediaType = "movie") }
-            "tv" -> api.searchTv(query, page).results.map { it.copy(mediaType = "tv") }
-            else -> api.searchMulti(query, page).results
-                .filter { it.mediaType == "tv" || it.mediaType == "movie" }
-        }
-    }
+    override suspend fun searchAnime(
+        query: String,
+        page: Int,
+        mediaType: String,
+        sortBy: String
+    ): Result<List<AnimeDto>> = runCatching {
+        require(query.isNotBlank()) { "Search query cannot be blank" }
 
-    override suspend fun discoverWithFilters(query: String, page: Int, mediaType: String, sortBy: String): Result<List<AnimeDto>> = runCatching {
-        var keywordIds: String? = null
-        if (query.isNotBlank()) {
-            val keywordResponse = api.searchKeyword(query, 1)
-            if (keywordResponse.results.isNotEmpty()) {
-                // Use up to top 3 matching keywords for discovery
-                keywordIds = keywordResponse.results.take(3).joinToString("|") { it.id.toString() }
+        val (tvShows, movies) = coroutineScope {
+            when (mediaType) {
+                "tv" -> api.searchTv(query.trim(), page).results to emptyList()
+                "movie" -> emptyList<AnimeDto>() to api.searchMovie(query.trim(), page).results
+                else -> {
+                    val tvRequest = async { api.searchTv(query.trim(), page).results }
+                    val movieRequest = async { api.searchMovie(query.trim(), page).results }
+                    tvRequest.await() to movieRequest.await()
+                }
             }
         }
 
-        // If a query was entered but no keywords were found, fallback to standard search
-        if (query.isNotBlank() && keywordIds == null) {
-            return searchAnime(query, page, mediaType)
-        }
-
-        val movies = mutableListOf<AnimeDto>()
-        val tvShows = mutableListOf<AnimeDto>()
-
-        if (mediaType == "movie" || mediaType == "all") {
-            val movieRes = api.discoverMovie(page = page, sortBy = sortBy, withKeywords = keywordIds)
-            movies.addAll(movieRes.results.map { it.copy(mediaType = "movie") })
-        }
-
-        if (mediaType == "tv" || mediaType == "all") {
-            val tvRes = api.discoverTv(page = page, sortBy = sortBy, withKeywords = keywordIds)
-            tvShows.addAll(tvRes.results.map { it.copy(mediaType = "tv") })
-        }
-
-        val combined = (movies + tvShows)
-
-        // Local sorting logic if "all" is selected since they are combined
-        when (sortBy) {
-            "popularity.desc" -> combined.sortedByDescending { it.popularity ?: 0.0 }
-            "popularity.asc" -> combined.sortedBy { it.popularity ?: 0.0 }
-            "vote_average.desc" -> combined.sortedByDescending { it.voteAverage ?: 0.0 }
-            "vote_average.asc" -> combined.sortedBy { it.voteAverage ?: 0.0 }
-            "first_air_date.desc", "primary_release_date.desc" -> combined.sortedByDescending { it.releaseDate ?: it.firstAirDate ?: "" }
-            "first_air_date.asc", "primary_release_date.asc" -> combined.sortedBy { it.releaseDate ?: it.firstAirDate ?: "" }
-            else -> combined
-        }
+        AnimeSearchResults.prepare(
+            tvShows = tvShows,
+            movies = movies,
+            sortBy = sortBy
+        )
     }
 
     override suspend fun getAnimeDetails(id: Int): Result<AnimeDetailsDto> = runCatching {

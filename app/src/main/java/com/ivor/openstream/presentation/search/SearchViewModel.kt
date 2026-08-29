@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -48,6 +49,7 @@ class SearchViewModel @Inject constructor(
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
 
     private val HISTORY_KEY = "search_history_list"
+    private var searchJob: Job? = null
 
     init {
         loadHistory()
@@ -82,9 +84,16 @@ class SearchViewModel @Inject constructor(
     }
 
     fun onSearch(query: String) {
-        if (query.isBlank()) return
-        saveToHistory(query)
-        performSearch(query)
+        val normalizedQuery = query.trim()
+        if (normalizedQuery.isBlank()) {
+            searchJob?.cancel()
+            _uiState.update {
+                it.copy(query = "", searchResults = emptyList(), isLoading = false, error = null)
+            }
+            return
+        }
+        saveToHistory(normalizedQuery)
+        performSearch(normalizedQuery)
     }
 
     private fun performSearch(query: String) {
@@ -97,8 +106,9 @@ class SearchViewModel @Inject constructor(
         }
         val sortByString = _uiState.value.sortBy.apiValue
 
-        viewModelScope.launch {
-            repository.discoverWithFilters(query, 1, filterString, sortByString).fold(
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            repository.searchAnime(query, 1, filterString, sortByString).fold(
                 onSuccess = { animeList ->
                     _uiState.update { it.copy(isLoading = false, searchResults = animeList) }
                 },

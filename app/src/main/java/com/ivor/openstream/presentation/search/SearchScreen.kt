@@ -199,7 +199,7 @@ fun SearchScreen(
                     TextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        placeholder = { Text("Anime, movies, or genres...") },
+                        placeholder = { Text("Search anime titles...") },
                         modifier = Modifier
                             .weight(1f)
                             .focusRequester(focusRequester),
