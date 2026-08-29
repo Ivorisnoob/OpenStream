@@ -4,7 +4,7 @@ trigger: always_on
 
 # Development Rules & Guidelines
 
-This document establishes strict rules for the development of OpenAnime. All AI agents and developers must adhere to these guidelines without exception.
+This document establishes strict rules for the development of OpenStream. All AI agents and developers must adhere to these guidelines without exception.
 
 ## 1. Communication Style
 *   **Professional & Direct:** Use clear, concise, and professional human language.

@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "OpenAnime"
+rootProject.name = "OpenStream"
 include(":app")

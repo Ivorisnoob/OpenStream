@@ -18,3 +18,8 @@ MVP.md
 shapes.md
 .idea/
 .kotlin/
+
+# Release signing material must never be committed.
+/keystore/
+*.jks
+*.keystore

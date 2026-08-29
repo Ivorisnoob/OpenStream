@@ -1,4 +1,4 @@
-# OpenAnime Implementation Plan
+# OpenStream Implementation Plan
 
 > **Goal:** Build a beautiful, expressive Android anime streaming app using Material 3 Expressive design with Vidking as the streaming backend.
 
@@ -249,9 +249,9 @@ data class WatchHistoryEntity(
 ## File Structure (Proposed)
 
 ```
-app/src/main/java/com/openanime/
+app/src/main/java/com/openstream/
 ├── MainActivity.kt
-├── OpenAnimeApp.kt
+├── OpenStreamApp.kt
 ├── data/
 │   ├── local/
 │   │   ├── dao/

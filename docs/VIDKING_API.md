@@ -1,6 +1,6 @@
 # Vidking Player API Documentation
 
-> **Purpose:** This document provides the complete API reference for integrating the Vidking embeddable video player into OpenAnime.
+> **Purpose:** This document provides the complete API reference for integrating the Vidking embeddable video player into OpenStream.
 
 ---
 
@@ -121,7 +121,7 @@ https://www.vidking.net/embed/tv/119051/1/8?color=e50914&autoPlay=true&nextEpiso
 
 ## Progress Updates via postMessage
 
-The Vidking player sends real-time progress updates via the browser's `postMessage` API. This is essential for OpenAnime's **watch progress tracking** and **resume playback** features.
+The Vidking player sends real-time progress updates via the browser's `postMessage` API. This is essential for OpenStream's **watch progress tracking** and **resume playback** features.
 
 ### Progress Data Structure
 
@@ -202,7 +202,7 @@ Since Vidking uses **TMDB IDs**, you'll need to integrate with the TMDB API to:
 
 ---
 
-## OpenAnime Usage Notes
+## OpenStream Usage Notes
 
 ### For Dynamic Theming
 Extract the dominant color from the anime poster and pass it to Vidking:

@@ -76,7 +76,7 @@ You can obtain a free API key from [The Movie Database](https://www.themoviedb.o
 ## Project Structure
 
 ```
-com.ivor.OpenStream/
+com.ivor.openstream/
 ├── data/
 │   ├── remote/          # API interfaces and DTOs
 │   └── repository/      # Repository implementations

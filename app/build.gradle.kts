@@ -9,12 +9,23 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+val releaseKeystorePath = providers.environmentVariable("OPENSTREAM_KEYSTORE_PATH").orNull
+val releaseKeystorePassword = providers.environmentVariable("OPENSTREAM_KEYSTORE_PASSWORD").orNull
+val releaseKeyAlias = providers.environmentVariable("OPENSTREAM_KEY_ALIAS").orNull
+val releaseKeyPassword = providers.environmentVariable("OPENSTREAM_KEY_PASSWORD").orNull
+val hasReleaseSigning = listOf(
+    releaseKeystorePath,
+    releaseKeystorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword
+).all { !it.isNullOrBlank() }
+
 android {
-    namespace = "com.ivor.openanime"
+    namespace = "com.ivor.openstream"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.ivor.openanime"
+        applicationId = "com.ivor.openstream"
         minSdk = 26
         targetSdk = 36
         versionCode = 4
@@ -25,10 +36,22 @@ android {
         if (localPropertiesFile.exists()) {
             localProperties.load(localPropertiesFile.inputStream())
         }
-        val apiKeyProperty = localProperties.getProperty("TMDB_API_KEY")
-        val tmdbApiKey = if (apiKeyProperty != null) "\"$apiKeyProperty\"" else "\"DEMO_KEY\""
+        val tmdbApiKey = listOfNotNull(
+            localProperties.getProperty("TMDB_API_KEY"),
+            providers.environmentVariable("TMDB_API_KEY").orNull
+        )
+            .firstOrNull { it.isNotBlank() }
+            .orEmpty()
+            .ifBlank { "DEMO_KEY" }
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+        val vidkingApiBaseUrl = localProperties
+            .getProperty("VIDKING_API_BASE_URL", "https://api.speedracelight.com")
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
 
-        buildConfigField("String", "TMDB_API_KEY", tmdbApiKey)
+        buildConfigField("String", "TMDB_API_KEY", "\"$tmdbApiKey\"")
+        buildConfigField("String", "VIDKING_API_BASE_URL", "\"$vidkingApiBaseUrl\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -41,14 +64,25 @@ android {
             isEnable = true
             reset()
             include("armeabi-v7a", "arm64-v8a")
-            isUniversalApk = false
+            isUniversalApk = true
+        }
+    }
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(requireNotNull(releaseKeystorePath))
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -119,6 +153,7 @@ dependencies {
     // Media3
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.exoplayer.hls)
+    implementation(libs.androidx.media3.exoplayer.dash)
     implementation(libs.androidx.media3.ui)
 
     // Graphics Shapes

@@ -1,12 +1,12 @@
-# OpenAnime - Agent Context Document
+# OpenStream - Agent Context Document
 
-> **Purpose:** This document gives any AI agent full context to understand, navigate, modify, and extend the OpenAnime codebase without prior knowledge.
+> **Purpose:** This document gives any AI agent full context to understand, navigate, modify, and extend the OpenStream codebase without prior knowledge.
 
 ---
 
-## 1. What is OpenAnime?
+## 1. What is OpenStream?
 
-OpenAnime is a native Android application for browsing and streaming anime. It fetches metadata (titles, posters, seasons, episodes) from **TMDB (The Movie Database)** and streams video via the **Vidking** embeddable player. It is written entirely in **Kotlin** using **Jetpack Compose** for the UI and follows **Material Design 3 Expressive** principles.
+OpenStream is a native Android application for browsing and streaming anime. It fetches metadata (titles, posters, seasons, episodes) from **TMDB (The Movie Database)** and streams video via the **Vidking** embeddable player. It is written entirely in **Kotlin** using **Jetpack Compose** for the UI and follows **Material Design 3 Expressive** principles.
 
 ---
 
@@ -34,9 +34,9 @@ OpenAnime is a native Android application for browsing and streaming anime. It f
 ## 3. Project Structure
 
 ```
-com.ivor.openanime/
+com.ivor.openstream/
 |
-|-- OpenAnimeApp.kt              # Application class (@HiltAndroidApp)
+|-- OpenStreamApp.kt              # Application class (@HiltAndroidApp)
 |-- MainActivity.kt              # Single Activity, sets up theme + navigation
 |
 |-- data/
@@ -246,7 +246,7 @@ The library version is `1.5.0-alpha13`, which includes the following expressive 
 ## 10. Dependency Injection Graph
 
 ```
-@HiltAndroidApp: OpenAnimeApp
+@HiltAndroidApp: OpenStreamApp
 
 Modules:
   NetworkModule (SingletonComponent):

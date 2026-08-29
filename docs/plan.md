@@ -120,7 +120,7 @@ Key decisions:
 - **D5 — Keep TMDB as the spine.** Discovery/details/history stay exactly as they
   are. Only playback resolution gains the mapping step.
 
-New packages (all under `com.ivor.openanime`):
+New packages (all under `com.ivor.openstream`):
 
 ```
 domain/repository/StreamingRepository.kt

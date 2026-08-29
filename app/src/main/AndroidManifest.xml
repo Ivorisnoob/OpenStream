@@ -10,7 +10,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
-        android:name=".OpenAnimeApp"
+        android:name=".OpenStreamApp"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -18,7 +18,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.OpenAnime"
+        android:theme="@style/Theme.OpenStream"
         android:usesCleartextTraffic="true"
         tools:targetApi="31">
         <activity
@@ -26,7 +26,7 @@
             android:exported="true"
             android:label="@string/app_name"
             android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout"
-            android:theme="@style/Theme.OpenAnime">
+            android:theme="@style/Theme.OpenStream">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

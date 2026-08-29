@@ -1,6 +1,6 @@
-# Contributing to OpenAnime
+# Contributing to OpenStream
 
-Thank you for considering contributing to OpenAnime. This document outlines the process and guidelines for contributing to the project.
+Thank you for considering contributing to OpenStream. This document outlines the process and guidelines for contributing to the project.
 
 ## Code of Conduct
 
@@ -187,4 +187,4 @@ Contributors will be recognized in release notes and the project README. Signifi
 
 ---
 
-Thank you for contributing to OpenAnime!
+Thank you for contributing to OpenStream!
