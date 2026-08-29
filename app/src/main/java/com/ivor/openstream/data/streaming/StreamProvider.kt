@@ -8,6 +8,8 @@ interface StreamProvider {
     val displayName: String
     val priority: Int
     val isEnabled: Boolean
+    val isFallback: Boolean
+        get() = false
 
     suspend fun resolve(identity: MediaIdentity): Result<List<VideoServer>>
 }

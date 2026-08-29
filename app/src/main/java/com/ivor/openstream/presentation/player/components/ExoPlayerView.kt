@@ -107,6 +107,10 @@ fun ExoPlayerView(
     sourceCount: Int = 0,
     canChangeSource: Boolean = true,
     isResolvingSources: Boolean = false,
+    initialPositionMs: Long = 0L,
+    onPositionChanged: (Long) -> Unit = {},
+    initialPlaybackSpeed: Float = 1f,
+    onPlaybackSpeedChanged: (Float) -> Unit = {},
     onServersClick: () -> Unit = {},
     onNextClick: (() -> Unit)? = null,
     captionSettings: CaptionStyleSettings = CaptionStyleSettings(),
@@ -170,7 +174,7 @@ fun ExoPlayerView(
     var settingsInitialPage by remember { mutableStateOf(PlayerSettingsPage.MAIN) }
 
     // Settings State
-    var playbackSpeed by remember { mutableFloatStateOf(1.0f) }
+    var playbackSpeed by remember { mutableFloatStateOf(initialPlaybackSpeed) }
     var qualityOptions by remember { mutableStateOf<List<QualityOption>>(emptyList()) }
     var selectedQuality by remember { mutableStateOf<QualityOption?>(null) }
     var activeVideoHeight by remember { mutableIntStateOf(0) }
@@ -188,6 +192,20 @@ fun ExoPlayerView(
     var showBrightnessOverlay by remember { mutableStateOf(false) }
     var showVolumeOverlay by remember { mutableStateOf(false) }
     var gestureOverlayTimeout by remember { mutableLongStateOf(0L) }
+    var seekFeedbackDirection by remember { mutableIntStateOf(0) }
+    var seekFeedbackSequence by remember { mutableIntStateOf(0) }
+
+    fun showSeekFeedback(direction: Int) {
+        seekFeedbackDirection = direction
+        seekFeedbackSequence++
+    }
+
+    LaunchedEffect(seekFeedbackSequence) {
+        if (seekFeedbackSequence > 0) {
+            delay(700)
+            seekFeedbackDirection = 0
+        }
+    }
 
     // Reset subtitle state when switching videos
     LaunchedEffect(videoUrl) {
@@ -393,7 +411,7 @@ fun ExoPlayerView(
             }
 
             val mediaItem = mediaItemBuilder.build()
-            exoPlayer.setMediaItem(mediaItem)
+            exoPlayer.setMediaItem(mediaItem, initialPositionMs.coerceAtLeast(0L))
             exoPlayer.prepare()
             exoPlayer.play()
             isBuffering = true
@@ -417,12 +435,27 @@ fun ExoPlayerView(
         }
     }
 
-    // Polling for position updates
+    LaunchedEffect(exoPlayer, initialPlaybackSpeed) {
+        playbackSpeed = initialPlaybackSpeed
+        exoPlayer.setPlaybackParameters(
+            exoPlayer.playbackParameters.withSpeed(initialPlaybackSpeed)
+        )
+    }
+
+    val latestPositionChanged by rememberUpdatedState(onPositionChanged)
+
+    // Polling for position updates. The parent keeps a lightweight checkpoint so
+    // changing route after an error can resume instead of restarting the episode.
     LaunchedEffect(exoPlayer) {
+        var lastReportedPosition = initialPositionMs
         while (true) {
             currentTime = exoPlayer.currentPosition
             totalTime = exoPlayer.duration.coerceAtLeast(0L)
             bufferPercentage = exoPlayer.bufferedPercentage
+            if (kotlin.math.abs(currentTime - lastReportedPosition) >= 1_000L) {
+                latestPositionChanged(currentTime)
+                lastReportedPosition = currentTime
+            }
             // Safety net: if player is actively playing, clear buffering state
             if (exoPlayer.isPlaying && isBuffering) {
                 isBuffering = false
@@ -516,6 +549,7 @@ fun ExoPlayerView(
         }
         exoPlayer.addListener(listener)
         onDispose {
+            latestPositionChanged(exoPlayer.currentPosition.coerceAtLeast(0L))
             exoPlayer.removeListener(listener)
             exoPlayer.release()
         }
@@ -531,8 +565,10 @@ fun ExoPlayerView(
                         val isForward = offset.x > size.width / 2
                         if (isForward) {
                             exoPlayer.seekTo(exoPlayer.currentPosition + 10000)
+                            showSeekFeedback(1)
                         } else {
                             exoPlayer.seekTo(exoPlayer.currentPosition - 10000)
+                            showSeekFeedback(-1)
                         }
                         currentTime = exoPlayer.currentPosition
                         areControlsVisible = true
@@ -692,11 +728,13 @@ fun ExoPlayerView(
             },
             onForward = {
                 exoPlayer.seekTo(exoPlayer.currentPosition + 10000)
+                showSeekFeedback(1)
                 currentTime = exoPlayer.currentPosition
                 areControlsVisible = true
             },
             onRewind = {
                 exoPlayer.seekTo(exoPlayer.currentPosition - 10000)
+                showSeekFeedback(-1)
                 currentTime = exoPlayer.currentPosition
                 areControlsVisible = true
             },
@@ -728,6 +766,41 @@ fun ExoPlayerView(
             onBackClick = onBackClick
         )
 
+        AnimatedVisibility(
+            visible = seekFeedbackDirection != 0,
+            enter = scaleIn() + fadeIn(),
+            exit = scaleOut() + fadeOut(),
+            modifier = Modifier
+                .align(
+                    if (seekFeedbackDirection < 0) Alignment.CenterStart
+                    else Alignment.CenterEnd
+                )
+                .padding(horizontal = if (isFullscreen) 72.dp else 28.dp)
+        ) {
+            Surface(
+                shape = ExpressiveShapes.extraLarge,
+                color = Color.Black.copy(alpha = 0.62f),
+                contentColor = Color.White
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        if (seekFeedbackDirection < 0) Icons.Default.Replay10 else Icons.Default.Forward10,
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Text(
+                        if (seekFeedbackDirection < 0) "10 sec back" else "10 sec ahead",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
         // Buffering indicator overlay -- drawn AFTER controls so it renders on top
         AnimatedVisibility(
             visible = isBuffering,
@@ -738,10 +811,36 @@ fun ExoPlayerView(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.3f)),
+                    .background(Color.Black.copy(alpha = 0.24f)),
                 contentAlignment = Alignment.Center
             ) {
-                LoadingIndicator()
+                Surface(
+                    shape = ExpressiveShapes.large,
+                    color = Color.Black.copy(alpha = 0.72f),
+                    contentColor = Color.White
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        LoadingIndicator(modifier = Modifier.size(32.dp))
+                        Column {
+                            Text(
+                                "Connecting to stream",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            sourceLabel?.let {
+                                Text(
+                                    it,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = Color.White.copy(alpha = 0.7f)
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -784,6 +883,7 @@ fun ExoPlayerView(
             currentSpeed = playbackSpeed,
             onSpeedSelected = { speed ->
                 playbackSpeed = speed
+                onPlaybackSpeedChanged(speed)
                 exoPlayer.setPlaybackParameters(
                     exoPlayer.playbackParameters.withSpeed(speed)
                 )

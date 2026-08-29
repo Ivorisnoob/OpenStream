@@ -27,7 +27,8 @@ data class VidkingServerSpec(
     val name: String,
     val endpoint: String,
     val priority: Int,
-    val language: String? = null
+    val language: String? = null,
+    val qualityFilter: String? = null
 )
 
 @Singleton
@@ -128,22 +129,35 @@ class VidkingDirectApi @Inject constructor(
                 headers = requestHeaders
             )
         }
-        return sources.mapNotNull { source ->
-            val url = source.url?.takeIf { it.startsWith("http") } ?: return@mapNotNull null
-            val descriptor = listOfNotNull(source.quality, source.type, spec.language).joinToString(" ")
-            VideoServer(
-                id = "vidking-${spec.id}-${url.hashCode()}",
-                providerId = "vidking-${spec.id}",
-                providerName = "Vidking",
-                name = spec.name,
-                url = url,
-                quality = StreamQuality.parse(source.quality),
-                audio = StreamAudio.parse(descriptor),
-                headers = requestHeaders,
-                subtitles = streamSubtitles,
-                isDownloadable = !url.substringBefore('?').endsWith(".mpd", ignoreCase = true)
-            )
-        }
+        return sources
+            .asSequence()
+            .filter { source ->
+                spec.qualityFilter?.let { filter ->
+                    source.quality?.equals(filter, ignoreCase = true) == true
+                } ?: true
+            }
+            .mapNotNull { source ->
+                val url = source.url?.takeIf { it.startsWith("http") }
+                    ?: return@mapNotNull null
+                val descriptor = listOfNotNull(
+                    source.quality,
+                    source.type,
+                    spec.language,
+                    spec.qualityFilter
+                ).joinToString(" ")
+                VideoServer(
+                    id = "vidking-${spec.id}-${url.hashCode()}",
+                    providerId = "vidking-${spec.id}",
+                    providerName = "Vidking",
+                    name = spec.name,
+                    url = url,
+                    quality = StreamQuality.parse(source.quality),
+                    audio = StreamAudio.parse(descriptor),
+                    headers = requestHeaders,
+                    subtitles = streamSubtitles,
+                    isDownloadable = !url.substringBefore('?').endsWith(".mpd", ignoreCase = true)
+                )
+            }.toList()
     }
 
     @Serializable

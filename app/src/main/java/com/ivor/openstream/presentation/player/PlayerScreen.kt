@@ -2,7 +2,6 @@ package com.ivor.openstream.presentation.player
 
 import android.app.Activity
 import android.content.pm.ActivityInfo
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedContent
@@ -33,6 +32,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import android.app.DownloadManager
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -59,6 +59,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedIconButton
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
@@ -68,6 +72,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -144,6 +150,13 @@ fun PlayerScreen(
     var localVideoUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var isResolvingLocalUri by remember { mutableStateOf(downloadId != null) }
     var showServerPicker by rememberSaveable { mutableStateOf(false) }
+    var resumePositionMs by rememberSaveable(tmdbId, season, episode, downloadId) {
+        mutableLongStateOf(0L)
+    }
+    var sessionPlaybackSpeed by rememberSaveable(tmdbId, season, episode, downloadId) {
+        mutableFloatStateOf(1f)
+    }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val providerSubtitles = remember(activeServer) {
         activeServer?.subtitles.orEmpty().mapIndexed { index, subtitle ->
@@ -185,7 +198,15 @@ fun PlayerScreen(
 
     LaunchedEffect(Unit) {
         viewModel.playerEvents.collect { message ->
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            val needsSourceAction = message.startsWith("No more healthy servers")
+            val result = snackbarHostState.showSnackbar(
+                message = message,
+                actionLabel = if (needsSourceAction) "Sources" else null,
+                duration = if (needsSourceAction) SnackbarDuration.Long else SnackbarDuration.Short
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                showServerPicker = true
+            }
         }
     }
     
@@ -246,26 +267,30 @@ fun PlayerScreen(
         }
     } else null
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(if (isFullscreen) PaddingValues(0.dp) else WindowInsets.statusBars.asPaddingValues())
     ) {
-        // 1. Video Player Area - Always present, size depends on isFullscreen
-        val videoModifier = if (isFullscreen) {
-            Modifier.fillMaxSize()
-        } else {
-            Modifier
-                .fillMaxWidth()
-                .heightIn(max = 400.dp) // Keeps it from becoming too large on tablets
-                .aspectRatio(16f / 9f)
-        }
-
-        Box(
-            modifier = videoModifier
-                .background(Color.Black)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(if (isFullscreen) PaddingValues(0.dp) else WindowInsets.statusBars.asPaddingValues())
         ) {
+            // 1. Video Player Area - Always present, size depends on isFullscreen
+            val videoModifier = if (isFullscreen) {
+                Modifier.fillMaxSize()
+            } else {
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 400.dp) // Keeps it from becoming too large on tablets
+                    .aspectRatio(16f / 9f)
+            }
+
+            Box(
+                modifier = videoModifier
+                    .background(Color.Black)
+            ) {
             AnimatedContent(
                 targetState = videoUrl != null,
                 transitionSpec = {
@@ -308,6 +333,10 @@ fun PlayerScreen(
                             sourceCount = availableSourceCount,
                             canChangeSource = downloadId == null,
                             isResolvingSources = isResolvingSources,
+                            initialPositionMs = resumePositionMs,
+                            onPositionChanged = { resumePositionMs = it },
+                            initialPlaybackSpeed = sessionPlaybackSpeed,
+                            onPlaybackSpeedChanged = { sessionPlaybackSpeed = it },
                             onServersClick = { showServerPicker = true },
                             onNextClick = onNextClick,
                             captionSettings = captionSettings,
@@ -439,14 +468,14 @@ fun PlayerScreen(
             }
         }
 
-        // 2. Details and Next Episodes - Only visible when NOT in fullscreen
-        AnimatedVisibility(
+            // 2. Details and Next Episodes - Only visible when NOT in fullscreen
+            AnimatedVisibility(
             visible = !isFullscreen,
             enter = fadeIn(tween(DurationEffectsDefault, easing = ExpressiveDefaultEffects)) + 
                     slideInVertically(tween(DurationSpatialDefault, easing = ExpressiveDefaultSpatial)) { it / 4 },
             exit = fadeOut(tween(DurationEffectsDefault, easing = ExpressiveDefaultEffects)) + 
                    slideOutVertically(tween(DurationSpatialDefault, easing = ExpressiveDefaultSpatial)) { it / 4 }
-        ) {
+            ) {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -758,7 +787,16 @@ fun PlayerScreen(
                     Spacer(modifier = Modifier.height(32.dp))
                 }
             }
+            }
         }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(horizontal = 16.dp, vertical = 16.dp)
+        )
     }
 
     if (showServerPicker && downloadId == null) {

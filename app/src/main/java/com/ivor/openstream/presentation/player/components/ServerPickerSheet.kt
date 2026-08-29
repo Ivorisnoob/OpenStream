@@ -295,6 +295,11 @@ private fun ActiveSourceCard(server: VideoServer) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                Text(
+                    "Automatic recovery is on",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.68f)
+                )
             }
             Icon(Icons.Default.CheckCircle, contentDescription = "Current source")
         }

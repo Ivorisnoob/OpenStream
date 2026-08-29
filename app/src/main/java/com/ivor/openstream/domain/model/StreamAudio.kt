@@ -12,7 +12,10 @@ enum class StreamAudio(val label: String, val rank: Int) {
             val normalized = raw?.lowercase().orEmpty()
             return when {
                 "multi" in normalized || "dual" in normalized -> MULTI
-                "dub" in normalized || "english" in normalized || "hindi" in normalized -> DUB
+                "dub" in normalized ||
+                    "english" in normalized ||
+                    "hindi" in normalized ||
+                    "german" in normalized -> DUB
                 "sub" in normalized -> SUB
                 "raw" in normalized -> RAW
                 else -> UNKNOWN

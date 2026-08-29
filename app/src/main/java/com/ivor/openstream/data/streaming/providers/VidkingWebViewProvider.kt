@@ -40,6 +40,7 @@ class VidkingWebViewProvider @Inject constructor(
     override val displayName: String = "Vidking · Web fallback"
     override val priority: Int = 100
     override val isEnabled: Boolean = true
+    override val isFallback: Boolean = true
 
     @SuppressLint("SetJavaScriptEnabled")
     override suspend fun resolve(identity: MediaIdentity): Result<List<VideoServer>> =

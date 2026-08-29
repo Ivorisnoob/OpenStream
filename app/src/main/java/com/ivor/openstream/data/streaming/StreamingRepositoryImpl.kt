@@ -36,15 +36,19 @@ class StreamingRepositoryImpl @Inject constructor(
         val enabledProviders = providers.filter {
             it.isEnabled && (consecutiveFailures[it.id] ?: 0) < CIRCUIT_BREAKER_THRESHOLD
         }
+        val directProviders = enabledProviders.filterNot(StreamProvider::isFallback)
+        val fallbackProviders = enabledProviders.filter(StreamProvider::isFallback)
+        val firstStageProviders = directProviders.ifEmpty { fallbackProviders }
+        val deferredFallbackProviders = fallbackProviders.takeIf { directProviders.isNotEmpty() }.orEmpty()
         val preferredServerId = preferences.getString(preferenceKey(identity), null)
-        send(ServerResolution(totalProviders = enabledProviders.size))
-        if (enabledProviders.isEmpty()) {
+        send(ServerResolution(totalProviders = firstStageProviders.size))
+        if (firstStageProviders.isEmpty()) {
             send(ServerResolution(isComplete = true))
             return@channelFlow
         }
 
         val outcomes = Channel<ProviderOutcome>(enabledProviders.size)
-        enabledProviders.forEach { provider ->
+        firstStageProviders.forEach { provider ->
             launch(Dispatchers.IO) {
                 val result = runCatching {
                     withTimeout(PROVIDER_TIMEOUT_MS) {
@@ -57,17 +61,21 @@ class StreamingRepositoryImpl @Inject constructor(
 
         var servers = emptyList<VideoServer>()
         val failedProviders = mutableListOf<String>()
-        repeat(enabledProviders.size) { completedIndex ->
+        repeat(firstStageProviders.size) { completedIndex ->
             val outcome = outcomes.receive()
             outcome.result.fold(
                 onSuccess = { incoming ->
                     consecutiveFailures[outcome.provider.id] = 0
-                    servers = ServerRanker.mergeAndRank(
-                        existing = servers,
-                        incoming = incoming,
-                        providerPriorities = providerPriorities,
-                        preferredServerId = preferredServerId
-                    )
+                    if (incoming.isEmpty()) {
+                        failedProviders += outcome.provider.displayName
+                    } else {
+                        servers = ServerRanker.mergeAndRank(
+                            existing = servers,
+                            incoming = incoming,
+                            providerPriorities = providerPriorities,
+                            preferredServerId = preferredServerId
+                        )
+                    }
                 },
                 onFailure = {
                     consecutiveFailures.compute(outcome.provider.id) { _, count -> (count ?: 0) + 1 }
@@ -75,15 +83,66 @@ class StreamingRepositoryImpl @Inject constructor(
                 }
             )
             val completed = completedIndex + 1
+            val firstStageComplete = completed == firstStageProviders.size
+            val shouldTryFallback = firstStageComplete &&
+                servers.isEmpty() &&
+                deferredFallbackProviders.isNotEmpty()
             send(
                 ServerResolution(
                     servers = servers,
                     completedProviders = completed,
-                    totalProviders = enabledProviders.size,
+                    totalProviders = firstStageProviders.size +
+                        if (shouldTryFallback) deferredFallbackProviders.size else 0,
                     failedProviders = failedProviders.toList(),
-                    isComplete = completed == enabledProviders.size
+                    isComplete = firstStageComplete && !shouldTryFallback
                 )
             )
+        }
+
+        if (servers.isEmpty() && deferredFallbackProviders.isNotEmpty()) {
+            deferredFallbackProviders.forEach { provider ->
+                launch(Dispatchers.IO) {
+                    val result = runCatching {
+                        withTimeout(PROVIDER_TIMEOUT_MS) {
+                            provider.resolve(enrichedIdentity).getOrThrow()
+                        }
+                    }
+                    outcomes.send(ProviderOutcome(provider, result))
+                }
+            }
+
+            repeat(deferredFallbackProviders.size) { completedIndex ->
+                val outcome = outcomes.receive()
+                outcome.result.fold(
+                    onSuccess = { incoming ->
+                        consecutiveFailures[outcome.provider.id] = 0
+                        if (incoming.isEmpty()) {
+                            failedProviders += outcome.provider.displayName
+                        } else {
+                            servers = ServerRanker.mergeAndRank(
+                                existing = servers,
+                                incoming = incoming,
+                                providerPriorities = providerPriorities,
+                                preferredServerId = preferredServerId
+                            )
+                        }
+                    },
+                    onFailure = {
+                        consecutiveFailures.compute(outcome.provider.id) { _, count -> (count ?: 0) + 1 }
+                        failedProviders += outcome.provider.displayName
+                    }
+                )
+                val completed = firstStageProviders.size + completedIndex + 1
+                send(
+                    ServerResolution(
+                        servers = servers,
+                        completedProviders = completed,
+                        totalProviders = firstStageProviders.size + deferredFallbackProviders.size,
+                        failedProviders = failedProviders.toList(),
+                        isComplete = completedIndex == deferredFallbackProviders.lastIndex
+                    )
+                )
+            }
         }
         outcomes.close()
     }

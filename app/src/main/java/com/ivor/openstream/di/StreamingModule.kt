@@ -47,6 +47,58 @@ object StreamingProvidersModule {
 
     @Provides
     @IntoSet
+    fun provideVyseProvider(api: VidkingDirectApi): StreamProvider =
+        VidkingDirectProvider(
+            api,
+            VidkingServerSpec(
+                id = "vyse",
+                name = "Vyse · English",
+                endpoint = "hdmovie/sources-with-title",
+                priority = 4,
+                qualityFilter = "English"
+            )
+        )
+
+    @Provides
+    @IntoSet
+    fun provideKilljoyProvider(api: VidkingDirectApi): StreamProvider =
+        VidkingDirectProvider(
+            api,
+            VidkingServerSpec(
+                id = "killjoy",
+                name = "Killjoy · German",
+                endpoint = "meine/sources-with-title",
+                priority = 5,
+                language = "german"
+            )
+        )
+
+    @Provides
+    @IntoSet
+    fun provideFadeProvider(api: VidkingDirectApi): StreamProvider =
+        VidkingDirectProvider(
+            api,
+            VidkingServerSpec(
+                id = "fade",
+                name = "Fade · Hindi",
+                endpoint = "hdmovie/sources-with-title",
+                priority = 6,
+                qualityFilter = "Hindi"
+            )
+        )
+
+    @Provides
+    @IntoSet
+    fun provideOmenProvider(api: VidkingDirectApi): StreamProvider =
+        VidkingDirectProvider(api, VidkingServerSpec("omen", "Omen", "lamovie/sources-with-title", 7))
+
+    @Provides
+    @IntoSet
+    fun provideRazeProvider(api: VidkingDirectApi): StreamProvider =
+        VidkingDirectProvider(api, VidkingServerSpec("raze", "Raze", "superflix/sources-with-title", 8))
+
+    @Provides
+    @IntoSet
     @Singleton
     fun provideWebViewFallback(provider: VidkingWebViewProvider): StreamProvider = provider
 }
