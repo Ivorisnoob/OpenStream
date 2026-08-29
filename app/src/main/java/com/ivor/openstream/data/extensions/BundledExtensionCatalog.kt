@@ -1,91 +1,38 @@
 package com.ivor.openstream.data.extensions
 
-import com.ivor.openstream.domain.model.SourceExtensionManifest
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+import javax.inject.Singleton
 
-internal object BundledExtensionCatalog {
-    val extensions = listOf(
-        SourceExtensionManifest(
-            id = "yoru",
-            name = "Yoru",
-            description = "Primary fast route with broad episode coverage.",
-            versionName = "1.0.0",
-            language = "Multi",
-            providerIds = setOf("vidking-yoru"),
-            isRecommended = true
-        ),
-        SourceExtensionManifest(
-            id = "cypher",
-            name = "Cypher",
-            description = "Balanced backup route for when the primary source is busy.",
-            versionName = "1.0.0",
-            language = "Multi",
-            providerIds = setOf("vidking-cypher"),
-            isRecommended = true
-        ),
-        SourceExtensionManifest(
-            id = "breach",
-            name = "Breach",
-            description = "Alternative route tuned for wide movie and series availability.",
-            versionName = "1.0.0",
-            language = "Multi",
-            providerIds = setOf("vidking-breach")
-        ),
-        SourceExtensionManifest(
-            id = "neon",
-            name = "Neon",
-            description = "Lightweight alternative source for quick failover.",
-            versionName = "1.0.0",
-            language = "Multi",
-            providerIds = setOf("vidking-neon")
-        ),
-        SourceExtensionManifest(
-            id = "vyse",
-            name = "Vyse",
-            description = "English-focused route with matching audio labels.",
-            versionName = "1.0.0",
-            language = "English",
-            providerIds = setOf("vidking-vyse")
-        ),
-        SourceExtensionManifest(
-            id = "killjoy",
-            name = "Killjoy",
-            description = "German-language source route.",
-            versionName = "1.0.0",
-            language = "German",
-            providerIds = setOf("vidking-killjoy")
-        ),
-        SourceExtensionManifest(
-            id = "fade",
-            name = "Fade",
-            description = "Hindi-focused route with matching audio labels.",
-            versionName = "1.0.0",
-            language = "Hindi",
-            providerIds = setOf("vidking-fade")
-        ),
-        SourceExtensionManifest(
-            id = "omen",
-            name = "Omen",
-            description = "Extra coverage for titles missing from the primary routes.",
-            versionName = "1.0.0",
-            language = "Multi",
-            providerIds = setOf("vidking-omen")
-        ),
-        SourceExtensionManifest(
-            id = "raze",
-            name = "Raze",
-            description = "Additional high-availability fallback route.",
-            versionName = "1.0.0",
-            language = "Multi",
-            providerIds = setOf("vidking-raze")
-        ),
-        SourceExtensionManifest(
-            id = "web-fallback",
-            name = "Web compatibility",
-            description = "Slower compatibility resolver used only when direct routes fail.",
-            versionName = "1.0.0",
-            language = "Multi",
-            providerIds = setOf("vidking-webview"),
-            isFallback = true
+/**
+ * The official repository ships inside the APK as well as being served over HTTP, so a fresh
+ * install has a working catalog before it ever reaches the network. The bundled copy is the same
+ * document published at [OFFICIAL_REPO_URL].
+ */
+@Singleton
+class BundledExtensionCatalog @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val parser: ExtensionIndexParser
+) {
+    fun load(): CachedRepoSnapshot? = runCatching {
+        val raw = context.assets.open(ASSET_PATH).bufferedReader().use { it.readText() }
+        val repo = parser.parseRepo(raw)
+        CachedRepoSnapshot(
+            url = OFFICIAL_REPO_URL,
+            name = repo.name?.trim().orEmpty().ifEmpty { "OpenStream Official" },
+            description = repo.description?.trim().orEmpty(),
+            iconUrl = repo.iconUrl,
+            website = repo.website,
+            fetchedAt = 0L,
+            extensions = repo.extensions
         )
-    )
+    }.getOrNull()
+
+    companion object {
+        const val ASSET_PATH = "extensions/official-repo.json"
+        const val OFFICIAL_REPO_URL =
+            "https://raw.githubusercontent.com/Ivorisnoob/OpenStream/main/extensions/index.json"
+        val OFFICIAL_REPO_ID: String = RepoUrlNormalizer.repoId(OFFICIAL_REPO_URL)
+    }
 }

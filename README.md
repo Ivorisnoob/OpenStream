@@ -13,6 +13,8 @@ OpenStream provides a native Android experience for discovering and watching ani
 - View detailed information including seasons and episodes
 - Stream episodes with custom playback controls
 - Track watch history
+- Install streaming sources from an in-app extension marketplace with top charts, search and
+  community repositories (see [docs/EXTENSIONS.md](docs/EXTENSIONS.md))
 - Dynamic color theming (Android 12+)
 - Material Design 3 Expressive UI with fluid animations
 

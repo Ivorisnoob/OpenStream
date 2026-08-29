@@ -1,0 +1,197 @@
+{
+  "manifestVersion": 1,
+  "name": "OpenStream Official",
+  "description": "Source extensions maintained alongside the app. Every entry here is reviewed before it ships.",
+  "website": "https://github.com/Ivorisnoob/OpenStream",
+  "extensions": [
+    {
+      "id": "yoru",
+      "name": "Yoru",
+      "description": "Primary route. Fastest resolver with the broadest episode coverage, and the first source tried when you press Play.",
+      "version": "1.1.0",
+      "versionCode": 2,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Multi",
+      "tags": ["movies", "series", "fast", "official"],
+      "status": 1,
+      "updatedAt": "2026-08-29",
+      "installedByDefault": true,
+      "engine": {
+        "type": "vidking-direct",
+        "endpoint": "cdn/sources-with-title",
+        "priority": 0
+      }
+    },
+    {
+      "id": "cypher",
+      "name": "Cypher",
+      "description": "Balanced backup route for when the primary source is busy or rate limited.",
+      "version": "1.1.0",
+      "versionCode": 2,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Multi",
+      "tags": ["movies", "series", "official"],
+      "status": 1,
+      "updatedAt": "2026-08-29",
+      "installedByDefault": true,
+      "engine": {
+        "type": "vidking-direct",
+        "endpoint": "downloader2/sources-with-title",
+        "priority": 1
+      }
+    },
+    {
+      "id": "breach",
+      "name": "Breach",
+      "description": "Alternative route tuned for wide movie and series availability.",
+      "version": "1.1.0",
+      "versionCode": 2,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Multi",
+      "tags": ["movies", "series", "official"],
+      "status": 1,
+      "updatedAt": "2026-08-29",
+      "installedByDefault": true,
+      "engine": {
+        "type": "vidking-direct",
+        "endpoint": "m4uhd/sources-with-title",
+        "priority": 2
+      }
+    },
+    {
+      "id": "neon",
+      "name": "Neon",
+      "description": "Lightweight alternative source for quick failover when the main routes stall.",
+      "version": "1.1.0",
+      "versionCode": 2,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Multi",
+      "tags": ["movies", "series", "fast", "official"],
+      "status": 1,
+      "updatedAt": "2026-08-29",
+      "installedByDefault": true,
+      "engine": {
+        "type": "vidking-direct",
+        "endpoint": "vsrc/sources-with-title",
+        "priority": 3
+      }
+    },
+    {
+      "id": "vyse",
+      "name": "Vyse",
+      "description": "English-focused route that labels its audio tracks, useful when you want the original dub.",
+      "version": "1.1.0",
+      "versionCode": 2,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "English",
+      "tags": ["movies", "series", "english", "official"],
+      "status": 1,
+      "updatedAt": "2026-08-29",
+      "installedByDefault": true,
+      "engine": {
+        "type": "vidking-direct",
+        "endpoint": "hdmovie/sources-with-title",
+        "priority": 4,
+        "qualityFilter": "English"
+      }
+    },
+    {
+      "id": "killjoy",
+      "name": "Killjoy",
+      "description": "German-language route. Install it if you want German audio offered alongside the default sources.",
+      "version": "1.1.0",
+      "versionCode": 2,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "German",
+      "tags": ["movies", "series", "german", "official"],
+      "status": 1,
+      "updatedAt": "2026-08-29",
+      "engine": {
+        "type": "vidking-direct",
+        "endpoint": "meine/sources-with-title",
+        "priority": 5,
+        "language": "german"
+      }
+    },
+    {
+      "id": "fade",
+      "name": "Fade",
+      "description": "Hindi-focused route with matching audio labels.",
+      "version": "1.1.0",
+      "versionCode": 2,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Hindi",
+      "tags": ["movies", "series", "hindi", "official"],
+      "status": 1,
+      "updatedAt": "2026-08-29",
+      "engine": {
+        "type": "vidking-direct",
+        "endpoint": "hdmovie/sources-with-title",
+        "priority": 6,
+        "qualityFilter": "Hindi"
+      }
+    },
+    {
+      "id": "omen",
+      "name": "Omen",
+      "description": "Extra coverage for titles that the primary routes cannot find.",
+      "version": "1.1.0",
+      "versionCode": 2,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Multi",
+      "tags": ["movies", "series", "official"],
+      "status": 1,
+      "updatedAt": "2026-08-29",
+      "engine": {
+        "type": "vidking-direct",
+        "endpoint": "lamovie/sources-with-title",
+        "priority": 7
+      }
+    },
+    {
+      "id": "raze",
+      "name": "Raze",
+      "description": "Additional high-availability fallback route for older or obscure titles.",
+      "version": "1.1.0",
+      "versionCode": 2,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Multi",
+      "tags": ["movies", "series", "official"],
+      "status": 1,
+      "updatedAt": "2026-08-29",
+      "engine": {
+        "type": "vidking-direct",
+        "endpoint": "superflix/sources-with-title",
+        "priority": 8
+      }
+    },
+    {
+      "id": "web-fallback",
+      "name": "Web compatibility",
+      "description": "Slow compatibility resolver that loads the page in a hidden browser. Only used when every direct route fails.",
+      "version": "1.1.0",
+      "versionCode": 2,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Multi",
+      "tags": ["fallback", "official"],
+      "status": 2,
+      "updatedAt": "2026-08-29",
+      "installedByDefault": true,
+      "fallback": true,
+      "engine": {
+        "type": "vidking-webview",
+        "priority": 100
+      }
+    }
+  ]
+}

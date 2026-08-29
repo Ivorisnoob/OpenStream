@@ -5,13 +5,13 @@ import com.ivor.openstream.domain.model.MediaIdentity
 import com.ivor.openstream.domain.model.ServerResolution
 import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.domain.repository.StreamingRepository
-import com.ivor.openstream.domain.repository.ExtensionRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -23,25 +23,22 @@ import javax.inject.Singleton
 
 @Singleton
 class StreamingRepositoryImpl @Inject constructor(
-    providers: Set<@JvmSuppressWildcards StreamProvider>,
+    private val providerRegistry: ExtensionProviderRegistry,
     private val idMappingService: IdMappingService,
     @Named("StreamingClient") private val client: OkHttpClient,
-    private val preferences: SharedPreferences,
-    private val extensionRepository: ExtensionRepository
+    private val preferences: SharedPreferences
 ) : StreamingRepository {
-    private val providers = providers.sortedBy(StreamProvider::priority)
-    private val providerPriorities = providers.associate { it.id to it.priority }
     private val consecutiveFailures = ConcurrentHashMap<String, Int>()
 
     override fun resolveServers(identity: MediaIdentity): Flow<ServerResolution> = channelFlow {
         val enrichedIdentity = idMappingService.enrich(identity)
-        val enabledProviders = providers.filter {
-            it.isEnabled &&
-                extensionRepository.isProviderEnabled(it.id) &&
-                (consecutiveFailures[it.id] ?: 0) < CIRCUIT_BREAKER_THRESHOLD
+        val installedProviders = withContext(Dispatchers.IO) { providerRegistry.activeProviders() }
+        val providerPriorities = installedProviders.associate { it.id to it.priority }
+        val enabledProviders = installedProviders.filter {
+            it.isEnabled && (consecutiveFailures[it.id] ?: 0) < CIRCUIT_BREAKER_THRESHOLD
         }
-        val directProviders = enabledProviders.filterNot(StreamProvider::isFallback)
-        val fallbackProviders = enabledProviders.filter(StreamProvider::isFallback)
+        val directProviders = enabledProviders.filterNot(ExtensionStreamProvider::isFallback)
+        val fallbackProviders = enabledProviders.filter(ExtensionStreamProvider::isFallback)
         val firstStageProviders = directProviders.ifEmpty { fallbackProviders }
         val deferredFallbackProviders = fallbackProviders.takeIf { directProviders.isNotEmpty() }.orEmpty()
         val preferredServerId = preferences.getString(preferenceKey(identity), null)
@@ -70,6 +67,7 @@ class StreamingRepositoryImpl @Inject constructor(
             outcome.result.fold(
                 onSuccess = { incoming ->
                     consecutiveFailures[outcome.provider.id] = 0
+                    providerRegistry.recordOutcome(outcome.provider, incoming.isNotEmpty())
                     if (incoming.isEmpty()) {
                         failedProviders += outcome.provider.displayName
                     } else {
@@ -83,6 +81,7 @@ class StreamingRepositoryImpl @Inject constructor(
                 },
                 onFailure = {
                     consecutiveFailures.compute(outcome.provider.id) { _, count -> (count ?: 0) + 1 }
+                    providerRegistry.recordOutcome(outcome.provider, false)
                     failedProviders += outcome.provider.displayName
                 }
             )
@@ -120,6 +119,7 @@ class StreamingRepositoryImpl @Inject constructor(
                 outcome.result.fold(
                     onSuccess = { incoming ->
                         consecutiveFailures[outcome.provider.id] = 0
+                        providerRegistry.recordOutcome(outcome.provider, incoming.isNotEmpty())
                         if (incoming.isEmpty()) {
                             failedProviders += outcome.provider.displayName
                         } else {
@@ -133,6 +133,7 @@ class StreamingRepositoryImpl @Inject constructor(
                     },
                     onFailure = {
                         consecutiveFailures.compute(outcome.provider.id) { _, count -> (count ?: 0) + 1 }
+                        providerRegistry.recordOutcome(outcome.provider, false)
                         failedProviders += outcome.provider.displayName
                     }
                 )
@@ -177,7 +178,7 @@ class StreamingRepositoryImpl @Inject constructor(
         "last_stream_server:${identity.cacheKey}"
 
     private data class ProviderOutcome(
-        val provider: StreamProvider,
+        val provider: ExtensionStreamProvider,
         val result: Result<List<VideoServer>>
     )
 

@@ -23,6 +23,7 @@ import com.ivor.openstream.presentation.watch_history.WatchHistoryScreen
 import com.ivor.openstream.presentation.watch_later.WatchLaterScreen
 import com.ivor.openstream.presentation.update.UpdateScreen
 import com.ivor.openstream.presentation.settings.SettingsScreen
+import com.ivor.openstream.presentation.marketplace.MarketplaceScreen
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -71,6 +72,7 @@ sealed class Screen(
     data object History : Screen("history", "History", Icons.Default.History)
     data object Update : Screen("update")
     data object Settings : Screen("settings")
+    data object Marketplace : Screen("marketplace")
     data object Details : Screen("details/{mediaType}/{animeId}") {
         fun createRoute(mediaType: String, animeId: Int) = "details/$mediaType/$animeId"
     }
@@ -216,6 +218,13 @@ fun AppNavigation(
 
                 composable(Screen.Settings.route) {
                     SettingsScreen(
+                        onBackClick = { navController.popBackStack() },
+                        onOpenMarketplace = { navController.navigate(Screen.Marketplace.route) }
+                    )
+                }
+
+                composable(Screen.Marketplace.route) {
+                    MarketplaceScreen(
                         onBackClick = { navController.popBackStack() }
                     )
                 }
