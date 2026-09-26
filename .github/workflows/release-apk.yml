@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - 'claude/**'
   workflow_dispatch:
 
 permissions:
@@ -13,6 +12,8 @@ permissions:
 jobs:
   build-release-apk:
     name: Build signed APK
+    # Only the repo owner's pushes/dispatches build; skipped on forks and for other contributors.
+    if: github.repository == 'Ivorisnoob/OpenStream' && github.actor == github.repository_owner
     runs-on: ubuntu-latest
     timeout-minutes: 45
 

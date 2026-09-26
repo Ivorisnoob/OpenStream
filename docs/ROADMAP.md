@@ -93,5 +93,5 @@ Settings currently only covers sources, repositories and extension updates.
 
 ## Release
 
-- [ ] Signed release APK built on GitHub Actions for the owner's pushes (artifact only, no release).
-      The workflow lives on the `claude/2.0-darkmode-text` branch until it is merged.
+- [x] Signed release APK built on GitHub Actions for the owner's pushes to `main` (artifact only,
+      no GitHub release). Needs the `OPENSTREAM_KEYSTORE_*` / `OPENSTREAM_KEY_*` repo secrets.
