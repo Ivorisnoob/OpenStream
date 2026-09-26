@@ -1,4 +1,4 @@
-# 🎨 Material 3 Expressive Design Guide
+# Material 3 Expressive Design Guide
 
 > *Your comprehensive guide to creating stunning, modern, and truly premium Android apps using Material Design 3 Expressive.*
 
@@ -7,7 +7,7 @@
 
 ---
 
-## 📖 Table of Contents
+## Table of Contents
 
 1. [Introduction - What Makes M3 Expressive Special](#introduction---what-makes-m3-expressive-special)
 2. [The 7 Emphasis Tactics](#the-7-emphasis-tactics)
@@ -35,17 +35,17 @@
 
 Material 3 Expressive isn't just an update—it's a **philosophy shift**. Released in May 2025 alongside Android 16, it represents Google's vision for design through the 2030s.
 
-### 🎯 The Core Goal
+### The Core Goal
 > "Make products more engaging, desirable, and user-friendly by fostering an emotional connection."
 
-### 📊 Why It Matters (Research-Backed)
+### Why It Matters (Research-Backed)
 Google's research found that expressive designs:
 - Help users find key UI elements **up to 4x faster**
 - Are **universally preferred** by users across demographics
 - Improve perceived usability and satisfaction
 - Create stronger emotional connections with products
 
-### 🌟 The Philosophy
+### The Philosophy
 Material 3 Expressive is about making interfaces feel:
 - **Alive** - Through physics-based motion
 - **Personal** - Through dynamic theming
@@ -58,7 +58,7 @@ Material 3 Expressive is about making interfaces feel:
 
 These are the official design tactics from Google for creating expressive interfaces:
 
-### 1. 🔷 Use a Variety of Shapes
+### 1. Use a Variety of Shapes
 Go beyond uniform shapes! Mix classic and abstract forms, combine round and square corner radii to create visual tension or cohesion.
 
 ```kotlin
@@ -68,7 +68,7 @@ val actionButton = RoundedCornerShape(16.dp)  // Medium, interactive
 val infoChip = RoundedCornerShape(8.dp)       // Small, subtle
 ```
 
-### 2. 🎨 Apply Rich and Nuanced Colors
+### 2. Apply Rich and Nuanced Colors
 Use the full spectrum of Material's color roles. Mix primary, secondary, and tertiary colors strategically.
 
 | Role | Usage | Emphasis Level |
@@ -78,22 +78,22 @@ Use the full spectrum of Material's color roles. Mix primary, secondary, and ter
 | **Tertiary** | Badges, accents | Complementary |
 | **Surface Variants** | Cards, depth | Layering |
 
-### 3. 📝 Guide Attention with Typography
+### 3. Guide Attention with Typography
 Use emphasized text styles—heavier weights, larger sizes, distinct colors, and adjusted spacing.
 
-### 4. 📦 Contain Content for Emphasis
+### 4. Contain Content for Emphasis
 Organize content into logical groupings. Use cards and surfaces to:
 - Create clarity
 - Draw attention to specific elements
 - Make key actions stand out
 
-### 5. 💫 Add Fluid and Natural Motion
+### 5. Add Fluid and Natural Motion
 Replace mechanical animations with physics-based motion using springs.
 
-### 6. 🧩 Leverage Component Flexibility
+### 6. Leverage Component Flexibility
 Use the new, more configurable components with enhanced shape and motion options.
 
-### 7. 🎭 Combine Tactics for "Hero Moments"
+### 7. Combine Tactics for "Hero Moments"
 Layer multiple tactics together for key moments—like when a user completes an action or discovers a new feature.
 
 ---
@@ -166,7 +166,7 @@ Material 3 Expressive includes **35 new abstract shapes** beyond basic rounded r
 - Geometric patterns
 - Pill and squircle variations
 
-#### The `MaterialShapes` Class ⭐ NEW!
+#### The `MaterialShapes` Class (new)
 
 The `MaterialShapes` class in `androidx.compose.material3` provides **instant access to all 35 predefined shapes**:
 
@@ -583,13 +583,13 @@ Tokens are named values that represent design decisions:
 
 #### Using Tokens in Compose
 ```kotlin
-// ✅ Use tokens
+// Do: Use tokens
 Text(
     color = MaterialTheme.colorScheme.onSurface,
     style = MaterialTheme.typography.bodyLarge
 )
 
-// ❌ Avoid hardcoded values
+// Don't: Avoid hardcoded values
 Text(
     color = Color.Black,  // Bad - ignores dark mode!
     fontSize = 16.sp      // Bad - ignores user font preferences!
@@ -623,7 +623,7 @@ Material 3 uses **Material Symbols** - a modern, variable icon set.
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 
-// ✅ Rounded icons look more modern
+// Do: Rounded icons look more modern
 Icon(Icons.Rounded.PlayArrow, "Play")
 Icon(Icons.Rounded.Home, "Home")
 Icon(Icons.Rounded.Settings, "Settings")
@@ -698,10 +698,10 @@ IconButton(
 #### Font Scaling
 Always use `sp` for text sizes to respect user preferences:
 ```kotlin
-// ✅ Respects user font size preferences
+// Do: Respects user font size preferences
 Text(fontSize = 16.sp)
 
-// ❌ Ignores user preferences
+// Don't: Ignores user preferences
 Text(fontSize = 16.dp) // DON'T DO THIS
 ```
 
@@ -860,32 +860,32 @@ Button(
 
 ### The Recommended Workflow
 
-#### 1. 🎯 Define Your Brand Identity
+#### 1. Define Your Brand Identity
 Before touching components, establish:
 - What emotions should your app evoke?
 - What's your brand personality (fun, professional, playful, calm)?
 - What are your brand colors?
 
-#### 2. 🎨 Use the Material Theme Builder
+#### 2. Use the Material Theme Builder
 Generate a complete color scheme from your brand color:
 - https://m3.material.io/theme-builder
 - Export to Compose, XML, or Figma
 - Includes both light and dark themes automatically
 
-#### 3. 📐 Set Up Your Design System in Figma
+#### 3. Set Up Your Design System in Figma
 Use the official Material 3 Design Kit:
 - Customize colors, typography, shapes
 - Create component variants for your brand
 - Document your decisions
 
-#### 4. 🧪 Start Small, Test Often
+#### 4. Start Small, Test Often
 > "Begin with one screen or component, then expand."
 
 - Don't try to redesign everything at once
 - Implement expressive tactics one at a time
 - Test with real users early
 
-#### 5. 📱 Test on Real Devices
+#### 5. Test on Real Devices
 - Spring animations can feel different on various devices
 - Test dynamic color on devices with different wallpapers
 - Verify motion respects "Reduce motion" settings
@@ -1060,7 +1060,7 @@ fun AnimatedList(items: List<Item>) {
 
 ## Premium Design Checklist
 
-### ✅ Must-Haves
+### Must-Haves
 
 - [ ] **Spring animations** on all interactive elements
 - [ ] **Consistent corner radii** (pick 2-3 sizes)
@@ -1071,7 +1071,7 @@ fun AnimatedList(items: List<Item>) {
 - [ ] **Clear visual hierarchy** (size, color, spacing)
 - [ ] **Accessibility** (respects system font size, reduce motion)
 
-### ✅ Nice-to-Haves
+### Nice-to-Haves
 
 - [ ] **Shape morphing** on buttons
 - [ ] **Staggered list animations**
@@ -1081,7 +1081,7 @@ fun AnimatedList(items: List<Item>) {
 - [ ] **Custom shapes** for brand identity
 - [ ] **Emphasized typography** for key text
 
-### ❌ Avoid
+### Avoid
 
 - [ ] Flat buttons without interaction feedback
 - [ ] Abrupt state changes without transitions
@@ -1096,7 +1096,7 @@ fun AnimatedList(items: List<Item>) {
 
 ## Resources & Links
 
-### 📚 Official Documentation
+### Official Documentation
 
 | Resource | URL | Description |
 |----------|-----|-------------|
@@ -1108,7 +1108,7 @@ fun AnimatedList(items: List<Item>) {
 | Color Guidelines | https://m3.material.io/styles/color | Color roles |
 | Typography | https://m3.material.io/styles/typography | Type scale |
 
-### 🛠️ Design Tools
+### Design Tools
 
 | Tool | URL | What It Does |
 |------|-----|--------------|
@@ -1116,7 +1116,7 @@ fun AnimatedList(items: List<Item>) {
 | Figma M3 Kit | https://www.figma.com/community/file/1035203688168086460 | Design components |
 | Material Symbols | https://fonts.google.com/icons | Icon library |
 
-### 📺 Video Resources
+### Video Resources
 
 | Channel/Source | Content |
 |----------------|---------|
@@ -1126,7 +1126,7 @@ fun AnimatedList(items: List<Item>) {
 | Philipp Lackner | Compose tutorials |
 | Stevdza-San | UI/Compose examples |
 
-### 📖 Articles & Case Studies
+### Articles & Case Studies
 
 | Topic | Where to Find |
 |-------|---------------|
@@ -1135,7 +1135,7 @@ fun AnimatedList(items: List<Item>) {
 | Compose Samples | Android Developer docs |
 | Community Examples | GitHub |
 
-### 🎨 Inspiration
+### Inspiration
 
 | Source | URL |
 |--------|-----|
@@ -1161,6 +1161,6 @@ The best Material 3 apps don't just implement the guidelines—they use them as 
 
 ---
 
-**Happy Designing! 🎨✨**
+**Happy Designing!**
 
 *This guide is a living document. Update it as Material Design evolves and as you learn new techniques.*

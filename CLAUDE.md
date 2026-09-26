@@ -95,7 +95,8 @@ Material 3 Expressive first: prefer expressive components (`LoadingIndicator`, `
 `ToggleButton`, carousels, `HorizontalFloatingToolbar`) over hand-built equivalents. Use
 `MaterialTheme.colorScheme` roles and `ExpressiveShapes`; no random hard-coded colors. Artwork does
 real work on Home, Details and the player. Keep edge-to-edge, 48dp touch targets, headings marked for
-screen readers, and meaningful content descriptions.
+screen readers, and meaningful content descriptions. Design references (guidelines, M3 Expressive
+guides, component list) live in `docs/design/`.
 
 ## Working agreements
 

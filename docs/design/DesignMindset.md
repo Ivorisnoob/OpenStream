@@ -1,4 +1,4 @@
-# 🧠 The Expressive Design Mindset
+# The Expressive Design Mindset
 
 > *A philosophical guide to thinking like a designer who creates experiences that users love.*
 
@@ -7,7 +7,7 @@
 
 ---
 
-## 💭 What This Document Is About
+## What This Document Is About
 
 This isn't about code snippets or component APIs. This is about **how you think** when you sit down to design something beautiful.
 
@@ -15,7 +15,7 @@ Great design isn't about following rules—it's about developing **intuition**. 
 
 ---
 
-## 📖 Table of Contents
+## Table of Contents
 
 1. [The Designer's Mindset](#the-designers-mindset)
 2. [Emotional Design: Making Users Feel](#emotional-design-making-users-feel)
@@ -35,7 +35,7 @@ Great design isn't about following rules—it's about developing **intuition**. 
 
 It's not Figma skills or knowing every Compose API. It's **how they see the world**.
 
-#### 🔍 **Curiosity Over Assumptions**
+#### **Curiosity Over Assumptions**
 
 > "The best designers I know begin every project with questions, not answers."
 
@@ -46,7 +46,7 @@ Don't assume you know what users want. Ask. Observe. Question everything—inclu
 - Watch someone use your app without saying anything
 - Ask "Why?" five times in a row about any design decision
 
-#### 💚 **Empathy at the Core**
+#### **Empathy at the Core**
 
 Great design is fundamentally about **understanding people**:
 - What frustrates them?
@@ -57,7 +57,7 @@ Great design is fundamentally about **understanding people**:
 **The empathy exercise:**
 Imagine your user. Give them a name. What's their day like? Are they tired? Rushed? Relaxed? How does your app fit into their life?
 
-#### 🔄 **Comfort with Ambiguity**
+#### **Comfort with Ambiguity**
 
 Design is messy. The best solution isn't usually obvious at the start.
 
@@ -65,7 +65,7 @@ Design is messy. The best solution isn't usually obvious at the start.
 
 Learn to sit with uncertainty. The answer will emerge through iteration.
 
-#### 🛠️ **Make to Think**
+#### **Make to Think**
 
 Don't just think about designs—**make them**. Even rough sketches or quick prototypes reveal things that pure thinking cannot.
 
@@ -79,7 +79,7 @@ The act of creation is a form of exploration.
 
 Every interaction operates on three emotional levels:
 
-#### 1. 🎨 **Visceral** — First Impressions
+#### 1. **Visceral** — First Impressions
 
 This is the **gut reaction**. Before users even interact with your app, they've already formed an opinion based on:
 - Colors
@@ -94,7 +94,7 @@ This is the **gut reaction**. Before users even interact with your app, they've 
 - Trust?
 - Confusion?
 
-#### 2. ⚙️ **Behavioral** — The Experience of Using
+#### 2. **Behavioral** — The Experience of Using
 
 This is about **usability and functionality**:
 - Can users accomplish their goals?
@@ -104,7 +104,7 @@ This is about **usability and functionality**:
 
 **Question to ask:** *Does using my app feel effortless or exhausting?*
 
-#### 3. 💭 **Reflective** — The Meaning
+#### 3. **Reflective** — The Meaning
 
 This is the **deep connection**—what users think about your app after they've closed it:
 - Does it reflect their identity?
@@ -221,7 +221,7 @@ Design thinking isn't linear—it's a **dance** between stages.
                                    └─────────────────────────────┘
 ```
 
-#### 1. 🤝 **Empathize**
+#### 1. **Empathize**
 
 Understand your users deeply:
 - Watch them
@@ -231,7 +231,7 @@ Understand your users deeply:
 
 **Output:** Deep understanding of user needs, desires, and pain points.
 
-#### 2. 🎯 **Define**
+#### 2. **Define**
 
 Articulate the problem clearly:
 - What are we really solving?
@@ -240,7 +240,7 @@ Articulate the problem clearly:
 
 **Output:** A clear problem statement that guides all decisions.
 
-#### 3. 💡 **Ideate**
+#### 3. **Ideate**
 
 Generate possibilities without judgment:
 - Quantity over quality
@@ -250,7 +250,7 @@ Generate possibilities without judgment:
 
 **Output:** Many possible solutions to explore.
 
-#### 4. 🔨 **Prototype**
+#### 4. **Prototype**
 
 Make ideas tangible:
 - Quick and cheap
@@ -260,7 +260,7 @@ Make ideas tangible:
 
 **Output:** Something users can interact with.
 
-#### 5. 🧪 **Test**
+#### 5. **Test**
 
 Learn from real users:
 - Observe, don't explain
@@ -545,7 +545,7 @@ Use it well.
 
 ---
 
-**Go create something beautiful. 🎨**
+**Go create something beautiful.**
 
 ---
 

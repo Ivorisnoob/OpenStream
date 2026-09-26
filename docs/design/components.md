@@ -2,7 +2,7 @@
 
 An AI reference of Material Design 3 Expressive components available in Jetpack Compose.
 
-> **Note:** Components marked with 🌟 have expressive features like shape morphing or enhanced motion.
+> **Note:** Components marked **(Expressive)** have expressive features like shape morphing or enhanced motion.
 
 ---
 
@@ -59,7 +59,7 @@ An AI reference of Material Design 3 Expressive components available in Jetpack 
 
 ### Buttons
 
-#### Button 🌟
+#### Button (Expressive)
 
 The standard filled button with optional expressive shape morphing.
 
@@ -80,7 +80,7 @@ fun ExpressiveButton() {
 - `onClick`: Lambda called when button is clicked
 - `modifier`: Modifier for the button
 - `enabled`: Whether the button is enabled
-- `shapes`: 🌟 Shape configuration for morphing animations
+- `shapes`: Shape configuration for morphing animations
 - `colors`: Button colors
 - `elevation`: Button elevation
 - `border`: Optional border stroke
@@ -89,7 +89,7 @@ fun ExpressiveButton() {
 
 ---
 
-#### ElevatedButton 🌟
+#### ElevatedButton (Expressive)
 
 Button with elevation and optional shape morphing.
 
@@ -108,7 +108,7 @@ fun ExpressiveElevatedButton() {
 
 ---
 
-#### OutlinedButton 🌟
+#### OutlinedButton (Expressive)
 
 Button with outline border and optional shape morphing.
 
@@ -127,7 +127,7 @@ fun ExpressiveOutlinedButton() {
 
 ---
 
-#### TextButton 🌟
+#### TextButton (Expressive)
 
 Low-emphasis button with optional shape morphing.
 
@@ -160,7 +160,7 @@ FloatingActionButton(onClick = { /* action */ }) {
 
 ---
 
-#### MediumFloatingActionButton 🌟
+#### MediumFloatingActionButton (Expressive)
 
 Medium-sized FAB for expressive layouts.
 
@@ -176,7 +176,7 @@ fun MediumFAB() {
 
 ---
 
-#### LargeFloatingActionButton 🌟
+#### LargeFloatingActionButton (Expressive)
 
 Large FAB for prominent primary actions.
 
@@ -210,7 +210,7 @@ ExtendedFloatingActionButton(
 
 ---
 
-#### MediumExtendedFloatingActionButton 🌟
+#### MediumExtendedFloatingActionButton (Expressive)
 
 ```kotlin
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -226,7 +226,7 @@ fun MediumExtendedFAB() {
 
 ---
 
-#### LargeExtendedFloatingActionButton 🌟
+#### LargeExtendedFloatingActionButton (Expressive)
 
 ```kotlin
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -244,7 +244,7 @@ fun LargeExtendedFAB() {
 
 ### Icon Buttons
 
-#### IconButton 🌟
+#### IconButton (Expressive)
 
 Standard icon button with optional shape morphing.
 
@@ -263,7 +263,7 @@ fun ExpressiveIconButton() {
 
 ---
 
-#### FilledTonalIconButton 🌟
+#### FilledTonalIconButton (Expressive)
 
 ```kotlin
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -280,7 +280,7 @@ fun ExpressiveFilledTonalIconButton() {
 
 ---
 
-#### OutlinedIconButton 🌟
+#### OutlinedIconButton (Expressive)
 
 ```kotlin
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -299,7 +299,7 @@ fun ExpressiveOutlinedIconButton() {
 
 ### Toggle Buttons
 
-#### ToggleButton 🌟
+#### ToggleButton (Expressive)
 
 Toggle button with shape morphing between checked/unchecked states.
 
@@ -327,12 +327,12 @@ fun ExpressiveToggleButton() {
 **Parameters:**
 - `checked`: Whether the button is checked
 - `onCheckedChange`: Lambda called on state change
-- `shapes`: 🌟 Shape configuration for morphing between states
+- `shapes`: Shape configuration for morphing between states
 - `colors`: Button colors for different states
 
 ---
 
-#### ElevatedToggleButton 🌟
+#### ElevatedToggleButton (Expressive)
 
 ```kotlin
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -351,7 +351,7 @@ fun ExpressiveElevatedToggleButton() {
 
 ---
 
-#### OutlinedToggleButton 🌟
+#### OutlinedToggleButton (Expressive)
 
 ```kotlin
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -370,7 +370,7 @@ fun ExpressiveOutlinedToggleButton() {
 
 ---
 
-#### IconToggleButton 🌟
+#### IconToggleButton (Expressive)
 
 ```kotlin
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -393,7 +393,7 @@ fun ExpressiveIconToggleButton() {
 
 ---
 
-#### FilledTonalIconToggleButton 🌟
+#### FilledTonalIconToggleButton (Expressive)
 
 ```kotlin
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -416,7 +416,7 @@ fun ExpressiveFilledTonalIconToggleButton() {
 
 ---
 
-#### OutlinedIconToggleButton 🌟
+#### OutlinedIconToggleButton (Expressive)
 
 ```kotlin
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -441,7 +441,7 @@ fun ExpressiveOutlinedIconToggleButton() {
 
 ### Split Buttons
 
-#### SplitButton 🌟
+#### SplitButton (Expressive)
 
 A button split into a main action and a secondary dropdown action.
 
@@ -477,7 +477,7 @@ fun SplitButtonExample() {
 
 ### App Bars
 
-#### TopAppBar 🌟
+#### TopAppBar (Expressive)
 
 Standard top app bar with optional subtitle support.
 
@@ -487,7 +487,7 @@ Standard top app bar with optional subtitle support.
 fun ExpressiveTopAppBar() {
     TopAppBar(
         title = { Text("Title") },
-        subtitle = { Text("Subtitle") },  // 🌟 Expressive feature
+        subtitle = { Text("Subtitle") },  // Expressive feature
         navigationIcon = {
             IconButton(onClick = { /* back */ }) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -537,7 +537,7 @@ fun LargeAppBar() {
 
 ---
 
-#### MediumFlexibleTopAppBar 🌟
+#### MediumFlexibleTopAppBar (Expressive)
 
 Medium app bar with flexible content and subtitle.
 
@@ -557,7 +557,7 @@ fun MediumFlexibleAppBar() {
 
 ---
 
-#### LargeFlexibleTopAppBar 🌟
+#### LargeFlexibleTopAppBar (Expressive)
 
 Large app bar with flexible content and subtitle.
 
@@ -618,7 +618,7 @@ fun BottomBar() {
 
 ---
 
-#### FlexibleBottomAppBar 🌟
+#### FlexibleBottomAppBar (Expressive)
 
 Expressive bottom app bar with flexible arrangements.
 
@@ -666,7 +666,7 @@ fun BottomNavigation() {
 
 ---
 
-#### ShortNavigationBar 🌟
+#### ShortNavigationBar (Expressive)
 
 Compact navigation bar for limited space.
 
@@ -810,7 +810,7 @@ fun NavRail() {
 
 ---
 
-#### WideNavigationRail 🌟
+#### WideNavigationRail (Expressive)
 
 Expanded navigation rail with more content.
 
@@ -834,7 +834,7 @@ fun WideNavRail() {
 
 ---
 
-#### ModalWideNavigationRail 🌟
+#### ModalWideNavigationRail (Expressive)
 
 Modal version of wide navigation rail.
 
@@ -959,7 +959,7 @@ fun ScrollableSecondaryTabs() {
 
 ### Toolbars
 
-#### HorizontalFloatingToolbar 🌟
+#### HorizontalFloatingToolbar (Expressive)
 
 Floating toolbar for contextual actions.
 
@@ -987,7 +987,7 @@ fun FloatingToolbar() {
 
 ---
 
-#### VerticalFloatingToolbar 🌟
+#### VerticalFloatingToolbar (Expressive)
 
 Vertical floating toolbar.
 
@@ -1467,7 +1467,7 @@ fun RangeSliderExample() {
 
 ---
 
-#### VerticalSlider 🌟
+#### VerticalSlider (Expressive)
 
 Vertically oriented slider.
 
@@ -1555,7 +1555,7 @@ fun MultiChoiceSegmentedButtons() {
 
 ---
 
-### Button Groups 🌟
+### Button Groups
 
 #### ButtonGroup with Connected ToggleButtons
 
@@ -1668,7 +1668,7 @@ fun OutlinedTextFieldExample() {
 
 ---
 
-#### SecureTextField 🌟
+#### SecureTextField (Expressive)
 
 Text field for passwords with visibility toggle.
 
@@ -1688,7 +1688,7 @@ fun SecureTextFieldExample() {
 
 ---
 
-#### OutlinedSecureTextField 🌟
+#### OutlinedSecureTextField (Expressive)
 
 Outlined secure text field.
 
@@ -1771,7 +1771,7 @@ fun DockedSearchBarExample() {
 
 ---
 
-#### ExpandedDockedSearchBar 🌟
+#### ExpandedDockedSearchBar (Expressive)
 
 Always-expanded docked search bar.
 
@@ -1799,7 +1799,7 @@ fun ExpandedDockedSearchBarExample() {
 
 ---
 
-#### ExpandedFullScreenSearchBar 🌟
+#### ExpandedFullScreenSearchBar (Expressive)
 
 Full-screen search experience.
 
@@ -2055,7 +2055,7 @@ fun DeterminateLinearProgress(progress: Float) {
 
 ---
 
-#### CircularWavyProgressIndicator 🌟
+#### CircularWavyProgressIndicator (Expressive)
 
 Wavy circular progress with expressive motion.
 
@@ -2069,7 +2069,7 @@ fun CircularWavyProgressExample() {
 
 ---
 
-#### LinearWavyProgressIndicator 🌟
+#### LinearWavyProgressIndicator (Expressive)
 
 Wavy linear progress indicator.
 
@@ -2088,7 +2088,7 @@ fun LinearWavyProgressExample() {
 
 ### Loading Indicators
 
-#### LoadingIndicator 🌟
+#### LoadingIndicator (Expressive)
 
 General-purpose loading indicator.
 
@@ -2102,7 +2102,7 @@ fun LoadingIndicatorExample() {
 
 ---
 
-#### ContainedLoadingIndicator 🌟
+#### ContainedLoadingIndicator (Expressive)
 
 Loading indicator with container.
 
@@ -2343,7 +2343,7 @@ fun SwipeToDismissExample() {
 
 ## Theming
 
-### MaterialExpressiveTheme 🌟
+### MaterialExpressiveTheme
 
 Complete expressive theme wrapper.
 
@@ -2366,7 +2366,7 @@ fun ExpressiveTheme(content: @Composable () -> Unit) {
 
 ---
 
-### Motion Schemes 🌟
+### Motion Schemes
 
 #### Expressive Motion
 

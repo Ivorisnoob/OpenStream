@@ -1,4 +1,4 @@
-# 🎨 OpenStream Design Guidelines
+# OpenStream Design Guidelines
 
 > *Applying Material 3 Expressive Principles to OpenStream*
 
@@ -6,7 +6,7 @@ This document outlines the design philosophy and specific guidelines for buildin
 
 ---
 
-## 🌟 Core Philosophy
+## Core Philosophy
 
 OpenStream aims to be **Vibrant, Personal, and Alive**.
 
@@ -16,7 +16,7 @@ OpenStream aims to be **Vibrant, Personal, and Alive**.
 
 ---
 
-## 🛠️ Expressive Tactics for OpenStream
+## Expressive Tactics for OpenStream
 
 ### 1. Shape & Containment
 *   **Mix Shapes:** Don't use the same corner radius everywhere.
@@ -42,7 +42,7 @@ OpenStream aims to be **Vibrant, Personal, and Alive**.
 
 ---
 
-## 📐 Component Guidelines
+## Component Guidelines
 
 ### Content Cards (Movies/Anime)
 *   **Aspect Ratio:** 2:3 for posters.
@@ -60,7 +60,7 @@ OpenStream aims to be **Vibrant, Personal, and Alive**.
 
 ---
 
-## 🚀 Implementation Checklist for New Screens
+## Implementation Checklist for New Screens
 
 1.  [ ] **State Handling:** Define `Loading`, `Success`, `Error` states clearly.
 2.  [ ] **Transition:** Apply enter/exit transitions for the screen content.
