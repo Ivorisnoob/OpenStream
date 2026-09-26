@@ -36,7 +36,7 @@ class HlsDownloadService : DownloadService(
     ): Notification {
         return notificationHelper.buildProgressNotification(
             this,
-            com.ivor.openstream.R.drawable.ic_launcher_foreground,
+            com.ivor.openstream.R.drawable.ic_stat_openstream,
             null,
             null,
             downloads,

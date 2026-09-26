@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Themed-icon layer (Android 13+). The launcher uses only alpha and applies the wallpaper tint. -->
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.95" android:scaleY="0.95">
+        <path
+            android:pathData="M73.97,49.39 A20.5,20.5 0 1,1 62.01,35.13"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="7.4"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M49.64,47.5 Q49.64,44.7 52.08,46.08 L63.58,52.62 Q66.01,54 63.58,55.38 L52.08,61.92 Q49.64,63.3 49.64,60.5 Z"
+            android:fillColor="#FFFFFFFF" />
+        <path
+            android:pathData="M70.09,33.7 Q71.24,39.35 76.89,40.5 Q71.24,41.65 70.09,47.3 Q68.94,41.65 63.29,40.5 Q68.94,39.35 70.09,33.7 Z"
+            android:fillColor="#FFFFFFFF" />
+    </group>
+</vector>
