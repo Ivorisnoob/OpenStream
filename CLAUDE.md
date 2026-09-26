@@ -16,7 +16,9 @@ When a doc and the code disagree, trust the code, then fix the doc.
 ```
 
 `local.properties` holds `TMDB_API_KEY` (falls back to `DEMO_KEY`) and optionally
-`VIDKING_API_BASE_URL`. CI releases via `.github/workflows/release-apk.yml`.
+`VIDKING_API_BASE_URL`. There is no CI; releases are built locally. `assembleRelease` signs when
+`OPENSTREAM_KEYSTORE_PATH`, `OPENSTREAM_KEYSTORE_PASSWORD`, `OPENSTREAM_KEY_ALIAS` and
+`OPENSTREAM_KEY_PASSWORD` are set in the environment.
 
 ## Toolchain
 

@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OpenStream feature card</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+  .stage { width: 1080px; height: 1350px; }
+
+  .spine { width: 72px; padding: 30px 0 30px; }
+  .spine .name { font-size: 22px; }
+  .spine .kana { font-size: 28px; }
+  .spine .num { font-size: 30px; }
+
+  .panel.copy { left: 116px; width: 904px; padding: 34px 40px 40px; border-radius: 48px 48px 48px 128px; }
+  .panel.copy.bottom { border-radius: 128px 48px 48px 48px; }
+  .row { display: flex; align-items: center; justify-content: space-between; }
+  .count { font-size: 26px; font-weight: 1000; font-variation-settings: "wdth" 125; letter-spacing: 0.02em; }
+  .count span { color: var(--sakura); }
+  h1 {
+    margin-top: 26px; font-size: 76px; line-height: 1; font-weight: 900; letter-spacing: -0.012em;
+    font-variation-settings: "wdth" 108, "opsz" 144; max-width: 800px;
+  }
+  .sub { margin-top: 20px; font-size: 29px; line-height: 1.28; font-weight: 550; color: rgba(26, 16, 48, 0.78); max-width: 700px; }
+
+  .phone {
+    position: absolute; background: var(--ink); border-radius: 66px; padding: 14px;
+    box-shadow: 18px 18px 0 #fff;
+  }
+  .phone img { display: block; width: 100%; border-radius: 52px; }
+
+  .badge { position: absolute; display: grid; place-items: center; }
+  .badge .icon { font-size: 60px; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <svg class="layer" id="art" width="1080" height="1350" viewBox="0 0 1080 1350"></svg>
+  <div id="phones"></div>
+  <svg class="layer" id="shapes" width="1080" height="1350" viewBox="0 0 1080 1350"></svg>
+
+  <div class="panel copy" id="copy">
+    <div class="row">
+      <div class="brand">
+        <span class="dot"><svg width="28" height="28" viewBox="30 30 48 48" id="brandMark"></svg></span>
+        OpenStream
+        <span class="jp ja-only">第2巻</span>
+      </div>
+      <div class="count" id="count"></div>
+    </div>
+    <h1 id="headline"></h1>
+    <div class="sub" id="sub"></div>
+  </div>
+  <svg class="layer" id="badgeLayer" width="1080" height="1350" viewBox="0 0 1080 1350"></svg>
+  <div class="badge" id="badge"><span class="icon" id="badgeIcon"></span></div>
+
+  <div class="bubble" id="bubble"></div>
+  <svg class="layer" id="tails" width="1080" height="1350" viewBox="0 0 1080 1350"></svg>
+
+  <div class="spine">
+    <svg width="28" height="28" viewBox="-20 -20 40 40"><path d="M0,-18Q3,-3 18,0Q3,3 0,18Q-3,3 -18,0Q-3,-3 0,-18Z" fill="#FF5F8A"/></svg>
+    <span class="name en-only">OPENSTREAM</span>
+    <span class="kana jp ja-only">オープンストリーム</span>
+    <span class="num" id="spineNum"></span>
+  </div>
+</div>
+
+<script src="brand.js"></script>
+<script>
+  // Phone: screenshot, width, left, top, rotation. Bubble: text, box position, tail tip.
+  const CARDS = {
+    1: {
+      headline: "Movies, series and anime in one place",
+      sub: "Trending picks, a weekly top 10 and new episodes, all on Home.",
+      icon: "home", shape: "cookie4",
+      phones: [{ src: "home", w: 600, x: 400, y: 560, rot: -5 }],
+      bubble: { text: "Fresh picks<br>every week", x: 120, y: 760, tip: { x: 470, y: 900 } },
+    },
+    2: {
+      headline: "A player that gets out of the way",
+      sub: "Clean controls, subtitles in many languages and picture-in-picture.",
+      icon: "play_arrow", shape: "sunny",
+      phones: [{ src: "player", w: 600, x: 410, y: 560, rot: 4 }],
+      bubble: { text: "Picture-in-<br>picture too", x: 112, y: 700, tip: { x: 470, y: 790 } },
+    },
+    3: {
+      headline: "4K to 480p, switch any time",
+      sub: "Change quality mid-episode without switching sources.",
+      icon: "high_quality", shape: "clover4", bottom: true,
+      phones: [{ src: "player-settings", w: 600, x: 400, y: -560, rot: 5 }],
+      bubble: { text: "Auto adapts to<br>your connection", x: 116, y: 250, tip: { x: 520, y: 370 } },
+    },
+    4: {
+      headline: "Every title, beautifully told",
+      sub: "Seasons, cast, trailers and similar titles on one page.",
+      icon: "movie", shape: "cookie9",
+      phones: [{ src: "details", w: 500, x: 470, y: 520, rot: -4 }],
+      bubble: { text: "Resume in<br>one tap", x: 130, y: 1160, tip: { x: 560, y: 1238 } },
+    },
+    5: {
+      headline: "Find it as you type",
+      sub: "Filter by movies, series or anime and sort the way you like.",
+      icon: "search", shape: "softBurst",
+      phones: [{ src: "search-results", w: 600, x: 360, y: 560, rot: 5 }],
+      bubble: { text: "Results as<br>you type", x: 110, y: 770, tip: { x: 490, y: 752 } },
+    },
+    6: {
+      headline: "Your library, searchable",
+      sub: "Saved titles and history, each with its own search and filters.",
+      icon: "bookmark", shape: "cookie4",
+      phones: [
+        { src: "saved", w: 470, x: 150, y: 600, rot: -6 },
+        { src: "history", w: 470, x: 560, y: 540, rot: 5 },
+      ],
+      bubble: { text: "Pick up what's<br>in progress", x: 540, y: 1060, tip: { x: 880, y: 915 } },
+    },
+  };
+
+  const n = Number(new URLSearchParams(location.search).get("card") || 1);
+  const card = CARDS[n];
+  const pad = String(n).padStart(2, "0");
+  document.getElementById("headline").textContent = card.headline;
+  document.getElementById("sub").textContent = card.sub;
+  document.getElementById("count").innerHTML = `${pad} <span>/</span> 06`;
+  document.getElementById("spineNum").textContent = pad;
+  document.getElementById("badgeIcon").textContent = card.icon;
+  markInto(document.getElementById("brandMark"));
+
+  const copy = document.getElementById("copy");
+  if (card.bottom) {
+    copy.classList.add("bottom");
+    copy.style.bottom = "64px";
+  } else {
+    copy.style.top = "56px";
+  }
+
+  // Phones.
+  const phones = document.getElementById("phones");
+  const focus = { x: 0, y: 0 };
+  for (const p of card.phones) {
+    const div = document.createElement("div");
+    div.className = "phone";
+    // The emulator screenshots carry the display's own corner radius (about 16.5% of the width);
+    // clip slightly inside it so none of their black corners show, and round the bezel to match.
+    const screenRadius = Math.round((p.w - 28) * 0.172);
+    Object.assign(div.style, {
+      width: p.w + "px", left: p.x + "px", top: p.y + "px", transform: `rotate(${p.rot}deg)`,
+      borderRadius: screenRadius + 14 + "px",
+    });
+    div.innerHTML = `<img src="../../screenshots/${p.src}.jpg" alt="" style="border-radius: ${screenRadius}px">`;
+    phones.appendChild(div);
+    focus.x += p.x + p.w / 2;
+    focus.y += p.y + (p.w * 2.2) / 2;
+  }
+  focus.x /= card.phones.length;
+  focus.y /= card.phones.length;
+
+  // Background: sakura field, focus lines on the phones.
+  const art = document.getElementById("art");
+  sakuraField(art, { width: 1080, height: 1350 });
+  fadedFocusLines(art, {
+    width: 1080, height: 1350, cx: focus.x, cy: Math.min(Math.max(focus.y, 300), 1100),
+    inner: 360, count: 170, vertical: true,
+    fadeFrom: card.bottom ? 1 : 0.2, fadeTo: card.bottom ? 0.55 : 0.5,
+  });
+
+  // Badge on the panel's corner: a Material shape holding the feature icon.
+  const r = copy.getBoundingClientRect();
+  const bx = r.right - 70, by = card.bottom ? r.top + 4 : r.bottom - 4;
+  const fills = { cookie4: SAKURA, sunny: "#FFDCC2", clover4: "#FFDCC2", cookie9: SAKURA, softBurst: "#FFDCC2" };
+  inkShape(document.getElementById("badgeLayer"), { kind: card.shape, cx: bx, cy: by, r: 74, rot: 0.3, fill: fills[card.shape], shadow: 8 });
+  Object.assign(document.getElementById("badge").style, { left: bx - 60 + "px", top: by - 60 + "px", width: "120px", height: "120px" });
+  document.getElementById("badgeIcon").style.color = fills[card.shape] === SAKURA ? INK : "#4A2500";
+
+  // Loose accents.
+  const shapes = document.getElementById("shapes");
+  sparkle(shapes, { x: card.bottom ? 150 : 1030, y: card.bottom ? 90 : 1290, r: 22 });
+  sparkle(shapes, { x: 140, y: card.bottom ? 780 : 520, r: 14 });
+
+  // Speech bubble and its tail.
+  const bubble = document.getElementById("bubble");
+  bubble.innerHTML = card.bubble.text;
+  Object.assign(bubble.style, { left: card.bubble.x + "px", top: card.bubble.y + "px" });
+  bubbleTail(document.getElementById("tails"), bubble, card.bubble.tip);
+</script>
+</body>
+</html>

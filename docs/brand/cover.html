@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OpenStream Vol. 2 cover</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+  .stage { width: 1280px; height: 640px; }
+
+  .spine { width: 84px; padding: 28px 0 26px; }
+  .spine .name { font-size: 24px; }
+  .spine .kana { font-size: 30px; }
+  .spine .num { font-size: 36px; }
+
+  .panel.hero {
+    left: 128px; top: 40px; width: 560px; height: 548px;
+    border-radius: 48px 48px 132px 48px;
+    padding: 30px 36px;
+  }
+
+  .vol { display: flex; align-items: flex-end; margin-top: 34px; }
+  .vol .word {
+    font-size: 96px; line-height: 0.8; font-weight: 1000; letter-spacing: -0.03em;
+    font-variation-settings: "wdth" 125, "opsz" 144; margin-right: 14px; margin-bottom: 6px;
+  }
+  .vol .two {
+    font-size: 272px; line-height: 0.74; font-weight: 1000; letter-spacing: -0.04em;
+    font-variation-settings: "wdth" 125, "opsz" 144;
+    text-shadow: 10px 10px 0 var(--sakura);
+  }
+
+  .tagline {
+    margin-top: 26px; font-size: 30px; line-height: 1.12; font-weight: 800; letter-spacing: -0.01em;
+    font-variation-settings: "wdth" 100, "opsz" 36;
+  }
+  .wave { margin-top: 12px; display: block; }
+  .hero .chips { margin-top: 14px; }
+
+  .stamp { right: 40px; top: 36px; transform: rotate(4deg); }
+
+  .badge { position: absolute; display: grid; place-items: center; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <svg class="layer" id="art" width="1280" height="640" viewBox="0 0 1280 640"></svg>
+
+  <div class="spine">
+    <svg width="30" height="30" viewBox="-20 -20 40 40"><path d="M0,-18Q3,-3 18,0Q3,3 0,18Q-3,3 -18,0Q-3,-3 0,-18Z" fill="#FF5F8A"/></svg>
+    <span class="name en-only">OPENSTREAM</span>
+    <span class="kana jp ja-only">オープンストリーム</span>
+    <span class="num">2</span>
+  </div>
+
+  <div class="panel hero">
+    <div class="brand">
+      <span class="dot"><svg width="30" height="30" viewBox="30 30 48 48" id="brandMark"></svg></span>
+      OpenStream
+      <span class="jp ja-only">第2巻</span>
+    </div>
+    <div class="vol">
+      <span class="word">VOL.</span>
+      <span class="two">2</span>
+    </div>
+    <div class="tagline">Movies, series and anime<br>in one place.</div>
+    <svg class="wave" id="wave" width="480" height="24" viewBox="0 0 480 24"></svg>
+    <div class="chips">
+      <span class="chip"><span class="icon">download</span>Downloads</span>
+      <span class="chip"><span class="icon">4k</span>Up to 4K</span>
+      <span class="chip"><span class="icon">closed_caption</span>Subtitles</span>
+    </div>
+  </div>
+
+  <div class="stamp">OUT NOW</div>
+
+  <svg class="layer" id="front" width="1280" height="640" viewBox="0 0 1280 640"></svg>
+  <div class="badge" style="left: 1128px; top: 188px; width: 124px; height: 124px;"><span class="icon" style="font-size: 52px; color: var(--on-tertiary-container)">download</span></div>
+  <div class="badge" style="left: 722px; top: 470px; width: 124px; height: 136px;"><span class="icon" style="font-size: 54px; color: var(--primary)">closed_caption</span></div>
+</div>
+
+<script src="brand.js"></script>
+<script>
+  const svg = document.getElementById("art");
+  const front = document.getElementById("front");
+  const cx = 968, cy = 318;
+
+  sakuraField(svg, { width: 1280, height: 640 });
+  fadedFocusLines(svg, { width: 1280, height: 640, cx, cy, inner: 200 });
+
+  // Hero: the mark on a paper cookie with screentone shading.
+  const cookie = inkShape(front, { kind: "cookie12", cx, cy, r: 206, rot: 0.1, fill: "#FFF6F8", shadow: 14, outline: 5 });
+  const clip = el("clipPath", { id: "cookieClip" }, el("defs", {}, front));
+  el("path", { d: cookie }, clip);
+  const tone = el("g", { "clip-path": "url(#cookieClip)" }, front);
+  halftone(tone, {
+    x0: cx - 210, y0: cy - 210, x1: cx + 210, y1: cy + 210, step: 12, maxR: 3.8, fill: "#FFD3DF",
+    weight: (x, y) => ((y - cy) + (cx - x) * 0.4 - 10) / 170,
+  });
+  mark(front, { cx: cx - 4, cy: cy + 4, size: 236, spark: SAKURA });
+
+  // Supporting Material shapes, outlined like comic panels.
+  inkShape(front, { kind: "sunny", cx: 772, cy: 108, r: 56, fill: INK, shadow: 0, outline: 0 });
+  sparkle(front, { x: 772, y: 108, r: 28, fill: "#fff" });
+  inkShape(front, { kind: "clover4", cx: 1190, cy: 250, r: 68, rot: 0.4, fill: "#FFDCC2", shadow: 8 });
+  const arch = "M0,0 L0,-66 A62,62 0 0 1 124,-66 L124,0 Z";
+  el("path", { d: arch, transform: "translate(730 612)", fill: INK }, front);
+  el("path", { d: arch, transform: "translate(722 604)", fill: "#FFD9E1", stroke: INK, "stroke-width": 4, "stroke-linejoin": "round" }, front);
+
+  const pill = el("g", { transform: "translate(1146 556) rotate(-22)" }, front);
+  el("rect", { x: -98, y: -40, width: 196, height: 80, rx: 40, fill: "#fff", transform: "translate(8 8)" }, pill);
+  el("rect", { x: -98, y: -40, width: 196, height: 80, rx: 40, fill: INK }, pill);
+  const t = el("text", { x: 0, y: 16, "text-anchor": "middle", fill: "#fff", "font-family": "Roboto Flex", "font-size": 46, "font-weight": 1000, style: "font-variation-settings: 'wdth' 125" }, pill);
+  t.textContent = "4K";
+
+  sparkle(front, { x: 1232, y: 408, r: 14 });
+  sparkle(front, { x: 716, y: 250, r: 18 });
+  inkShape(front, { kind: "flower", cx: 900, cy: 590, r: 22, fill: "#FFB3C6", shadow: 0, outline: 3 });
+
+  // Wavy progress in the panel, and the mark in the brand pill.
+  wavyProgress(document.getElementById("wave"), { x: 6, y: 12, width: 440, progress: 0.64, color: SAKURA, track: "#FFC9D6", stroke: 9, amp: 5.5, wavelength: 38 });
+  markInto(document.getElementById("brandMark"));
+</script>
+</body>
+</html>

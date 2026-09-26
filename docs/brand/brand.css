@@ -1,0 +1,96 @@
+@import url("https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wdth,wght@8..144,25..151,100..1000&display=block");
+@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,600,1,0&icon_names=4k,auto_awesome,bookmark,check,closed_caption,download,high_quality,history,home,movie,picture_in_picture_alt,play_arrow,search,subtitles,tune&display=block");
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@900&text=%E7%AC%AC2%E5%B7%BB%E3%82%AA%E3%83%BC%E3%83%97%E3%83%B3%E3%82%B9%E3%83%88%E3%83%AA%E3%83%BC%E3%83%A0&display=block");
+
+/* Brand colors plus a Material 3 tonal palette from the sakura seed. */
+:root {
+  --sakura: #FF5F8A;
+  --sakura-deep: #E8457A;
+  --sakura-soft: #FFD3DF;
+  --ink: #1A1030;
+  --surface: #FFF4F6;
+  --surface-high: #FFE4EA;
+  --primary: #B0245A;
+  --primary-container: #FFD9E1;
+  --tertiary-container: #FFDCC2;
+  --on-tertiary-container: #4A2500;
+  --outline: #D6B7BF;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  overflow: hidden;
+  background: var(--sakura);
+  color: var(--ink);
+  font-family: "Roboto Flex", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.stage { position: relative; overflow: hidden; background: var(--sakura); }
+.layer { position: absolute; inset: 0; }
+.jp { font-family: "Noto Sans JP", sans-serif; font-weight: 900; }
+.icon {
+  font-family: "Material Symbols Rounded"; font-weight: 600; font-size: 24px; line-height: 1;
+  font-variation-settings: "FILL" 1; display: inline-block;
+}
+
+/* Every piece comes in two versions: ?lang=ja (default, with Japanese accents) and ?lang=en. */
+[data-lang="en"] .ja-only, [data-lang="ja"] .en-only { display: none !important; }
+
+/* Manga-volume spine along the left edge. */
+.spine {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  background: var(--ink); color: #fff;
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+}
+.spine::after {
+  content: ""; position: absolute; right: -8px; top: 0; bottom: 0; width: 8px;
+  background: repeating-linear-gradient(180deg, var(--ink) 0 10px, transparent 10px 20px);
+}
+.spine .name {
+  writing-mode: vertical-rl; transform: rotate(180deg);
+  font-weight: 900; font-variation-settings: "wdth" 130; letter-spacing: 0.3em;
+}
+.spine .kana { writing-mode: vertical-rl; letter-spacing: 0.06em; }
+.spine .num { font-weight: 1000; font-variation-settings: "wdth" 120; line-height: 1; }
+
+/* A Material surface container drawn like a comic panel: ink outline and a hard shadow. */
+.panel {
+  position: absolute; background: var(--surface);
+  border: 4px solid var(--ink);
+  box-shadow: 12px 12px 0 var(--ink);
+}
+
+.brand {
+  display: inline-flex; align-items: center; gap: 12px;
+  background: var(--surface-high); border-radius: 999px; padding: 7px 20px 7px 7px;
+  font-size: 21px; font-weight: 800; font-variation-settings: "wdth" 110;
+}
+.brand .dot {
+  width: 40px; height: 40px; border-radius: 50%; background: var(--sakura);
+  display: grid; place-items: center;
+}
+.brand .jp { font-size: 16px; color: var(--primary); }
+
+.chips { display: flex; gap: 10px; flex-wrap: wrap; }
+.chip {
+  display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px 0 14px;
+  border-radius: 14px; border: 1.5px solid var(--outline); background: var(--surface);
+  font-size: 18px; font-weight: 700;
+}
+.chip .icon { color: var(--primary); }
+
+/* Manga speech bubble. The tail is an inline SVG placed by the page. */
+.bubble {
+  position: absolute; background: #fff; border: 4px solid var(--ink); border-radius: 40px;
+  padding: 18px 28px 20px; font-size: 28px; font-weight: 800; line-height: 1.15;
+  font-variation-settings: "wdth" 105; box-shadow: 8px 8px 0 var(--ink);
+}
+.bubble svg { position: absolute; overflow: visible; }
+
+.stamp {
+  position: absolute; background: var(--ink); color: #fff; border-radius: 18px;
+  padding: 12px 22px; font-size: 28px; font-weight: 1000; letter-spacing: 0.04em;
+  font-variation-settings: "wdth" 125;
+}

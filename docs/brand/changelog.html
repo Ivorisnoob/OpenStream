@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OpenStream 2.0 changelog page</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+  .stage { width: 1080px; height: 3056px; }
+
+  .spine { width: 72px; padding: 30px 0 30px; }
+  .spine .name { font-size: 22px; letter-spacing: 0.5em; }
+  .spine .kana { font-size: 30px; letter-spacing: 0.4em; }
+  .spine .num { font-size: 30px; }
+
+  .page {
+    position: absolute; left: 112px; top: 48px; width: 920px;
+    display: grid; grid-template-columns: repeat(12, 1fr); gap: 40px 36px;
+  }
+  .page .panel { position: relative; overflow: hidden; }
+
+  /* Header */
+  .head { grid-column: span 12; height: 500px; border-radius: 48px 48px 132px 48px; padding: 36px 40px; }
+  .head .vol { display: flex; align-items: flex-end; margin-top: 30px; }
+  .head .word { font-size: 92px; line-height: 0.8; font-weight: 1000; letter-spacing: -0.03em; font-variation-settings: "wdth" 125, "opsz" 144; margin-right: 12px; margin-bottom: 6px; }
+  .head .two { font-size: 260px; line-height: 0.74; font-weight: 1000; letter-spacing: -0.04em; font-variation-settings: "wdth" 125, "opsz" 144; text-shadow: 10px 10px 0 var(--sakura); }
+  .head h2 { margin-top: 30px; font-size: 44px; line-height: 1.05; font-weight: 900; letter-spacing: -0.015em; font-variation-settings: "wdth" 108; }
+  .head .lede { margin-top: 12px; font-size: 24px; font-weight: 550; color: rgba(26, 16, 48, 0.75); max-width: 470px; }
+
+  /* Feature panels */
+  .feat { padding: 0; display: flex; flex-direction: column; }
+  .feat .shot { position: relative; overflow: hidden; flex: 1; border-bottom: 4px solid var(--ink); background: var(--surface-high); }
+  .feat .shot img { position: absolute; left: 0; display: block; }
+  .feat .cap { padding: 22px 28px 30px; }
+  .feat .tag {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 900; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--primary);
+  }
+  .feat .tag .icon { font-size: 20px; text-transform: none; letter-spacing: 0; }
+  .feat h3 { margin-top: 8px; font-size: 34px; line-height: 1.02; font-weight: 900; letter-spacing: -0.012em; font-variation-settings: "wdth" 108; }
+  .feat p { margin-top: 8px; font-size: 20px; line-height: 1.3; font-weight: 550; color: rgba(26, 16, 48, 0.75); }
+
+  .r1 { height: 600px; }
+  .r2 { height: 280px; flex-direction: row !important; }
+  .r2 .shot { flex: 0 0 540px; border-bottom: 0; border-right: 4px solid var(--ink); }
+  .r2 .cap { align-self: center; }
+  .r3 { height: 600px; }
+  .r4 { height: 520px; }
+
+  .shot.art { display: grid; place-items: center; background: var(--primary-container); }
+
+  .foot { grid-column: span 12; height: 256px; border-radius: 48px 132px 48px 48px; padding: 34px 40px; display: flex; gap: 40px; }
+  .foot .col { flex: 1; }
+  .foot h3 { font-size: 34px; font-weight: 900; font-variation-settings: "wdth" 108; }
+  .foot ul { margin-top: 14px; list-style: none; }
+  .foot li { font-size: 21px; line-height: 1.35; font-weight: 550; color: rgba(26, 16, 48, 0.8); padding-left: 26px; position: relative; margin-bottom: 10px; }
+  .foot li::before { content: ""; position: absolute; left: 2px; top: 11px; width: 10px; height: 10px; border-radius: 50%; background: var(--sakura); }
+  .cta {
+    margin-top: 18px; display: inline-flex; align-items: center; gap: 10px; background: var(--ink); color: #fff;
+    border-radius: 999px; padding: 16px 26px; font-size: 21px; font-weight: 800;
+  }
+  .cta .icon { color: var(--sakura); }
+  .url { margin-top: 14px; font-size: 18px; font-weight: 700; color: var(--primary); }
+</style>
+</head>
+<body>
+<div class="stage">
+  <svg class="layer" id="art" width="1080" height="3056" viewBox="0 0 1080 3056"></svg>
+
+  <div class="page" id="page">
+    <div class="panel head">
+      <div class="brand">
+        <span class="dot"><svg width="30" height="30" viewBox="30 30 48 48" id="brandMark"></svg></span>
+        OpenStream
+        <span class="jp ja-only">第2巻</span>
+      </div>
+      <div class="vol"><span class="word">VOL.</span><span class="two">2</span></div>
+      <h2>What's new in 2.0</h2>
+      <div class="lede">A new player, downloads that finish, and movies, series and anime in one place.</div>
+      <svg class="layer" id="headArt" width="920" height="500" viewBox="0 0 920 500" style="pointer-events:none"></svg>
+    </div>
+  </div>
+
+  <svg class="layer" id="front" width="1080" height="3056" viewBox="0 0 1080 3056"></svg>
+
+  <div class="spine">
+    <svg width="28" height="28" viewBox="-20 -20 40 40"><path d="M0,-18Q3,-3 18,0Q3,3 0,18Q-3,3 -18,0Q-3,-3 0,-18Z" fill="#FF5F8A"/></svg>
+    <span class="name en-only">WHAT'S NEW · OPENSTREAM</span>
+    <span class="kana jp ja-only">オープンストリーム</span>
+    <span class="num">2</span>
+  </div>
+</div>
+
+<script src="brand.js"></script>
+<script>
+  // Each feature: grid span, row class, caption, and the illustration drawn by ART below.
+  const FEATURES = [
+    { span: 7, row: "r1", icon: "play_arrow", tag: "Player", title: "A brand-new player",
+      text: "Cleaner controls in portrait and fullscreen, and a mini player that keeps going while you browse.",
+      art: "player" },
+    { span: 5, row: "r1", icon: "high_quality", tag: "Quality", title: "Switch quality in place",
+      text: "480p to 4K without changing source. Auto adapts to your connection.",
+      art: "quality" },
+    { span: 12, row: "r2", icon: "history", tag: "Continue watching", title: "Pick up where you left off",
+      text: "Resume from the exact spot. The next episode is lined up and plays on its own.",
+      art: "continue" },
+    { span: 5, row: "r3", icon: "movie", tag: "Title pages", title: "Every title, beautifully told",
+      text: "Cast, trailers, More like this, and progress on every episode.",
+      art: "details" },
+    { span: 7, row: "r3", icon: "search", tag: "Search", title: "Find it as you type",
+      text: "Filters for movies, series and anime, sorting, recent searches and genres.",
+      art: "search" },
+    { span: 5, row: "r4", icon: "download", tag: "Downloads", title: "Downloads that finish",
+      text: "Queue a whole season, then pause, resume, retry and watch offline.",
+      art: "downloads" },
+    { span: 7, row: "r4", icon: "bookmark", tag: "Library", title: "History and Saved",
+      text: "Grouped by day, each with its own search, filters and sorting.",
+      art: "library" },
+  ];
+
+  const page = document.getElementById("page");
+  const radii = ["110px 44px 40px 40px", "44px 110px 40px 40px"];
+  FEATURES.forEach((f, i) => {
+    const panel = document.createElement("div");
+    panel.className = `panel feat ${f.row}`;
+    panel.style.gridColumn = `span ${f.span}`;
+    panel.style.borderRadius = radii[i % radii.length];
+    panel.innerHTML = `
+      <div class="shot art" data-i="${i}"></div>
+      <div class="cap">
+        <div class="tag"><span class="icon">${f.icon}</span>${f.tag}</div>
+        <h3>${f.title}</h3>
+        <p>${f.text}</p>
+      </div>`;
+    page.appendChild(panel);
+  });
+
+  const foot = document.createElement("div");
+  foot.className = "panel foot";
+  foot.innerHTML = `
+    <div class="col">
+      <h3>Good to know</h3>
+      <ul>
+        <li>Sources change often, so some titles may be missing. More are on the way.</li>
+        <li>Your history, saved titles and downloads carry over.</li>
+      </ul>
+    </div>
+    <div class="col" style="flex: 0 0 330px">
+      <h3>Get it</h3>
+      <div class="cta"><span class="icon">download</span>Download the APK</div>
+      <div class="url">github.com/Ivorisnoob/OpenStream</div>
+    </div>`;
+  page.appendChild(foot);
+
+  // Illustrations, drawn from the same Material shapes, halftone and wavy progress as the rest of the set.
+  let clipId = 0;
+  const rect = (p, x, y, w, h, r, fill, extra = {}) => el("rect", { x, y, width: w, height: h, rx: r, fill, ...extra }, p);
+  const inkRect = (p, x, y, w, h, r, fill, shadow = 6) => {
+    if (shadow) rect(p, x + shadow, y + shadow, w, h, r, INK);
+    return rect(p, x, y, w, h, r, fill, { stroke: INK, "stroke-width": 3.5 });
+  };
+  const text = (p, str, x, y, size, { weight = 800, fill = INK, anchor = "start", wdth = 100 } = {}) => {
+    const t = el("text", { x, y, "font-family": "Roboto Flex", "font-size": size, "font-weight": weight, fill, "text-anchor": anchor, style: `font-variation-settings: 'wdth' ${wdth}` }, p);
+    t.textContent = str;
+    return t;
+  };
+  const icon = (p, name, cx, cy, size, fill = INK) => {
+    const t = el("text", { x: cx, y: cy + size / 2, "text-anchor": "middle", "font-family": "Material Symbols Rounded", "font-size": size, fill, style: "font-variation-settings: 'FILL' 1" }, p);
+    t.textContent = name;
+  };
+  // "Artwork": a tonal tile with screentone shading, standing in for a poster or backdrop.
+  const TONES = {
+    sakura: [SAKURA, SAKURA_DEEP], ink: [INK, "#3A2458"], peach: ["#FFDCC2", "#F4B98C"], blush: ["#FFC9D6", "#FF9DB7"],
+  };
+  const artwork = (p, x, y, w, h, r, tone, { outline = true, shadow = 0 } = {}) => {
+    const [base, dots] = TONES[tone];
+    if (shadow) rect(p, x + shadow, y + shadow, w, h, r, INK);
+    const id = "clip" + clipId++;
+    el("rect", { x, y, width: w, height: h, rx: r }, el("clipPath", { id }, el("defs", {}, p)));
+    rect(p, x, y, w, h, r, base);
+    halftone(el("g", { "clip-path": `url(#${id})` }, p), {
+      x0: x, y0: y, x1: x + w, y1: y + h, step: Math.max(8, w / 16), maxR: Math.max(2.6, w / 42), fill: dots,
+      weight: (px, py) => ((py - y) / h) * 1.1 + ((x + w - px) / w) * 0.3 - 0.25,
+    });
+    if (outline) rect(p, x, y, w, h, r, "none", { stroke: INK, "stroke-width": 3.5 });
+  };
+  const bar = (p, x, y, w, h = 12, fill = "#F7BFCD") => rect(p, x, y, w, h, h / 2, fill);
+
+  const ART = {
+    player(p, W, H) {
+      const sw = W - 96, sh = sw * 9 / 16, sx = 44, sy = 40;
+      artwork(p, sx, sy, sw, sh, 26, "ink", { shadow: 8 });
+      sparkle(p, { x: sx + 44, y: sy + 40, r: 16, fill: SAKURA });
+      inkShape(p, { kind: "cookie4", cx: sx + sw / 2, cy: sy + sh / 2, r: 46, rot: 0.2, fill: SAKURA, shadow: 0, outline: 0 });
+      icon(p, "play_arrow", sx + sw / 2, sy + sh / 2, 52);
+      wavyProgress(p, { x: sx + 6, y: sy + sh + 40, width: sw - 12, progress: 0.42, color: SAKURA_DEEP, track: "#FFB3C6", stroke: 8, amp: 5, wavelength: 34 });
+      text(p, "12:04", sx + 4, sy + sh + 78, 17, { fill: "rgba(26,16,48,0.7)" });
+      text(p, "42:10", sx + sw - 4, sy + sh + 78, 17, { fill: "rgba(26,16,48,0.7)", anchor: "end" });
+      // Mini player / picture-in-picture, popping out of the corner.
+      const mw = 150, mh = 86, mx = W - mw - 20, my = 14;
+      artwork(p, mx, my, mw, mh, 16, "sakura", { shadow: 6 });
+      icon(p, "picture_in_picture_alt", mx + mw / 2, my + mh / 2, 34, "#fff");
+    },
+    quality(p, W, H) {
+      const items = ["4K", "1080p", "720p", "Auto"];
+      const pw = W - 96, ph = 58, gap = 12, px = 48;
+      let y = (H - (items.length * ph + (items.length - 1) * gap)) / 2;
+      items.forEach((label) => {
+        if (label === "Auto") {
+          inkRect(p, px, y, pw, ph, ph / 2, SAKURA, 6);
+          icon(p, "check", px + 34, y + ph / 2, 28);
+          text(p, label, px + 62, y + 38, 24, { weight: 900, wdth: 110 });
+          text(p, "adapts", px + pw - 22, y + 36, 16, { weight: 700, anchor: "end", fill: "rgba(26,16,48,0.7)" });
+        } else {
+          rect(p, px, y, pw, ph, ph / 2, "#FFF4F6", { stroke: "#E5AFBD", "stroke-width": 2 });
+          text(p, label, px + pw / 2, y + 38, 24, { weight: 800, anchor: "middle", wdth: 110, fill: "rgba(26,16,48,0.82)" });
+        }
+        y += ph + gap;
+      });
+      sparkle(p, { x: 28, y: 40, r: 14, fill: SAKURA });
+    },
+    continue(p, W, H) {
+      const cw = 196, ch = cw * 9 / 16, y = 30;
+      const cards = [["sakura", 0.72, "S2 E5"], ["peach", 0.35, "S1 E3"], ["ink", 0.88, "E12"]];
+      cards.forEach(([tone, prog, chip], i) => {
+        const x = 34 + i * (cw + 26);
+        artwork(p, x, y, cw, ch, 20, tone, { shadow: i === 0 ? 6 : 0 });
+        if (i === 0) {
+          inkShape(p, { kind: "cookie4", cx: x + cw / 2, cy: y + ch / 2, r: 28, rot: 0.2, fill: "#fff", shadow: 0, outline: 3 });
+          icon(p, "play_arrow", x + cw / 2, y + ch / 2, 32);
+        }
+        rect(p, x + 10, y + ch - 36, 70, 26, 13, INK);
+        text(p, chip, x + 45, y + ch - 17, 14, { weight: 800, fill: "#fff", anchor: "middle" });
+        wavyProgress(p, { x: x + 4, y: y + ch + 30, width: cw - 8, progress: prog, color: SAKURA_DEEP, track: "#FFB3C6", stroke: 6, amp: 3.5, wavelength: 24 });
+        bar(p, x + 2, y + ch + 56, cw * 0.7, 14, "#E8A3B6");
+        bar(p, x + 2, y + ch + 80, cw * 0.45, 10);
+      });
+    },
+    details(p, W, H) {
+      artwork(p, -4, -4, W + 8, 196, 0, "peach", { outline: false });
+      sparkle(p, { x: W - 54, y: 50, r: 22, fill: "#fff" });
+      sparkle(p, { x: W - 92, y: 96, r: 10, fill: "#fff" });
+      artwork(p, 30, 118, 100, 144, 18, "sakura", { shadow: 6 });
+      bar(p, 150, 212, W - 190, 20, INK);
+      bar(p, 150, 244, (W - 190) * 0.6, 12, "#E8A3B6");
+      inkRect(p, 30, H - 84, W - 60, 56, 28, "#B0245A", 6);
+      icon(p, "play_arrow", W / 2 - 54, H - 56, 30, "#fff");
+      text(p, "Resume", W / 2 + 12, H - 47, 24, { weight: 900, fill: "#fff", anchor: "middle", wdth: 110 });
+    },
+    search(p, W, H) {
+      inkRect(p, 32, 34, W - 64, 64, 32, "#fff", 6);
+      icon(p, "search", 72, 66, 30, "#B0245A");
+      text(p, "Type a title", 102, 75, 24, { weight: 700, fill: "rgba(26,16,48,0.75)" });
+      rect(p, 250, 50, 3, 32, 1.5, SAKURA);
+      const chips = [["All", 64], ["Movies", 104], ["Series", 96], ["Anime", 96]];
+      let cx = 32;
+      chips.forEach(([label, w], i) => {
+        if (i === 0) rect(p, cx, 124, w, 40, 14, SAKURA);
+        else rect(p, cx, 124, w, 40, 14, "#FFF4F6", { stroke: "#E5AFBD", "stroke-width": 2 });
+        text(p, label, cx + w / 2, 150, 17, { weight: 800, anchor: "middle" });
+        cx += w + 10;
+      });
+      const tw = (W - 64 - 32) / 3;
+      ["ink", "sakura", "peach"].forEach((tone, i) => artwork(p, 32 + i * (tw + 16), 192, tw, tw * 1.45, 18, tone, { shadow: i === 0 ? 6 : 0 }));
+    },
+    library(p, W, H) {
+      rect(p, 32, 28, W - 64, 52, 26, "#fff", { stroke: "#E5AFBD", "stroke-width": 2 });
+      icon(p, "search", 64, 54, 26, "#B0245A");
+      text(p, "Search your history", 90, 62, 19, { weight: 650, fill: "rgba(26,16,48,0.7)" });
+      text(p, "TODAY", 34, 116, 15, { weight: 900, fill: "#B0245A" });
+      [["sakura", 0.8], ["ink", 0.4], ["peach", 0.6]].forEach(([tone, prog], i) => {
+        const y = 134 + i * 84;
+        artwork(p, 32, y, 118, 66, 14, tone);
+        bar(p, 168, y + 8, W * 0.42, 16, "#E8A3B6");
+        bar(p, 168, y + 34, W * 0.26, 10);
+        wavyProgress(p, { x: 170, y: y + 58, width: W * 0.4, progress: prog, color: SAKURA_DEEP, track: "#FFB3C6", stroke: 5, amp: 3, wavelength: 20 });
+        icon(p, "check", W - 50, y + 33, 26, i === 0 ? SAKURA_DEEP : "#E8A3B6");
+      });
+    },
+    downloads(p, W, H) {
+      const cx = W / 2, cy = H / 2 - 44;
+      inkShape(p, { kind: "cookie9", cx, cy, r: 64, fill: SAKURA, shadow: 8 });
+      icon(p, "download", cx, cy - 8, 64);
+      [[0.92, cy + 110], [0.58, cy + 140]].forEach(([prog, y]) =>
+        wavyProgress(p, { x: cx - 130, y, width: 260, progress: prog, color: SAKURA_DEEP, track: "#FFB3C6", stroke: 7, amp: 4, wavelength: 30 }));
+    },
+  };
+
+  document.querySelectorAll(".shot[data-i]").forEach((box) => {
+    const f = FEATURES[Number(box.dataset.i)];
+    const W = box.clientWidth, H = box.clientHeight;
+    const svg = el("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}` }, box);
+    ART[f.art](svg, W, H);
+  });
+
+  // Background and decorations.
+  const art = document.getElementById("art");
+  sakuraField(art, { width: 1080, height: 3056 });
+  const headRect = page.firstElementChild.getBoundingClientRect();
+  fadedFocusLines(art, { width: 1080, height: 3056, cx: 820, cy: headRect.top + 260, inner: 300, count: 200 });
+
+  const headArt = document.getElementById("headArt");
+  const hx = 700, hy = 240;
+  const cookie = inkShape(headArt, { kind: "cookie12", cx: hx, cy: hy, r: 170, rot: 0.1, fill: "#FFE4EA", shadow: 0, outline: 4 });
+  mark(headArt, { cx: hx - 3, cy: hy + 3, size: 196, spark: SAKURA });
+  inkShape(headArt, { kind: "sunny", cx: 846, cy: 84, r: 44, fill: INK, shadow: 0, outline: 0 });
+  sparkle(headArt, { x: 846, y: 84, r: 22 });
+
+  const front = document.getElementById("front");
+  sparkle(front, { x: 1052, y: 1250, r: 18 });
+  sparkle(front, { x: 92, y: 2050, r: 14, fill: "#fff" });
+  markInto(document.getElementById("brandMark"));
+</script>
+</body>
+</html>
