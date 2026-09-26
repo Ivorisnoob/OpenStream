@@ -50,14 +50,64 @@ data class AnimeDetailsDto(
     @SerialName("genres") val genres: List<GenreDto>? = null,
     @SerialName("production_companies") val productionCompanies: List<ProductionCompanyDto>? = null,
     @SerialName("homepage") val homepage: String? = null,
-    @SerialName("videos") val videos: VideoResponseDto? = null
+    @SerialName("videos") val videos: VideoResponseDto? = null,
+    @SerialName("vote_count") val voteCount: Int? = null,
+    @SerialName("original_name") val originalName: String? = null,
+    @SerialName("original_title") val originalTitle: String? = null,
+    @SerialName("episode_run_time") val episodeRunTime: List<Int>? = null,
+    @SerialName("networks") val networks: List<ProductionCompanyDto>? = null,
+    @SerialName("next_episode_to_air") val nextEpisodeToAir: AiringEpisodeDto? = null,
+    /** Movies: `credits`. Series: `aggregate_credits`, which spans every season. */
+    @SerialName("credits") val credits: CreditsDto? = null,
+    @SerialName("aggregate_credits") val aggregateCredits: CreditsDto? = null,
+    @SerialName("recommendations") val recommendations: TmdbResponse<AnimeDto>? = null
 ) {
     val name: String
         get() = movieTitle ?: tvName ?: ""
 
     val date: String
         get() = releaseDate ?: firstAirDate ?: ""
+
+    val nativeTitle: String?
+        get() = (originalName ?: originalTitle)?.takeIf { it.isNotBlank() && it != name }
+
+    val cast: List<CastDto>
+        get() = (aggregateCredits ?: credits)?.cast.orEmpty()
+
+    /** Minutes per episode for series, or the film's length. */
+    val typicalRuntime: Int?
+        get() = runtime ?: episodeRunTime?.firstOrNull()
 }
+
+@Serializable
+data class AiringEpisodeDto(
+    @SerialName("air_date") val airDate: String? = null,
+    @SerialName("episode_number") val episodeNumber: Int = 0,
+    @SerialName("season_number") val seasonNumber: Int = 0,
+    @SerialName("name") val name: String? = null
+)
+
+@Serializable
+data class CreditsDto(
+    @SerialName("cast") val cast: List<CastDto> = emptyList()
+)
+
+@Serializable
+data class CastDto(
+    @SerialName("id") val id: Int,
+    @SerialName("name") val name: String,
+    @SerialName("character") val character: String? = null,
+    @SerialName("roles") val roles: List<CastRoleDto>? = null,
+    @SerialName("profile_path") val profilePath: String? = null
+) {
+    val role: String?
+        get() = (character ?: roles?.firstOrNull()?.character)?.takeIf { it.isNotBlank() }
+}
+
+@Serializable
+data class CastRoleDto(
+    @SerialName("character") val character: String? = null
+)
 
 @Serializable
 data class GenreDto(

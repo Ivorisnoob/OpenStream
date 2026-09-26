@@ -386,11 +386,11 @@ private fun PosterRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         itemsIndexed(items, key = { _, anime -> anime.id }) { _, anime ->
+            // Only the artwork is rounded; clipping the whole card would cut into the title below it.
             Column(
                 modifier = Modifier
                     .width(132.dp)
-                    .clip(ExpressiveShapes.medium)
-                    .clickable { onOpen(anime) }
+                    .clickable(onClickLabel = "Open ${anime.name}") { onOpen(anime) }
             ) {
                 AsyncImage(
                     model = "https://image.tmdb.org/t/p/w342${anime.posterPath}",

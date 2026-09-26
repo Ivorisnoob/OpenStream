@@ -1,16 +1,15 @@
 package com.ivor.openstream.presentation.details
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.ContentTransform
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.tween
+import android.content.Intent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -18,518 +17,316 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material3.LinearProgressIndicator
-import com.ivor.openstream.domain.model.WatchProgress
-import com.ivor.openstream.domain.model.DownloadStatus
-import com.ivor.openstream.data.local.entity.DownloadEntity
-import androidx.compose.material.icons.filled.DownloadDone
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material3.Card
+import androidx.compose.material.icons.filled.DownloadDone
+import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Theaters
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FilledIconToggleButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.ListItem
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.SuggestionChipDefaults
+import androidx.compose.material3.SegmentedListItem
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.material3.ElevatedCard
-import com.ivor.openstream.data.remote.model.VideoDto
-
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
+import com.ivor.openstream.data.local.entity.DownloadEntity
+import com.ivor.openstream.data.remote.model.AnimeDetailsDto
+import com.ivor.openstream.data.remote.model.AnimeDto
+import com.ivor.openstream.data.remote.model.CastDto
 import com.ivor.openstream.data.remote.model.EpisodeDto
+import com.ivor.openstream.data.remote.model.SeasonDetailsDto
+import com.ivor.openstream.data.remote.model.VideoDto
+import com.ivor.openstream.domain.model.DownloadStatus
+import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.presentation.components.ExpressiveBackButton
-import com.ivor.openstream.presentation.details.DetailsViewModel.DetailsUiState
 import com.ivor.openstream.ui.theme.ExpressiveShapes
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
-// Expressive Motion Tokens (Spring approximations from M3 specs)
-// Source: https://m3.material.io/styles/motion/overview/specs
-
-// Spatial (Large movements)
-private val ExpressiveDefaultSpatial = CubicBezierEasing(0.38f, 1.21f, 0.22f, 1.00f) // 500ms
-private val ExpressiveDefaultEffects = CubicBezierEasing(0.34f, 0.80f, 0.34f, 1.00f) // 200ms
-
-private const val DurationSpatialDefault = 500
-private const val DurationEffectsDefault = 200
-
-private fun materialSharedAxisYIn(): ContentTransform {
-    return (slideInVertically(
-                animationSpec = tween(DurationSpatialDefault, easing = ExpressiveDefaultSpatial)
-            ) { height -> height / 2 } + 
-            fadeIn(
-                animationSpec = tween(DurationEffectsDefault, delayMillis = 50, easing = ExpressiveDefaultEffects)
-            ))
-        .togetherWith(
-            slideOutVertically(
-                animationSpec = tween(DurationSpatialDefault, easing = ExpressiveDefaultSpatial)
-            ) { height -> -height / 2 } + 
-            fadeOut(
-                animationSpec = tween(DurationEffectsDefault, easing = ExpressiveDefaultEffects)
-            )
-        )
-}
-
-private enum class ScreenState {
-    Loading, Error, Success
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun DetailsScreen(
     mediaType: String,
     onBackClick: () -> Unit,
-    onPlayClick: (Int, Int) -> Unit, // season, episode
+    onPlayClick: (season: Int, episode: Int) -> Unit,
     onOpenDownloads: () -> Unit = {},
+    onOpenTitle: (id: Int, mediaType: String) -> Unit = { _, _ -> },
     viewModel: DetailsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val uriHandler = LocalUriHandler.current
-    val isWatchLater by viewModel.isWatchLater.collectAsState()
+    val isSaved by viewModel.isWatchLater.collectAsState()
     val episodeDownloads by viewModel.episodeDownloads.collectAsState()
-    val activeDownloads = episodeDownloads.values.count { DownloadStatus.isActive(it.status) }
     val episodeProgress by viewModel.episodeProgress.collectAsState()
     val resumeTarget by viewModel.resumeTarget.collectAsState()
-    
-    val screenState = remember(uiState) {
-        when (uiState) {
-            is DetailsUiState.Loading -> ScreenState.Loading
-            is DetailsUiState.Error -> ScreenState.Error
-            is DetailsUiState.Success -> ScreenState.Success
-        }
-    }
+    val listState = rememberLazyListState()
+    val collapsed by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
 
-    Scaffold(
-        floatingActionButton = {
-            if (uiState is DetailsUiState.Success) {
-                val state = uiState as DetailsUiState.Success
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        when (val state = uiState) {
+            DetailsUiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                LoadingIndicator(modifier = Modifier.size(64.dp))
+            }
+
+            is DetailsUiState.Error -> DetailsError(state.message, onRetry = viewModel::loadDetails)
+
+            is DetailsUiState.Success -> {
                 val details = state.details
-                val seasonDetails = state.selectedSeasonDetails
-                
-                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    if (activeDownloads == 0) {
-                        androidx.compose.material3.SmallFloatingActionButton(
-                            onClick = {
-                                // Add logic: Add all episodes of season OR movie
-                                if (mediaType == "movie") {
-                                    // Make a fake EpisodeDto for movie logic
-                                    val movieEp = EpisodeDto(
-                                        id = details.id,
-                                        name = details.name,
-                                        overview = details.overview,
-                                        voteAverage = details.voteAverage,
-                                        voteCount = 0, // details.voteCount not available
-                                        airDate = details.date,
-                                        episodeNumber = 1,
-                                        seasonNumber = 1,
-                                        stillPath = details.backdropPath,
-                                        productionCode = "",
-                                        runtime = 0,
-                                        showId = details.id
-                                    )
-                                    viewModel.downloadEpisodes(listOf(movieEp))
+                val isMovie = mediaType == "movie"
+                val activeDownloads = episodeDownloads.values.count { DownloadStatus.isActive(it.status) }
+                val trailers = details.videos?.results.orEmpty()
+                    .filter { it.site == "YouTube" && (it.type == "Trailer" || it.type == "Teaser") }
+
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 200.dp)
+                ) {
+                    item(key = "hero") {
+                        Hero(
+                            details = details,
+                            isMovie = isMovie,
+                            // Parallax: the artwork drifts at half the scroll speed.
+                            parallax = { if (listState.firstVisibleItemIndex == 0) listState.firstVisibleItemScrollOffset / 2f else 0f }
+                        )
+                    }
+
+                    item(key = "actions") {
+                        PrimaryActions(
+                            details = details,
+                            isMovie = isMovie,
+                            resume = resumeTarget,
+                            isSaved = isSaved,
+                            activeDownloads = activeDownloads,
+                            movieDownload = episodeDownloads[1 to 1].takeIf { isMovie },
+                            hasTrailer = trailers.isNotEmpty(),
+                            onPlay = {
+                                val resume = resumeTarget
+                                if (resume != null) {
+                                    onPlayClick(resume.season, resume.episode)
                                 } else {
-                                    // Download all for current season
-                                    seasonDetails?.episodes?.let { eps ->
-                                        val releasedEps = eps.filter { ep ->
-                                            val dateStr = ep.airDate
-                                            if (dateStr.isNullOrEmpty()) true else {
-                                                try {
-                                                    !java.time.LocalDate.parse(dateStr).isAfter(java.time.LocalDate.now())
-                                                } catch (e: Exception) { true }
-                                            }
-                                        }
-                                        if (releasedEps.isNotEmpty()) {
-                                            viewModel.downloadEpisodes(releasedEps)
-                                        }
-                                    }
+                                    onPlayClick(details.firstPlayableSeason(), 1)
                                 }
                             },
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                        ) {
-                            Icon(Icons.Filled.Download, contentDescription = "Download All")
-                        }
-                    } else {
-                        androidx.compose.material3.ExtendedFloatingActionButton(
-                            onClick = onOpenDownloads,
-                            icon = { LoadingIndicator(modifier = Modifier.size(24.dp)) },
-                            text = { Text(if (activeDownloads == 1) "Downloading 1 episode" else "Downloading $activeDownloads episodes") },
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                            expanded = true
+                            onToggleSaved = viewModel::toggleWatchLater,
+                            onDownload = {
+                                if (activeDownloads > 0) {
+                                    onOpenDownloads()
+                                } else if (isMovie) {
+                                    viewModel.downloadEpisodes(listOf(details.asMovieEpisode()))
+                                } else {
+                                    state.selectedSeasonDetails?.episodes?.filter { it.isReleased() }
+                                        ?.takeIf { it.isNotEmpty() }
+                                        ?.let(viewModel::downloadEpisodes)
+                                }
+                            },
+                            trailer = trailers.firstOrNull()
                         )
                     }
 
-                    val resume = resumeTarget
-                    ExtendedFloatingActionButton(
-                        onClick = {
-                            if (resume != null) {
-                                onPlayClick(resume.season, resume.episode)
-                            } else {
-                                val firstSeason = details.seasons
-                                    ?.filter { it.seasonNumber > 0 }
-                                    ?.minByOrNull { it.seasonNumber }
-                                    ?.seasonNumber
-                                    ?: details.seasons?.firstOrNull()?.seasonNumber
-                                    ?: 1
-                                onPlayClick(firstSeason, 1)
+                    details.nextEpisodeToAir?.let { next ->
+                        if (!isMovie && next.airDate != null) {
+                            item(key = "next-airing") {
+                                NextAiringBanner(
+                                    text = "S${next.seasonNumber} E${next.episodeNumber} arrives ${formatDate(next.airDate, "EEE, MMM d")}"
+                                )
                             }
-                        },
-                        icon = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
-                        text = {
-                            Text(
-                                when {
-                                    resume == null -> "Play"
-                                    mediaType == "movie" -> "Resume"
-                                    resume.isUpNext -> "Continue · S${resume.season} E${resume.episode}"
-                                    else -> "Resume · S${resume.season} E${resume.episode}"
-                                }
+                        }
+                    }
+
+                    if (details.overview.isNotBlank()) {
+                        item(key = "overview") { Overview(details.overview) }
+                    }
+
+                    if (!isMovie && !details.seasons.isNullOrEmpty()) {
+                        item(key = "episodes-header") {
+                            SectionTitle("Episodes")
+                            SeasonPicker(
+                                details = details,
+                                selected = state.selectedSeasonDetails?.seasonNumber,
+                                onSelect = viewModel::loadSeason
                             )
-                        },
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                        expanded = true
-                    )
+                        }
+                        if (state.isLoadingEpisodes) {
+                            item(key = "episodes-loading") {
+                                Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
+                                    LoadingIndicator()
+                                }
+                            }
+                        } else {
+                            val episodes = state.selectedSeasonDetails?.episodes.orEmpty()
+                            items(episodes, key = { "episode:${it.id}" }) { episode ->
+                                EpisodeCard(
+                                    episode = episode,
+                                    progress = episodeProgress[episode.seasonNumber to episode.episodeNumber],
+                                    download = episodeDownloads[episode.seasonNumber to episode.episodeNumber],
+                                    onPlay = { onPlayClick(episode.seasonNumber, episode.episodeNumber) },
+                                    onDownload = { viewModel.downloadEpisodes(listOf(episode)) },
+                                    onSetWatched = { watched -> viewModel.setWatched(episode, watched) }
+                                )
+                            }
+                        }
+                    }
+
+                    if (details.cast.isNotEmpty()) {
+                        item(key = "cast") {
+                            SectionTitle("Cast")
+                            CastRail(details.cast.take(20))
+                        }
+                    }
+
+                    if (trailers.isNotEmpty()) {
+                        item(key = "trailers") {
+                            SectionTitle("Trailers")
+                            TrailerRail(trailers)
+                        }
+                    }
+
+                    val recommendations = details.recommendations?.results.orEmpty().filter { it.posterPath != null }
+                    if (recommendations.isNotEmpty()) {
+                        item(key = "more-like-this") {
+                            SectionTitle("More like this")
+                            RecommendationRail(
+                                items = recommendations,
+                                defaultMediaType = mediaType,
+                                onOpen = onOpenTitle
+                            )
+                        }
+                    }
+
+                    item(key = "info") {
+                        SectionTitle("Details")
+                        InfoList(details, isMovie)
+                    }
                 }
             }
         }
-    ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize()) {
-            
-            AnimatedContent(
-                targetState = screenState,
-                transitionSpec = { materialSharedAxisYIn() },
-                modifier = Modifier.fillMaxSize(),
-                label = "DetailsContent"
-            ) { targetState ->
-                when (targetState) {
-                    ScreenState.Loading -> {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            LoadingIndicator()
-                        }
-                    }
-                    ScreenState.Error -> {
-                        val errorState = uiState as? DetailsUiState.Error
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(
-                                text = "Error: ${errorState?.message ?: "Unknown error"}",
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    }
-                    ScreenState.Success -> {
-                        val successState = uiState as? DetailsUiState.Success
-                        if (successState != null) {
-                            val details = successState.details
-                            val seasonDetails = successState.selectedSeasonDetails
-                            val isLoadingEpisodes = successState.isLoadingEpisodes
-                            
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(bottom = 120.dp) // Space for FABs
-                            ) {
-                                // Header Item
-                                item {
-                                    Box(modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(500.dp)) { // Taller, more immersive header
-                                        AsyncImage(
-                                            model = "https://image.tmdb.org/t/p/w1280${details.backdropPath ?: details.posterPath}",
-                                            contentDescription = null,
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                        // Gradient Scrim
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .background(
-                                                    Brush.verticalGradient(
-                                                        colors = listOf(
-                                                            Color.Transparent,
-                                                            MaterialTheme.colorScheme.background.copy(alpha = 0.2f),
-                                                            MaterialTheme.colorScheme.background.copy(alpha = 0.8f),
-                                                            MaterialTheme.colorScheme.background
-                                                        ),
-                                                        startY = 0f,
-                                                        endY = Float.POSITIVE_INFINITY
-                                                    )
-                                                )
-                                        )
-                                        
-                                        Column(
-                                            modifier = Modifier
-                                                .align(Alignment.BottomStart)
-                                                .padding(24.dp) // More padding
-                                        ) {
-                                            // Expressive Chips (Vibrant)
-                                            if (!details.genres.isNullOrEmpty()) {
-                                                FlowRow(
-                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                                    modifier = Modifier.padding(bottom = 12.dp)
-                                                ) {
-                                                    details.genres.take(3).forEach { genre ->
-                                                        SuggestionChip(
-                                                            onClick = { /* No-op */ },
-                                                            label = { 
-                                                                Text(
-                                                                    genre.name, 
-                                                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                                                                ) 
-                                                            },
-                                                            shape = ExpressiveShapes.small,
-                                                            colors = SuggestionChipDefaults.suggestionChipColors(
-                                                                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                                                                labelColor = MaterialTheme.colorScheme.onTertiaryContainer
-                                                            ),
-                                                            border = null
-                                                        )
-                                                    }
-                                                }
-                                            }
 
-                                            Text(
-                                                text = details.name,
-                                                style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.ExtraBold), // Bolder
-                                                color = MaterialTheme.colorScheme.onBackground
-                                            )
-                                            if (!details.tagline.isNullOrEmpty()) {
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Text(
-                                                    text = details.tagline,
-                                                    style = MaterialTheme.typography.titleMedium.copy(fontStyle = FontStyle.Italic),
-                                                    color = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
-                                            Spacer(modifier = Modifier.height(12.dp))
-                                            Text(
-                                                text = "★ ${String.format("%.1f", details.voteAverage)}  •  ${details.date.take(4)}  •  ${details.status ?: "Unknown"}",
-                                                style = MaterialTheme.typography.labelLarge,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                }
+        TopBar(
+            title = (uiState as? DetailsUiState.Success)?.details?.name.orEmpty(),
+            collapsed = collapsed,
+            shareUrl = (uiState as? DetailsUiState.Success)?.details?.let { "https://www.themoviedb.org/$mediaType/${it.id}" },
+            onBackClick = onBackClick
+        )
+    }
+}
 
-                                // Overview & Studios
-                                item {
-                                    Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
-                                        Text(
-                                            text = details.overview,
-                                            style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 24.sp),
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
+// region Top bar & hero
 
-                                        // Studios as small expressive tags
-                                        if (!details.productionCompanies.isNullOrEmpty()) {
-                                            Spacer(modifier = Modifier.height(16.dp))
-                                            FlowRow(
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                                            ) {
-                                                details.productionCompanies.forEach { company ->
-                                                    Text(
-                                                        text = company.name.uppercase(),
-                                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                                        color = MaterialTheme.colorScheme.secondary,
-                                                        modifier = Modifier
-                                                            .background(
-                                                                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
-                                                                ExpressiveShapes.extraSmall
-                                                            )
-                                                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        Spacer(modifier = Modifier.height(24.dp))
-                                    }
-                                }
-
-
-                                // Trailers & Teasers
-                                val videos = details.videos?.results?.filter {
-                                    it.site == "YouTube" && (it.type == "Trailer" || it.type == "Teaser")
-                                } ?: emptyList()
-
-                                if (videos.isNotEmpty()) {
-                                    item {
-                                        Column(modifier = Modifier.padding(vertical = 16.dp)) {
-                                            Text(
-                                                text = "Trailers & Teasers",
-                                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-                                                color = MaterialTheme.colorScheme.onBackground
-                                            )
-
-                                            LazyRow(
-                                                contentPadding = PaddingValues(horizontal = 24.dp),
-                                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                                            ) {
-                                                items(
-                                                    items = videos,
-                                                    key = { it.id }
-                                                ) { video ->
-                                                    ElevatedCard(
-                                                        shape = ExpressiveShapes.medium,
-                                                        modifier = Modifier
-                                                            .size(width = 240.dp, height = 135.dp) // 16:9 ratio
-                                                    ) {
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .fillMaxSize()
-                                                                .clickable {
-                                                                    uriHandler.openUri("https://www.youtube.com/watch?v=${video.key}")
-                                                                }
-                                                        ) {
-                                                            AsyncImage(
-                                                                model = "https://img.youtube.com/vi/${video.key}/hqdefault.jpg",
-                                                                contentDescription = video.name,
-                                                                contentScale = ContentScale.Crop,
-                                                                modifier = Modifier.fillMaxSize()
-                                                            )
-                                                            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.3f)))
-                                                            Icon(
-                                                                imageVector = Icons.Filled.PlayArrow,
-                                                                contentDescription = "Play Trailer",
-                                                                tint = Color.White,
-                                                                modifier = Modifier.align(Alignment.Center).size(48.dp)
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Season Selector (Scrollable Chips)
-                                if (!details.seasons.isNullOrEmpty()) {
-                                    item {
-                                        LazyRow(
-                                            contentPadding = PaddingValues(horizontal = 24.dp),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            items(
-                                                items = details.seasons ?: emptyList(),
-                                                key = { it.seasonNumber }
-                                            ) { season ->
-                                                val isSelected = seasonDetails?.seasonNumber == season.seasonNumber
-                                                FilterChip(
-                                                    selected = isSelected,
-                                                    onClick = { viewModel.loadSeason(season.seasonNumber) },
-                                                    label = { Text(season.name) },
-                                                    shape = ExpressiveShapes.small,
-                                                    colors = FilterChipDefaults.filterChipColors(
-                                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                                    )
-                                                )
-                                            }
-                                        }
-                                        Spacer(modifier = Modifier.height(16.dp))
-                                    }
-                                }
-
-                                // Episodes List
-                                if (isLoadingEpisodes) {
-                                    item {
-                                        Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                                            LoadingIndicator()
-                                        }
-                                    }
-                                } else {
-                                    seasonDetails?.episodes?.let { episodes ->
-                                        items(
-                                            items = episodes,
-                                            key = { it.id }
-                                        ) { episode ->
-                                            EpisodeItem(
-                                                episode = episode,
-                                                progress = episodeProgress[episode.seasonNumber to episode.episodeNumber],
-                                                download = episodeDownloads[episode.seasonNumber to episode.episodeNumber],
-                                                onClick = { onPlayClick(episode.seasonNumber, episode.episodeNumber) },
-                                                onDownloadClick = {
-                                                    viewModel.downloadEpisodes(listOf(episode))
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Overlay Back Button (Outside AnimatedContent to be stable)
-            Box(
+@Composable
+private fun TopBar(
+    title: String,
+    collapsed: Boolean,
+    shareUrl: String?,
+    onBackClick: () -> Unit
+) {
+    val context = LocalContext.current
+    val barAlpha by animateFloatAsState(if (collapsed) 1f else 0f, label = "topBarAlpha")
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.96f * barAlpha))
+            .statusBarsPadding()
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ExpressiveBackButton(onClick = onBackClick)
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
-                    .statusBarsPadding()
-                    .fillMaxWidth()
-                    .padding(8.dp)
-            ) {
-                ExpressiveBackButton(
-                    onClick = onBackClick,
-                    modifier = Modifier.align(Alignment.TopStart)
-                )
-
-                if (uiState is DetailsUiState.Success) {
-                    FilledIconToggleButton(
-                        checked = isWatchLater,
-                        onCheckedChange = { viewModel.toggleWatchLater() },
-                        modifier = Modifier.align(Alignment.TopEnd),
-                        colors = IconButtonDefaults.filledIconToggleButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                            contentColor = MaterialTheme.colorScheme.onSurface,
-                            checkedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            checkedContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
+                    .weight(1f)
+                    .padding(horizontal = 12.dp)
+                    .graphicsLayer { alpha = barAlpha }
+            )
+            if (shareUrl != null) {
+                IconButton(
+                    onClick = {
+                        val send = Intent(Intent.ACTION_SEND)
+                            .setType("text/plain")
+                            .putExtra(Intent.EXTRA_TEXT, "$title — $shareUrl")
+                        context.startActivity(Intent.createChooser(send, "Share $title"))
+                    }
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.85f)
                     ) {
                         Icon(
-                            imageVector = if (isWatchLater) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
-                            contentDescription = if (isWatchLater) "Remove from Watch Later" else "Add to Watch Later"
+                            Icons.Default.Share,
+                            contentDescription = "Share",
+                            modifier = Modifier.padding(8.dp)
                         )
                     }
                 }
@@ -538,102 +335,542 @@ fun DetailsScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun EpisodeItem(
-    episode: EpisodeDto,
-    progress: WatchProgress? = null,
-    download: DownloadEntity? = null,
-    onClick: () -> Unit,
-    onDownloadClick: () -> Unit
+private fun Hero(
+    details: AnimeDetailsDto,
+    isMovie: Boolean,
+    parallax: () -> Float
 ) {
-    val isReleased = remember(episode.airDate) {
-        val dateStr = episode.airDate
-        if (dateStr.isNullOrEmpty()) {
-            true // fallback for older shows
-        } else {
-            try {
-                val date = java.time.LocalDate.parse(dateStr)
-                !date.isAfter(java.time.LocalDate.now())
-            } catch (e: Exception) {
-                true
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(540.dp)
+            // The parallax shifts the artwork down; without clipping its bottom edge shows below the hero.
+            .clipToBounds()
+    ) {
+        AsyncImage(
+            model = "https://image.tmdb.org/t/p/w1280${details.backdropPath ?: details.posterPath}",
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { translationY = parallax() }
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        0f to MaterialTheme.colorScheme.background.copy(alpha = 0.35f),
+                        0.3f to Color.Transparent,
+                        0.62f to MaterialTheme.colorScheme.background.copy(alpha = 0.75f),
+                        1f to MaterialTheme.colorScheme.background
+                    )
+                )
+        )
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.Bottom
+        ) {
+            Surface(
+                shape = ExpressiveShapes.large,
+                shadowElevation = 12.dp,
+                modifier = Modifier.size(width = 112.dp, height = 166.dp)
+            ) {
+                AsyncImage(
+                    model = "https://image.tmdb.org/t/p/w342${details.posterPath}",
+                    contentDescription = "${details.name} poster",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 16.dp)
+            ) {
+                StatusPill(details.status)
+                Text(
+                    text = details.name,
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .semantics { heading() }
+                )
+                details.nativeTitle?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                MetaLine(details, isMovie, modifier = Modifier.padding(top = 8.dp))
             }
         }
     }
+    val genres = details.genres.orEmpty().filter { it.name != "Animation" }
+    if (genres.isNotEmpty()) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp)
+        ) {
+            genres.take(4).forEach { genre ->
+                Surface(
+                    shape = ExpressiveShapes.small,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                ) {
+                    Text(
+                        text = genre.name,
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+            }
+        }
+    }
+}
 
-    val alpha = if (isReleased) 1f else 0.5f
+@Composable
+private fun StatusPill(status: String?) {
+    val label = when (status) {
+        "Returning Series", "In Production" -> "Airing"
+        "Ended" -> "Completed"
+        "Canceled" -> "Cancelled"
+        "Released", null -> return
+        else -> status
+    }
+    Surface(
+        shape = ExpressiveShapes.small,
+        color = if (label == "Airing") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest,
+        contentColor = if (label == "Airing") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+    ) {
+        Text(
+            text = label.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Black,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+        )
+    }
+}
 
-    ListItem(
-        headlineContent = { 
-            Text(
-                episode.name, 
-                maxLines = 1, 
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-            ) 
+@Composable
+private fun MetaLine(details: AnimeDetailsDto, isMovie: Boolean, modifier: Modifier = Modifier) {
+    val parts = buildList {
+        details.date.take(4).takeIf { it.length == 4 }?.let(::add)
+        if (isMovie) {
+            details.runtime?.takeIf { it > 0 }?.let { add(formatRuntime(it)) }
+        } else {
+            details.numberOfSeasons?.let { add(if (it == 1) "1 season" else "$it seasons") }
+            details.numberOfEpisodes?.let { add("$it eps") }
+        }
+    }
+    val rating = details.voteAverage.takeIf { it > 0 }
+    Row(
+        modifier = modifier.semantics(mergeDescendants = true) {
+            contentDescription = listOfNotNull(
+                rating?.let { String.format(Locale.US, "Rated %.1f out of 10", it) },
+                parts.joinToString(", ")
+            ).joinToString(". ")
         },
-        supportingContent = { 
-            val subtitle = if (isReleased) {
-                "Episode ${episode.episodeNumber} • ${String.format("%.1f", episode.voteAverage)}"
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (rating != null) {
+            Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFFFB300), modifier = Modifier.size(16.dp))
+            Text(
+                text = String.format(Locale.US, " %.1f", rating) +
+                    (details.voteCount?.takeIf { it > 0 }?.let { " (${compactCount(it)})" } ?: "") +
+                    if (parts.isNotEmpty()) "  ·  " else "",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Text(
+            text = parts.joinToString("  ·  "),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+// endregion
+
+// region Actions
+
+@Composable
+private fun PrimaryActions(
+    details: AnimeDetailsDto,
+    isMovie: Boolean,
+    resume: WatchProgress?,
+    isSaved: Boolean,
+    activeDownloads: Int,
+    movieDownload: DownloadEntity?,
+    hasTrailer: Boolean,
+    trailer: VideoDto?,
+    onPlay: () -> Unit,
+    onToggleSaved: () -> Unit,
+    onDownload: () -> Unit
+) {
+    val uriHandler = LocalUriHandler.current
+    Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp)) {
+        Button(
+            onClick = onPlay,
+            shape = ExpressiveShapes.large,
+            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 60.dp)
+        ) {
+            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(28.dp))
+            Spacer(Modifier.width(10.dp))
+            Column {
+                Text(
+                    text = when {
+                        resume == null -> "Play"
+                        isMovie -> "Resume"
+                        resume.isUpNext -> "Continue with S${resume.season} E${resume.episode}"
+                        else -> "Resume S${resume.season} E${resume.episode}"
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                if (resume != null && resume.fraction > 0f) {
+                    val minutesLeft = ((resume.durationMs - resume.positionMs) / 60_000L).coerceAtLeast(1)
+                    Text("$minutesLeft min left", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
+        if (resume != null && resume.fraction > 0f) {
+            LinearProgressIndicator(
+                progress = { resume.fraction },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ActionTile(
+                icon = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                label = if (isSaved) "Saved" else "My list",
+                highlighted = isSaved,
+                onClick = onToggleSaved,
+                modifier = Modifier.weight(1f)
+            )
+            val downloadLabel = when {
+                activeDownloads > 0 -> "Downloading $activeDownloads"
+                isMovie && movieDownload?.status == DownloadStatus.COMPLETED -> "Downloaded"
+                isMovie -> "Download"
+                else -> "Download season"
+            }
+            ActionTile(
+                icon = if (isMovie && movieDownload?.status == DownloadStatus.COMPLETED) Icons.Default.DownloadDone else Icons.Default.Download,
+                label = downloadLabel,
+                busy = activeDownloads > 0,
+                onClick = onDownload,
+                modifier = Modifier.weight(1f)
+            )
+            if (hasTrailer && trailer != null) {
+                ActionTile(
+                    icon = Icons.Default.Theaters,
+                    label = "Trailer",
+                    onClick = { uriHandler.openUri("https://www.youtube.com/watch?v=${trailer.key}") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ActionTile(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    highlighted: Boolean = false,
+    busy: Boolean = false
+) {
+    Surface(
+        onClick = onClick,
+        shape = ExpressiveShapes.medium,
+        color = if (highlighted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = if (highlighted) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+        modifier = modifier.heightIn(min = 72.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            if (busy) {
+                LoadingIndicator(modifier = Modifier.size(24.dp))
             } else {
-                "Episode ${episode.episodeNumber} • Upcoming: ${episode.airDate ?: "TBD"}"
+                Icon(icon, contentDescription = null)
             }
             Text(
-                subtitle, 
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            ) 
-        },
-        leadingContent = {
-            Card(
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun NextAiringBanner(text: String) {
+    Surface(
+        shape = ExpressiveShapes.large,
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 20.dp, top = 16.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Event, contentDescription = null)
+            Column(modifier = Modifier.padding(start = 14.dp)) {
+                Text("Next episode", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                Text(text, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    }
+}
+
+@Composable
+private fun Overview(text: String) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    Column(
+        modifier = Modifier
+            .padding(start = 20.dp, end = 20.dp, top = 20.dp)
+            .animateContentSize()
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = if (expanded) Int.MAX_VALUE else 4,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (text.length > 220) {
+            TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(horizontal = 0.dp)) {
+                Text(if (expanded) "Show less" else "More")
+            }
+        }
+    }
+}
+
+// endregion
+
+// region Episodes
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.headlineSmall,
+        fontWeight = FontWeight.Black,
+        modifier = Modifier
+            .padding(start = 20.dp, end = 20.dp, top = 32.dp, bottom = 14.dp)
+            .semantics { heading() }
+    )
+}
+
+@Composable
+private fun SeasonPicker(
+    details: AnimeDetailsDto,
+    selected: Int?,
+    onSelect: (Int) -> Unit
+) {
+    val seasons = details.seasons.orEmpty()
+        .filter { it.episodeCount > 0 }
+        .sortedBy { if (it.seasonNumber == 0) Int.MAX_VALUE else it.seasonNumber } // Specials last
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.padding(bottom = 12.dp)
+    ) {
+        items(seasons, key = { it.seasonNumber }) { season ->
+            FilterChip(
+                selected = season.seasonNumber == selected,
+                onClick = { onSelect(season.seasonNumber) },
+                label = { Text("${season.name} · ${season.episodeCount}") },
                 shape = ExpressiveShapes.small,
-                modifier = Modifier.size(width = 100.dp, height = 56.dp)
-            ) {
-                Box(modifier = Modifier.fillMaxSize()) {
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun EpisodeCard(
+    episode: EpisodeDto,
+    progress: WatchProgress?,
+    download: DownloadEntity?,
+    onPlay: () -> Unit,
+    onDownload: () -> Unit,
+    onSetWatched: (Boolean) -> Unit
+) {
+    val released = episode.isReleased()
+    val watched = progress?.completed == true
+    var menuOpen by remember { mutableStateOf(false) }
+    val meta = listOfNotNull(
+        episode.runtime?.takeIf { it > 0 }?.let(::formatRuntime),
+        episode.airDate?.let { formatDate(it, "MMM d, yyyy") }
+    ).joinToString("  ·  ")
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .clip(ExpressiveShapes.large)
+            .combinedClickable(
+                enabled = released,
+                onClick = onPlay,
+                onLongClick = { menuOpen = true },
+                onClickLabel = "Play episode ${episode.episodeNumber}",
+                onLongClickLabel = "More options"
+            )
+            .semantics(mergeDescendants = true) {
+                customActions = listOf(
+                    CustomAccessibilityAction(if (watched) "Mark as unwatched" else "Mark as watched") {
+                        onSetWatched(!watched); true
+                    },
+                    CustomAccessibilityAction("Download") { onDownload(); true }
+                )
+            }
+            .padding(8.dp)
+    ) {
+        Column(modifier = Modifier.graphicsLayer { alpha = if (released) 1f else 0.55f }) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .width(148.dp)
+                        .aspectRatio(16f / 9f)
+                        .clip(ExpressiveShapes.medium)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                ) {
                     AsyncImage(
-                        model = "https://image.tmdb.org/t/p/w300${episode.stillPath}",
+                        model = episode.stillPath?.let { "https://image.tmdb.org/t/p/w300$it" },
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
-                    EpisodeProgressOverlay(progress)
+                    EpisodeThumbnailOverlay(episode.episodeNumber, progress)
                 }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 14.dp)
+                ) {
+                    Text(
+                        text = episode.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = if (released) meta.ifEmpty { "Episode ${episode.episodeNumber}" } else "Coming ${episode.airDate?.let { formatDate(it, "MMM d") } ?: "soon"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+                if (released) EpisodeDownloadAction(download, onDownload)
             }
-        },
-        trailingContent = {
-            if (isReleased) EpisodeDownloadAction(download, onDownloadClick)
-        },
-        colors = ListItemDefaults.colors(
-            containerColor = Color.Transparent // Integrate with background
-        ),
-        modifier = Modifier
-            .run {
-                if (isReleased) clickable(onClick = onClick) else this
+            if (episode.overview.isNotBlank()) {
+                Text(
+                    text = episode.overview,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp)
+                )
             }
-            .padding(horizontal = 8.dp) // Indent items slightly
-            .alpha(alpha)
-    )
+        }
+
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(
+                text = { Text(if (watched) "Mark as unwatched" else "Mark as watched") },
+                leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null) },
+                onClick = {
+                    menuOpen = false
+                    onSetWatched(!watched)
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Download") },
+                leadingIcon = { Icon(Icons.Default.Download, contentDescription = null) },
+                enabled = released,
+                onClick = {
+                    menuOpen = false
+                    onDownload()
+                }
+            )
+        }
+    }
 }
 
-/** Watched badge or a thin progress line on an episode thumbnail. */
 @Composable
-private fun BoxScope.EpisodeProgressOverlay(progress: WatchProgress?) {
+private fun BoxScope.EpisodeThumbnailOverlay(number: Int, progress: WatchProgress?) {
+    Surface(
+        shape = ExpressiveShapes.extraSmall,
+        color = Color.Black.copy(alpha = 0.65f),
+        contentColor = Color.White,
+        modifier = Modifier
+            .align(Alignment.TopStart)
+            .padding(6.dp)
+    ) {
+        Text(
+            text = "E$number",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+        )
+    }
     when {
-        progress == null -> Unit
-        progress.completed -> Box(
+        progress?.completed == true -> Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.45f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Filled.CheckCircle,
+                Icons.Default.CheckCircle,
                 contentDescription = "Watched",
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(28.dp)
             )
         }
-        progress.fraction > 0f -> LinearProgressIndicator(
+        progress != null && progress.fraction > 0f -> LinearProgressIndicator(
             progress = { progress.fraction },
             color = MaterialTheme.colorScheme.primary,
             trackColor = Color.Black.copy(alpha = 0.45f),
@@ -651,33 +888,293 @@ private fun BoxScope.EpisodeProgressOverlay(progress: WatchProgress?) {
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun EpisodeDownloadAction(download: DownloadEntity?, onDownload: () -> Unit) {
-    when {
-        download?.status == DownloadStatus.COMPLETED -> Icon(
-            Icons.Filled.DownloadDone,
+    when (download?.status) {
+        DownloadStatus.COMPLETED -> Icon(
+            Icons.Default.DownloadDone,
             contentDescription = "Downloaded",
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(12.dp)
         )
-        download?.status == DownloadStatus.RESOLVING || download?.status == DownloadStatus.QUEUED -> LoadingIndicator(
+        DownloadStatus.RESOLVING, DownloadStatus.QUEUED -> LoadingIndicator(
             modifier = Modifier
                 .padding(8.dp)
                 .size(32.dp)
         )
-        download?.status == DownloadStatus.RUNNING -> Box(
+        DownloadStatus.RUNNING -> Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.padding(8.dp).size(32.dp)
+            modifier = Modifier
+                .padding(8.dp)
+                .size(32.dp)
+                .semantics { contentDescription = "Downloading, ${download.progress} percent" }
         ) {
-            androidx.compose.material3.CircularProgressIndicator(
+            CircularProgressIndicator(
                 progress = { download.progress / 100f },
                 modifier = Modifier.fillMaxSize(),
                 strokeWidth = 3.dp
             )
         }
-        else -> androidx.compose.material3.IconButton(onClick = onDownload) {
+        else -> IconButton(onClick = onDownload) {
             Icon(
-                if (download?.status == DownloadStatus.FAILED) Icons.Filled.Refresh else Icons.Filled.Download,
+                if (download?.status == DownloadStatus.FAILED) Icons.Default.Refresh else Icons.Default.Download,
                 contentDescription = if (download?.status == DownloadStatus.FAILED) "Retry download" else "Download"
             )
         }
     }
 }
+
+// endregion
+
+// region Rails & info
+
+@Composable
+private fun CastRail(cast: List<CastDto>) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        items(cast, key = { it.id }) { person ->
+            Column(
+                modifier = Modifier
+                    .width(88.dp)
+                    .semantics(mergeDescendants = true) {},
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                AsyncImage(
+                    model = person.profilePath?.let { "https://image.tmdb.org/t/p/w185$it" },
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                )
+                Text(
+                    text = person.name,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                person.role?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrailerRail(trailers: List<VideoDto>) {
+    val uriHandler = LocalUriHandler.current
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(trailers, key = { it.id }) { video ->
+            Column(
+                modifier = Modifier
+                    .width(240.dp)
+                    .clickable(onClickLabel = "Play ${video.name} on YouTube") {
+                        uriHandler.openUri("https://www.youtube.com/watch?v=${video.key}")
+                    }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f)
+                        .clip(ExpressiveShapes.medium)
+                ) {
+                    AsyncImage(
+                        model = "https://img.youtube.com/vi/${video.key}/hqdefault.jpg",
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.3f)))
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .size(48.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+                        }
+                    }
+                }
+                Text(
+                    text = video.name,
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecommendationRail(
+    items: List<AnimeDto>,
+    defaultMediaType: String,
+    onOpen: (Int, String) -> Unit
+) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(items, key = { it.id }) { anime ->
+            Column(
+                modifier = Modifier
+                    .width(124.dp)
+                    .clickable(onClickLabel = "Open ${anime.name}") {
+                        onOpen(anime.id, anime.mediaType?.takeIf { it == "movie" || it == "tv" } ?: defaultMediaType)
+                    }
+            ) {
+                AsyncImage(
+                    model = "https://image.tmdb.org/t/p/w342${anime.posterPath}",
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(0.68f)
+                        .clip(ExpressiveShapes.medium)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                )
+                Text(
+                    text = anime.name,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun InfoList(details: AnimeDetailsDto, isMovie: Boolean) {
+    val uriHandler = LocalUriHandler.current
+    val rows = buildList {
+        details.status?.let { add("Status" to it) }
+        details.date.takeIf { it.isNotBlank() }?.let {
+            add((if (isMovie) "Released" else "First aired") to formatDate(it, "MMMM d, yyyy"))
+        }
+        details.nativeTitle?.let { add("Original title" to it) }
+        details.originalLanguage?.let { code ->
+            val name = Locale.forLanguageTag(code).getDisplayLanguage(Locale.ENGLISH).ifBlank { code }
+            add("Language" to name)
+        }
+        details.networks?.takeIf { it.isNotEmpty() }?.let { add("Network" to it.joinToString { n -> n.name }) }
+        details.productionCompanies?.takeIf { it.isNotEmpty() }?.let {
+            add("Studios" to it.take(3).joinToString { c -> c.name })
+        }
+    }
+    Column(
+        modifier = Modifier.padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)
+    ) {
+        rows.forEachIndexed { index, (label, value) ->
+            SegmentedListItem(
+                onClick = {},
+                enabled = false,
+                shapes = ListItemDefaults.segmentedShapes(index = index, count = rows.size + if (details.homepage.isNullOrBlank()) 0 else 1),
+                colors = ListItemDefaults.segmentedColors(),
+                supportingContent = { Text(value) }
+            ) {
+                Text(label, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        details.homepage?.takeIf { it.isNotBlank() }?.let { homepage ->
+            SegmentedListItem(
+                onClick = { uriHandler.openUri(homepage) },
+                shapes = ListItemDefaults.segmentedShapes(index = rows.size, count = rows.size + 1),
+                colors = ListItemDefaults.segmentedColors(),
+                trailingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) }
+            ) {
+                Text("Official website", fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailsError(message: String, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("Couldn't load this title", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(
+            message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+        Button(onClick = onRetry, shape = ExpressiveShapes.medium, modifier = Modifier.padding(top = 24.dp)) {
+            Text("Try again")
+        }
+    }
+}
+
+// endregion
+
+// region Helpers
+
+private fun AnimeDetailsDto.firstPlayableSeason(): Int =
+    seasons?.filter { it.seasonNumber > 0 && it.episodeCount > 0 }?.minByOrNull { it.seasonNumber }?.seasonNumber
+        ?: seasons?.firstOrNull()?.seasonNumber
+        ?: 1
+
+/** Movies download through the same path as episodes, as season 1 episode 1. */
+private fun AnimeDetailsDto.asMovieEpisode() = EpisodeDto(
+    id = id,
+    name = name,
+    overview = overview,
+    voteAverage = voteAverage,
+    voteCount = voteCount ?: 0,
+    airDate = date,
+    episodeNumber = 1,
+    seasonNumber = 1,
+    stillPath = backdropPath,
+    productionCode = "",
+    runtime = runtime,
+    showId = id
+)
+
+private fun EpisodeDto.isReleased(): Boolean {
+    val date = airDate?.takeIf { it.isNotBlank() } ?: return true
+    return runCatching { !LocalDate.parse(date).isAfter(LocalDate.now()) }.getOrDefault(true)
+}
+
+private fun formatDate(isoDate: String, pattern: String): String =
+    runCatching { LocalDate.parse(isoDate).format(DateTimeFormatter.ofPattern(pattern, Locale.getDefault())) }
+        .getOrDefault(isoDate)
+
+private fun formatRuntime(minutes: Int): String =
+    if (minutes >= 60) "${minutes / 60}h ${minutes % 60}m" else "${minutes}m"
+
+private fun compactCount(count: Int): String = when {
+    count >= 1_000_000 -> String.format(Locale.US, "%.1fM", count / 1_000_000f)
+    count >= 1_000 -> String.format(Locale.US, "%.1fk", count / 1_000f)
+    else -> count.toString()
+}
+
+// endregion

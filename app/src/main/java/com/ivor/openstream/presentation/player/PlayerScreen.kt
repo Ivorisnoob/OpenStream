@@ -106,6 +106,7 @@ import com.ivor.openstream.presentation.player.components.ExoPlayerView
 import com.ivor.openstream.presentation.player.components.SourcesPageActions
 import com.ivor.openstream.presentation.player.components.SourcesPanel
 import com.ivor.openstream.presentation.player.components.UpNextOverlay
+import com.ivor.openstream.presentation.player.components.PlayerInfoPanel
 import com.ivor.openstream.presentation.components.ExpressiveBackButton
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 import androidx.compose.runtime.key
@@ -127,6 +128,8 @@ fun PlayerScreen(
     downloadId: String? = null,
     onBackClick: () -> Unit,
     onEpisodeClick: (season: Int, episode: Int) -> Unit,
+    onOpenDetails: (mediaType: String, id: Int) -> Unit = { _, _ -> },
+    onOpenTitle: (id: Int, mediaType: String) -> Unit = { _, _ -> },
     viewModel: PlayerViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -145,6 +148,9 @@ fun PlayerScreen(
     val startPositionMs by viewModel.startPositionMs.collectAsState()
     val nextEpisode by viewModel.nextEpisode.collectAsState()
     val preferredAudioLanguage by viewModel.preferredAudioLanguage.collectAsState()
+    val seasonEpisodes by viewModel.seasonEpisodes.collectAsState()
+    val episodeProgress by viewModel.episodeProgress.collectAsState()
+    val isSaved by viewModel.isSaved.collectAsState()
 
     var localVideoUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var isResolvingLocalUri by remember { mutableStateOf(downloadId != null) }
@@ -534,324 +540,34 @@ fun PlayerScreen(
             )
         }
 
-            // 2. Details and Next Episodes - Only visible when NOT in fullscreen
+            // Under the video in portrait: what's playing, what's next, and the rest of the season.
             AnimatedVisibility(
-            visible = !isImmersive,
-            enter = fadeIn(tween(DurationEffectsDefault, easing = ExpressiveDefaultEffects)) + 
+                visible = !isImmersive,
+                enter = fadeIn(tween(DurationEffectsDefault, easing = ExpressiveDefaultEffects)) +
                     slideInVertically(tween(DurationSpatialDefault, easing = ExpressiveDefaultSpatial)) { it / 4 },
-            exit = fadeOut(tween(DurationEffectsDefault, easing = ExpressiveDefaultEffects)) + 
-                   slideOutVertically(tween(DurationSpatialDefault, easing = ExpressiveDefaultSpatial)) { it / 4 }
+                exit = fadeOut(tween(DurationEffectsDefault, easing = ExpressiveDefaultEffects)) +
+                    slideOutVertically(tween(DurationSpatialDefault, easing = ExpressiveDefaultSpatial)) { it / 4 }
             ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-            ) {
-                // Editorial Header
-                item {
-                    Column(
-                        modifier = Modifier
-                            .padding(horizontal = 24.dp, vertical = 32.dp)
-                            .fillMaxWidth()
-                    ) {
-                        // Media Type / Series Context
-                        if (mediaType != "movie") {
-                            Text(
-                                text = (mediaDetails?.name ?: "Series").uppercase(),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                letterSpacing = 2.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-
-                        // Main Title (Display Grade)
-                        Text(
-                            text = if (mediaType == "movie") playerTitle else currentEpisode?.name ?: "Episode $episode",
-                            style = MaterialTheme.typography.displaySmall,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            lineHeight = 40.sp
-                        )
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        // Metadata Chips Row
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            // S:E pill
-                            if (mediaType != "movie") {
-                                Surface(
-                                    color = MaterialTheme.colorScheme.secondaryContainer,
-                                    shape = ExpressiveShapes.small
-                                ) {
-                                    Text(
-                                        text = "S$season : E$episode",
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                                    )
-                                }
-                            }
-
-                            // Rating
-                            val rating = if (mediaType == "movie") mediaDetails?.voteAverage else currentEpisode?.voteAverage
-                            if (rating != null) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.Star,
-                                        contentDescription = null,
-                                        tint = Color(0xFFFFB800),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = String.format("%.1f", rating),
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-
-                            // Year
-                            val date = if (mediaType == "movie") mediaDetails?.date else currentEpisode?.airDate
-                            if (!date.isNullOrEmpty()) {
-                                Text(
-                                    text = date.take(4),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        // Genres
-                        if (mediaDetails?.genres?.isNotEmpty() == true) {
-                            Spacer(modifier = Modifier.height(20.dp))
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                mediaDetails?.genres?.take(3)?.forEach { genre ->
-                                    Surface(
-                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                        shape = ExpressiveShapes.extraSmall,
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                                    ) {
-                                        Text(
-                                            text = genre.name,
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                                            style = MaterialTheme.typography.labelMedium
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Overview (Editorial Style)
-                        val overview = if (mediaType == "movie") mediaDetails?.overview else currentEpisode?.overview
-                        if (!overview.isNullOrEmpty()) {
-                            Spacer(modifier = Modifier.height(28.dp))
-                            Text(
-                                text = overview,
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    lineHeight = 28.sp,
-                                    letterSpacing = 0.2.sp
-                                ),
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                            )
-                        }
-
-                        // Download Action (Expressive Button)
-                        val downloadState = currentDownload?.status
-                        
-                        Spacer(modifier = Modifier.height(32.dp))
-                        
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (downloadState == DownloadManager.STATUS_SUCCESSFUL) {
-                                Button(
-                                    onClick = { /* No-op */ },
-                                    shape = ExpressiveShapes.medium,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                    ),
-                                    modifier = Modifier.height(56.dp)
-                                ) {
-                                    Icon(Icons.Default.CheckCircle, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text("Available Offline")
-                                }
-                                
-                                Spacer(modifier = Modifier.width(12.dp))
-                                
-                                OutlinedIconButton(
-                                    onClick = { 
-                                        currentDownload?.let { viewModel.removeDownload(it.downloadId) } 
-                                    },
-                                    modifier = Modifier.size(56.dp),
-                                    shape = ExpressiveShapes.medium
-                                ) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete Download", tint = MaterialTheme.colorScheme.error)
-                                }
-                            } else if (downloadState == DownloadManager.STATUS_RUNNING || downloadState == DownloadManager.STATUS_PENDING) {
-                                OutlinedButton(
-                                    onClick = { 
-                                        currentDownload?.let { viewModel.removeDownload(it.downloadId) }
-                                    },
-                                    shape = ExpressiveShapes.medium,
-                                    modifier = Modifier.height(56.dp)
-                                ) {
-                                    if (downloadState == DownloadManager.STATUS_RUNNING) {
-                                        androidx.compose.material3.CircularProgressIndicator(
-                                            modifier = Modifier.size(20.dp),
-                                            strokeWidth = 3.dp,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        Text("${currentDownload?.progress}%")
-                                    } else {
-                                        Icon(Icons.Default.Schedule, contentDescription = null)
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        Text("Queued")
-                                    }
-                                }
-                            } else {
-                                Button(
-                                    onClick = {
-                                        activeServer?.let { server ->
-                                            viewModel.downloadVideo(server)
-                                        }
-                                    },
-                                    enabled = activeServer?.isDownloadable == true,
-                                    shape = ExpressiveShapes.medium,
-                                    modifier = Modifier.height(56.dp)
-                                ) {
-                                    Icon(Icons.Default.Download, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text("Download active server")
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Next Episodes Header
-                if (nextEpisodes.isNotEmpty()) {
-                    item {
-                        Text(
-                            text = "Up Next",
-                            style = MaterialTheme.typography.headlineSmall,
-                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
-                            color = MaterialTheme.colorScheme.onBackground,
-                            fontWeight = FontWeight.Black
-                        )
-                    }
-                }
-                
-                if (isLoadingEpisodes) {
-                    item {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            LoadingIndicator()
-                        }
-                    }
-                }
-
-                items(nextEpisodes) { ep ->
-                    Surface(
-                        onClick = {
-                            // Navigation replaces this screen with a fresh Player
-                            // (popUpTo inclusive), so no manual state reset is needed.
-                            onEpisodeClick(season, ep.episodeNumber)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 8.dp),
-                        shape = ExpressiveShapes.medium,
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .padding(12.dp)
-                                .fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // High Quality Thumbnail
-                            Box(
-                                modifier = Modifier
-                                    .width(140.dp)
-                                    .height(80.dp)
-                                    .clip(ExpressiveShapes.small)
-                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                            ) {
-                                AsyncImage(
-                                    model = "https://image.tmdb.org/t/p/w500${ep.stillPath}",
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize(),
-                                    alpha = 0.9f
-                                )
-                                
-                                // Episode Number Badge
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.BottomStart)
-                                        .padding(8.dp)
-                                        .background(
-                                            MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.8f),
-                                            ExpressiveShapes.extraSmall
-                                        )
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = "EP ${ep.episodeNumber}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.width(16.dp))
-
-                            // Metadata Column
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = ep.name,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "${ep.runtime ?: "?"} minutes",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = null,
-                                modifier = Modifier.padding(8.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
-
-                // Bottom Padding for FAB or spacing
-                item {
-                    Spacer(modifier = Modifier.height(32.dp))
-                }
-            }
+                PlayerInfoPanel(
+                    mediaType = mediaType,
+                    season = season,
+                    episode = episode,
+                    details = mediaDetails,
+                    currentEpisode = currentEpisode,
+                    seasonEpisodes = seasonEpisodes,
+                    isLoadingEpisodes = isLoadingEpisodes,
+                    episodeProgress = episodeProgress,
+                    nextEpisode = nextEpisode,
+                    download = currentDownload,
+                    canDownload = downloadId == null && activeServer?.isDownloadable == true,
+                    isSaved = isSaved,
+                    onPlayEpisode = onEpisodeClick,
+                    onDownload = { activeServer?.let(viewModel::downloadVideo) },
+                    onRemoveDownload = { currentDownload?.let { viewModel.removeDownload(it.downloadId) } },
+                    onToggleSaved = viewModel::toggleSaved,
+                    onOpenDetails = { onOpenDetails(mediaType, tmdbId) },
+                    onOpenTitle = onOpenTitle
+                )
             }
         }
 

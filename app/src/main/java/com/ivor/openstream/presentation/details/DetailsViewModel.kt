@@ -136,6 +136,34 @@ class DetailsViewModel @Inject constructor(
         }
     }
 
+    /** Marks an episode (or the movie) finished without playing it, e.g. watched elsewhere. */
+    fun setWatched(episode: EpisodeDto, watched: Boolean) {
+        val details = (_uiState.value as? DetailsUiState.Success)?.details ?: return
+        viewModelScope.launch {
+            if (!watched) {
+                watchProgressRepository.clearEpisode(mediaType, animeId, episode.seasonNumber, episode.episodeNumber)
+                return@launch
+            }
+            val durationMs = (episode.runtime ?: details.typicalRuntime ?: DEFAULT_RUNTIME_MIN) * 60_000L
+            watchProgressRepository.record(
+                WatchProgress(
+                    tmdbId = animeId,
+                    mediaType = mediaType,
+                    season = episode.seasonNumber,
+                    episode = episode.episodeNumber,
+                    title = details.name,
+                    episodeTitle = episode.name.takeIf { mediaType != "movie" },
+                    posterPath = details.posterPath,
+                    backdropPath = details.backdropPath,
+                    stillPath = episode.stillPath,
+                    positionMs = durationMs,
+                    durationMs = durationMs,
+                    completed = true
+                )
+            )
+        }
+    }
+
     /** Download state per episode of this title, keyed by (season, episode). */
     val episodeDownloads: StateFlow<Map<Pair<Int, Int>, DownloadEntity>> =
         downloadRepository.getDownloadsForTitle(animeId, mediaType)
@@ -161,6 +189,9 @@ class DetailsViewModel @Inject constructor(
             }
         )
     }
+}
+
+private const val DEFAULT_RUNTIME_MIN = 24
 
 sealed interface DetailsUiState {
     data object Loading : DetailsUiState
@@ -170,5 +201,4 @@ sealed interface DetailsUiState {
         val isLoadingEpisodes: Boolean = false
     ) : DetailsUiState
     data class Error(val message: String) : DetailsUiState
-}
 }

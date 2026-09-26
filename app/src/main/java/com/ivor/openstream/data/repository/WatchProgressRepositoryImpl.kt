@@ -40,6 +40,10 @@ class WatchProgressRepositoryImpl @Inject constructor(
         dao.deleteForTitle(mediaType, tmdbId)
     }
 
+    override suspend fun clearEpisode(mediaType: String, tmdbId: Int, season: Int, episode: Int) {
+        dao.delete(WatchProgressEntity.idFor(mediaType, tmdbId, season, episode))
+    }
+
     override suspend fun clearAll() {
         dao.clear()
     }

@@ -18,6 +18,9 @@ import com.ivor.openstream.domain.repository.AnimeRepository
 import com.ivor.openstream.domain.repository.DownloadRepository
 import com.ivor.openstream.domain.repository.StreamingRepository
 import com.ivor.openstream.domain.repository.WatchProgressRepository
+import com.ivor.openstream.domain.repository.WatchLaterRepository
+import com.ivor.openstream.data.local.entity.WatchLaterEntity
+import kotlinx.coroutines.flow.map
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -83,6 +86,7 @@ class PlayerViewModel @Inject constructor(
     private val streamingRepository: StreamingRepository,
     private val downloadRepository: DownloadRepository,
     private val watchProgressRepository: WatchProgressRepository,
+    private val watchLaterRepository: WatchLaterRepository,
     private val sharedPreferences: SharedPreferences,
     private val json: Json,
     private val playbackSession: PlaybackSession
@@ -117,6 +121,47 @@ class PlayerViewModel @Inject constructor(
 
     private val _nextEpisodes = MutableStateFlow<List<EpisodeDto>>(emptyList())
     val nextEpisodes = _nextEpisodes.asStateFlow()
+
+    /** Every episode of the season being watched, for the episode list under the player. */
+    private val _seasonEpisodes = MutableStateFlow<List<EpisodeDto>>(emptyList())
+    val seasonEpisodes: StateFlow<List<EpisodeDto>> = _seasonEpisodes.asStateFlow()
+
+    /** (mediaType, tmdbId) of the title on screen; drives the per-title flows below. */
+    private val _title = MutableStateFlow<Pair<String, Int>?>(null)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val episodeProgress: StateFlow<Map<Pair<Int, Int>, WatchProgress>> = _title
+        .flatMapLatest { title ->
+            title?.let { (type, id) ->
+                watchProgressRepository.progressForTitle(type, id)
+                    .map { rows -> rows.associateBy { it.season to it.episode } }
+            } ?: flowOf(emptyMap())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val isSaved: StateFlow<Boolean> = _title
+        .flatMapLatest { title -> title?.let { watchLaterRepository.isWatchLater(it.second) } ?: flowOf(false) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun toggleSaved() {
+        val details = _mediaDetails.value ?: return
+        viewModelScope.launch {
+            if (isSaved.value) {
+                watchLaterRepository.removeFromWatchLaterById(details.id)
+            } else {
+                watchLaterRepository.addToWatchLater(
+                    WatchLaterEntity(
+                        id = details.id,
+                        title = details.name,
+                        posterPath = details.posterPath,
+                        mediaType = _mediaType.value,
+                        voteAverage = details.voteAverage
+                    )
+                )
+            }
+        }
+    }
 
     private val _isLoadingEpisodes = MutableStateFlow(false)
     val isLoadingEpisodes = _isLoadingEpisodes.asStateFlow()
@@ -277,6 +322,8 @@ class PlayerViewModel @Inject constructor(
         _currentEpisode.value = null
         _remoteSubtitles.value = emptyList()
         _nextEpisodes.value = emptyList()
+        _seasonEpisodes.value = emptyList()
+        _title.value = mediaType to tmdbId
         _serversState.value = ServersState.Idle
         _activeServer.value = null
         failedServerIds.clear()
@@ -299,11 +346,8 @@ class PlayerViewModel @Inject constructor(
             }
 
             launch {
-                val detailsResult = if (mediaType == "movie") {
-                    animeRepository.getMovieDetails(tmdbId)
-                } else {
-                    animeRepository.getAnimeDetails(tmdbId)
-                }
+                // The richer lookup brings recommendations for the "More like this" row.
+                val detailsResult = animeRepository.getMediaDetails(tmdbId, mediaType)
                 detailsResult.onSuccess { details ->
                     _mediaDetails.value = details
                     animeRepository.addToWatchHistory(details.toAnimeDto(mediaType))
@@ -331,6 +375,7 @@ class PlayerViewModel @Inject constructor(
                 _isLoadingEpisodes.value = true
                 runCatching { tmdbApi.getSeasonDetails(tmdbId, seasonNumber) }
                     .onSuccess { seasonDetails ->
+                        _seasonEpisodes.value = seasonDetails.episodes
                         _currentEpisode.value = seasonDetails.episodes
                             .find { it.episodeNumber == currentEpisodeNumber }
                         _nextEpisodes.value = seasonDetails.episodes

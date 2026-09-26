@@ -118,10 +118,11 @@ class AnimeRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getMediaDetails(id: Int, mediaType: String): Result<AnimeDetailsDto> = runCatching {
+        // Everything the title page shows, in one request.
         if (mediaType == "movie") {
-            api.getMovieDetails(id = id)
+            api.getMovieDetails(id = id, appendToResponse = "videos,credits,recommendations")
         } else {
-            api.getAnimeDetails(id = id)
+            api.getAnimeDetails(id = id, appendToResponse = "videos,aggregate_credits,recommendations")
         }
     }
 

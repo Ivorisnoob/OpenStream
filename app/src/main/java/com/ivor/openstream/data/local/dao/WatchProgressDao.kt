@@ -40,6 +40,9 @@ interface WatchProgressDao {
     @Query("DELETE FROM watch_progress WHERE mediaType = :mediaType AND tmdbId = :tmdbId")
     suspend fun deleteForTitle(mediaType: String, tmdbId: Int)
 
+    @Query("DELETE FROM watch_progress WHERE id = :id")
+    suspend fun delete(id: String)
+
     @Query("DELETE FROM watch_progress")
     suspend fun clear()
 }

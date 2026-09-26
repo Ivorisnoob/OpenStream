@@ -264,6 +264,9 @@ fun AppNavigation(
                         onPlayClick = { season, episode ->
                             navController.navigate(Screen.Player.createRoute(mediaType, animeId, season, episode))
                         },
+                        onOpenTitle = { id, type ->
+                            navController.navigate(Screen.Details.createRoute(type, id))
+                        },
                         onOpenDownloads = {
                             navController.navigate(Screen.Downloads.route) {
                                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -301,6 +304,12 @@ fun AppNavigation(
                         episode = episode,
                         downloadId = downloadId,
                         onBackClick = { navController.popBackStack() },
+                        onOpenDetails = { type, id ->
+                            navController.navigate(Screen.Details.createRoute(type, id)) { launchSingleTop = true }
+                        },
+                        onOpenTitle = { id, type ->
+                            navController.navigate(Screen.Details.createRoute(type, id))
+                        },
                         onEpisodeClick = { newSeason, newEpisode ->
                             navController.navigate(Screen.Player.createRoute(mediaType, animeId, newSeason, newEpisode)) {
                                 popUpTo(Screen.Player.route) { inclusive = true }

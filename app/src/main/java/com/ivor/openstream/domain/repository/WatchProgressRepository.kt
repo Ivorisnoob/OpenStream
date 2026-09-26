@@ -22,5 +22,8 @@ interface WatchProgressRepository {
 
     suspend fun clearTitle(mediaType: String, tmdbId: Int)
 
+    /** Forgets one episode, e.g. "Mark as unwatched". */
+    suspend fun clearEpisode(mediaType: String, tmdbId: Int, season: Int, episode: Int)
+
     suspend fun clearAll()
 }
