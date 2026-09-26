@@ -51,7 +51,7 @@ Be respectful and professional in all interactions. We aim to maintain a welcomi
 - Use Material Design 3 Expressive components
 - Check for Expressive versions before using standard M3 components
 - Never create custom components that duplicate M3 functionality
-- Follow the component priority rules in `AGENT.md`
+- Follow the design rules in `CLAUDE.md`
 - Maintain consistent spacing and layout patterns
 
 ### Commit Messages
@@ -67,7 +67,7 @@ Add search history persistence
 ### Pull Request Process
 
 1. **Update Documentation**
-   - Update `AGENT.md` if you change architecture or add major features
+   - Update `CLAUDE.md` if you change architecture or add major features
    - Update README.md if you add user-facing features
    - Add inline code documentation for complex logic
 
@@ -161,7 +161,7 @@ When reporting bugs, include:
 - Keep documentation up-to-date with code changes
 
 ### Architecture Documentation
-- Update `AGENT.md` for architectural changes
+- Update `CLAUDE.md` for architectural changes
 - Document design decisions in commit messages
 - Add diagrams for complex flows if helpful
 
@@ -169,7 +169,7 @@ When reporting bugs, include:
 
 If you have questions about contributing:
 - Check existing issues and discussions
-- Review `AGENT.md` for codebase context
+- Review `CLAUDE.md` for codebase context
 - Open a discussion for general questions
 - Open an issue for specific problems
 

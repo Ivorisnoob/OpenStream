@@ -1,15 +1,15 @@
 # OpenStream
 
-A modern Android application for browsing and streaming anime, built with Jetpack Compose and Material Design 3 Expressive.
+A modern Android application for browsing and streaming movies, series and anime, built with Jetpack Compose and Material Design 3 Expressive.
 
 ## Overview
 
-OpenStream provides a native Android experience for discovering and watching anime content. The app fetches metadata from The Movie Database (TMDB) and streams video through the Vidking player, all wrapped in a beautiful Material Design 3 Expressive interface.
+OpenStream provides a native Android experience for discovering and watching movies, series and anime. The app fetches metadata from The Movie Database (TMDB) and streams video through the Vidking player, all wrapped in a beautiful Material Design 3 Expressive interface.
 
 ## Features
 
-- Browse popular anime titles with rich metadata
-- Search anime by title with persistent search history
+- Browse trending movies, series and anime with rich metadata
+- Search movies, series and anime by title with persistent search history
 - View detailed information including seasons and episodes
 - Stream episodes with custom playback controls
 - Track watch history
@@ -89,7 +89,7 @@ com.ivor.openstream/
 ├── presentation/
 │   ├── home/           # Main browsing screen
 │   ├── search/         # Search functionality
-│   ├── details/        # Anime details view
+│   ├── details/        # Title details view
 │   ├── player/         # Video playback
 │   ├── watch_history/  # Watch history tracking
 │   ├── navigation/     # App navigation graph
@@ -144,8 +144,8 @@ sealed interface UiState {
 ## API Integration
 
 ### TMDB Endpoints
-- **Discover:** Popular anime with genre filtering
-- **Search:** Query anime by title
+- **Discover:** Trending and popular movies, series and anime
+- **Search:** Query movies and series by title
 - **Details:** Full metadata including seasons
 - **Season Details:** Episode lists for specific seasons
 
@@ -191,7 +191,7 @@ All versions are managed in `libs.versions.toml` using Gradle Version Catalog.
 ## Documentation
 
 Additional documentation is available in the repository:
-- `AGENT.md` - Comprehensive codebase context for AI agents
+- `CLAUDE.md` - Codebase guide: architecture, how features work, conventions
 - `docs/VIDKING_API.md` - Vidking player API reference
 - `docs/IMPLEMENTATION_PLAN.md` - Architecture decisions
 - `.agent/rules/code-style-guide.md` - Development rules
@@ -212,7 +212,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
-- [The Movie Database (TMDB)](https://www.themoviedb.org/) for anime metadata
+- [The Movie Database (TMDB)](https://www.themoviedb.org/) for movie, series and anime metadata
 - [Vidking](https://www.vidking.net/) for video streaming
 - Material Design 3 Expressive for the design system
 

@@ -515,7 +515,7 @@ per-item stagger.
   episode-number matcher (season packs, absolute numbering, specials ≤ 0).
 - **Integration (JVM + MockWebServer):** each provider against recorded JSON
   fixtures (commit fixtures under `src/test/resources/providers/`).
-- **Manual device matrix (required per AGENTS.md for player changes):**
+- **Manual device matrix (required per CLAUDE.md for player changes):**
   - Wi-Fi + cellular; background/foreground mid-playback.
   - Airplane-mode during resolve (graceful empty state).
   - Kill a provider base URL (simulate outage) → remaining providers still play.

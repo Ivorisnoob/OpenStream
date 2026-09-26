@@ -12,7 +12,6 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import com.ivor.openstream.domain.model.AnimeCatalog
 import kotlinx.coroutines.awaitAll
-import java.time.LocalDate
 import javax.inject.Inject
 
 class AnimeRepositoryImpl @Inject constructor(
@@ -40,46 +39,37 @@ class AnimeRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getCatalog(catalog: AnimeCatalog): Result<List<AnimeDto>> = runCatching {
-        val today = LocalDate.now()
         val anime = mapOf(
-            "with_genres" to "16",
+            "with_genres" to "$ANIMATION_GENRE",
             "with_original_language" to "ja",
             "include_adult" to "false"
         )
         val results = when (catalog) {
-            AnimeCatalog.TRENDING -> coroutineScope {
+            AnimeCatalog.TRENDING -> api.getTrendingAll("week").results
+                // The mixed feed also lists people.
+                .filter { it.mediaType == "movie" || it.mediaType == "tv" }
+            AnimeCatalog.NEW_EPISODES -> api.getOnTheAir().results
+            AnimeCatalog.POPULAR_MOVIES -> api.discoverMovieWith(
+                mapOf("sort_by" to "popularity.desc", "vote_count.gte" to "300", "include_adult" to "false")
+            ).results.map { it.copy(mediaType = "movie") }
+            AnimeCatalog.POPULAR_SERIES -> api.discoverTvWith(
+                mapOf("sort_by" to "popularity.desc", "vote_count.gte" to "200", "include_adult" to "false")
+            ).results
+            AnimeCatalog.TOP_RATED_MOVIES -> api.discoverMovieWith(
+                mapOf("sort_by" to "vote_average.desc", "vote_count.gte" to "3000", "include_adult" to "false")
+            ).results.map { it.copy(mediaType = "movie") }
+            AnimeCatalog.TRENDING_ANIME -> coroutineScope {
                 // TMDB's trending feed cannot be filtered server-side, so read a few pages and keep anime.
                 (1..3).map { page -> async { api.getTrendingAnime("week", page).results } }
                     .awaitAll()
                     .flatten()
                     .filter { it.originalLanguage == "ja" && it.genreIds.orEmpty().contains(ANIMATION_GENRE) }
             }.ifEmpty { api.discoverTvWith(anime + ("sort_by" to "popularity.desc")).results }
-            AnimeCatalog.AIRING_NOW -> api.discoverTvWith(
-                anime + mapOf(
-                    "sort_by" to "popularity.desc",
-                    "air_date.gte" to today.minusDays(6).toString(),
-                    "air_date.lte" to today.plusDays(1).toString(),
-                    "vote_count.gte" to "10"
-                )
-            ).results
-            AnimeCatalog.NEW_THIS_SEASON -> api.discoverTvWith(
-                anime + mapOf(
-                    "sort_by" to "popularity.desc",
-                    "first_air_date.gte" to today.minusMonths(4).toString(),
-                    "first_air_date.lte" to today.toString()
-                )
-            ).results
-            AnimeCatalog.TOP_RATED -> api.discoverTvWith(
-                anime + mapOf("sort_by" to "vote_average.desc", "vote_count.gte" to "800")
-            ).results
-            AnimeCatalog.POPULAR -> api.discoverTvWith(
-                anime + mapOf("sort_by" to "popularity.desc", "vote_count.gte" to "200")
-            ).results
-            AnimeCatalog.MOVIES -> api.discoverMovieWith(
+            AnimeCatalog.ANIME_MOVIES -> api.discoverMovieWith(
                 anime + mapOf("sort_by" to "popularity.desc", "vote_count.gte" to "100")
             ).results.map { it.copy(mediaType = "movie") }
         }
-        results.filter { it.posterPath != null }.distinctBy { it.id }
+        results.filter { it.posterPath != null }.distinctBy { "${it.mediaType}:${it.id}" }
     }
 
     override suspend fun searchAnime(

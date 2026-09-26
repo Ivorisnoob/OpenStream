@@ -52,7 +52,7 @@ class UpdateViewModel @Inject constructor(
             try {
                 val release = githubApi.getLatestRelease()
                 val current = BuildConfig.VERSION_NAME
-                val latest = release.tagName.trimStart('v')
+                val latest = release.tagName
                 if (isNewerVersion(latest, current)) {
                     _uiState.value = UpdateUiState.UpdateAvailable(release, current)
                 } else {
@@ -126,10 +126,13 @@ class UpdateViewModel @Inject constructor(
         context.startActivity(intent)
     }
 
+    /** Compares the numbers in tags like `v2.0`, `2.0.1` or `ALPHA_0.4`; suffixes such as `-debug` are ignored. */
     private fun isNewerVersion(latest: String, current: String): Boolean {
+        fun numbers(version: String): List<Int>? =
+            Regex("""\d+(\.\d+)*""").find(version)?.value?.split(".")?.map { it.toInt() }
         return try {
-            val l = latest.split(".").map { it.toInt() }
-            val c = current.split(".").map { it.toInt() }
+            val l = numbers(latest) ?: return false
+            val c = numbers(current) ?: return false
             for (i in 0 until maxOf(l.size, c.size)) {
                 val lv = l.getOrElse(i) { 0 }
                 val cv = c.getOrElse(i) { 0 }

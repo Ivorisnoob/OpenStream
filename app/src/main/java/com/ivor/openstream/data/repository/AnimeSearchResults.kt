@@ -2,10 +2,8 @@ package com.ivor.openstream.data.repository
 
 import com.ivor.openstream.data.remote.model.AnimeDto
 
+/** Merges TV and movie search results into one list, tagged with their media type and sorted. */
 internal object AnimeSearchResults {
-    private const val ANIMATION_GENRE_ID = 16
-    private const val JAPANESE_LANGUAGE_CODE = "ja"
-
     fun prepare(
         tvShows: List<AnimeDto>,
         movies: List<AnimeDto>,
@@ -15,7 +13,6 @@ internal object AnimeSearchResults {
             addAll(tvShows.map { it.copy(mediaType = "tv") })
             addAll(movies.map { it.copy(mediaType = "movie") })
         }
-            .filter(::isAnime)
             .distinctBy { "${it.mediaType}:${it.id}" }
 
         return when (sortBy) {
@@ -30,8 +27,4 @@ internal object AnimeSearchResults {
             else -> anime
         }
     }
-
-    private fun isAnime(item: AnimeDto): Boolean =
-        ANIMATION_GENRE_ID in item.genreIds.orEmpty() &&
-            item.originalLanguage.equals(JAPANESE_LANGUAGE_CODE, ignoreCase = true)
 }

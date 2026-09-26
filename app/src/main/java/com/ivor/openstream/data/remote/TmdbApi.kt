@@ -34,6 +34,15 @@ interface TmdbApi {
         @Query("with_keywords") withKeywords: String? = null
     ): TmdbResponse<AnimeDto>
 
+    @GET("trending/all/{time_window}")
+    suspend fun getTrendingAll(
+        @Path("time_window") timeWindow: String = "week",
+        @Query("page") page: Int = 1
+    ): TmdbResponse<AnimeDto>
+
+    @GET("tv/on_the_air")
+    suspend fun getOnTheAir(@Query("page") page: Int = 1): TmdbResponse<AnimeDto>
+
     @GET("discover/tv")
     suspend fun discoverTvWith(@QueryMap filters: Map<String, String>): TmdbResponse<AnimeDto>
 

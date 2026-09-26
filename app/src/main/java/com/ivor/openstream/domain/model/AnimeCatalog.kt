@@ -1,17 +1,21 @@
 package com.ivor.openstream.domain.model
 
-/** Curated anime lists shown on Home. Every list is filtered to Japanese animation. */
+/** The curated lists shown on Home: everything by default, with dedicated anime rows. */
 enum class AnimeCatalog {
-    /** What is trending across TMDB this week, narrowed to anime. */
+    /** Movies and series trending on TMDB this week. */
     TRENDING,
 
-    /** Series with an episode airing this week. */
-    AIRING_NOW,
+    /** Series with new episodes airing this week. */
+    NEW_EPISODES,
 
-    /** Series that premiered in the last few months. */
-    NEW_THIS_SEASON,
+    POPULAR_MOVIES,
+    POPULAR_SERIES,
 
-    TOP_RATED,
-    POPULAR,
-    MOVIES
+    /** Highly rated films with enough votes to trust the score. */
+    TOP_RATED_MOVIES,
+
+    /** Trending series narrowed to Japanese animation. */
+    TRENDING_ANIME,
+
+    ANIME_MOVIES
 }

@@ -89,11 +89,17 @@ class HomeViewModel @Inject constructor(
             val trending = catalogs.getValue(AnimeCatalog.TRENDING)
             val rails = listOf(
                 HomeRail("top10", "Top 10 this week", RailStyle.RANKED, trending.take(10)),
-                HomeRail("airing", "Airing this week", RailStyle.LANDSCAPE, catalogs.getValue(AnimeCatalog.AIRING_NOW).filter { it.backdropPath != null }),
-                HomeRail("new", "New this season", RailStyle.POSTER, catalogs.getValue(AnimeCatalog.NEW_THIS_SEASON)),
-                HomeRail("top-rated", "All-time greats", RailStyle.POSTER, catalogs.getValue(AnimeCatalog.TOP_RATED)),
-                HomeRail("popular", "Popular right now", RailStyle.POSTER, catalogs.getValue(AnimeCatalog.POPULAR)),
-                HomeRail("movies", "Anime movies", RailStyle.POSTER, catalogs.getValue(AnimeCatalog.MOVIES))
+                HomeRail(
+                    "new-episodes",
+                    "New episodes this week",
+                    RailStyle.LANDSCAPE,
+                    catalogs.getValue(AnimeCatalog.NEW_EPISODES).filter { it.backdropPath != null }
+                ),
+                HomeRail("popular-movies", "Popular movies", RailStyle.POSTER, catalogs.getValue(AnimeCatalog.POPULAR_MOVIES)),
+                HomeRail("popular-series", "Popular series", RailStyle.POSTER, catalogs.getValue(AnimeCatalog.POPULAR_SERIES)),
+                HomeRail("anime", "Trending anime", RailStyle.POSTER, catalogs.getValue(AnimeCatalog.TRENDING_ANIME)),
+                HomeRail("top-rated", "Critically acclaimed", RailStyle.POSTER, catalogs.getValue(AnimeCatalog.TOP_RATED_MOVIES)),
+                HomeRail("anime-movies", "Anime movies", RailStyle.POSTER, catalogs.getValue(AnimeCatalog.ANIME_MOVIES))
             ).filter { it.items.isNotEmpty() }
 
             _uiState.value = HomeUiState.Success(

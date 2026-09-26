@@ -19,7 +19,7 @@ class AnimeSearchResultsTest {
     }
 
     @Test
-    fun `removes unrelated shows returned by TMDB title search`() {
+    fun `keeps every kind of title, not only anime`() {
         val results = AnimeSearchResults.prepare(
             tvShows = listOf(
                 anime(id = 1, name = "Naruto"),
@@ -30,7 +30,7 @@ class AnimeSearchResultsTest {
             sortBy = "popularity.desc"
         )
 
-        assertEquals(listOf("Naruto"), results.map(AnimeDto::name))
+        assertEquals(listOf("Naruto", "Random drama", "Western animation"), results.map(AnimeDto::name))
     }
 
     @Test
