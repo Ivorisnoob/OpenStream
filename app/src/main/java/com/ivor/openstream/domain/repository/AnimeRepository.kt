@@ -3,12 +3,16 @@ package com.ivor.openstream.domain.repository
 import com.ivor.openstream.data.remote.model.AnimeDetailsDto
 import com.ivor.openstream.data.remote.model.AnimeDto
 import com.ivor.openstream.data.remote.model.SeasonDetailsDto
+import com.ivor.openstream.domain.model.AnimeCatalog
 
 interface AnimeRepository {
     suspend fun getPopularAnime(page: Int): Result<List<AnimeDto>>
     suspend fun getTrendingAnime(timeWindow: String = "day", page: Int = 1): Result<List<AnimeDto>>
     suspend fun getTopRatedAnime(page: Int = 1): Result<List<AnimeDto>>
     suspend fun getAiringTodayAnime(page: Int = 1): Result<List<AnimeDto>>
+
+    /** One of Home's curated, anime-only lists. */
+    suspend fun getCatalog(catalog: AnimeCatalog): Result<List<AnimeDto>>
 
     suspend fun searchAnime(
         query: String,

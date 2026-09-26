@@ -24,6 +24,10 @@ import com.ivor.openstream.presentation.watch_later.WatchLaterScreen
 import com.ivor.openstream.presentation.update.UpdateScreen
 import com.ivor.openstream.presentation.settings.SettingsScreen
 import com.ivor.openstream.presentation.marketplace.MarketplaceScreen
+import com.ivor.openstream.presentation.player.session.MiniPlayer
+import com.ivor.openstream.presentation.player.session.MiniPlayerViewModel
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -103,6 +107,9 @@ fun AppNavigation(
     val bottomNavItems = listOf(Screen.Home, Screen.Search, Screen.WatchLater, Screen.Downloads, Screen.History)
     val showBottomBar = currentDestination?.route in bottomNavItems.map { it.route }
     val isCompact = windowSizeClass == WindowWidthSizeClass.Compact
+    val isOnPlayer = currentDestination?.route?.startsWith("player/") == true
+    val miniPlayerViewModel: MiniPlayerViewModel = hiltViewModel()
+    val nowPlaying by miniPlayerViewModel.session.nowPlaying.collectAsState()
 
     Row(modifier = Modifier.fillMaxSize()) {
         AnimatedVisibility(
@@ -155,8 +162,8 @@ fun AppNavigation(
             ) {
                 composable(Screen.Home.route) {
                     HomeScreen(
-                        onAnimeClick = { animeId ->
-                            navController.navigate(Screen.Details.createRoute("tv", animeId))
+                        onAnimeClick = { animeId, mediaType ->
+                            navController.navigate(Screen.Details.createRoute(mediaType, animeId))
                         },
                         onResume = { progress ->
                             navController.navigate(
@@ -256,6 +263,13 @@ fun AppNavigation(
                         onBackClick = { navController.popBackStack() },
                         onPlayClick = { season, episode ->
                             navController.navigate(Screen.Player.createRoute(mediaType, animeId, season, episode))
+                        },
+                        onOpenDownloads = {
+                            navController.navigate(Screen.Downloads.route) {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
                         }
                     )
                 }
@@ -294,6 +308,36 @@ fun AppNavigation(
                         }
                     )
                 }
+            }
+
+            // Keeps the stream going while browsing; sits just above the floating toolbar.
+            androidx.compose.animation.AnimatedVisibility(
+                visible = !isOnPlayer && nowPlaying != null,
+                enter = slideInVertically { it } + fadeIn(),
+                exit = slideOutVertically { it } + fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(
+                        start = 16.dp,
+                        end = 16.dp,
+                        bottom = if (showBottomBar && isCompact) 96.dp else 16.dp
+                    )
+            ) {
+                MiniPlayer(
+                    viewModel = miniPlayerViewModel,
+                    onExpand = { item ->
+                        navController.navigate(
+                            Screen.Player.createRoute(
+                                mediaType = item.mediaType,
+                                animeId = item.tmdbId,
+                                season = item.season,
+                                episode = item.episode,
+                                downloadId = item.downloadId
+                            )
+                        ) { launchSingleTop = true }
+                    }
+                )
             }
 
             // Expressive Floating Navigation for Mobile (Compact screens)

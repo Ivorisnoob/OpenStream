@@ -22,7 +22,7 @@ class PlayerSourcePresentationTest {
     @Test
     fun summaryOnlyIncludesKnownAudioMetadata() {
         assertEquals(
-            "Up to 1080p · SUB · HLS",
+            "Up to 1080p · Sub · HLS",
             server("stream.m3u8", StreamQuality.Q1080, StreamAudio.SUB).sourceSummary()
         )
         assertEquals(

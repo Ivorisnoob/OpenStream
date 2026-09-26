@@ -32,6 +32,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.LinearProgressIndicator
 import com.ivor.openstream.domain.model.WatchProgress
+import com.ivor.openstream.domain.model.DownloadStatus
+import com.ivor.openstream.data.local.entity.DownloadEntity
+import androidx.compose.material.icons.filled.DownloadDone
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.PlayArrow
@@ -116,12 +120,14 @@ fun DetailsScreen(
     mediaType: String,
     onBackClick: () -> Unit,
     onPlayClick: (Int, Int) -> Unit, // season, episode
+    onOpenDownloads: () -> Unit = {},
     viewModel: DetailsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val uriHandler = LocalUriHandler.current
     val isWatchLater by viewModel.isWatchLater.collectAsState()
-    val downloadQueueState by viewModel.downloadQueueState.collectAsState()
+    val episodeDownloads by viewModel.episodeDownloads.collectAsState()
+    val activeDownloads = episodeDownloads.values.count { DownloadStatus.isActive(it.status) }
     val episodeProgress by viewModel.episodeProgress.collectAsState()
     val resumeTarget by viewModel.resumeTarget.collectAsState()
     
@@ -141,7 +147,7 @@ fun DetailsScreen(
                 val seasonDetails = state.selectedSeasonDetails
                 
                 Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    if (!downloadQueueState.isRunning) {
+                    if (activeDownloads == 0) {
                         androidx.compose.material3.SmallFloatingActionButton(
                             onClick = {
                                 // Add logic: Add all episodes of season OR movie
@@ -186,9 +192,9 @@ fun DetailsScreen(
                         }
                     } else {
                         androidx.compose.material3.ExtendedFloatingActionButton(
-                            onClick = viewModel::cancelDownloads,
+                            onClick = onOpenDownloads,
                             icon = { LoadingIndicator(modifier = Modifier.size(24.dp)) },
-                            text = { Text("Resolving ${downloadQueueState.remaining} of ${downloadQueueState.total}") },
+                            text = { Text(if (activeDownloads == 1) "Downloading 1 episode" else "Downloading $activeDownloads episodes") },
                             containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                             expanded = true
                         )
@@ -482,6 +488,7 @@ fun DetailsScreen(
                                             EpisodeItem(
                                                 episode = episode,
                                                 progress = episodeProgress[episode.seasonNumber to episode.episodeNumber],
+                                                download = episodeDownloads[episode.seasonNumber to episode.episodeNumber],
                                                 onClick = { onPlayClick(episode.seasonNumber, episode.episodeNumber) },
                                                 onDownloadClick = {
                                                     viewModel.downloadEpisodes(listOf(episode))
@@ -535,6 +542,7 @@ fun DetailsScreen(
 fun EpisodeItem(
     episode: EpisodeDto,
     progress: WatchProgress? = null,
+    download: DownloadEntity? = null,
     onClick: () -> Unit,
     onDownloadClick: () -> Unit
 ) {
@@ -593,11 +601,7 @@ fun EpisodeItem(
             }
         },
         trailingContent = {
-            if (isReleased) {
-                androidx.compose.material3.IconButton(onClick = onDownloadClick) {
-                    Icon(Icons.Filled.Download, contentDescription = "Download")
-                }
-            }
+            if (isReleased) EpisodeDownloadAction(download, onDownloadClick)
         },
         colors = ListItemDefaults.colors(
             containerColor = Color.Transparent // Integrate with background
@@ -640,5 +644,40 @@ private fun BoxScope.EpisodeProgressOverlay(progress: WatchProgress?) {
                 .fillMaxWidth()
                 .height(4.dp)
         )
+    }
+}
+
+/** Download state for one episode: start, progress, or done. Failed downloads can be retried here. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun EpisodeDownloadAction(download: DownloadEntity?, onDownload: () -> Unit) {
+    when {
+        download?.status == DownloadStatus.COMPLETED -> Icon(
+            Icons.Filled.DownloadDone,
+            contentDescription = "Downloaded",
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(12.dp)
+        )
+        download?.status == DownloadStatus.RESOLVING || download?.status == DownloadStatus.QUEUED -> LoadingIndicator(
+            modifier = Modifier
+                .padding(8.dp)
+                .size(32.dp)
+        )
+        download?.status == DownloadStatus.RUNNING -> Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.padding(8.dp).size(32.dp)
+        ) {
+            androidx.compose.material3.CircularProgressIndicator(
+                progress = { download.progress / 100f },
+                modifier = Modifier.fillMaxSize(),
+                strokeWidth = 3.dp
+            )
+        }
+        else -> androidx.compose.material3.IconButton(onClick = onDownload) {
+            Icon(
+                if (download?.status == DownloadStatus.FAILED) Icons.Filled.Refresh else Icons.Filled.Download,
+                contentDescription = if (download?.status == DownloadStatus.FAILED) "Retry download" else "Download"
+            )
+        }
     }
 }

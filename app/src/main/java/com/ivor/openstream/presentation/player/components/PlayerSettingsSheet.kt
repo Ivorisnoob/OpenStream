@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.HighQuality
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -93,9 +94,38 @@ data class SubtitleOption(
 
 enum class SubtitleLoadingState { IDLE, LOADING, SUCCESS, ERROR }
 
+/** An audio track carried inside the stream (HLS/DASH renditions or MP4 tracks). */
+data class AudioOption(
+    val label: String,
+    val language: String?,
+    val groupIndex: Int,
+    val trackIndex: Int,
+    val detail: String?,
+    val isSelected: Boolean
+)
+
+/**
+ * Whether an audio track is the title's original language or a dub. Streams use ISO 639-2
+ * (`jpn`) as often as TMDB's ISO 639-1 (`ja`), so both sides are compared as three-letter codes.
+ */
+enum class AudioKind(val label: String) { ORIGINAL("Original"), DUB("Dub") }
+
+fun AudioOption.kind(originalLanguage: String?): AudioKind? {
+    val track = language?.takeUnless { it.isBlank() || it == "und" } ?: return null
+    val original = originalLanguage?.takeUnless { it.isBlank() } ?: return null
+    return if (iso3(track) == iso3(original)) AudioKind.ORIGINAL else AudioKind.DUB
+}
+
+private fun iso3(code: String): String =
+    runCatching { Locale.forLanguageTag(code.replace('_', '-')).isO3Language }
+        .getOrNull()
+        ?.takeIf { it.isNotBlank() }
+        ?: code.lowercase()
+
 enum class PlayerSettingsPage(val title: String) {
     MAIN("Playback"),
     SOURCES("Sources"),
+    AUDIO("Audio"),
     QUALITY("Quality"),
     SPEED("Speed"),
     SUBTITLES("Subtitles"),
@@ -117,7 +147,9 @@ class PlayerSettingsModel(
     val subtitleOptions: List<SubtitleOption>,
     val selectedSubtitle: SubtitleOption?,
     val subtitleLoadingState: SubtitleLoadingState,
-    val captionSettings: CaptionStyleSettings
+    val captionSettings: CaptionStyleSettings,
+    val audioOptions: List<AudioOption>,
+    val originalLanguage: String?
 )
 
 class PlayerSettingsActions(
@@ -125,7 +157,8 @@ class PlayerSettingsActions(
     val onQualitySelected: (QualityOption) -> Unit,
     val onSpeedSelected: (Float) -> Unit,
     val onSubtitleSelected: (SubtitleOption?) -> Unit,
-    val onCaptionSettingsChange: (CaptionStyleSettings) -> Unit
+    val onCaptionSettingsChange: (CaptionStyleSettings) -> Unit,
+    val onAudioSelected: (AudioOption) -> Unit
 )
 
 /**
@@ -207,6 +240,7 @@ private fun ColumnScope.SettingsContent(
             when (current) {
                 PlayerSettingsPage.MAIN -> mainPage(model, onNavigate = { page = it })
                 PlayerSettingsPage.SOURCES -> sourcesPage(model.serversState, sourceFilter, sourceActions)
+                PlayerSettingsPage.AUDIO -> audioPage(model, actions, onDone = goHome)
                 PlayerSettingsPage.QUALITY -> qualityPage(
                     model = model,
                     actions = actions,
@@ -239,6 +273,19 @@ private fun LazyListScope.mainPage(
                 enabled = model.canChangeSource,
                 busy = isResolving,
                 onClick = { onNavigate(PlayerSettingsPage.SOURCES) }
+            )
+        )
+        val selectedAudio = model.audioOptions.firstOrNull { it.isSelected }
+        add(
+            MainRow(
+                icon = Icons.Default.RecordVoiceOver,
+                title = "Audio",
+                value = selectedAudio?.let { audio ->
+                    listOfNotNull(audio.label, audio.kind(model.originalLanguage)?.label).joinToString(" · ")
+                } ?: "Default",
+                supporting = if (model.audioOptions.size > 1) "${model.audioOptions.size} languages in this stream" else null,
+                enabled = model.audioOptions.size > 1,
+                onClick = { onNavigate(PlayerSettingsPage.AUDIO) }
             )
         )
         add(
@@ -375,6 +422,47 @@ private fun LazyListScope.qualityPage(
                 modifier = Modifier.padding(top = 12.dp)
             )
         }
+    }
+}
+
+// endregion
+
+// region Audio
+
+private fun LazyListScope.audioPage(
+    model: PlayerSettingsModel,
+    actions: PlayerSettingsActions,
+    onDone: () -> Unit
+) {
+    val options = model.audioOptions
+    itemsIndexed(options, key = { _, option -> "${option.groupIndex}:${option.trackIndex}" }) { index, option ->
+        val kind = option.kind(model.originalLanguage)
+        SelectableRow(
+            selected = option.isSelected,
+            index = index,
+            count = options.size,
+            title = option.label,
+            supporting = listOfNotNull(
+                when (kind) {
+                    AudioKind.ORIGINAL -> "Original audio"
+                    AudioKind.DUB -> "Dubbed"
+                    null -> null
+                },
+                option.detail
+            ).joinToString(" · ").ifEmpty { null },
+            onClick = {
+                actions.onAudioSelected(option)
+                onDone()
+            }
+        )
+    }
+    item(key = "audio-note") {
+        Text(
+            text = "Your choice is remembered and preferred on the next episode when the stream has it.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp)
+        )
     }
 }
 

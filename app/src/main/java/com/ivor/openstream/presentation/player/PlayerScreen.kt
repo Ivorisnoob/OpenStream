@@ -144,6 +144,7 @@ fun PlayerScreen(
     val currentDownload by viewModel.currentDownload.collectAsState()
     val startPositionMs by viewModel.startPositionMs.collectAsState()
     val nextEpisode by viewModel.nextEpisode.collectAsState()
+    val preferredAudioLanguage by viewModel.preferredAudioLanguage.collectAsState()
 
     var localVideoUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var isResolvingLocalUri by remember { mutableStateOf(downloadId != null) }
@@ -173,6 +174,10 @@ fun PlayerScreen(
     // Hold playback until the saved position is known so a resume never starts from zero.
     val videoUrl = (localVideoUrl ?: activeServer?.url)?.takeIf { startPositionMs != null }
     var showUpNext by remember(tmdbId, season, episode) { mutableStateOf(false) }
+
+    LaunchedEffect(videoUrl) {
+        videoUrl?.let { viewModel.onMediaLoaded(it, downloadId) }
+    }
 
     LaunchedEffect(startPositionMs) {
         val saved = startPositionMs ?: return@LaunchedEffect
@@ -279,7 +284,6 @@ fun PlayerScreen(
         { onEpisodeClick(target.season, target.episode) }
     }
 
-    val downloadFileName = "${playerTitle.replace(Regex("[^a-zA-Z0-9.-]"), "_")}_$tmdbId.mp4"
     val sourceActions = SourcesPageActions(
         onSelect = { server ->
             viewModel.selectServer(server.id)
@@ -287,7 +291,7 @@ fun PlayerScreen(
         },
         onRetry = viewModel::retryResolution,
         onDownload = { server ->
-            viewModel.downloadVideo(server, playerTitle, downloadFileName, mediaType, tmdbId, season, episode)
+            viewModel.downloadVideo(server)
         }
     )
 
@@ -334,7 +338,8 @@ fun PlayerScreen(
                             title = playerTitle,
                             subtitle = playerSubtitle,
                             requestHeaders = activeServer?.headers.orEmpty(),
-                            cache = viewModel.downloadCache,
+                            exoPlayer = viewModel.player,
+                            applyRequestHeaders = viewModel::applyRequestHeaders,
                             isFullscreen = isFullscreen,
                             onFullscreenToggle = {
                                 if (isFullscreen) exitFullscreen() else enterFullscreen()
@@ -358,7 +363,6 @@ fun PlayerScreen(
                             canChangeSource = downloadId == null,
                             initialPositionMs = resumePositionMs,
                             onPositionChanged = { resumePositionMs = it },
-                            onProgressChanged = viewModel::onProgress,
                             onPlaybackEnded = { showUpNext = nextEpisode != null },
                             onIsPlayingChanged = { isVideoPlaying = it },
                             isInPictureInPicture = isInPictureInPicture,
@@ -368,6 +372,9 @@ fun PlayerScreen(
                             sourceActions = sourceActions,
                             onNextClick = onNextClick,
                             captionSettings = captionSettings,
+                            originalLanguage = mediaDetails?.originalLanguage,
+                            preferredAudioLanguage = preferredAudioLanguage,
+                            onAudioLanguageChosen = viewModel::setPreferredAudioLanguage,
                             onCaptionSettingsChange = viewModel::updateCaptionSettings,
                             onPlaybackError = {
                                 if (downloadId == null) {
@@ -715,8 +722,7 @@ fun PlayerScreen(
                                 Button(
                                     onClick = {
                                         activeServer?.let { server ->
-                                            val fileName = "${playerTitle.replace(Regex("[^a-zA-Z0-9.-]"), "_")}_$tmdbId.mp4"
-                                            viewModel.downloadVideo(server, playerTitle, fileName, mediaType, tmdbId, season, episode)
+                                            viewModel.downloadVideo(server)
                                         }
                                     },
                                     enabled = activeServer?.isDownloadable == true,

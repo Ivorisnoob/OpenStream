@@ -9,6 +9,7 @@ import com.ivor.openstream.data.remote.model.ExternalIdsDto
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.QueryMap
 
 interface TmdbApi {
     @GET("{media_type}/{id}/external_ids")
@@ -32,6 +33,12 @@ interface TmdbApi {
         @Query("with_genres") withGenres: String? = null,
         @Query("with_keywords") withKeywords: String? = null
     ): TmdbResponse<AnimeDto>
+
+    @GET("discover/tv")
+    suspend fun discoverTvWith(@QueryMap filters: Map<String, String>): TmdbResponse<AnimeDto>
+
+    @GET("discover/movie")
+    suspend fun discoverMovieWith(@QueryMap filters: Map<String, String>): TmdbResponse<AnimeDto>
 
     @GET("search/keyword")
     suspend fun searchKeyword(

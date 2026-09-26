@@ -70,6 +70,16 @@ object DatabaseModule {
         }
     }
 
+    private val migration4To5 = object : Migration(4, 5) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE downloads ADD COLUMN showTitle TEXT")
+            database.execSQL("ALTER TABLE downloads ADD COLUMN episodeTitle TEXT")
+            database.execSQL("ALTER TABLE downloads ADD COLUMN stillPath TEXT")
+            database.execSQL("ALTER TABLE downloads ADD COLUMN year INTEGER")
+            database.execSQL("ALTER TABLE downloads ADD COLUMN errorMessage TEXT")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -78,7 +88,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "open_stream_db"
         )
-            .addMigrations(migration2To3, migration3To4)
+            .addMigrations(migration2To3, migration3To4, migration4To5)
             .fallbackToDestructiveMigration()
             .build()
     }

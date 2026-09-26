@@ -1,10 +1,10 @@
 package com.ivor.openstream.domain.model
 
 enum class StreamAudio(val label: String, val rank: Int) {
-    SUB("SUB", 4),
-    DUB("DUB", 3),
-    MULTI("MULTI", 2),
-    RAW("RAW", 1),
+    SUB("Sub", 4),
+    DUB("Dub", 3),
+    MULTI("Multi-audio", 2),
+    RAW("Raw", 1),
     UNKNOWN("", 0);
 
     companion object {

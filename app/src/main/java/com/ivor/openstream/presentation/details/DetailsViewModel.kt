@@ -8,11 +8,11 @@ import com.ivor.openstream.data.local.entity.WatchLaterEntity
 import com.ivor.openstream.data.remote.model.SeasonDetailsDto
 import com.ivor.openstream.data.remote.model.EpisodeDto
 import com.ivor.openstream.data.remote.model.toAnimeDto
-import com.ivor.openstream.domain.model.MediaIdentity
+import com.ivor.openstream.data.local.entity.DownloadEntity
+import com.ivor.openstream.domain.model.DownloadTarget
 import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.domain.repository.AnimeRepository
 import com.ivor.openstream.domain.repository.DownloadRepository
-import com.ivor.openstream.domain.repository.StreamingRepository
 import com.ivor.openstream.domain.repository.WatchLaterRepository
 import com.ivor.openstream.domain.repository.WatchProgressRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -22,10 +22,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 @HiltViewModel
@@ -33,7 +31,6 @@ class DetailsViewModel @Inject constructor(
     private val repository: AnimeRepository,
     private val watchLaterRepository: WatchLaterRepository,
     private val downloadRepository: DownloadRepository,
-    private val streamingRepository: StreamingRepository,
     private val watchProgressRepository: WatchProgressRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -44,9 +41,6 @@ class DetailsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<DetailsUiState>(DetailsUiState.Loading)
     val uiState: StateFlow<DetailsUiState> = _uiState.asStateFlow()
 
-    private val _downloadQueueState = MutableStateFlow(DownloadQueueState())
-    val downloadQueueState: StateFlow<DownloadQueueState> = _downloadQueueState.asStateFlow()
-    private var downloadJob: Job? = null
 
     val isWatchLater: StateFlow<Boolean> = watchLaterRepository.isWatchLater(animeId)
         .stateIn(
@@ -142,70 +136,31 @@ class DetailsViewModel @Inject constructor(
         }
     }
 
+    /** Download state per episode of this title, keyed by (season, episode). */
+    val episodeDownloads: StateFlow<Map<Pair<Int, Int>, DownloadEntity>> =
+        downloadRepository.getDownloadsForTitle(animeId, mediaType)
+            .map { rows -> rows.associateBy { it.season to it.episode } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /** Hands episodes to the app-wide download queue; it keeps going after this screen closes. */
     fun downloadEpisodes(episodes: List<EpisodeDto>) {
-        if (episodes.isEmpty() || downloadJob?.isActive == true) return
         val details = (_uiState.value as? DetailsUiState.Success)?.details ?: return
-        downloadJob = viewModelScope.launch {
-            var failed = 0
-            _downloadQueueState.value = DownloadQueueState(
-                isRunning = true,
-                remaining = episodes.size,
-                total = episodes.size
-            )
-            episodes.forEachIndexed { index, episode ->
-                val identity = MediaIdentity(
+        downloadRepository.enqueue(
+            episodes.map { episode ->
+                DownloadTarget(
                     tmdbId = animeId,
-                    tmdbType = mediaType,
-                    title = details.name,
+                    mediaType = mediaType,
                     season = episode.seasonNumber,
                     episode = episode.episodeNumber,
+                    showTitle = details.name,
+                    episodeTitle = episode.name.takeIf { mediaType != "movie" },
+                    posterPath = details.posterPath,
+                    stillPath = episode.stillPath ?: details.backdropPath,
                     year = details.date.take(4).toIntOrNull()
                 )
-                val server = withTimeoutOrNull(20_000) {
-                    streamingRepository.resolveServers(identity)
-                        .first { progress -> progress.servers.any { it.isDownloadable } }
-                        .servers
-                        .firstOrNull { it.isDownloadable }
-                }
-                if (server == null) {
-                    failed++
-                } else {
-                    val safeTitle = episode.name
-                        .replace(Regex("[^a-zA-Z0-9.-]"), "_")
-                        .take(50)
-                    runCatching {
-                        downloadRepository.downloadVideo(
-                            server = server,
-                            title = episode.name,
-                            fileName = "${safeTitle}_${animeId}_S${episode.seasonNumber}E${episode.episodeNumber}.mp4",
-                            posterPath = episode.stillPath ?: details.posterPath,
-                            mediaType = mediaType,
-                            tmdbId = animeId,
-                            season = episode.seasonNumber,
-                            episode = episode.episodeNumber
-                        )
-                    }.onFailure { failed++ }
-                }
-                _downloadQueueState.value = _downloadQueueState.value.copy(
-                    remaining = episodes.size - index - 1,
-                    failed = failed
-                )
             }
-            _downloadQueueState.value = _downloadQueueState.value.copy(isRunning = false)
-        }
+        )
     }
-
-    fun cancelDownloads() {
-        downloadJob?.cancel()
-        _downloadQueueState.value = DownloadQueueState()
-    }
-
-data class DownloadQueueState(
-    val isRunning: Boolean = false,
-    val remaining: Int = 0,
-    val total: Int = 0,
-    val failed: Int = 0
-)
 
 sealed interface DetailsUiState {
     data object Loading : DetailsUiState

@@ -25,6 +25,19 @@ interface DownloadDao {
     @Query("SELECT * FROM downloads WHERE downloadId = :downloadId")
     suspend fun getDownloadById(downloadId: String): DownloadEntity?
 
+    @Query("UPDATE downloads SET status = :status, progress = :progress, downloadedBytes = :downloadedBytes, totalBytes = :totalBytes, errorMessage = :errorMessage WHERE downloadId = :downloadId")
+    suspend fun updateProgress(
+        downloadId: String,
+        status: Int,
+        progress: Int,
+        downloadedBytes: Long,
+        totalBytes: Long,
+        errorMessage: String?
+    )
+
+    @Query("SELECT * FROM downloads WHERE tmdbId = :tmdbId AND mediaType = :mediaType")
+    fun getDownloadsForTitle(tmdbId: Int, mediaType: String): Flow<List<DownloadEntity>>
+
     @Query("SELECT * FROM downloads WHERE tmdbId = :tmdbId AND season = :season AND episode = :episode AND mediaType = :mediaType LIMIT 1")
     fun getDownloadByContent(tmdbId: Int, season: Int, episode: Int, mediaType: String): Flow<DownloadEntity?>
 }

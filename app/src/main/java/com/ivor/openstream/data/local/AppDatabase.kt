@@ -18,7 +18,7 @@ import com.ivor.openstream.data.local.entity.WatchProgressEntity
         IdMappingEntity::class,
         WatchProgressEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

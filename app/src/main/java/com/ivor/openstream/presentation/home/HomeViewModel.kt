@@ -3,6 +3,7 @@ package com.ivor.openstream.presentation.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ivor.openstream.data.remote.model.AnimeDto
+import com.ivor.openstream.domain.model.AnimeCatalog
 import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.domain.repository.AnimeRepository
 import com.ivor.openstream.domain.repository.WatchProgressRepository
@@ -17,66 +18,88 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+enum class RailStyle {
+    /** Big rank numerals beside posters, for a top-ten list. */
+    RANKED,
+
+    /** Wide backdrop cards, for what is airing now. */
+    LANDSCAPE,
+
+    POSTER
+}
+
+data class HomeRail(
+    val key: String,
+    val title: String,
+    val style: RailStyle,
+    val items: List<AnimeDto>
+)
+
+sealed interface HomeUiState {
+    data object Loading : HomeUiState
+
+    data class Success(
+        val hero: List<AnimeDto>,
+        val rails: List<HomeRail>,
+        val isRefreshing: Boolean = false
+    ) : HomeUiState
+
+    data class Error(val message: String) : HomeUiState
+}
+
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val repository: AnimeRepository,
     private val watchProgressRepository: WatchProgressRepository
 ) : ViewModel() {
 
-    val continueWatching: StateFlow<List<WatchProgress>> = watchProgressRepository.continueWatching()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    fun removeFromContinueWatching(item: WatchProgress) {
-        viewModelScope.launch { watchProgressRepository.dismiss(item.mediaType, item.tmdbId) }
-    }
-
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+
+    val continueWatching: StateFlow<List<WatchProgress>> = watchProgressRepository.continueWatching()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     init {
         loadData()
     }
 
-    fun loadData() {
+    fun removeFromContinueWatching(item: WatchProgress) {
+        viewModelScope.launch { watchProgressRepository.dismiss(item.mediaType, item.tmdbId) }
+    }
+
+    /** Pull-to-refresh keeps the current feed on screen while the new one loads. */
+    fun refresh() {
+        val current = _uiState.value
+        if (current is HomeUiState.Success) _uiState.value = current.copy(isRefreshing = true)
+        loadData(showLoading = current !is HomeUiState.Success)
+    }
+
+    fun loadData(showLoading: Boolean = true) {
         viewModelScope.launch {
-            _uiState.value = HomeUiState.Loading
-            try {
-                coroutineScope {
-                    val trendingDeferred = async { repository.getTrendingAnime() }
-                    val topRatedDeferred = async { repository.getTopRatedAnime() }
-                    val popularDeferred = async { repository.getPopularAnime(page = 1) }
-                    val airingTodayDeferred = async { repository.getAiringTodayAnime() }
-
-                    val trending = trendingDeferred.await().getOrElse { emptyList() }
-                    val topRated = topRatedDeferred.await().getOrElse { emptyList() }
-                    val popular = popularDeferred.await().getOrElse { emptyList() }
-                    val airingToday = airingTodayDeferred.await().getOrElse { emptyList() }
-
-                    if (trending.isEmpty() && topRated.isEmpty() && popular.isEmpty() && airingToday.isEmpty()) {
-                        _uiState.value = HomeUiState.Error("Failed to load data")
-                    } else {
-                        _uiState.value = HomeUiState.Success(
-                            trending = trending,
-                            topRated = topRated,
-                            popular = popular,
-                            airingToday = airingToday
-                        )
-                    }
-                }
-            } catch (e: Exception) {
-                _uiState.value = HomeUiState.Error(e.message ?: "Unknown error")
+            if (showLoading) _uiState.value = HomeUiState.Loading
+            val catalogs = coroutineScope {
+                AnimeCatalog.entries.associateWith { catalog -> async { repository.getCatalog(catalog) } }
+                    .mapValues { (_, request) -> request.await().getOrDefault(emptyList()) }
             }
+            if (catalogs.values.all { it.isEmpty() }) {
+                _uiState.value = HomeUiState.Error("Couldn't reach the catalog")
+                return@launch
+            }
+
+            val trending = catalogs.getValue(AnimeCatalog.TRENDING)
+            val rails = listOf(
+                HomeRail("top10", "Top 10 this week", RailStyle.RANKED, trending.take(10)),
+                HomeRail("airing", "Airing this week", RailStyle.LANDSCAPE, catalogs.getValue(AnimeCatalog.AIRING_NOW).filter { it.backdropPath != null }),
+                HomeRail("new", "New this season", RailStyle.POSTER, catalogs.getValue(AnimeCatalog.NEW_THIS_SEASON)),
+                HomeRail("top-rated", "All-time greats", RailStyle.POSTER, catalogs.getValue(AnimeCatalog.TOP_RATED)),
+                HomeRail("popular", "Popular right now", RailStyle.POSTER, catalogs.getValue(AnimeCatalog.POPULAR)),
+                HomeRail("movies", "Anime movies", RailStyle.POSTER, catalogs.getValue(AnimeCatalog.MOVIES))
+            ).filter { it.items.isNotEmpty() }
+
+            _uiState.value = HomeUiState.Success(
+                hero = trending.filter { it.posterPath != null }.take(8),
+                rails = rails
+            )
         }
     }
-}
-
-sealed interface HomeUiState {
-    data object Loading : HomeUiState
-    data class Success(
-        val trending: List<AnimeDto>,
-        val topRated: List<AnimeDto>,
-        val popular: List<AnimeDto>,
-        val airingToday: List<AnimeDto>
-    ) : HomeUiState
-    data class Error(val message: String) : HomeUiState
 }

@@ -1,5 +1,6 @@
 package com.ivor.openstream.data.streaming.providers
 
+import android.util.Log
 import com.ivor.openstream.BuildConfig
 import com.ivor.openstream.data.streaming.vidkingRequestHeaders
 import com.ivor.openstream.domain.model.MediaIdentity
@@ -115,7 +116,11 @@ class VidkingDirectApi @Inject constructor(
 
     private fun decryptPayload(body: String, seed: String, mediaId: Int): SourcesPayload {
         if (body.isBlank()) throw IOException("Vidking returned an empty payload")
-        return json.decodeFromString(VidkingPayloadCipher.decrypt(body, seed, mediaId))
+        val decrypted = VidkingPayloadCipher.decrypt(body, seed, mediaId)
+        if (BuildConfig.DEBUG) {
+            decrypted.chunked(3_000).forEachIndexed { index, chunk -> Log.d(TAG, "payload[$index] $chunk") }
+        }
+        return json.decodeFromString(decrypted)
     }
 
     private fun SourcesPayload.toVideoServers(spec: VidkingServerSpec): List<VideoServer> {
@@ -158,6 +163,10 @@ class VidkingDirectApi @Inject constructor(
                     isDownloadable = !url.substringBefore('?').endsWith(".mpd", ignoreCase = true)
                 )
             }.toList()
+    }
+
+    private companion object {
+        const val TAG = "VidkingPayload"
     }
 
     @Serializable

@@ -3,24 +3,35 @@ package com.ivor.openstream.presentation.downloads
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ivor.openstream.data.local.entity.DownloadEntity
-import com.ivor.openstream.data.repository.DownloadRepositoryImpl
+import com.ivor.openstream.domain.model.DownloadStatus
 import com.ivor.openstream.domain.repository.DownloadRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class SortOrder {
-    NEWEST,
-    NAME,
-    SIZE
+/** Finished downloads of one show or movie. */
+data class DownloadGroup(
+    val key: String,
+    val title: String,
+    val posterPath: String?,
+    val isMovie: Boolean,
+    val items: List<DownloadEntity>,
+    val totalBytes: Long
+)
+
+data class DownloadsUiState(
+    val isLoading: Boolean = true,
+    /** Finding a source, queued, downloading, paused or failed. */
+    val inProgress: List<DownloadEntity> = emptyList(),
+    val library: List<DownloadGroup> = emptyList(),
+    val completedCount: Int = 0,
+    val storedBytes: Long = 0L
+) {
+    val isEmpty: Boolean get() = !isLoading && inProgress.isEmpty() && library.isEmpty()
 }
 
 @HiltViewModel
@@ -28,66 +39,45 @@ class DownloadViewModel @Inject constructor(
     private val repository: DownloadRepository
 ) : ViewModel() {
 
-    private val _searchQuery = MutableStateFlow("")
-    val searchQuery = _searchQuery.asStateFlow()
-
-    private val _sortOrder = MutableStateFlow(SortOrder.NEWEST)
-    val sortOrder = _sortOrder.asStateFlow()
-
-    private val _downloads: StateFlow<List<DownloadEntity>> = repository.getAllDownloads()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
-
-    val downloads: StateFlow<List<DownloadEntity>> = combine(_downloads, _searchQuery, _sortOrder) { list, query, sort ->
-        var result = list
-        
-        // 1. Filter
-        if (query.isNotEmpty()) {
-            result = result.filter { it.title.contains(query, ignoreCase = true) }
+    val uiState: StateFlow<DownloadsUiState> = repository.getAllDownloads()
+        .map { downloads ->
+            val completed = downloads.filter { it.status == DownloadStatus.COMPLETED }
+            DownloadsUiState(
+                isLoading = false,
+                inProgress = downloads
+                    .filter { it.status != DownloadStatus.COMPLETED }
+                    .sortedWith(compareBy<DownloadEntity> { it.status == DownloadStatus.FAILED }.thenBy { it.dateAdded }),
+                library = completed
+                    .groupBy { "${it.mediaType}:${it.tmdbId}" }
+                    .map { (key, items) ->
+                        val sorted = items.sortedWith(compareBy({ it.season }, { it.episode }))
+                        DownloadGroup(
+                            key = key,
+                            title = sorted.first().displayTitle,
+                            posterPath = sorted.first().posterPath,
+                            isMovie = sorted.first().mediaType == "movie",
+                            items = sorted,
+                            totalBytes = sorted.sumOf { it.totalBytes }
+                        )
+                    }
+                    .sortedByDescending { group -> group.items.maxOf { it.dateAdded } },
+                completedCount = completed.size,
+                storedBytes = completed.sumOf { it.totalBytes }
+            )
         }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DownloadsUiState())
 
-        // 2. Sort
-        result = when (sort) {
-            SortOrder.NEWEST -> result.sortedByDescending { it.dateAdded }
-            SortOrder.NAME -> result.sortedBy { it.title }
-            SortOrder.SIZE -> result.sortedByDescending { it.totalBytes }
-        }
-        result
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = emptyList()
-    )
+    fun pause(download: DownloadEntity) = repository.pause(download.downloadId)
 
-    init {
-        startProgressSync()
-    }
-    
-    fun onSearchQueryChange(query: String) {
-        _searchQuery.value = query
+    fun resume(download: DownloadEntity) = repository.resume(download.downloadId)
+
+    fun retry(download: DownloadEntity) = repository.retry(download.downloadId)
+
+    fun remove(download: DownloadEntity) {
+        viewModelScope.launch { repository.removeDownload(download.downloadId) }
     }
 
-    fun onSortOrderChange(order: SortOrder) {
-        _sortOrder.value = order
-    }
-
-    private fun startProgressSync() {
-        viewModelScope.launch {
-            while (isActive) {
-                if (repository is DownloadRepositoryImpl) {
-                    repository.syncProgress()
-                }
-                delay(1000) // Poll every second
-            }
-        }
-    }
-
-    fun removeDownload(downloadId: String) {
-        viewModelScope.launch {
-            repository.removeDownload(downloadId)
-        }
+    fun removeGroup(group: DownloadGroup) {
+        viewModelScope.launch { group.items.forEach { repository.removeDownload(it.downloadId) } }
     }
 }

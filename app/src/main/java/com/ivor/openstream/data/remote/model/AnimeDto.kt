@@ -40,6 +40,7 @@ data class AnimeDetailsDto(
     @SerialName("first_air_date") val firstAirDate: String? = null,
     @SerialName("release_date") val releaseDate: String? = null,
     @SerialName("vote_average") val voteAverage: Double,
+    @SerialName("original_language") val originalLanguage: String? = null,
     @SerialName("number_of_seasons") val numberOfSeasons: Int? = null,
     @SerialName("number_of_episodes") val numberOfEpisodes: Int? = null,
     @SerialName("seasons") val seasons: List<SeasonDto>? = null,

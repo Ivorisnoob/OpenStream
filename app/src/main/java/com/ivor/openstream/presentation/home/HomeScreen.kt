@@ -1,72 +1,71 @@
 package com.ivor.openstream.presentation.home
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.SystemUpdate
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeTopAppBar
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberTopAppBarState
+import androidx.compose.material3.carousel.CarouselItemScope
+import androidx.compose.material3.carousel.HorizontalCenteredHeroCarousel
+import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
+import androidx.compose.material3.carousel.rememberCarouselState
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.util.lerp
-import androidx.hilt.navigation.compose.hiltViewModel
-import com.ivor.openstream.data.remote.model.AnimeDto
-import com.ivor.openstream.domain.model.WatchProgress
-import com.ivor.openstream.presentation.components.AnimeCard
-import androidx.compose.material3.Button
-import androidx.compose.foundation.layout.Spacer
-import kotlin.math.absoluteValue
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.foundation.clickable
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
+import com.ivor.openstream.data.remote.model.AnimeDto
+import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.ui.theme.ExpressiveShapes
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.foundation.layout.height
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeScreen(
-    onAnimeClick: (Int) -> Unit,
+    onAnimeClick: (id: Int, mediaType: String) -> Unit,
     onResume: (WatchProgress) -> Unit,
     onOpenDetails: (mediaType: String, id: Int) -> Unit,
     onSettingsClick: () -> Unit,
@@ -75,164 +74,58 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val continueWatching by viewModel.continueWatching.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
+    val open: (AnimeDto) -> Unit = { onAnimeClick(it.id, if (it.isMovie) "movie" else "tv") }
 
-    Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            val isTablet = LocalConfiguration.current.screenWidthDp > 600
-            if (isTablet) {
-                TopAppBar(
-                    title = { 
-                        Text(
-                            "OpenStream",
-                            style = MaterialTheme.typography.displaySmall
-                        ) 
-                    },
-                    actions = {
-                        IconButton(onClick = onSettingsClick) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Settings"
-                            )
-                        }
-                        IconButton(onClick = onUpdateClick) {
-                            Icon(
-                                imageVector = Icons.Default.SystemUpdate,
-                                contentDescription = "Check for updates"
-                            )
-                        }
-                    },
-                    scrollBehavior = scrollBehavior
-                )
-            } else {
-                LargeTopAppBar(
-                    title = { 
-                        Text(
-                            "OpenStream",
-                            style = MaterialTheme.typography.displaySmall
-                        ) 
-                    },
-                    actions = {
-                        IconButton(onClick = onSettingsClick) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Settings"
-                            )
-                        }
-                        IconButton(onClick = onUpdateClick) {
-                            Icon(
-                                imageVector = Icons.Default.SystemUpdate,
-                                contentDescription = "Check for updates"
-                            )
-                        }
-                    },
-                    scrollBehavior = scrollBehavior
-                )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        when (val state = uiState) {
+            HomeUiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                LoadingIndicator(modifier = Modifier.size(64.dp))
             }
-        }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            when (val state = uiState) {
-                is HomeUiState.Loading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        LoadingIndicator()
+
+            is HomeUiState.Error -> HomeError(onRetry = { viewModel.loadData() })
+
+            is HomeUiState.Success -> PullToRefreshBox(
+                isRefreshing = state.isRefreshing,
+                onRefresh = viewModel::refresh,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    // Clears the floating toolbar and the mini player.
+                    contentPadding = PaddingValues(bottom = 200.dp)
+                ) {
+                    item(key = "hero") {
+                        HeroSection(
+                            items = state.hero,
+                            onOpen = open,
+                            onSettingsClick = onSettingsClick,
+                            onUpdateClick = onUpdateClick
+                        )
                     }
-                }
-                is HomeUiState.Error -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(32.dp)
-                        ) {
-                            Text(
-                                text = "Couldn't reach the catalog",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold
+
+                    if (continueWatching.isNotEmpty()) {
+                        item(key = "continue_watching") {
+                            SectionHeader(title = "Continue watching")
+                            ContinueWatchingRail(
+                                items = continueWatching,
+                                onResume = onResume,
+                                onOpenDetails = { onOpenDetails(it.mediaType, it.tmdbId) },
+                                onRemove = viewModel::removeFromContinueWatching
                             )
-                            Text(
-                                text = "Check your connection and try again.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 8.dp)
-                            )
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Button(onClick = viewModel::loadData, shape = ExpressiveShapes.medium) {
-                                Text("Try again")
-                            }
                         }
                     }
-                }
-                is HomeUiState.Success -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(bottom = 136.dp)
-                    ) {
-                        if (continueWatching.isNotEmpty()) {
-                            item(key = "continue_watching") {
-                                SectionHeader(title = "Continue Watching", topPadding = 16.dp)
-                                ContinueWatchingRail(
-                                    items = continueWatching,
-                                    onResume = onResume,
-                                    onOpenDetails = { onOpenDetails(it.mediaType, it.tmdbId) },
-                                    onRemove = viewModel::removeFromContinueWatching
-                                )
-                            }
-                        }
 
-                        if (state.trending.isNotEmpty()) {
-                            item {
-                                val isTablet = LocalConfiguration.current.screenWidthDp > 600
-                                SectionHeader(
-                                    title = "Trending Now",
-                                    topPadding = if (isTablet) 8.dp else 32.dp
-                                )
-                                TrendingHeroCarousel(
-                                    animeList = state.trending.take(10), // Limit carousel to top 10
-                                    onAnimeClick = onAnimeClick
-                                )
-                            }
-                        }
-
-                        if (state.topRated.isNotEmpty()) {
-                            item {
-                                SectionHeader(title = "Top Rated")
-                                HorizontalAnimeList(
-                                    animeList = state.topRated,
-                                    onAnimeClick = onAnimeClick
-                                )
-                            }
-                        }
-
-                        if (state.airingToday.isNotEmpty()) {
-                            item {
-                                SectionHeader(title = "Airing Today")
-                                HorizontalAnimeList(
-                                    animeList = state.airingToday,
-                                    onAnimeClick = onAnimeClick
-                                )
-                            }
-                        }
-
-                        if (state.popular.isNotEmpty()) {
-                            item {
-                                SectionHeader(title = "Popular")
-                                HorizontalAnimeList(
-                                    animeList = state.popular,
-                                    onAnimeClick = onAnimeClick
-                                )
+                    state.rails.forEach { rail ->
+                        item(key = rail.key) {
+                            SectionHeader(title = rail.title)
+                            when (rail.style) {
+                                RailStyle.RANKED -> RankedRail(rail.items, open)
+                                RailStyle.LANDSCAPE -> LandscapeRail(rail.items, open)
+                                RailStyle.POSTER -> PosterRail(rail.items, open)
                             }
                         }
                     }
@@ -242,165 +135,344 @@ fun HomeScreen(
     }
 }
 
-@Composable
-fun TrendingHeroCarousel(
-    animeList: List<AnimeDto>,
-    onAnimeClick: (Int) -> Unit
-) {
-    val pagerState = rememberPagerState(pageCount = { animeList.size })
-    val configuration = LocalConfiguration.current
-    val isTablet = configuration.screenWidthDp > 600
+// region Hero
 
-    Column(modifier = Modifier.fillMaxWidth()) {
-        HorizontalPager(
-            state = pagerState,
-            contentPadding = PaddingValues(horizontal = 32.dp),
-            pageSpacing = 16.dp,
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HeroSection(
+    items: List<AnimeDto>,
+    onOpen: (AnimeDto) -> Unit,
+    onSettingsClick: () -> Unit,
+    onUpdateClick: () -> Unit
+) {
+    Column(modifier = Modifier.statusBarsPadding()) {
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 16.dp)
-        ) { page ->
-            val pageOffset = (
-                (pagerState.currentPage - page) + pagerState
-                    .currentPageOffsetFraction
-            ).absoluteValue
-
-            val graphicsModifier = Modifier.graphicsLayer {
-                // Expressive Scale Effect: Center item is larger
-                val scale = lerp(
-                    start = 0.85f,
-                    stop = 1f,
-                    fraction = 1f - pageOffset.coerceIn(0f, 1f)
-                )
-                scaleX = scale
-                scaleY = scale
-                
-                // Fade out side items
-                alpha = lerp(
-                    start = 0.5f,
-                    stop = 1f,
-                    fraction = 1f - pageOffset.coerceIn(0f, 1f)
-                )
+                .padding(start = 24.dp, end = 8.dp, top = 8.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "OpenStream",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Black,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = onUpdateClick) {
+                Icon(Icons.Default.SystemUpdate, contentDescription = "Check for updates")
             }
+            IconButton(onClick = onSettingsClick) {
+                Icon(Icons.Default.Settings, contentDescription = "Settings")
+            }
+        }
 
-            if (isTablet) {
-                val carouselHeight = (configuration.screenHeightDp * 0.7f).dp
-                HeroAnimeCard(
-                    anime = animeList[page],
-                    onClick = { onAnimeClick(animeList[page].id) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(carouselHeight)
-                        .then(graphicsModifier)
-                )
-            } else {
-                AnimeCard(
-                    anime = animeList[page],
-                    onClick = { onAnimeClick(animeList[page].id) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(0.7f)
-                        .then(graphicsModifier)
+        if (items.isNotEmpty()) {
+            HorizontalCenteredHeroCarousel(
+                state = rememberCarouselState { items.size },
+                itemSpacing = 8.dp,
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(480.dp)
+            ) { index ->
+                HeroCard(
+                    anime = items[index],
+                    rank = index + 1,
+                    onClick = { onOpen(items[index]) }
                 )
             }
         }
     }
 }
 
+/** 0 for a sliver at the carousel's edge, 1 for the focused card; used to fade text in. */
+@OptIn(ExperimentalMaterial3Api::class)
+private val CarouselItemScope.focus: Float
+    get() {
+        val info = carouselItemDrawInfo
+        return if (info.maxSize > info.minSize) {
+            ((info.size - info.minSize) / (info.maxSize - info.minSize)).coerceIn(0f, 1f)
+        } else {
+            1f
+        }
+    }
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HeroAnimeCard(
+private fun CarouselItemScope.HeroCard(
     anime: AnimeDto,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    rank: Int,
+    onClick: () -> Unit
 ) {
     Box(
-        modifier = modifier
-            .clip(ExpressiveShapes.large)
+        modifier = Modifier
+            .fillMaxSize()
+            .maskClip(ExpressiveShapes.extraLarge)
             .clickable(onClick = onClick)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        val imageUrl = if (anime.backdropPath != null) {
-            "https://image.tmdb.org/t/p/w780${anime.backdropPath}"
-        } else {
-            "https://image.tmdb.org/t/p/w500${anime.posterPath}"
-        }
-        
         AsyncImage(
-            model = imageUrl,
+            model = "https://image.tmdb.org/t/p/w780${anime.posterPath}",
             contentDescription = anime.name,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
         )
-        
-        // Dark gradient overlay from bottom to top
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.2f),
-                            Color.Black.copy(alpha = 0.85f)
-                        )
+                    Brush.verticalGradient(
+                        0.45f to Color.Transparent,
+                        1f to Color.Black.copy(alpha = 0.88f)
                     )
                 )
         )
-        
-        // Text info overlay
+        // Text only belongs on the focused card; the side cards are slivers of artwork.
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(16.dp)
+                .padding(20.dp)
+                .graphicsLayer { alpha = focus * focus },
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            val typeText = if (anime.mediaType == "movie") "Movie" else "TV Show"
-            val ratingText = if (anime.voteAverage != null && anime.voteAverage > 0) "・ ★ ${String.format("%.1f", anime.voteAverage)}" else ""
-            Text(
-                text = "${typeText} $ratingText",
-                style = MaterialTheme.typography.labelMedium,
-                color = Color.White.copy(alpha = 0.8f),
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-            
+            Surface(
+                shape = ExpressiveShapes.small,
+                color = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ) {
+                Text(
+                    text = "#$rank this week",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                )
+            }
             Text(
                 text = anime.name,
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Black,
                 color = Color.White,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+            MetaLine(anime)
         }
     }
 }
 
 @Composable
-fun SectionHeader(title: String, topPadding: androidx.compose.ui.unit.Dp = 32.dp) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.headlineSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 24.dp, top = topPadding, bottom = 16.dp)
-    )
+private fun MetaLine(anime: AnimeDto) {
+    val parts = buildList {
+        anime.date.take(4).takeIf { it.length == 4 }?.let(::add)
+        if (anime.isMovie) add("Movie")
+        anime.genreIds.orEmpty().mapNotNull(GENRE_NAMES::get).firstOrNull { it != "Animation" }?.let(::add)
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        anime.voteAverage?.takeIf { it > 0 }?.let { rating ->
+            Icon(
+                Icons.Default.Star,
+                contentDescription = null,
+                tint = Color(0xFFFFC857),
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = String.format(Locale.US, " %.1f", rating) + if (parts.isNotEmpty()) "  ·  " else "",
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.White
+            )
+        }
+        Text(
+            text = parts.joinToString("  ·  "),
+            style = MaterialTheme.typography.labelLarge,
+            color = Color.White.copy(alpha = 0.8f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
 }
 
+// endregion
+
+// region Rails
+
 @Composable
-fun HorizontalAnimeList(
-    animeList: List<AnimeDto>,
-    onAnimeClick: (Int) -> Unit
-) {
+private fun RankedRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit) {
+    val numeralStyle = TextStyle(
+        fontSize = 132.sp,
+        fontWeight = FontWeight.Black,
+        drawStyle = Stroke(width = 6f)
+    )
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        items(animeList, key = { it.id }) { anime ->
-            Box(modifier = Modifier.width(140.dp)) {
-                AnimeCard(
-                    anime = anime,
-                    onClick = { onAnimeClick(anime.id) },
-                    modifier = Modifier.fillMaxWidth()
+        itemsIndexed(items, key = { _, anime -> anime.id }) { index, anime ->
+            Box(modifier = Modifier.size(width = 184.dp, height = 214.dp)) {
+                Text(
+                    text = "${index + 1}",
+                    style = numeralStyle,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .offset(y = 28.dp)
+                )
+                AsyncImage(
+                    model = "https://image.tmdb.org/t/p/w342${anime.posterPath}",
+                    contentDescription = anime.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .width(136.dp)
+                        .aspectRatio(0.68f)
+                        .clip(ExpressiveShapes.medium)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                        .clickable { onOpen(anime) }
                 )
             }
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LandscapeRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit) {
+    HorizontalMultiBrowseCarousel(
+        state = rememberCarouselState { items.size },
+        preferredItemWidth = 300.dp,
+        itemSpacing = 8.dp,
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(188.dp)
+    ) { index ->
+        val anime = items[index]
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .maskClip(ExpressiveShapes.large)
+                .clickable { onOpen(anime) }
+        ) {
+            AsyncImage(
+                model = "https://image.tmdb.org/t/p/w780${anime.backdropPath}",
+                contentDescription = anime.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.8f)))
+            )
+            Text(
+                text = anime.name,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(14.dp)
+                    .graphicsLayer { alpha = focus }
+            )
+        }
+    }
+}
+
+@Composable
+private fun PosterRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        itemsIndexed(items, key = { _, anime -> anime.id }) { _, anime ->
+            Column(
+                modifier = Modifier
+                    .width(132.dp)
+                    .clip(ExpressiveShapes.medium)
+                    .clickable { onOpen(anime) }
+            ) {
+                AsyncImage(
+                    model = "https://image.tmdb.org/t/p/w342${anime.posterPath}",
+                    contentDescription = anime.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(0.68f)
+                        .clip(ExpressiveShapes.medium)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                )
+                Text(
+                    text = anime.name,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 8.dp, start = 2.dp, end = 2.dp)
+                )
+            }
+        }
+    }
+}
+
+// endregion
+
+@Composable
+fun SectionHeader(title: String, topPadding: Dp = 28.dp) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.headlineSmall,
+        fontWeight = FontWeight.Black,
+        color = MaterialTheme.colorScheme.onBackground,
+        modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = topPadding, bottom = 14.dp)
+    )
+}
+
+@Composable
+private fun HomeError(onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "Couldn't reach the catalog",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = "Check your connection and try again.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(onClick = onRetry, shape = ExpressiveShapes.medium) {
+            Text("Try again")
+        }
+    }
+}
+
+/** TMDB genre ids that anime titles use (the TV and movie lists share most of them). */
+private val GENRE_NAMES = mapOf(
+    16 to "Animation",
+    10759 to "Action & Adventure",
+    28 to "Action",
+    12 to "Adventure",
+    35 to "Comedy",
+    18 to "Drama",
+    10765 to "Sci-Fi & Fantasy",
+    14 to "Fantasy",
+    878 to "Sci-Fi",
+    9648 to "Mystery",
+    10749 to "Romance",
+    80 to "Crime",
+    27 to "Horror",
+    53 to "Thriller",
+    10751 to "Family",
+    10762 to "Kids",
+    36 to "History",
+    10402 to "Music"
+)

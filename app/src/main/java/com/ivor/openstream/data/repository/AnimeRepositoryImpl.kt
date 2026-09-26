@@ -10,6 +10,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import com.ivor.openstream.domain.model.AnimeCatalog
+import kotlinx.coroutines.awaitAll
+import java.time.LocalDate
 import javax.inject.Inject
 
 class AnimeRepositoryImpl @Inject constructor(
@@ -34,6 +37,49 @@ class AnimeRepositoryImpl @Inject constructor(
 
     override suspend fun getAiringTodayAnime(page: Int): Result<List<AnimeDto>> = runCatching {
         api.getAiringTodayAnime(page).results
+    }
+
+    override suspend fun getCatalog(catalog: AnimeCatalog): Result<List<AnimeDto>> = runCatching {
+        val today = LocalDate.now()
+        val anime = mapOf(
+            "with_genres" to "16",
+            "with_original_language" to "ja",
+            "include_adult" to "false"
+        )
+        val results = when (catalog) {
+            AnimeCatalog.TRENDING -> coroutineScope {
+                // TMDB's trending feed cannot be filtered server-side, so read a few pages and keep anime.
+                (1..3).map { page -> async { api.getTrendingAnime("week", page).results } }
+                    .awaitAll()
+                    .flatten()
+                    .filter { it.originalLanguage == "ja" && it.genreIds.orEmpty().contains(ANIMATION_GENRE) }
+            }.ifEmpty { api.discoverTvWith(anime + ("sort_by" to "popularity.desc")).results }
+            AnimeCatalog.AIRING_NOW -> api.discoverTvWith(
+                anime + mapOf(
+                    "sort_by" to "popularity.desc",
+                    "air_date.gte" to today.minusDays(6).toString(),
+                    "air_date.lte" to today.plusDays(1).toString(),
+                    "vote_count.gte" to "10"
+                )
+            ).results
+            AnimeCatalog.NEW_THIS_SEASON -> api.discoverTvWith(
+                anime + mapOf(
+                    "sort_by" to "popularity.desc",
+                    "first_air_date.gte" to today.minusMonths(4).toString(),
+                    "first_air_date.lte" to today.toString()
+                )
+            ).results
+            AnimeCatalog.TOP_RATED -> api.discoverTvWith(
+                anime + mapOf("sort_by" to "vote_average.desc", "vote_count.gte" to "800")
+            ).results
+            AnimeCatalog.POPULAR -> api.discoverTvWith(
+                anime + mapOf("sort_by" to "popularity.desc", "vote_count.gte" to "200")
+            ).results
+            AnimeCatalog.MOVIES -> api.discoverMovieWith(
+                anime + mapOf("sort_by" to "popularity.desc", "vote_count.gte" to "100")
+            ).results.map { it.copy(mediaType = "movie") }
+        }
+        results.filter { it.posterPath != null }.distinctBy { it.id }
     }
 
     override suspend fun searchAnime(
@@ -103,5 +149,9 @@ class AnimeRepositoryImpl @Inject constructor(
 
     override suspend fun clearWatchHistory() {
         sharedPreferences.edit().remove(HISTORY_KEY).apply()
+    }
+
+    private companion object {
+        const val ANIMATION_GENRE = 16
     }
 }

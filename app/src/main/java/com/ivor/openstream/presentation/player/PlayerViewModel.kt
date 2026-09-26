@@ -3,7 +3,6 @@ package com.ivor.openstream.presentation.player
 import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.media3.datasource.cache.Cache
 import com.ivor.openstream.data.local.entity.DownloadEntity
 import com.ivor.openstream.data.remote.SubtitleApi
 import com.ivor.openstream.data.remote.TmdbApi
@@ -11,6 +10,7 @@ import com.ivor.openstream.data.remote.model.AnimeDetailsDto
 import com.ivor.openstream.data.remote.model.EpisodeDto
 import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.data.remote.model.toAnimeDto
+import com.ivor.openstream.domain.model.DownloadTarget
 import com.ivor.openstream.domain.model.MediaIdentity
 import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.domain.model.WatchProgress
@@ -40,13 +40,15 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import java.time.LocalDate
+import androidx.media3.exoplayer.ExoPlayer
+import com.ivor.openstream.presentation.player.session.NowPlaying
+import com.ivor.openstream.presentation.player.session.PlaybackSession
 import javax.inject.Inject
-import kotlin.math.abs
 
 private const val KEY_CAPTION_STYLE = "caption_style"
+private const val KEY_PREFERRED_AUDIO = "preferred_audio_language"
 private const val MAX_AUTOMATIC_FAILOVERS = 3
 private const val STREAM_REFRESH_AGE_MS = 6 * 60 * 60 * 1_000L
-private const val PROGRESS_SAVE_INTERVAL_MS = 10_000L
 
 /** The episode playback continues with, possibly the first episode of the next season. */
 data class NextEpisodeTarget(
@@ -86,10 +88,35 @@ class PlayerViewModel @Inject constructor(
     private val watchProgressRepository: WatchProgressRepository,
     private val sharedPreferences: SharedPreferences,
     private val json: Json,
-    val downloadCache: Cache
+    private val playbackSession: PlaybackSession
 ) : ViewModel() {
+    /** The app-wide player; the screen attaches to it rather than owning one. */
+    val player: ExoPlayer get() = playbackSession.player
+
+    fun applyRequestHeaders(headers: Map<String, String>) = playbackSession.setRequestHeaders(headers)
+
+    private val _mediaUri = MutableStateFlow<Pair<String, String?>?>(null)
+
+    /** The screen reports what it handed to the player (stream URL, plus the download id offline). */
+    fun onMediaLoaded(mediaUri: String, downloadId: String?) {
+        _mediaUri.value = mediaUri to downloadId
+    }
+
+    /** A stream still playing from the mini player that this screen should continue, not reload. */
+    private var adoptedServer: VideoServer? = null
+
+
     private val _captionSettings = MutableStateFlow(loadCaptionSettings())
     val captionSettings: StateFlow<CaptionStyleSettings> = _captionSettings.asStateFlow()
+
+    /** Audio language the user last picked (for example `en` for dubs); applied to new streams. */
+    private val _preferredAudioLanguage = MutableStateFlow(sharedPreferences.getString(KEY_PREFERRED_AUDIO, null))
+    val preferredAudioLanguage: StateFlow<String?> = _preferredAudioLanguage.asStateFlow()
+
+    fun setPreferredAudioLanguage(language: String?) {
+        _preferredAudioLanguage.value = language
+        sharedPreferences.edit().putString(KEY_PREFERRED_AUDIO, language).apply()
+    }
 
     private val _nextEpisodes = MutableStateFlow<List<EpisodeDto>>(emptyList())
     val nextEpisodes = _nextEpisodes.asStateFlow()
@@ -125,8 +152,6 @@ class PlayerViewModel @Inject constructor(
     private val _mediaType = MutableStateFlow("tv")
     private var currentSeason = 1
     private var currentEpisodeNumber = 1
-    private var lastSavedPositionMs = -1L
-    private var completionRecorded = false
     private var currentIdentity: MediaIdentity? = null
     private var loadJob: Job? = null
     private var resolutionJob: Job? = null
@@ -176,15 +201,7 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch { downloadRepository.removeDownload(downloadId) }
     }
 
-    fun downloadVideo(
-        server: VideoServer,
-        title: String,
-        fileName: String,
-        mediaType: String,
-        tmdbId: Int,
-        season: Int,
-        episode: Int
-    ) {
+    fun downloadVideo(server: VideoServer) {
         viewModelScope.launch {
             val details = _mediaDetails.value ?: return@launch
             val currentServer = if (System.currentTimeMillis() - server.resolvedAt > STREAM_REFRESH_AGE_MS) {
@@ -195,20 +212,52 @@ class PlayerViewModel @Inject constructor(
             } else {
                 server
             }
+            val episode = _currentEpisode.value
+            val isMovie = _mediaType.value == "movie"
             runCatching {
-                downloadRepository.downloadVideo(
+                downloadRepository.download(
                     server = currentServer,
-                    title = title,
-                    fileName = fileName,
-                    posterPath = details.posterPath,
-                    mediaType = mediaType,
-                    tmdbId = tmdbId,
-                    season = season,
-                    episode = episode
+                    target = DownloadTarget(
+                        tmdbId = details.id,
+                        mediaType = _mediaType.value,
+                        season = currentSeason,
+                        episode = currentEpisodeNumber,
+                        showTitle = details.name,
+                        episodeTitle = episode?.name.takeUnless { isMovie },
+                        posterPath = details.posterPath,
+                        stillPath = episode?.stillPath ?: details.backdropPath,
+                        year = details.date.take(4).toIntOrNull()
+                    )
                 )
+            }.onSuccess {
+                _playerEvents.tryEmit("Downloading. Find it in Downloads.")
             }.onFailure {
                 _playerEvents.tryEmit(it.message ?: "Download could not be started.")
             }
+        }
+    }
+
+    // Declared after every state flow it reads, so they are initialised when this runs.
+    init {
+        viewModelScope.launch {
+            combine(_mediaDetails, _currentEpisode, _nextEpisode, _activeServer, _mediaUri) { details, episode, next, server, media ->
+                if (details == null || media == null) return@combine null
+                NowPlaying(
+                    mediaType = _mediaType.value,
+                    tmdbId = details.id,
+                    season = currentSeason,
+                    episode = currentEpisodeNumber,
+                    downloadId = media.second,
+                    mediaUri = media.first,
+                    title = details.name,
+                    episodeTitle = episode?.name.takeUnless { _mediaType.value == "movie" },
+                    posterPath = details.posterPath,
+                    backdropPath = details.backdropPath,
+                    stillPath = episode?.stillPath,
+                    next = next,
+                    server = server
+                )
+            }.collect { nowPlaying -> nowPlaying?.let(playbackSession::update) }
         }
     }
 
@@ -224,8 +273,7 @@ class PlayerViewModel @Inject constructor(
         _mediaType.value = mediaType
         currentSeason = seasonNumber
         this.currentEpisodeNumber = currentEpisodeNumber
-        lastSavedPositionMs = -1L
-        completionRecorded = false
+        _mediaUri.value = null
         _startPositionMs.value = null
         _nextEpisode.value = null
         _mediaDetails.value = null
@@ -238,10 +286,19 @@ class PlayerViewModel @Inject constructor(
         automaticFailovers = 0
         backupSourcesSearched = false
 
+        val continuing = playbackSession.nowPlaying.value
+            ?.takeIf { it.matches(mediaType, tmdbId, seasonNumber, currentEpisodeNumber) }
+        adoptedServer = continuing?.server?.takeIf { continuing.downloadId == null }
+        adoptedServer?.let { _activeServer.value = it }
+
         loadJob = viewModelScope.launch {
             launch {
-                val saved = watchProgressRepository.get(mediaType, tmdbId, seasonNumber, currentEpisodeNumber)
-                _startPositionMs.value = saved?.resumePositionMs ?: 0L
+                _startPositionMs.value = if (continuing != null) {
+                    playbackSession.player.currentPosition
+                } else {
+                    watchProgressRepository.get(mediaType, tmdbId, seasonNumber, currentEpisodeNumber)
+                        ?.resumePositionMs ?: 0L
+                }
             }
 
             launch {
@@ -306,67 +363,6 @@ class PlayerViewModel @Inject constructor(
                     _remoteSubtitles.value = subtitles
                 }
             }
-        }
-    }
-
-    /**
-     * Called roughly every second while playing. Writes are throttled; crossing the completion
-     * mark is written once and queues the next episode for Continue Watching.
-     */
-    fun onProgress(positionMs: Long, durationMs: Long) {
-        val details = _mediaDetails.value ?: return
-        if (durationMs <= 0L || positionMs < WatchProgress.MIN_SAVED_POSITION_MS) return
-        val completed = positionMs.toFloat() / durationMs >= WatchProgress.COMPLETION_FRACTION
-        if (completed && completionRecorded) return
-        if (!completed && abs(positionMs - lastSavedPositionMs) < PROGRESS_SAVE_INTERVAL_MS) return
-
-        lastSavedPositionMs = positionMs
-        val episode = _currentEpisode.value
-        watchProgressRepository.record(
-            WatchProgress(
-                tmdbId = details.id,
-                mediaType = _mediaType.value,
-                season = currentSeason,
-                episode = currentEpisodeNumber,
-                title = details.name,
-                episodeTitle = episode?.name,
-                posterPath = details.posterPath,
-                backdropPath = details.backdropPath,
-                stillPath = episode?.stillPath,
-                positionMs = positionMs,
-                durationMs = durationMs,
-                completed = completed
-            )
-        )
-        if (completed) {
-            completionRecorded = true
-            queueNextEpisode()
-        }
-    }
-
-    private fun queueNextEpisode() {
-        val details = _mediaDetails.value ?: return
-        val next = _nextEpisode.value ?: return
-        val mediaType = _mediaType.value
-        viewModelScope.launch {
-            val existing = watchProgressRepository.get(mediaType, details.id, next.season, next.episode)
-            // Never overwrite a finished episode; just surface an unfinished one again.
-            if (existing?.completed == true) return@launch
-            val queuedAt = System.currentTimeMillis() + 1
-            watchProgressRepository.record(
-                existing?.copy(updatedAt = queuedAt) ?: WatchProgress(
-                    tmdbId = details.id,
-                    mediaType = mediaType,
-                    season = next.season,
-                    episode = next.episode,
-                    title = details.name,
-                    episodeTitle = next.title,
-                    posterPath = details.posterPath,
-                    backdropPath = details.backdropPath,
-                    stillPath = next.stillPath,
-                    updatedAt = queuedAt
-                )
-            )
         }
     }
 
@@ -446,7 +442,11 @@ class PlayerViewModel @Inject constructor(
         resolutionJob?.cancel()
         resolutionJob = viewModelScope.launch {
             streamingRepository.resolveServers(identity, includeFallbacks).collect { progress ->
-                val healthyServers = progress.servers.filterNot { it.id in failedServerIds }
+                // Keep the stream the mini player is already playing at the top of the list.
+                val candidates = adoptedServer?.let { adopted ->
+                    listOf(adopted) + progress.servers.filterNot { it.id == adopted.id }
+                } ?: progress.servers
+                val healthyServers = candidates.filterNot { it.id in failedServerIds }
                 val active = _activeServer.value?.takeIf { current ->
                     healthyServers.any { it.id == current.id }
                 } ?: healthyServers.firstOrNull()

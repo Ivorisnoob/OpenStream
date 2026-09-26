@@ -99,7 +99,10 @@ fun ExoPlayerView(
     videoUrl: String,
     title: String,
     requestHeaders: Map<String, String>,
-    cache: Cache,
+    /** The app-wide player from `PlaybackSession`; this view attaches to it but never releases it. */
+    exoPlayer: ExoPlayer,
+    /** Applies the stream's headers to the shared player's requests before a new item loads. */
+    applyRequestHeaders: (Map<String, String>) -> Unit,
     isFullscreen: Boolean,
     onFullscreenToggle: () -> Unit,
     onBackClick: () -> Unit,
@@ -122,6 +125,10 @@ fun ExoPlayerView(
     onPlaybackSpeedChanged: (Float) -> Unit = {},
     onNextClick: (() -> Unit)? = null,
     captionSettings: CaptionStyleSettings = CaptionStyleSettings(),
+    /** TMDB original language, used to tell original audio from a dub. */
+    originalLanguage: String? = null,
+    preferredAudioLanguage: String? = null,
+    onAudioLanguageChosen: (String?) -> Unit = {},
     onCaptionSettingsChange: (CaptionStyleSettings) -> Unit = {},
     onPlaybackError: () -> Unit = {},
     onPlaybackReady: () -> Unit = {}
@@ -136,37 +143,11 @@ fun ExoPlayerView(
         ctx as? android.app.Activity
     }
 
-    val trackSelector = remember {
-        DefaultTrackSelector(context).apply {
-            parameters = buildUponParameters()
-                .setPreferredTextLanguage("en")
-                .setSelectUndeterminedTextLanguage(true)
-                .build()
-        }
-    }
-
-    val dataSourceFactory = remember(requestHeaders, cache) {
-        val httpFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent(BROWSER_USER_AGENT)
-            .setDefaultRequestProperties(requestHeaders)
-        val upstreamFactory = DefaultDataSource.Factory(context, httpFactory)
-        CacheDataSource.Factory()
-            .setCache(cache)
-            .setUpstreamDataSourceFactory(upstreamFactory)
-            .setCacheWriteDataSinkFactory(null)
-            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
-    }
-
-    val exoPlayer = remember(dataSourceFactory) {
-        val mediaSourceFactory = DefaultMediaSourceFactory(context)
-            .setDataSourceFactory(dataSourceFactory)
-
-        ExoPlayer.Builder(context)
-            .setMediaSourceFactory(mediaSourceFactory)
-            .setTrackSelector(trackSelector)
-            .build().apply {
-                playWhenReady = true
-            }
+    LaunchedEffect(preferredAudioLanguage) {
+        exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+            .buildUpon()
+            .setPreferredAudioLanguage(preferredAudioLanguage)
+            .build()
     }
 
     // Player State
@@ -187,6 +168,7 @@ fun ExoPlayerView(
     var selectedQuality by remember { mutableStateOf<QualityOption?>(null) }
     var activeVideoHeight by remember { mutableIntStateOf(0) }
     var subtitleOptions by remember { mutableStateOf<List<SubtitleOption>>(emptyList()) }
+    var audioOptions by remember { mutableStateOf<List<AudioOption>>(emptyList()) }
     var selectedSubtitle by remember { mutableStateOf<SubtitleOption?>(null) }
 
     // Subtitle rendering state -- rendered in Compose, not PlayerView
@@ -275,6 +257,7 @@ fun ExoPlayerView(
     fun parseTracksFromPlayer(tracks: Tracks) {
         val qualities = mutableListOf<QualityOption>()
         val subtitles = mutableListOf<SubtitleOption>()
+        val audios = mutableListOf<AudioOption>()
 
         // Always add Auto as the first quality option
         qualities.add(QualityOption(label = "Auto", width = 0, height = 0, isAuto = true))
@@ -301,6 +284,42 @@ fun ExoPlayerView(
                                 )
                             }
                         }
+                    }
+                }
+
+                C.TRACK_TYPE_AUDIO -> {
+                    for (trackIndex in 0 until group.length) {
+                        if (!group.isTrackSupported(trackIndex)) continue
+                        val format = group.getTrackFormat(trackIndex)
+                        Log.d(
+                            "PlayerAudio",
+                            "track g=$groupIndex t=$trackIndex id=${format.id} lang=${format.language} " +
+                                "label=${format.label} channels=${format.channelCount} codecs=${format.codecs}"
+                        )
+                        // MPEG-TS language descriptors are often filler bytes (e.g. "```"); only
+                        // trust codes Android recognises as a real language.
+                        val languageName = format.language?.let(::displayLanguageOrNull)
+                        val language = format.language.takeIf { languageName != null }
+                        val channels = when (format.channelCount) {
+                            1 -> "Mono"
+                            2 -> "Stereo"
+                            6 -> "5.1"
+                            8 -> "7.1"
+                            else -> null
+                        }
+                        audios += AudioOption(
+                            label = languageName
+                                ?: format.label?.takeIf { it.any(Char::isLetter) }
+                                ?: if (group.length == 1 && audios.isEmpty()) "Default" else "Track ${audios.size + 1}",
+                            language = language,
+                            groupIndex = groupIndex,
+                            trackIndex = trackIndex,
+                            detail = listOfNotNull(
+                                format.label?.takeIf { languageName != null && it != languageName },
+                                channels
+                            ).joinToString(" · ").ifEmpty { null },
+                            isSelected = group.isTrackSelected(trackIndex)
+                        )
                     }
                 }
 
@@ -360,6 +379,10 @@ fun ExoPlayerView(
         // Sort qualities by height descending (Auto stays first)
         qualityOptions = listOf(qualities.first()) + qualities.drop(1).sortedByDescending { it.height }
         subtitleOptions = subtitles
+        // One row per language/label pair; HLS often repeats a language per bitrate rendition.
+        audioOptions = audios
+            .groupBy { it.label to it.detail }
+            .map { (_, same) -> same.firstOrNull { it.isSelected } ?: same.first() }
 
         // If no quality was explicitly selected, stay on Auto
         if (selectedQuality == null) {
@@ -412,6 +435,7 @@ fun ExoPlayerView(
 
         // CASE 1: Video URL changed (Episode switch) -> Full Reset
         if (currentUri != newUri) {
+            applyRequestHeaders(requestHeaders)
             val mediaItemBuilder = MediaItem.Builder().setUri(videoUrl)
             val configs = buildSubtitleConfigs(remoteSubtitles)
             if (configs.isNotEmpty()) {
@@ -586,6 +610,10 @@ fun ExoPlayerView(
             }
         }
         exoPlayer.addListener(listener)
+        // Re-attaching to a stream that kept playing (from the mini player): pick up its state.
+        isPlaying = exoPlayer.isPlaying
+        if (exoPlayer.playbackState == Player.STATE_READY) isBuffering = false
+        parseTracksFromPlayer(exoPlayer.currentTracks)
         onDispose {
             latestPositionChanged(exoPlayer.currentPosition.coerceAtLeast(0L))
             latestProgressChanged(
@@ -593,7 +621,6 @@ fun ExoPlayerView(
                 exoPlayer.duration.coerceAtLeast(0L)
             )
             exoPlayer.removeListener(listener)
-            exoPlayer.release()
         }
     }
 
@@ -665,6 +692,8 @@ fun ExoPlayerView(
                     subtitleView?.visibility = android.view.View.GONE
                 }
             },
+            // Hand the video surface back so the mini player can take it over.
+            onRelease = { view -> view.player = null },
             modifier = Modifier.fillMaxSize()
         )
 
@@ -900,7 +929,9 @@ fun ExoPlayerView(
                 subtitleOptions = subtitleOptions,
                 selectedSubtitle = selectedSubtitle,
                 subtitleLoadingState = subtitleLoadingState,
-                captionSettings = captionSettings
+                captionSettings = captionSettings,
+                audioOptions = audioOptions,
+                originalLanguage = originalLanguage
             ),
             actions = PlayerSettingsActions(
                 sources = sourceActions,
@@ -969,7 +1000,23 @@ fun ExoPlayerView(
                 }
                 exoPlayer.play()
                 },
-                onCaptionSettingsChange = onCaptionSettingsChange
+                onCaptionSettingsChange = onCaptionSettingsChange,
+                onAudioSelected = { option ->
+                    val tracks = exoPlayer.currentTracks
+                    if (option.groupIndex < tracks.groups.size) {
+                        exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                            .buildUpon()
+                            .setPreferredAudioLanguage(option.language)
+                            .setOverrideForType(
+                                TrackSelectionOverride(
+                                    tracks.groups[option.groupIndex].mediaTrackGroup,
+                                    listOf(option.trackIndex)
+                                )
+                            )
+                            .build()
+                    }
+                    onAudioLanguageChosen(option.language)
+                }
             )
         )
     }
@@ -1119,4 +1166,13 @@ private fun parseTimestamp(ts: String): Long {
     } else 0L
     
     return (h * 3600 + m * 60 + s) * 1000 + ms
+}
+
+/** English name for a real ISO 639 code (`ja`, `jpn`, `pt-BR`), or null for junk and `und`. */
+private fun displayLanguageOrNull(code: String): String? {
+    val normalized = code.trim().replace('_', '-')
+    if (!Regex("^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$").matches(normalized)) return null
+    if (normalized.equals("und", ignoreCase = true)) return null
+    val name = java.util.Locale.forLanguageTag(normalized).getDisplayLanguage(java.util.Locale.ENGLISH)
+    return name.takeIf { it.isNotBlank() && !it.equals(normalized, ignoreCase = true) }
 }

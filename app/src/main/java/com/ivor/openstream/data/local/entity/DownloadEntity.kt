@@ -23,5 +23,13 @@ data class DownloadEntity(
     val serverId: String? = null,
     val serverName: String? = null,
     val requestHeadersJson: String? = null,
-    val resolvedAt: Long? = null
-)
+    val resolvedAt: Long? = null,
+    /** Series or movie name; [title] is kept for rows written by older builds. */
+    val showTitle: String? = null,
+    val episodeTitle: String? = null,
+    val stillPath: String? = null,
+    val year: Int? = null,
+    val errorMessage: String? = null
+) {
+    val displayTitle: String get() = showTitle ?: title
+}

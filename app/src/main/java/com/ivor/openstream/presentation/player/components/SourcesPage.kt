@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.ivor.openstream.domain.model.StreamAudio
 import com.ivor.openstream.domain.model.StreamQuality
 import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.presentation.player.ServersState
@@ -77,8 +78,14 @@ fun SourcesPanel(
     }
 }
 
+/** Quality and audio filters for the Sources list, kept across page switches. */
+class SourceFilter(val quality: MutableState<String?>, val audio: MutableState<StreamAudio?>)
+
 @Composable
-fun rememberSourceFilter(): MutableState<String?> = rememberSaveable { mutableStateOf(null) }
+fun rememberSourceFilter(): SourceFilter = SourceFilter(
+    quality = rememberSaveable { mutableStateOf(null) },
+    audio = rememberSaveable { mutableStateOf(null) }
+)
 
 @Composable
 fun SourcesRefreshAction(state: ServersState, onRetry: () -> Unit) {
@@ -105,7 +112,7 @@ fun sourcesStatus(state: ServersState): String {
 /** The list itself, shared by the settings page and the standalone panel. */
 fun LazyListScope.sourcesPage(
     state: ServersState,
-    filter: MutableState<String?>,
+    filter: SourceFilter,
     actions: SourcesPageActions
 ) {
     val servers = state.availableServers
@@ -114,8 +121,13 @@ fun LazyListScope.sourcesPage(
         .map { it.quality.filterLabel() }
         .distinct()
         .sortedWith(compareByDescending<String> { qualityRank(it) }.thenBy { it })
-    val selectedFilter = filter.value?.takeIf { it in qualityFilters }
-    val visibleServers = selectedFilter?.let { f -> servers.filter { it.quality.filterLabel() == f } } ?: servers
+    val selectedFilter = filter.quality.value?.takeIf { it in qualityFilters }
+    // Only offer audio filters when sources actually disagree, e.g. some Sub and some Dub.
+    val audioFilters = servers.map { it.audio }.filter { it != StreamAudio.UNKNOWN }.distinct().sortedByDescending { it.rank }
+    val selectedAudio = filter.audio.value?.takeIf { it in audioFilters && audioFilters.size > 1 }
+    val visibleServers = servers
+        .filter { selectedFilter == null || it.quality.filterLabel() == selectedFilter }
+        .filter { selectedAudio == null || it.audio == selectedAudio }
 
     if (state is ServersState.Resolving) {
         item(key = "resolving") {
@@ -139,6 +151,34 @@ fun LazyListScope.sourcesPage(
         }
     }
 
+    if (audioFilters.size > 1) {
+        item(key = "audio-filters") {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+            ) {
+                item {
+                    FilterChip(
+                        selected = selectedAudio == null,
+                        onClick = { filter.audio.value = null },
+                        label = { Text("Any audio") },
+                        shape = ExpressiveShapes.small
+                    )
+                }
+                items(audioFilters, key = { it.name }) { audio ->
+                    FilterChip(
+                        selected = selectedAudio == audio,
+                        onClick = { filter.audio.value = audio },
+                        label = { Text(audio.label) },
+                        shape = ExpressiveShapes.small
+                    )
+                }
+            }
+        }
+    }
+
     if (qualityFilters.size > 1) {
         item(key = "filters") {
             LazyRow(
@@ -150,7 +190,7 @@ fun LazyListScope.sourcesPage(
                 item {
                     FilterChip(
                         selected = selectedFilter == null,
-                        onClick = { filter.value = null },
+                        onClick = { filter.quality.value = null },
                         label = { Text("All") },
                         shape = ExpressiveShapes.small
                     )
@@ -158,7 +198,7 @@ fun LazyListScope.sourcesPage(
                 items(qualityFilters, key = { it }) { quality ->
                     FilterChip(
                         selected = selectedFilter == quality,
-                        onClick = { filter.value = quality },
+                        onClick = { filter.quality.value = quality },
                         label = { Text(quality) },
                         shape = ExpressiveShapes.small
                     )
@@ -185,6 +225,19 @@ fun LazyListScope.sourcesPage(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp)
+            )
+        }
+    }
+
+    // Backup (web) sources only run on demand; they are slower but often carry subtitles.
+    if (servers.isNotEmpty() && state is ServersState.Ready) {
+        item(key = "more-sources") {
+            PanelNotice(
+                title = "Missing subtitles or a dub?",
+                body = "Search the backup sources too. It takes a little longer.",
+                actionLabel = "Find more",
+                onAction = actions.onRetry,
+                modifier = Modifier.padding(top = 8.dp)
             )
         }
     }

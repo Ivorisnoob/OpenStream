@@ -1,238 +1,361 @@
 package com.ivor.openstream.data.repository
 
-import android.app.DownloadManager
 import android.content.Context
 import android.net.Uri
-import android.os.Environment
-import androidx.media3.common.C
-import androidx.media3.common.MediaItem
+import android.util.Log
+import androidx.annotation.OptIn
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.offline.Download
+import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
 import com.ivor.openstream.data.local.dao.DownloadDao
 import com.ivor.openstream.data.local.entity.DownloadEntity
 import com.ivor.openstream.data.service.HlsDownloadService
-import com.ivor.openstream.data.streaming.BROWSER_USER_AGENT
 import com.ivor.openstream.data.streaming.DownloadRequestHeaderStore
-import com.ivor.openstream.domain.repository.DownloadRepository
+import com.ivor.openstream.domain.model.DownloadStatus
+import com.ivor.openstream.domain.model.DownloadTarget
 import com.ivor.openstream.domain.model.VideoServer
+import com.ivor.openstream.domain.repository.DownloadRepository
+import com.ivor.openstream.domain.repository.StreamingRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
+import javax.inject.Named
 import javax.inject.Singleton
+import android.app.DownloadManager as SystemDownloadManager
 
+/**
+ * Every download goes through Media3's [DownloadManager]: HLS and progressive MP4 alike, so there is
+ * one queue, one notification and one source of progress. Offline playback reads the same cache.
+ *
+ * Rows written by older builds (ids starting with `hls_`, or numeric Android DownloadManager ids)
+ * keep working for playback and removal.
+ */
+@OptIn(UnstableApi::class)
 @Singleton
 class DownloadRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val dao: DownloadDao,
-    private val media3DownloadManager: androidx.media3.exoplayer.offline.DownloadManager,
+    private val media3: DownloadManager,
     private val headerStore: DownloadRequestHeaderStore,
+    private val streamingRepository: StreamingRepository,
+    @Named("StreamingClient") private val client: OkHttpClient,
     private val json: Json
 ) : DownloadRepository {
 
-    private val systemDownloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-
-    override fun getAllDownloads(): Flow<List<DownloadEntity>> {
-        return dao.getAllDownloads()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val resolutionJobs = ConcurrentHashMap<String, Job>()
+    private val resolutionSlots = Semaphore(MAX_PARALLEL_RESOLUTIONS)
+    private val systemDownloads by lazy {
+        context.getSystemService(Context.DOWNLOAD_SERVICE) as SystemDownloadManager
     }
 
-    override suspend fun downloadVideo(
-        server: VideoServer,
-        title: String,
-        fileName: String,
-        posterPath: String?,
-        mediaType: String,
-        tmdbId: Int,
-        season: Int,
-        episode: Int
-    ): String {
+    init {
+        // Media3 calls listeners on the thread that created the manager (the main thread).
+        media3.addListener(object : DownloadManager.Listener {
+            override fun onDownloadChanged(manager: DownloadManager, download: Download, finalException: Exception?) {
+                scope.launch { writeProgress(download, finalException) }
+            }
+        })
+        scope.launch(Dispatchers.Main) { trackProgress() }
+        scope.launch { recoverInterruptedResolutions() }
+    }
+
+    override fun getAllDownloads(): Flow<List<DownloadEntity>> = dao.getAllDownloads()
+
+    override fun getDownloadByContent(tmdbId: Int, season: Int, episode: Int, mediaType: String): Flow<DownloadEntity?> =
+        dao.getDownloadByContent(tmdbId, season, episode, mediaType)
+
+    override fun getDownloadsForTitle(tmdbId: Int, mediaType: String): Flow<List<DownloadEntity>> =
+        dao.getDownloadsForTitle(tmdbId, mediaType)
+
+    override suspend fun download(server: VideoServer, target: DownloadTarget) {
         check(server.isDownloadable) { "${server.name} does not support downloads" }
-        return if (server.url.contains(".m3u8") || server.url.contains("/manifest")) {
-            downloadHls(server, title, posterPath, mediaType, tmdbId, season, episode)
-        } else {
-            downloadSystem(server, title, fileName, posterPath, mediaType, tmdbId, season, episode)
+        resolutionJobs.remove(target.id)?.cancel()
+        start(server, target)
+    }
+
+    override fun enqueue(targets: List<DownloadTarget>) {
+        targets.forEach { target ->
+            scope.launch {
+                val existing = dao.getDownloadById(target.id)
+                if (existing != null && (existing.status == DownloadStatus.COMPLETED || DownloadStatus.isActive(existing.status))) {
+                    return@launch
+                }
+                dao.insertDownload(placeholder(target))
+                resolveAndStart(target)
+            }
         }
     }
 
-    private suspend fun downloadSystem(server: VideoServer, title: String, fileName: String, posterPath: String?, mediaType: String, tmdbId: Int, season: Int, episode: Int): String {
-        val request = DownloadManager.Request(Uri.parse(server.url))
-            .setTitle(title)
-            .setDescription("Downloading $title")
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "OpenStream/$fileName")
-            .setAllowedOverMetered(true)
-            .setAllowedOverRoaming(true)
-        val requestHeaders = if (server.headers.keys.none { it.equals("User-Agent", true) }) {
-            server.headers + ("User-Agent" to BROWSER_USER_AGENT)
-        } else {
-            server.headers
-        }
-        requestHeaders.forEach { (name, value) -> request.addRequestHeader(name, value) }
-
-        val id = systemDownloadManager.enqueue(request).toString()
-        val entity = DownloadEntity(
-            downloadId = id,
-            tmdbId = tmdbId,
-            title = title,
-            posterPath = posterPath,
-            mediaType = mediaType,
-            season = season,
-            episode = episode,
-            uri = server.url,
-            status = DownloadManager.STATUS_PENDING,
-            progress = 0,
-            providerId = server.providerId,
-            serverId = server.id,
-            serverName = server.name,
-            requestHeadersJson = json.encodeToString(server.headers),
-            resolvedAt = server.resolvedAt
-        )
-        dao.insertDownload(entity)
-        return id
+    override fun pause(downloadId: String) {
+        if (!isMedia3(downloadId)) return
+        DownloadService.sendSetStopReason(context, HlsDownloadService::class.java, downloadId, STOP_REASON_PAUSED, false)
     }
 
-    private suspend fun downloadHls(server: VideoServer, title: String, posterPath: String?, mediaType: String, tmdbId: Int, season: Int, episode: Int): String {
-        val id = "hls_${tmdbId}_${season}_${episode}_${server.id.hashCode()}"
-        headerStore.register(server.url, server.headers)
-        
-        val downloadRequest = DownloadRequest.Builder(id, Uri.parse(server.url))
-            .setMimeType(MimeTypes.APPLICATION_M3U8)
-            .build()
+    override fun resume(downloadId: String) {
+        if (!isMedia3(downloadId)) return
+        DownloadService.sendSetStopReason(context, HlsDownloadService::class.java, downloadId, Download.STOP_REASON_NONE, false)
+    }
 
-        DownloadService.sendAddDownload(
-            context,
-            HlsDownloadService::class.java,
-            downloadRequest,
-            /* foreground= */ true
-        )
-
-        val entity = DownloadEntity(
-            downloadId = id,
-            tmdbId = tmdbId,
-            title = title,
-            posterPath = posterPath,
-            mediaType = mediaType,
-            season = season,
-            episode = episode,
-            uri = server.url,
-            status = DownloadManager.STATUS_PENDING,
-            progress = 0,
-            providerId = server.providerId,
-            serverId = server.id,
-            serverName = server.name,
-            requestHeadersJson = json.encodeToString(server.headers),
-            resolvedAt = server.resolvedAt
-        )
-        dao.insertDownload(entity)
-        return id
+    override fun retry(downloadId: String) {
+        scope.launch {
+            val entity = dao.getDownloadById(downloadId) ?: return@launch
+            val target = entity.toTarget()
+            if (downloadId != target.id) removeDownload(downloadId)
+            removeFromMedia3(target.id)
+            dao.insertDownload(placeholder(target))
+            resolveAndStart(target)
+        }
     }
 
     override suspend fun removeDownload(downloadId: String) {
-        if (downloadId.startsWith("hls_")) {
-            DownloadService.sendRemoveDownload(
-                context,
-                HlsDownloadService::class.java,
-                downloadId,
-                false
-            )
+        resolutionJobs.remove(downloadId)?.cancel()
+        if (isMedia3(downloadId)) {
+            removeFromMedia3(downloadId)
         } else {
-            try {
-                systemDownloadManager.remove(downloadId.toLong())
-            } catch (e: Exception) {}
+            runCatching { systemDownloads.remove(downloadId.toLong()) }
         }
         dao.deleteDownloadById(downloadId)
     }
 
-    override suspend fun updateDownloadStatus(downloadId: String, status: Int, progress: Int, downloadedBytes: Long, totalBytes: Long) {
-        val existing = dao.getDownloadById(downloadId)
-        if (existing != null) {
-            dao.insertDownload(existing.copy(
-                status = status, 
-                progress = progress,
-                downloadedBytes = downloadedBytes,
-                totalBytes = totalBytes
-            ))
-        }
-    }
-
     override suspend fun getPlaybackUri(downloadId: String): String? {
         val entity = dao.getDownloadById(downloadId) ?: return null
-        
-        return if (downloadId.startsWith("hls_")) {
-            // For HLS, we return the original URI. 
-            // The player will use the CacheDataSource to play from downloaded segments.
-            entity.uri
-        } else {
-            // For system downloads, get the local content URI
-            try {
-                systemDownloadManager.getUriForDownloadedFile(downloadId.toLong())?.toString() ?: entity.uri
-            } catch (e: Exception) {
-                entity.uri
+        if (isMedia3(downloadId)) return entity.uri // Served from the download cache.
+        return runCatching { systemDownloads.getUriForDownloadedFile(downloadId.toLong())?.toString() }
+            .getOrNull() ?: entity.uri
+    }
+
+    // region Starting downloads
+
+    private fun resolveAndStart(target: DownloadTarget) {
+        resolutionJobs.remove(target.id)?.cancel()
+        resolutionJobs[target.id] = scope.launch {
+            resolutionSlots.withPermit {
+                val server = findDownloadableServer(target)
+                if (server == null) {
+                    dao.updateProgress(target.id, DownloadStatus.FAILED, 0, 0, 0, "No downloadable source found")
+                } else {
+                    runCatching { start(server, target) }.onFailure { error ->
+                        dao.updateProgress(target.id, DownloadStatus.FAILED, 0, 0, 0, error.message ?: "Could not start")
+                    }
+                }
+            }
+            resolutionJobs.remove(target.id)
+        }
+    }
+
+    private suspend fun findDownloadableServer(target: DownloadTarget): VideoServer? {
+        var latest = emptyList<VideoServer>()
+        withTimeoutOrNull(RESOLUTION_TIMEOUT_MS) {
+            streamingRepository.resolveServers(target.toIdentity())
+                .onEach { latest = it.servers }
+                .first { it.isComplete }
+        }
+        // Servers arrive ranked best-first.
+        return latest.firstOrNull { it.isDownloadable }
+    }
+
+    private suspend fun start(server: VideoServer, target: DownloadTarget) {
+        val streamUrl = withContext(Dispatchers.IO) { singleRenditionUrl(server) }
+        headerStore.register(streamUrl, server.headers)
+        headerStore.register(server.url, server.headers)
+
+        val request = DownloadRequest.Builder(target.id, Uri.parse(streamUrl))
+            .setMimeType(if (streamUrl.isHls()) MimeTypes.APPLICATION_M3U8 else null)
+            .build()
+
+        dao.insertDownload(
+            placeholder(target).copy(
+                uri = streamUrl,
+                status = DownloadStatus.QUEUED,
+                providerId = server.providerId,
+                serverId = server.id,
+                serverName = server.name,
+                requestHeadersJson = json.encodeToString(server.headers),
+                resolvedAt = server.resolvedAt
+            )
+        )
+        withContext(Dispatchers.Main) {
+            // Replace any older copy so segments from two different links never mix.
+            if (media3.downloadIndex.getDownload(target.id) != null) media3.removeDownload(target.id)
+            val started = runCatching {
+                DownloadService.sendAddDownload(context, HlsDownloadService::class.java, request, true)
+            }.isSuccess
+            // Starting a foreground service from the background is blocked on Android 12+;
+            // the manager still downloads while the app process is alive.
+            if (!started) media3.addDownload(request)
+        }
+    }
+
+    /**
+     * Master playlists list every quality; downloading one would fetch all of them. Pick the best
+     * rendition up to 1080p instead, unless audio lives in separate renditions (then keep the master).
+     */
+    private fun singleRenditionUrl(server: VideoServer): String {
+        if (!server.url.isHls()) return server.url
+        val body = runCatching {
+            client.newCall(
+                Request.Builder()
+                    .url(server.url)
+                    .apply { server.headers.forEach { (name, value) -> header(name, value) } }
+                    .build()
+            ).execute().use { response -> if (response.isSuccessful) response.body?.string() else null }
+        }.getOrNull() ?: return server.url
+
+        if ("#EXT-X-STREAM-INF" !in body) return server.url
+        if (Regex("#EXT-X-MEDIA:[^\\n]*TYPE=AUDIO[^\\n]*URI=").containsMatchIn(body)) return server.url
+
+        val lines = body.lines().map(String::trim)
+        val variants = lines.mapIndexedNotNull { index, line ->
+            if (!line.startsWith("#EXT-X-STREAM-INF")) return@mapIndexedNotNull null
+            val uri = lines.drop(index + 1).firstOrNull { it.isNotEmpty() && !it.startsWith("#") }
+                ?: return@mapIndexedNotNull null
+            val height = Regex("RESOLUTION=\\d+x(\\d+)").find(line)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            val bandwidth = Regex("BANDWIDTH=(\\d+)").find(line)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+            Triple(uri, height, bandwidth)
+        }
+        val chosen = variants.filter { it.second in 1..MAX_DOWNLOAD_HEIGHT }.maxByOrNull { it.second * 10_000_000L + it.third }
+            ?: variants.maxByOrNull { it.third }
+            ?: return server.url
+        return server.url.toHttpUrlOrNull()?.resolve(chosen.first)?.toString() ?: server.url
+    }
+
+    // endregion
+
+    // region Progress
+
+    private suspend fun trackProgress() {
+        var tick = 0
+        while (true) {
+            // Listeners fire on state changes only; byte progress has to be polled while running.
+            media3.currentDownloads
+                .filter { it.state == Download.STATE_DOWNLOADING }
+                .forEach { download -> scope.launch { writeProgress(download, null) } }
+            if (tick++ % 3 == 0) scope.launch { syncLegacySystemDownloads() }
+            delay(PROGRESS_INTERVAL_MS)
+        }
+    }
+
+    private suspend fun writeProgress(download: Download, finalException: Exception?) {
+        val status = when (download.state) {
+            Download.STATE_COMPLETED -> DownloadStatus.COMPLETED
+            Download.STATE_FAILED -> DownloadStatus.FAILED
+            Download.STATE_DOWNLOADING -> DownloadStatus.RUNNING
+            Download.STATE_STOPPED -> DownloadStatus.PAUSED
+            Download.STATE_QUEUED -> if (download.stopReason != Download.STOP_REASON_NONE) DownloadStatus.PAUSED else DownloadStatus.QUEUED
+            else -> DownloadStatus.QUEUED
+        }
+        val progress = when {
+            status == DownloadStatus.COMPLETED -> 100
+            download.percentDownloaded < 0 -> 0
+            else -> download.percentDownloaded.toInt().coerceIn(0, 100)
+        }
+        val error = finalException?.let { "Source stopped responding" }
+            ?: if (status == DownloadStatus.FAILED) "Download failed" else null
+        if (finalException != null) Log.w(TAG, "Download ${download.request.id} failed", finalException)
+        dao.updateProgress(
+            downloadId = download.request.id,
+            status = status,
+            progress = progress,
+            downloadedBytes = download.bytesDownloaded,
+            totalBytes = download.contentLength.coerceAtLeast(0L),
+            errorMessage = error
+        )
+    }
+
+    private suspend fun syncLegacySystemDownloads() {
+        val legacy = dao.getAllDownloads().first().filter { !isMedia3(it.downloadId) }
+        if (legacy.isEmpty()) return
+        val query = SystemDownloadManager.Query().setFilterById(*legacy.map { it.downloadId.toLong() }.toLongArray())
+        runCatching {
+            systemDownloads.query(query).use { cursor ->
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(cursor.getColumnIndexOrThrow(SystemDownloadManager.COLUMN_ID)).toString()
+                    val status = cursor.getInt(cursor.getColumnIndexOrThrow(SystemDownloadManager.COLUMN_STATUS))
+                    val done = cursor.getLong(cursor.getColumnIndexOrThrow(SystemDownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
+                    val total = cursor.getLong(cursor.getColumnIndexOrThrow(SystemDownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+                    val progress = if (total > 0) ((done * 100) / total).toInt() else 0
+                    dao.updateProgress(id, status, progress, done, total, null)
+                }
             }
         }
     }
 
-    suspend fun syncProgress() {
-        val allEntities = dao.getAllDownloads().first()
-        if (allEntities.isEmpty()) return
-
-        // 1. Sync System Downloads
-        val systemIds = allEntities.filter { !it.downloadId.startsWith("hls_") }
-        if (systemIds.isNotEmpty()) {
-            val query = DownloadManager.Query().setFilterById(*systemIds.map { it.downloadId.toLong() }.toLongArray())
-            try {
-                systemDownloadManager.query(query).use { cursor ->
-                    while (cursor.moveToNext()) {
-                        val id = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID)).toString()
-                        val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-                        val downloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
-                        val total = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
-                        val prog = if (total > 0) ((downloaded * 100) / total).toInt() else 0
-                        
-                        updateDownloadStatus(id, status, prog, downloaded, total)
-                    }
-                }
-            } catch (e: Exception) {}
-        }
-
-        // 2. Sync HLS Downloads
-        val hlsEntities = allEntities.filter { it.downloadId.startsWith("hls_") }
-        if (hlsEntities.isNotEmpty()) {
-            // Ensure the service is active and downloads are not stopped
-            DownloadService.sendResumeDownloads(context, HlsDownloadService::class.java, false)
-            
-            for (hls in hlsEntities) {
-                val download = media3DownloadManager.downloadIndex.getDownload(hls.downloadId)
-                if (download != null) {
-                    val status = when (download.state) {
-                        androidx.media3.exoplayer.offline.Download.STATE_COMPLETED -> DownloadManager.STATUS_SUCCESSFUL
-                        androidx.media3.exoplayer.offline.Download.STATE_FAILED -> DownloadManager.STATUS_FAILED
-                        androidx.media3.exoplayer.offline.Download.STATE_DOWNLOADING -> DownloadManager.STATUS_RUNNING
-                        androidx.media3.exoplayer.offline.Download.STATE_QUEUED -> DownloadManager.STATUS_PENDING
-                        androidx.media3.exoplayer.offline.Download.STATE_STOPPED, 
-                        androidx.media3.exoplayer.offline.Download.STATE_REMOVING,
-                        androidx.media3.exoplayer.offline.Download.STATE_RESTARTING -> DownloadManager.STATUS_PAUSED
-                        else -> DownloadManager.STATUS_PENDING
-                    }
-                    
-                    android.util.Log.d("DownloadSync", "HLS Sync [${hls.title}]: State ${download.state}, ${download.bytesDownloaded} bytes / ${download.contentLength} total (${download.percentDownloaded}%)")
-
-                    updateDownloadStatus(
-                        hls.downloadId, 
-                        status, 
-                        download.percentDownloaded.toInt().coerceIn(-1, 100),
-                        download.bytesDownloaded,
-                        download.contentLength
-                    )
-                }
-            }
-        }
+    /** Resolution jobs die with the process; pick those rows back up on the next launch. */
+    private suspend fun recoverInterruptedResolutions() {
+        dao.getAllDownloads().first()
+            .filter { it.status == DownloadStatus.RESOLVING }
+            .forEach { resolveAndStart(it.toTarget()) }
     }
 
-    override fun getDownloadByContent(tmdbId: Int, season: Int, episode: Int, mediaType: String): Flow<DownloadEntity?> {
-        return dao.getDownloadByContent(tmdbId, season, episode, mediaType)
+    // endregion
+
+    private suspend fun removeFromMedia3(downloadId: String) = withContext(Dispatchers.Main) {
+        runCatching {
+            DownloadService.sendRemoveDownload(context, HlsDownloadService::class.java, downloadId, false)
+        }.onFailure { media3.removeDownload(downloadId) }
+    }
+
+    private fun placeholder(target: DownloadTarget) = DownloadEntity(
+        downloadId = target.id,
+        tmdbId = target.tmdbId,
+        title = target.showTitle,
+        posterPath = target.posterPath,
+        mediaType = target.mediaType,
+        season = target.season,
+        episode = target.episode,
+        uri = "",
+        status = DownloadStatus.RESOLVING,
+        progress = 0,
+        showTitle = target.showTitle,
+        episodeTitle = target.episodeTitle,
+        stillPath = target.stillPath,
+        year = target.year
+    )
+
+    private fun DownloadEntity.toTarget() = DownloadTarget(
+        tmdbId = tmdbId,
+        mediaType = mediaType,
+        season = season,
+        episode = episode,
+        showTitle = displayTitle,
+        episodeTitle = episodeTitle,
+        posterPath = posterPath,
+        stillPath = stillPath,
+        year = year
+    )
+
+    private fun isMedia3(downloadId: String) = downloadId.startsWith("dl_") || downloadId.startsWith("hls_")
+
+    private fun String.isHls(): Boolean = ".m3u8" in lowercase() || "/manifest" in lowercase()
+
+    private companion object {
+        const val TAG = "Downloads"
+        const val STOP_REASON_PAUSED = 1
+        const val MAX_PARALLEL_RESOLUTIONS = 2
+        const val MAX_DOWNLOAD_HEIGHT = 1080
+        const val RESOLUTION_TIMEOUT_MS = 30_000L
+        const val PROGRESS_INTERVAL_MS = 1_000L
     }
 }
