@@ -4,7 +4,7 @@ import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ivor.openstream.data.local.entity.DownloadEntity
-import com.ivor.openstream.data.remote.SubtitleApi
+import com.ivor.openstream.domain.repository.SubtitleRepository
 import com.ivor.openstream.data.remote.TmdbApi
 import com.ivor.openstream.data.remote.model.AnimeDetailsDto
 import com.ivor.openstream.data.remote.model.EpisodeDto
@@ -36,9 +36,6 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.decodeFromJsonElement
 import java.time.LocalDate
 import androidx.media3.exoplayer.ExoPlayer
 import com.ivor.openstream.presentation.player.session.NowPlaying
@@ -81,7 +78,7 @@ sealed interface ServersState {
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     private val tmdbApi: TmdbApi,
-    private val subtitleApi: SubtitleApi,
+    private val subtitleRepository: SubtitleRepository,
     private val animeRepository: AnimeRepository,
     private val streamingRepository: StreamingRepository,
     private val downloadRepository: DownloadRepository,
@@ -348,20 +345,15 @@ class PlayerViewModel @Inject constructor(
             }
 
             launch {
-                runCatching {
-                    if (mediaType == "tv") {
-                        subtitleApi.searchSubtitles(tmdbId, seasonNumber, currentEpisodeNumber)
-                    } else {
-                        subtitleApi.searchSubtitles(tmdbId)
-                    }
-                }.onSuccess { jsonElement ->
-                    val subtitles = when (jsonElement) {
-                        is JsonArray -> jsonElement.map { json.decodeFromJsonElement<SubtitleDto>(it) }
-                        is JsonObject -> jsonElement.values.map { json.decodeFromJsonElement<SubtitleDto>(it) }
-                        else -> emptyList()
-                    }
-                    _remoteSubtitles.value = subtitles
-                }
+                _remoteSubtitles.value = subtitleRepository.search(
+                    MediaIdentity(
+                        tmdbId = tmdbId,
+                        tmdbType = mediaType,
+                        title = "",
+                        season = seasonNumber,
+                        episode = currentEpisodeNumber
+                    )
+                )
             }
         }
     }

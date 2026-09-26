@@ -4,6 +4,8 @@ import com.ivor.openstream.data.repository.AnimeRepositoryImpl
 import com.ivor.openstream.data.repository.DownloadRepositoryImpl
 import com.ivor.openstream.data.repository.WatchLaterRepositoryImpl
 import com.ivor.openstream.data.repository.WatchProgressRepositoryImpl
+import com.ivor.openstream.data.repository.OpenSubtitlesRepository
+import com.ivor.openstream.domain.repository.SubtitleRepository
 import com.ivor.openstream.data.extensions.ExtensionRepositoryImpl
 import com.ivor.openstream.domain.repository.AnimeRepository
 import com.ivor.openstream.domain.repository.DownloadRepository
@@ -43,4 +45,9 @@ abstract class RepositoryModule {
     abstract fun bindWatchProgressRepository(
         watchProgressRepositoryImpl: WatchProgressRepositoryImpl
     ): WatchProgressRepository
+
+    @Binds
+    abstract fun bindSubtitleRepository(
+        openSubtitlesRepository: OpenSubtitlesRepository
+    ): SubtitleRepository
 }

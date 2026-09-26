@@ -134,6 +134,27 @@ class VidkingDirectApi @Inject constructor(
                 headers = requestHeaders
             )
         }
+        // Vidking also returns a master playlist holding every quality. Playing it lets the player
+        // switch 1080p/720p/480p (or adapt) in place instead of the user swapping servers.
+        // Language-filtered routes pick one rendition by label, so they keep the per-source list.
+        val master = playlist?.takeIf { it.startsWith("http") && spec.qualityFilter == null }
+        if (master != null && sources.isNotEmpty()) {
+            val best = sources.map { StreamQuality.parse(it.quality) }.maxByOrNull { it.rank } ?: StreamQuality.UNKNOWN
+            return listOf(
+                VideoServer(
+                    id = "vidking-${spec.id}-master",
+                    providerId = "vidking-${spec.id}",
+                    providerName = "Vidking",
+                    name = spec.name,
+                    url = master,
+                    quality = best,
+                    audio = StreamAudio.parse(spec.language.orEmpty()),
+                    headers = requestHeaders,
+                    subtitles = streamSubtitles
+                )
+            )
+        }
+
         return sources
             .asSequence()
             .filter { source ->
@@ -183,7 +204,9 @@ class VidkingDirectApi @Inject constructor(
     @Serializable
     private data class SourcesPayload(
         val sources: List<SourceDto> = emptyList(),
-        val subtitles: List<SubtitleDto> = emptyList()
+        val subtitles: List<SubtitleDto> = emptyList(),
+        /** Master HLS playlist listing every rendition in [sources]. */
+        val playlist: String? = null
     )
 
     @Serializable

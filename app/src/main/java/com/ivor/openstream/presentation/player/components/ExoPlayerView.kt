@@ -5,6 +5,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
 import com.ivor.openstream.data.remote.model.SubtitleDto
+import com.ivor.openstream.data.repository.OpenSubtitlesRepository
 import com.ivor.openstream.presentation.player.CaptionStyleSettings
 import com.ivor.openstream.presentation.player.ServersState
 import androidx.annotation.OptIn
@@ -214,12 +215,12 @@ fun ExoPlayerView(
                 try {
                     val url = java.net.URL(urlStr)
                     val connection = url.openConnection() as java.net.HttpURLConnection
-                    connection.setRequestProperty("User-Agent", BROWSER_USER_AGENT)
-                    requestHeaders.forEach { (name, value) ->
-                        connection.setRequestProperty(name, value)
-                    }
-                    if (url.host == "sub.wyzie.ru") {
-                        connection.setRequestProperty("Referer", "https://sub.wyzie.ru/")
+                    if (url.host.endsWith("opensubtitles.org")) {
+                        // OpenSubtitles only asks for a User-Agent; the stream's Referer would be wrong here.
+                        connection.setRequestProperty("User-Agent", OpenSubtitlesRepository.USER_AGENT)
+                    } else {
+                        connection.setRequestProperty("User-Agent", BROWSER_USER_AGENT)
+                        requestHeaders.forEach { (name, value) -> connection.setRequestProperty(name, value) }
                     }
                     connection.connectTimeout = 10000
                     connection.readTimeout = 10000
@@ -228,14 +229,21 @@ fun ExoPlayerView(
                         throw Exception("Server returned code ${connection.responseCode} (Subtitles might be restricted)")
                     }
 
-                    val raw = connection.inputStream.bufferedReader().use { it.readText() }
+                    val bytes = connection.inputStream.use { it.readBytes() }
+                    // OpenSubtitles serves gzip files; detect by magic bytes rather than trusting the URL.
+                    val isGzip = bytes.size > 2 && bytes[0] == 0x1f.toByte() && bytes[1] == 0x8b.toByte()
+                    val raw = if (isGzip) {
+                        java.util.zip.GZIPInputStream(bytes.inputStream()).bufferedReader().use { it.readText() }
+                    } else {
+                        bytes.toString(Charsets.UTF_8)
+                    }
                     Log.d("PlayerSubtitles", "Downloaded raw data: ${raw.take(100)}...")
                     
                     if (raw.trim().isEmpty()) {
                         throw Exception("Subtitle file is empty")
                     }
 
-                    manualCues = parseSubtitles(raw)
+                    manualCues = parseSubtitles(raw).filterNot { it.text.isSubtitleAd() }
                     subtitleLoadingState = if (manualCues.isNotEmpty()) SubtitleLoadingState.SUCCESS else SubtitleLoadingState.ERROR
                     
                     Log.i("PlayerSubtitles", "Parsed ${manualCues.size} cues for manual sync")
@@ -416,8 +424,11 @@ fun ExoPlayerView(
         val currentUri = currentMediaItem?.localConfiguration?.uri
         val newUri = android.net.Uri.parse(videoUrl)
         
+        // Gzipped community subtitles can't be read by the player itself; they load on demand instead.
+        val embeddable = remoteSubtitles.filterNot { it.isSideloadOnly() }
+
         fun buildSubtitleConfigs(subs: List<SubtitleDto>): List<MediaItem.SubtitleConfiguration> {
-            return subs.map { sub ->
+            return subs.filterNot { it.isSideloadOnly() }.map { sub ->
                 // More robust MIME type detection
                 val isSrt = sub.url.lowercase().contains("srt") || sub.url.lowercase().contains("subrip")
                 val format = if (isSrt) "application/x-subrip" else "text/vtt"
@@ -449,8 +460,8 @@ fun ExoPlayerView(
             isBuffering = true
         } 
         // CASE 2: Subtitles arrived later (API finish) -> Hot Update
-        else if (remoteSubtitles.isNotEmpty() && 
-                 currentMediaItem?.localConfiguration?.subtitleConfigurations?.size != remoteSubtitles.size) {
+        else if (embeddable.isNotEmpty() &&
+                 currentMediaItem?.localConfiguration?.subtitleConfigurations?.size != embeddable.size) {
             
             val currentPosition = exoPlayer.currentPosition
             val wasPlaying = exoPlayer.isPlaying
@@ -1176,3 +1187,11 @@ private fun displayLanguageOrNull(code: String): String? {
     val name = java.util.Locale.forLanguageTag(normalized).getDisplayLanguage(java.util.Locale.ENGLISH)
     return name.takeIf { it.isNotBlank() && !it.equals(normalized, ignoreCase = true) }
 }
+
+private fun SubtitleDto.isSideloadOnly(): Boolean =
+    source == OpenSubtitlesRepository.SOURCE_NAME || url.substringBefore('?').endsWith(".gz", ignoreCase = true)
+
+/** Community subtitle files often open with a promo line (a site address); drop those cues. */
+private val SUBTITLE_AD = Regex("""(?i)(www\.|https?://|\.(link|lt|com|net|org)\b|opensubtitles|osdb|subtitletools)""")
+
+private fun String.isSubtitleAd(): Boolean = SUBTITLE_AD.containsMatchIn(this)
