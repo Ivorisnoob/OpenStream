@@ -1,221 +1,122 @@
+<div align="center">
+
+<img src="docs/assets/icon.png" width="128" alt="OpenStream app icon">
+
 # OpenStream
 
-A modern Android application for browsing and streaming movies, series and anime, built with Jetpack Compose and Material Design 3 Expressive.
+**Movies, series and anime in one native Android app.**
 
-## Overview
+Browse what's trending, pick up where you left off, and watch with a real player:
+quality switching, subtitles, dubs, downloads and picture-in-picture.
 
-OpenStream provides a native Android experience for discovering and watching movies, series and anime. The app fetches metadata from The Movie Database (TMDB) and streams video through the Vidking player, all wrapped in a beautiful Material Design 3 Expressive interface.
+[![Latest release](https://img.shields.io/github/v/release/Ivorisnoob/OpenStream?color=FF5F8A&label=release)](https://github.com/Ivorisnoob/OpenStream/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-1A1030)](LICENSE)
+![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-2.3-7F52FF?logo=kotlin&logoColor=white)
+
+[**Download the latest APK**](https://github.com/Ivorisnoob/OpenStream/releases/latest)
+
+</div>
+
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center"><img src="screenshots/home.jpg" width="240" alt="Home"><br><sub>Home</sub></td>
+    <td align="center"><img src="screenshots/home-shelves.jpg" width="240" alt="Curated shelves"><br><sub>Curated shelves</sub></td>
+    <td align="center"><img src="screenshots/details.jpg" width="240" alt="Title page"><br><sub>Title page</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/details-more.jpg" width="240" alt="Cast, trailers and more like this"><br><sub>Cast, trailers and more like this</sub></td>
+    <td align="center"><img src="screenshots/player.jpg" width="240" alt="Player"><br><sub>Player</sub></td>
+    <td align="center"><img src="screenshots/player-settings.jpg" width="240" alt="Playback settings"><br><sub>Playback settings</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/search.jpg" width="240" alt="Search"><br><sub>Search</sub></td>
+    <td align="center"><img src="screenshots/search-results.jpg" width="240" alt="Search results"><br><sub>Search results</sub></td>
+    <td align="center"><img src="screenshots/history.jpg" width="240" alt="History"><br><sub>History</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/saved.jpg" width="240" alt="Saved"><br><sub>Saved</sub></td>
+    <td align="center"><img src="screenshots/downloads.jpg" width="240" alt="Downloads"><br><sub>Downloads</sub></td>
+    <td></td>
+  </tr>
+</table>
 
 ## Features
 
-- Browse trending movies, series and anime with rich metadata
-- Search movies, series and anime by title with persistent search history
-- View detailed information including seasons and episodes
-- Stream episodes with custom playback controls
-- Track watch history
-- Install streaming sources from an in-app extension marketplace with top charts, search and
-  community repositories (see [docs/EXTENSIONS.md](docs/EXTENSIONS.md)); to add a source, see
-  [extensions/README.md](extensions/README.md)
-- Dynamic color theming (Android 12+)
-- Material Design 3 Expressive UI with fluid animations
+**Discover**
+- A Home screen with a trending carousel, a top 10, new episodes this week, and popular movies,
+  series and anime
+- Search that runs as you type, with filters, genres, trending picks and recent searches
+- Title pages with seasons and episodes, cast, trailers and similar titles
 
-## Tech Stack
+**Watch**
+- Continue watching: resume from the exact spot, and the next episode is lined up for you
+- Auto-play the next episode, and watched marks on episodes you've finished
+- Switch quality in the player (up to 4K where the source has it)
+- Subtitles in many languages, from the stream or from OpenSubtitles
+- Pick the audio: original, dub, or another language when a source carries it
+- A mini player keeps the video going while you browse, and picture-in-picture works outside the app
 
-### Core Technologies
-- **Language:** Kotlin 2.3.21
-- **UI Framework:** Jetpack Compose with Material 3 Expressive (1.5.0-alpha29)
-- **Architecture:** Clean Architecture (Domain/Data/Presentation layers)
-- **Dependency Injection:** Hilt 2.51.1 with KSP
+**Keep**
+- Download a single episode or a whole season, with pause, resume and retry, and play it offline
+- Saved and History, each with its own search, filters and sorting
+- In-app updates: check GitHub for a new release, then download and install it without leaving the app
 
-### Networking & Data
-- **HTTP Client:** Retrofit 2.11.0 + OkHttp 4.12.0
-- **Serialization:** Kotlinx Serialization 1.6.3
-- **Image Loading:** Coil 3 (3.0.0-rc01)
-- **Local Storage:** SharedPreferences (Room 2.6.1 available for future use)
+**Feel**
+- Material 3 Expressive design with dynamic color on Android 12 and up
+- A themed app icon that follows your wallpaper colors
+- Layouts built for phones, tablets and landscape
 
-### Media Playback
-- **Video Player:** Media3 ExoPlayer 1.3.1
-- **Streaming:** HLS (.m3u8) extraction via WebView
+## How streams work
 
-### Navigation
-- **Navigation Compose:** 2.8.0-alpha08
+OpenStream doesn't host any video. Titles and artwork come from [TMDB](https://www.themoviedb.org/).
+Streams come from **source extensions** listed in a JSON catalog. The app checks every installed
+source in parallel, ranks the results, and plays the best one. If a source fails, it moves on to
+the next.
 
-## Requirements
+Not every title is available yet, and coverage grows as sources are added. Want to add one? See
+the [extension contributor guide](extensions/README.md) and the
+[catalog format](docs/EXTENSIONS.md).
 
-- **Minimum SDK:** 26 (Android 8.0)
-- **Target SDK:** 36
-- **Compile SDK:** 36
-- **JDK:** 17
-- **TMDB API Key:** Required (see Setup section)
+## Build from source
 
-## Setup
+You need Android Studio (or JDK 17 and the Android SDK) and a free
+[TMDB API key](https://www.themoviedb.org/settings/api).
 
-### 1. Clone the Repository
 ```bash
-git clone https://github.com/ivorisnoob/OpenStream.git
+git clone https://github.com/Ivorisnoob/OpenStream.git
 cd OpenStream
-```
-
-### 2. Configure TMDB API Key
-Create a `local.properties` file in the project root and add your TMDB API key:
-```properties
-TMDB_API_KEY=your_api_key_here
-```
-
-You can obtain a free API key from [The Movie Database](https://www.themoviedb.org/settings/api).
-
-### 3. Build and Run
-```bash
-# Debug build
-./gradlew assembleDebug
-
-# Install on connected device
+echo "TMDB_API_KEY=your_key_here" >> local.properties
 ./gradlew installDebug
-
-# Release build
-./gradlew assembleRelease
 ```
 
-## Project Structure
+Without a key the app falls back to TMDB's `DEMO_KEY`, which is heavily rate-limited.
 
-```
-com.ivor.openstream/
-├── data/
-│   ├── remote/          # API interfaces and DTOs
-│   └── repository/      # Repository implementations
-├── domain/
-│   └── repository/      # Repository interfaces
-├── di/                  # Dependency injection modules
-├── presentation/
-│   ├── home/           # Main browsing screen
-│   ├── search/         # Search functionality
-│   ├── details/        # Title details view
-│   ├── player/         # Video playback
-│   ├── watch_history/  # Watch history tracking
-│   ├── navigation/     # App navigation graph
-│   └── components/     # Reusable UI components
-└── ui/
-    └── theme/          # Material Design 3 theming
-```
+## Tech stack
 
-## Architecture
+| Area | What's used |
+| --- | --- |
+| UI | Jetpack Compose, Material 3 Expressive (`1.5.0-alpha29`) |
+| Language and build | Kotlin 2.3, AGP 9 with built-in Kotlin, Gradle version catalog |
+| Architecture | Single activity, Navigation Compose, MVVM with `StateFlow`, Hilt |
+| Data | Retrofit, OkHttp, kotlinx-serialization, Room, Coil 3 |
+| Playback | Media3 ExoPlayer (HLS and MP4), a Media3 download service, and a hidden WebView fallback for web sources |
 
-OpenStream follows Clean Architecture principles with clear separation of concerns:
-
-### Data Layer
-- **TmdbApi:** Retrofit interface for TMDB endpoints
-- **AnimeRepositoryImpl:** Concrete implementation handling API calls
-- **DTOs:** Data transfer objects for network responses
-
-### Domain Layer
-- **AnimeRepository:** Repository interface defining data operations
-- Pure Kotlin with no Android dependencies
-
-### Presentation Layer
-- **ViewModels:** State management with Kotlin Flows
-- **Screens:** Jetpack Compose UI components
-- **Navigation:** Type-safe navigation with sealed classes
-
-## Key Components
-
-### Material Design 3 Expressive
-The app leverages Material 3 Expressive components for enhanced visual appeal:
-- `MaterialExpressiveTheme` with spring-based animations
-- `ExpandedFullScreenSearchBar` for immersive search
-- `LargeFlexibleTopAppBar` for dynamic headers
-- `LoadingIndicator` with shape-morphing animations
-- Custom `ExpressiveShapes` with larger corner radii
-
-### Video Playback
-Dual-approach architecture:
-1. **WebView:** Intercepts Vidking embed URLs to extract HLS streams
-2. **ExoPlayer:** Native playback with custom controls
-
-### State Management
-Consistent ViewModel pattern using Kotlin StateFlow:
-```kotlin
-sealed interface UiState {
-    data object Loading : UiState
-    data class Success(val data: List<Anime>) : UiState
-    data class Error(val message: String?) : UiState
-}
-```
-
-## API Integration
-
-### TMDB Endpoints
-- **Discover:** Trending and popular movies, series and anime
-- **Search:** Query movies and series by title
-- **Details:** Full metadata including seasons
-- **Season Details:** Episode lists for specific seasons
-
-### Image URLs
-Images are constructed as:
-```
-https://image.tmdb.org/t/p/w500{posterPath}
-```
-
-## Development Guidelines
-
-### Code Style
-- Follow Kotlin coding conventions
-- Use Jetpack Compose best practices
-- Maintain Clean Architecture boundaries
-- Prefer composition over inheritance
-
-### Component Priority
-1. Check for M3 Expressive components first
-2. Use standard M3 if no Expressive version exists
-3. Never create custom components that duplicate M3 functionality
-
-### Dependency Management
-All versions are managed in `libs.versions.toml` using Gradle Version Catalog.
-
-## Known Limitations
-
-- Video extraction relies on Vidking URL patterns (subject to change)
-- Pagination limited to first page on some screens
-- Watch history uses SharedPreferences (Room migration planned)
-- No offline support currently
-
-## Future Enhancements
-
-- Migrate to Room database for robust local storage
-- Implement Paging 3 for infinite scroll
-- Add retry mechanisms for network errors
-- Extract reusable UI components
-- Implement proper watch history tracking from player
-- Add subtitle support
-- Offline download capability
-
-## Documentation
-
-Additional documentation is available in the repository:
-- `CLAUDE.md` - Codebase guide: architecture, how features work, conventions
-- `docs/VIDKING_API.md` - Vidking player API reference
-- `docs/IMPLEMENTATION_PLAN.md` - Architecture decisions
-- `.agent/rules/code-style-guide.md` - Development rules
+Architecture notes and conventions are in [CLAUDE.md](CLAUDE.md).
 
 ## Contributing
 
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our development process, coding standards, and how to submit pull requests.
-
-Key guidelines:
-- Follow Clean Architecture principles
-- Use Material 3 Expressive components appropriately
-- Ensure all builds pass without errors
-- Update documentation for significant changes
+Bug reports, fixes and new sources are all welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+[MIT](LICENSE)
 
 ## Acknowledgments
 
-- [The Movie Database (TMDB)](https://www.themoviedb.org/) for movie, series and anime metadata
-- [Vidking](https://www.vidking.net/) for video streaming
-- Material Design 3 Expressive for the design system
-
----
-
-Built with Kotlin and Jetpack Compose
+- [TMDB](https://www.themoviedb.org/) for metadata and artwork. This product uses the TMDB API but
+  is not endorsed or certified by TMDB.
+- [OpenSubtitles](https://www.opensubtitles.org/) for subtitles
+- [Material 3 Expressive](https://m3.material.io/) for the design system
