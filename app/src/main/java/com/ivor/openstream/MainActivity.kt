@@ -4,6 +4,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
 import com.ivor.openstream.presentation.navigation.AppNavigation
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
@@ -29,7 +33,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             val windowSizeClass = calculateWindowSizeClass(this)
             OpenStreamTheme {
-                AppNavigation(windowSizeClass = windowSizeClass.widthSizeClass)
+                // Most screens draw their own background without a Scaffold, so this root
+                // Surface is what gives un-styled Text the theme's onBackground color.
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    AppNavigation(windowSizeClass = windowSizeClass.widthSizeClass)
+                }
             }
         }
     }
