@@ -3,11 +3,13 @@ package com.ivor.openstream.di
 import com.ivor.openstream.data.repository.AnimeRepositoryImpl
 import com.ivor.openstream.data.repository.DownloadRepositoryImpl
 import com.ivor.openstream.data.repository.WatchLaterRepositoryImpl
+import com.ivor.openstream.data.repository.WatchProgressRepositoryImpl
 import com.ivor.openstream.data.extensions.ExtensionRepositoryImpl
 import com.ivor.openstream.domain.repository.AnimeRepository
 import com.ivor.openstream.domain.repository.DownloadRepository
 import com.ivor.openstream.domain.repository.ExtensionRepository
 import com.ivor.openstream.domain.repository.WatchLaterRepository
+import com.ivor.openstream.domain.repository.WatchProgressRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -36,4 +38,9 @@ abstract class RepositoryModule {
     abstract fun bindExtensionRepository(
         extensionRepositoryImpl: ExtensionRepositoryImpl
     ): ExtensionRepository
+
+    @Binds
+    abstract fun bindWatchProgressRepository(
+        watchProgressRepositoryImpl: WatchProgressRepositoryImpl
+    ): WatchProgressRepository
 }

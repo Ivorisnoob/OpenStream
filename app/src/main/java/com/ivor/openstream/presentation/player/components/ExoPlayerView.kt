@@ -6,6 +6,7 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.presentation.player.CaptionStyleSettings
+import com.ivor.openstream.presentation.player.ServersState
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -22,6 +23,9 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -104,14 +108,18 @@ fun ExoPlayerView(
     subtitle: String = "",
     sourceLabel: String? = null,
     sourceSummary: String? = null,
-    sourceCount: Int = 0,
     canChangeSource: Boolean = true,
-    isResolvingSources: Boolean = false,
+    serversState: ServersState = ServersState.Idle,
+    sourceActions: SourcesPageActions = SourcesPageActions({}, {}, {}),
     initialPositionMs: Long = 0L,
     onPositionChanged: (Long) -> Unit = {},
+    onProgressChanged: (positionMs: Long, durationMs: Long) -> Unit = { _, _ -> },
+    onPlaybackEnded: () -> Unit = {},
+    onIsPlayingChanged: (Boolean) -> Unit = {},
+    isInPictureInPicture: Boolean = false,
+    togglePlaybackSignal: Int = 0,
     initialPlaybackSpeed: Float = 1f,
     onPlaybackSpeedChanged: (Float) -> Unit = {},
-    onServersClick: () -> Unit = {},
     onNextClick: (() -> Unit)? = null,
     captionSettings: CaptionStyleSettings = CaptionStyleSettings(),
     onCaptionSettingsChange: (CaptionStyleSettings) -> Unit = {},
@@ -443,6 +451,16 @@ fun ExoPlayerView(
     }
 
     val latestPositionChanged by rememberUpdatedState(onPositionChanged)
+    val latestProgressChanged by rememberUpdatedState(onProgressChanged)
+    val latestPlaybackEnded by rememberUpdatedState(onPlaybackEnded)
+    val latestIsPlayingChanged by rememberUpdatedState(onIsPlayingChanged)
+
+    // Play/pause requests from outside the player surface (the picture-in-picture window).
+    LaunchedEffect(togglePlaybackSignal) {
+        if (togglePlaybackSignal > 0) {
+            if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
+        }
+    }
 
     // Polling for position updates. The parent keeps a lightweight checkpoint so
     // changing route after an error can resume instead of restarting the episode.
@@ -454,6 +472,7 @@ fun ExoPlayerView(
             bufferPercentage = exoPlayer.bufferedPercentage
             if (kotlin.math.abs(currentTime - lastReportedPosition) >= 1_000L) {
                 latestPositionChanged(currentTime)
+                latestProgressChanged(currentTime, totalTime)
                 lastReportedPosition = currentTime
             }
             // Safety net: if player is actively playing, clear buffering state
@@ -486,6 +505,22 @@ fun ExoPlayerView(
         }
     }
 
+    // Pause when the app leaves the foreground so audio never keeps playing behind the launcher.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, exoPlayer) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                exoPlayer.pause()
+                latestProgressChanged(
+                    exoPlayer.currentPosition.coerceAtLeast(0L),
+                    exoPlayer.duration.coerceAtLeast(0L)
+                )
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     val latestPlaybackError by rememberUpdatedState(onPlaybackError)
     val latestPlaybackReady by rememberUpdatedState(onPlaybackReady)
 
@@ -507,6 +542,8 @@ fun ExoPlayerView(
                         isPlaying = false
                         isBuffering = false
                         areControlsVisible = true
+                        latestProgressChanged(exoPlayer.duration, exoPlayer.duration)
+                        latestPlaybackEnded()
                     }
                     Player.STATE_IDLE -> {
                         isBuffering = false
@@ -522,6 +559,7 @@ fun ExoPlayerView(
 
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
+                latestIsPlayingChanged(playing)
                 // If player starts producing output, it is not buffering
                 if (playing) {
                     isBuffering = false
@@ -550,6 +588,10 @@ fun ExoPlayerView(
         exoPlayer.addListener(listener)
         onDispose {
             latestPositionChanged(exoPlayer.currentPosition.coerceAtLeast(0L))
+            latestProgressChanged(
+                exoPlayer.currentPosition.coerceAtLeast(0L),
+                exoPlayer.duration.coerceAtLeast(0L)
+            )
             exoPlayer.removeListener(listener)
             exoPlayer.release()
         }
@@ -703,7 +745,7 @@ fun ExoPlayerView(
         }
 
         PlayerControls(
-            isVisible = areControlsVisible,
+            isVisible = areControlsVisible && !isInPictureInPicture,
             isPlaying = isPlaying,
             isBuffering = isBuffering,
             title = title,
@@ -711,6 +753,7 @@ fun ExoPlayerView(
             sourceLabel = sourceLabel,
             qualityLabel = qualityDisplayLabel(selectedQuality, activeVideoHeight),
             hasSubtitles = subtitleOptions.isNotEmpty(),
+            subtitlesEnabled = selectedSubtitle?.isDisabled == false,
             currentTime = currentTime,
             totalTime = totalTime,
             onPauseToggle = {
@@ -745,8 +788,9 @@ fun ExoPlayerView(
                 areControlsVisible = false
             },
             onSourcesClick = {
+                settingsInitialPage = PlayerSettingsPage.SOURCES
+                showSettingsDialog = true
                 areControlsVisible = false
-                onServersClick()
             },
             onQualityClick = {
                 settingsInitialPage = PlayerSettingsPage.QUALITY
@@ -803,17 +847,12 @@ fun ExoPlayerView(
 
         // Buffering indicator overlay -- drawn AFTER controls so it renders on top
         AnimatedVisibility(
-            visible = isBuffering,
+            visible = isBuffering && !areControlsVisible && !isInPictureInPicture,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.Center)
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.24f)),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(contentAlignment = Alignment.Center) {
                 Surface(
                     shape = ExpressiveShapes.large,
                     color = Color.Black.copy(alpha = 0.72f),
@@ -843,32 +882,36 @@ fun ExoPlayerView(
                 }
             }
         }
-    }
 
-    // Settings Dialog
-    if (showSettingsDialog) {
-        PlayerSettingsDialog(
-            onDismiss = { showSettingsDialog = false },
+        PlayerSettingsHost(
+            visible = showSettingsDialog,
+            isFullscreen = isFullscreen,
             initialPage = settingsInitialPage,
-            sourceLabel = sourceLabel,
-            sourceSummary = sourceSummary,
-            sourceCount = sourceCount,
-            canChangeSource = canChangeSource,
-            isResolvingSources = isResolvingSources,
-            onSourceClick = {
-                showSettingsDialog = false
-                onServersClick()
-            },
-            qualityOptions = qualityOptions,
-            selectedQuality = selectedQuality,
-            activeVideoHeight = activeVideoHeight,
-            onQualitySelected = { option ->
+            onDismiss = { showSettingsDialog = false },
+            model = PlayerSettingsModel(
+                sourceLabel = sourceLabel,
+                sourceSummary = sourceSummary,
+                canChangeSource = canChangeSource,
+                serversState = serversState,
+                qualityOptions = qualityOptions,
+                selectedQuality = selectedQuality,
+                activeVideoHeight = activeVideoHeight,
+                currentSpeed = playbackSpeed,
+                subtitleOptions = subtitleOptions,
+                selectedSubtitle = selectedSubtitle,
+                subtitleLoadingState = subtitleLoadingState,
+                captionSettings = captionSettings
+            ),
+            actions = PlayerSettingsActions(
+                sources = sourceActions,
+                onQualitySelected = { option ->
                 selectedQuality = option
                 if (option.isAuto) {
                     // Reset to auto quality selection
                     exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
                         .buildUpon()
                         .clearVideoSizeConstraints()
+                        .setMinVideoSize(0, 0)
                         .clearOverridesOfType(C.TRACK_TYPE_VIDEO)
                         .build()
                 } else {
@@ -879,18 +922,15 @@ fun ExoPlayerView(
                         .setMinVideoSize(option.width, option.height)
                         .build()
                 }
-            },
-            currentSpeed = playbackSpeed,
-            onSpeedSelected = { speed ->
+                },
+                onSpeedSelected = { speed ->
                 playbackSpeed = speed
                 onPlaybackSpeedChanged(speed)
                 exoPlayer.setPlaybackParameters(
                     exoPlayer.playbackParameters.withSpeed(speed)
                 )
-            },
-            subtitleOptions = subtitleOptions,
-            selectedSubtitle = selectedSubtitle,
-            onSubtitleSelected = { option ->
+                },
+                onSubtitleSelected = { option ->
                 selectedSubtitle = option
                 if (option == null) {
                     exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
@@ -928,10 +968,9 @@ fun ExoPlayerView(
                     }
                 }
                 exoPlayer.play()
-            },
-            subtitleLoadingState = subtitleLoadingState,
-            captionSettings = captionSettings,
-            onCaptionSettingsChange = onCaptionSettingsChange
+                },
+                onCaptionSettingsChange = onCaptionSettingsChange
+            )
         )
     }
 }

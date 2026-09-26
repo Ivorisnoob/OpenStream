@@ -3,20 +3,32 @@ package com.ivor.openstream.presentation.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ivor.openstream.data.remote.model.AnimeDto
+import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.domain.repository.AnimeRepository
+import com.ivor.openstream.domain.repository.WatchProgressRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val repository: AnimeRepository
+    private val repository: AnimeRepository,
+    private val watchProgressRepository: WatchProgressRepository
 ) : ViewModel() {
+
+    val continueWatching: StateFlow<List<WatchProgress>> = watchProgressRepository.continueWatching()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun removeFromContinueWatching(item: WatchProgress) {
+        viewModelScope.launch { watchProgressRepository.dismiss(item.mediaType, item.tmdbId) }
+    }
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()

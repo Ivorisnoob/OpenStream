@@ -14,8 +14,8 @@ OpenStream is a native Android application for browsing and streaming anime. It 
 
 | Layer              | Technology                                                   |
 |--------------------|--------------------------------------------------------------|
-| **Language**        | Kotlin 2.0.21                                                |
-| **UI Framework**    | Jetpack Compose (Material 3 Expressive, `1.5.0-alpha13`)     |
+| **Language**        | Kotlin 2.3.21                                                |
+| **UI Framework**    | Jetpack Compose (Material 3 Expressive, `1.5.0-alpha29`)     |
 | **Theming**         | `MaterialExpressiveTheme` (not plain `MaterialTheme`)        |
 | **DI**              | Hilt (`2.51.1`) with KSP (`2.0.21-1.0.27`)                  |
 | **Networking**      | Retrofit `2.11.0` + OkHttp `4.12.0`                         |
@@ -222,7 +222,7 @@ Uses `FontFamily.Default` with **heavier font weights** for display/headline/tit
 
 ## 9. M3 Expressive Components in Use
 
-The library version is `1.5.0-alpha13`, which includes the following expressive components that are used or available:
+The library version is `1.5.0-alpha29`, which includes the following expressive components that are used or available:
 
 | Component                    | Used In               | Notes                                              |
 |-------------------------------|------------------------|-----------------------------------------------------|

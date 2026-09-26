@@ -60,7 +60,9 @@ data class ExtensionEngineDto(
     val endpoint: String = "",
     val priority: Int = 50,
     val language: String? = null,
-    val qualityFilter: String? = null
+    val qualityFilter: String? = null,
+    val movieUrl: String? = null,
+    val tvUrl: String? = null
 )
 
 /** Cached snapshot of one repository, persisted verbatim so the catalog survives being offline. */

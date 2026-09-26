@@ -13,9 +13,11 @@ import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.data.remote.model.toAnimeDto
 import com.ivor.openstream.domain.model.MediaIdentity
 import com.ivor.openstream.domain.model.VideoServer
+import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.domain.repository.AnimeRepository
 import com.ivor.openstream.domain.repository.DownloadRepository
 import com.ivor.openstream.domain.repository.StreamingRepository
+import com.ivor.openstream.domain.repository.WatchProgressRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -37,11 +39,22 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
+import java.time.LocalDate
 import javax.inject.Inject
+import kotlin.math.abs
 
 private const val KEY_CAPTION_STYLE = "caption_style"
 private const val MAX_AUTOMATIC_FAILOVERS = 3
 private const val STREAM_REFRESH_AGE_MS = 6 * 60 * 60 * 1_000L
+private const val PROGRESS_SAVE_INTERVAL_MS = 10_000L
+
+/** The episode playback continues with, possibly the first episode of the next season. */
+data class NextEpisodeTarget(
+    val season: Int,
+    val episode: Int,
+    val title: String?,
+    val stillPath: String?
+)
 
 sealed interface ServersState {
     data object Idle : ServersState
@@ -70,6 +83,7 @@ class PlayerViewModel @Inject constructor(
     private val animeRepository: AnimeRepository,
     private val streamingRepository: StreamingRepository,
     private val downloadRepository: DownloadRepository,
+    private val watchProgressRepository: WatchProgressRepository,
     private val sharedPreferences: SharedPreferences,
     private val json: Json,
     val downloadCache: Cache
@@ -101,12 +115,24 @@ class PlayerViewModel @Inject constructor(
     private val _playerEvents = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val playerEvents = _playerEvents.asSharedFlow()
 
+    /** Null until the saved position is known, so playback never starts at 0 by mistake. */
+    private val _startPositionMs = MutableStateFlow<Long?>(null)
+    val startPositionMs: StateFlow<Long?> = _startPositionMs.asStateFlow()
+
+    private val _nextEpisode = MutableStateFlow<NextEpisodeTarget?>(null)
+    val nextEpisode: StateFlow<NextEpisodeTarget?> = _nextEpisode.asStateFlow()
+
     private val _mediaType = MutableStateFlow("tv")
+    private var currentSeason = 1
+    private var currentEpisodeNumber = 1
+    private var lastSavedPositionMs = -1L
+    private var completionRecorded = false
     private var currentIdentity: MediaIdentity? = null
     private var loadJob: Job? = null
     private var resolutionJob: Job? = null
     private val failedServerIds = linkedSetOf<String>()
     private var automaticFailovers = 0
+    private var backupSourcesSearched = false
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val currentDownload: StateFlow<DownloadEntity?> = combine(
@@ -196,6 +222,12 @@ class PlayerViewModel @Inject constructor(
         loadJob?.cancel()
         resolutionJob?.cancel()
         _mediaType.value = mediaType
+        currentSeason = seasonNumber
+        this.currentEpisodeNumber = currentEpisodeNumber
+        lastSavedPositionMs = -1L
+        completionRecorded = false
+        _startPositionMs.value = null
+        _nextEpisode.value = null
         _mediaDetails.value = null
         _currentEpisode.value = null
         _remoteSubtitles.value = emptyList()
@@ -204,8 +236,14 @@ class PlayerViewModel @Inject constructor(
         _activeServer.value = null
         failedServerIds.clear()
         automaticFailovers = 0
+        backupSourcesSearched = false
 
         loadJob = viewModelScope.launch {
+            launch {
+                val saved = watchProgressRepository.get(mediaType, tmdbId, seasonNumber, currentEpisodeNumber)
+                _startPositionMs.value = saved?.resumePositionMs ?: 0L
+            }
+
             launch {
                 val detailsResult = if (mediaType == "movie") {
                     animeRepository.getMovieDetails(tmdbId)
@@ -243,6 +281,11 @@ class PlayerViewModel @Inject constructor(
                             .find { it.episodeNumber == currentEpisodeNumber }
                         _nextEpisodes.value = seasonDetails.episodes
                             .filter { it.episodeNumber > currentEpisodeNumber }
+                        _nextEpisode.value = findNextEpisode(
+                            tmdbId = tmdbId,
+                            seasonNumber = seasonNumber,
+                            remaining = _nextEpisodes.value
+                        )
                     }
                 _isLoadingEpisodes.value = false
             }
@@ -264,6 +307,92 @@ class PlayerViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    /**
+     * Called roughly every second while playing. Writes are throttled; crossing the completion
+     * mark is written once and queues the next episode for Continue Watching.
+     */
+    fun onProgress(positionMs: Long, durationMs: Long) {
+        val details = _mediaDetails.value ?: return
+        if (durationMs <= 0L || positionMs < WatchProgress.MIN_SAVED_POSITION_MS) return
+        val completed = positionMs.toFloat() / durationMs >= WatchProgress.COMPLETION_FRACTION
+        if (completed && completionRecorded) return
+        if (!completed && abs(positionMs - lastSavedPositionMs) < PROGRESS_SAVE_INTERVAL_MS) return
+
+        lastSavedPositionMs = positionMs
+        val episode = _currentEpisode.value
+        watchProgressRepository.record(
+            WatchProgress(
+                tmdbId = details.id,
+                mediaType = _mediaType.value,
+                season = currentSeason,
+                episode = currentEpisodeNumber,
+                title = details.name,
+                episodeTitle = episode?.name,
+                posterPath = details.posterPath,
+                backdropPath = details.backdropPath,
+                stillPath = episode?.stillPath,
+                positionMs = positionMs,
+                durationMs = durationMs,
+                completed = completed
+            )
+        )
+        if (completed) {
+            completionRecorded = true
+            queueNextEpisode()
+        }
+    }
+
+    private fun queueNextEpisode() {
+        val details = _mediaDetails.value ?: return
+        val next = _nextEpisode.value ?: return
+        val mediaType = _mediaType.value
+        viewModelScope.launch {
+            val existing = watchProgressRepository.get(mediaType, details.id, next.season, next.episode)
+            // Never overwrite a finished episode; just surface an unfinished one again.
+            if (existing?.completed == true) return@launch
+            val queuedAt = System.currentTimeMillis() + 1
+            watchProgressRepository.record(
+                existing?.copy(updatedAt = queuedAt) ?: WatchProgress(
+                    tmdbId = details.id,
+                    mediaType = mediaType,
+                    season = next.season,
+                    episode = next.episode,
+                    title = details.name,
+                    episodeTitle = next.title,
+                    posterPath = details.posterPath,
+                    backdropPath = details.backdropPath,
+                    stillPath = next.stillPath,
+                    updatedAt = queuedAt
+                )
+            )
+        }
+    }
+
+    private suspend fun findNextEpisode(
+        tmdbId: Int,
+        seasonNumber: Int,
+        remaining: List<EpisodeDto>
+    ): NextEpisodeTarget? {
+        remaining.firstOrNull { isReleased(it.airDate) }?.let { episode ->
+            return NextEpisodeTarget(seasonNumber, episode.episodeNumber, episode.name, episode.stillPath)
+        }
+        // The season is over (or the rest is unreleased): continue with the next real season.
+        val seasons = _mediaDetails.value?.seasons
+            ?: animeRepository.getAnimeDetails(tmdbId).getOrNull()?.seasons
+            ?: return null
+        val nextSeason = seasons
+            .filter { it.seasonNumber > seasonNumber && it.episodeCount > 0 }
+            .minByOrNull { it.seasonNumber }
+            ?: return null
+        if (!isReleased(nextSeason.airDate)) return null
+        return NextEpisodeTarget(nextSeason.seasonNumber, 1, null, null)
+    }
+
+    private fun isReleased(airDate: String?): Boolean {
+        if (airDate.isNullOrBlank()) return true
+        return runCatching { !LocalDate.parse(airDate).isAfter(LocalDate.now()) }.getOrDefault(true)
     }
 
     fun selectServer(serverId: String) {
@@ -290,6 +419,13 @@ class PlayerViewModel @Inject constructor(
             _activeServer.value = next
             setActiveId(next.id)
             _playerEvents.tryEmit("${failed.name} stopped responding. Switched to ${next.name}.")
+        } else if (!backupSourcesSearched && currentIdentity != null) {
+            // Every direct link failed to play: widen the search to the backup sources once.
+            backupSourcesSearched = true
+            automaticFailovers = 0
+            _activeServer.value = null
+            _playerEvents.tryEmit("${failed.name} stopped responding. Searching backup sources…")
+            startResolution(currentIdentity!!, includeFallbacks = true)
         } else {
             _activeServer.value = null
             setActiveId(null)
@@ -301,14 +437,15 @@ class PlayerViewModel @Inject constructor(
         val identity = currentIdentity ?: return
         failedServerIds.clear()
         automaticFailovers = 0
+        backupSourcesSearched = true
         _activeServer.value = null
-        startResolution(identity)
+        startResolution(identity, includeFallbacks = true)
     }
 
-    private fun startResolution(identity: MediaIdentity) {
+    private fun startResolution(identity: MediaIdentity, includeFallbacks: Boolean = false) {
         resolutionJob?.cancel()
         resolutionJob = viewModelScope.launch {
-            streamingRepository.resolveServers(identity).collect { progress ->
+            streamingRepository.resolveServers(identity, includeFallbacks).collect { progress ->
                 val healthyServers = progress.servers.filterNot { it.id in failedServerIds }
                 val active = _activeServer.value?.takeIf { current ->
                     healthyServers.any { it.id == current.id }

@@ -9,10 +9,12 @@ import com.ivor.openstream.data.remote.model.SeasonDetailsDto
 import com.ivor.openstream.data.remote.model.EpisodeDto
 import com.ivor.openstream.data.remote.model.toAnimeDto
 import com.ivor.openstream.domain.model.MediaIdentity
+import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.domain.repository.AnimeRepository
 import com.ivor.openstream.domain.repository.DownloadRepository
 import com.ivor.openstream.domain.repository.StreamingRepository
 import com.ivor.openstream.domain.repository.WatchLaterRepository
+import com.ivor.openstream.domain.repository.WatchProgressRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -22,6 +24,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
@@ -31,6 +34,7 @@ class DetailsViewModel @Inject constructor(
     private val watchLaterRepository: WatchLaterRepository,
     private val downloadRepository: DownloadRepository,
     private val streamingRepository: StreamingRepository,
+    private val watchProgressRepository: WatchProgressRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -51,6 +55,18 @@ class DetailsViewModel @Inject constructor(
             initialValue = false
         )
 
+    /** Every episode the user has touched, newest first. */
+    private val titleProgress = watchProgressRepository.progressForTitle(mediaType, animeId)
+
+    val episodeProgress: StateFlow<Map<Pair<Int, Int>, WatchProgress>> = titleProgress
+        .map { rows -> rows.associateBy { it.season to it.episode } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /** What the primary action continues with, or null to start from the beginning. */
+    val resumeTarget: StateFlow<WatchProgress?> = titleProgress
+        .map { rows -> rows.firstOrNull()?.takeUnless { it.completed } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
     init {
         loadDetails()
     }
@@ -65,9 +81,12 @@ class DetailsViewModel @Inject constructor(
                     viewModelScope.launch {
                         repository.addToWatchHistory(details.toAnimeDto(mediaType))
                     }
-                    // Load the first season by default
+                    // Open on the season the user was last watching, otherwise season 1.
                     details.seasons?.let { seasons ->
-                        val defaultSeason = seasons.find { it.seasonNumber == 1 } ?: seasons.firstOrNull()
+                        val lastWatchedSeason = titleProgress.first().firstOrNull()?.season
+                        val defaultSeason = seasons.find { it.seasonNumber == lastWatchedSeason }
+                            ?: seasons.find { it.seasonNumber == 1 }
+                            ?: seasons.firstOrNull()
                         defaultSeason?.let { season ->
                             loadSeason(season.seasonNumber)
                         }

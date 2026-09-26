@@ -44,7 +44,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ivor.openstream.data.remote.model.AnimeDto
+import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.presentation.components.AnimeCard
+import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.Spacer
 import kotlin.math.absoluteValue
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.background
@@ -64,11 +67,14 @@ import androidx.compose.foundation.layout.height
 @Composable
 fun HomeScreen(
     onAnimeClick: (Int) -> Unit,
+    onResume: (WatchProgress) -> Unit,
+    onOpenDetails: (mediaType: String, id: Int) -> Unit,
     onSettingsClick: () -> Unit,
     onUpdateClick: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val continueWatching by viewModel.continueWatching.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
 
@@ -147,17 +153,45 @@ fun HomeScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = "Error loading content", style = MaterialTheme.typography.titleMedium)
-                            Text(text = state.message, color = MaterialTheme.colorScheme.error)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(32.dp)
+                        ) {
+                            Text(
+                                text = "Couldn't reach the catalog",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Check your connection and try again.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Button(onClick = viewModel::loadData, shape = ExpressiveShapes.medium) {
+                                Text("Try again")
+                            }
                         }
                     }
                 }
                 is HomeUiState.Success -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(bottom = 24.dp)
+                        contentPadding = PaddingValues(bottom = 136.dp)
                     ) {
+                        if (continueWatching.isNotEmpty()) {
+                            item(key = "continue_watching") {
+                                SectionHeader(title = "Continue Watching", topPadding = 16.dp)
+                                ContinueWatchingRail(
+                                    items = continueWatching,
+                                    onResume = onResume,
+                                    onOpenDetails = { onOpenDetails(it.mediaType, it.tmdbId) },
+                                    onRemove = viewModel::removeFromContinueWatching
+                                )
+                            }
+                        }
+
                         if (state.trending.isNotEmpty()) {
                             item {
                                 val isTablet = LocalConfiguration.current.screenWidthDp > 600

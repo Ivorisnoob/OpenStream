@@ -26,6 +26,8 @@ enum class ExtensionStatus(val code: Int, val label: String) {
 enum class ExtensionEngineType(val key: String) {
     VIDKING_DIRECT("vidking-direct"),
     VIDKING_WEBVIEW("vidking-webview"),
+    /** Any embeddable web player, described by URL templates. */
+    WEB_EMBED("web-embed"),
     UNSUPPORTED("unsupported");
 
     companion object {
@@ -39,12 +41,17 @@ data class ExtensionEngine(
     val endpoint: String = "",
     val priority: Int = DEFAULT_PRIORITY,
     val language: String? = null,
-    val qualityFilter: String? = null
+    val qualityFilter: String? = null,
+    /** `web-embed` only: player URL templates, see `WebEmbedSpec`. */
+    val movieUrl: String? = null,
+    val tvUrl: String? = null
 ) {
     val isRunnable: Boolean
         get() = when (type) {
             ExtensionEngineType.VIDKING_DIRECT -> endpoint.isNotBlank()
             ExtensionEngineType.VIDKING_WEBVIEW -> true
+            ExtensionEngineType.WEB_EMBED ->
+                listOfNotNull(movieUrl, tvUrl).any { it.startsWith("https://") }
             ExtensionEngineType.UNSUPPORTED -> false
         }
 

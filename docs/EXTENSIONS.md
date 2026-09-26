@@ -95,7 +95,13 @@ falls back to `main/extensions/index.json`.
 | `engine.type` | Backed by | Required fields |
 | --- | --- | --- |
 | `vidking-direct` | `VidkingDirectProvider` | `endpoint`; optional `language`, `qualityFilter`, `priority` |
-| `vidking-webview` | `VidkingWebViewProvider` (slow compatibility resolver) | none |
+| `vidking-webview` | `WebEmbedResolver` with the built-in Vidking page (slow compatibility resolver) | none |
+| `web-embed` | `WebEmbedResolver` (hidden WebView that records the player's media requests) | `movieUrl` and/or `tvUrl` (https templates using `{tmdbId}`, `{imdbId}`, `{season}`, `{episode}`); optional `priority` |
+
+`web-embed` entries should be published with `"fallback": true`: they load third-party pages in an
+off-screen browser, which is slow, so they run only when the direct routes return nothing or every
+direct link fails to play. They depend on undocumented pages that change without notice, which is
+why they live in the catalog (status `3`, Beta, until proven) rather than in code.
 
 Anything else parses but is listed as **Unsupported** and cannot be installed, which is how the
 catalog stays forward-compatible: publishing an entry for a future engine does not break old builds.
@@ -120,6 +126,11 @@ Trending additionally weights `installsLast7Days` and how recently the entry was
 time, so adding a source is a data change in an index — no Dagger module edit, no app release.
 Provider ids are unchanged (`vidking-<extension id>`), so saved server preferences and existing
 download records keep working, and the pre-marketplace on/off state is migrated on first launch.
+
+For the official repository the APK's bundled copy is reconciled with the fetched one per entry:
+the higher `versionCode` wins and entries only the APK knows are kept, so a new build's sources work
+before the published index catches up. To retire a bundled entry, publish it with a higher
+`versionCode`.
 
 ## Publishing a repository
 

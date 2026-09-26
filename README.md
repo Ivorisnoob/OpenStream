@@ -21,8 +21,8 @@ OpenStream provides a native Android experience for discovering and watching ani
 ## Tech Stack
 
 ### Core Technologies
-- **Language:** Kotlin 2.0.21
-- **UI Framework:** Jetpack Compose with Material 3 Expressive (1.5.0-alpha13)
+- **Language:** Kotlin 2.3.21
+- **UI Framework:** Jetpack Compose with Material 3 Expressive (1.5.0-alpha29)
 - **Architecture:** Clean Architecture (Domain/Data/Presentation layers)
 - **Dependency Injection:** Hilt 2.51.1 with KSP
 

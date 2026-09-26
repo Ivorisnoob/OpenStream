@@ -8,6 +8,7 @@ import com.ivor.openstream.data.local.AppDatabase
 import com.ivor.openstream.data.local.dao.DownloadDao
 import com.ivor.openstream.data.local.dao.IdMappingDao
 import com.ivor.openstream.data.local.dao.WatchLaterDao
+import com.ivor.openstream.data.local.dao.WatchProgressDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -39,6 +40,36 @@ object DatabaseModule {
         }
     }
 
+    private val migration3To4 = object : Migration(3, 4) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `watch_progress` (
+                    `id` TEXT NOT NULL,
+                    `tmdbId` INTEGER NOT NULL,
+                    `mediaType` TEXT NOT NULL,
+                    `season` INTEGER NOT NULL,
+                    `episode` INTEGER NOT NULL,
+                    `title` TEXT NOT NULL,
+                    `episodeTitle` TEXT,
+                    `posterPath` TEXT,
+                    `backdropPath` TEXT,
+                    `stillPath` TEXT,
+                    `positionMs` INTEGER NOT NULL,
+                    `durationMs` INTEGER NOT NULL,
+                    `completed` INTEGER NOT NULL,
+                    `updatedAt` INTEGER NOT NULL,
+                    PRIMARY KEY(`id`)
+                )
+                """.trimIndent()
+            )
+            database.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_watch_progress_mediaType_tmdbId` " +
+                    "ON `watch_progress` (`mediaType`, `tmdbId`)"
+            )
+        }
+    }
+
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -47,7 +78,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "open_stream_db"
         )
-            .addMigrations(migration2To3)
+            .addMigrations(migration2To3, migration3To4)
             .fallbackToDestructiveMigration()
             .build()
     }
@@ -65,5 +96,10 @@ object DatabaseModule {
     @Provides
     fun provideIdMappingDao(database: AppDatabase): IdMappingDao {
         return database.idMappingDao()
+    }
+
+    @Provides
+    fun provideWatchProgressDao(database: AppDatabase): WatchProgressDao {
+        return database.watchProgressDao()
     }
 }

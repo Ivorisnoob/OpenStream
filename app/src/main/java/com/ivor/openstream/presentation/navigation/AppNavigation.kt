@@ -158,6 +158,19 @@ fun AppNavigation(
                         onAnimeClick = { animeId ->
                             navController.navigate(Screen.Details.createRoute("tv", animeId))
                         },
+                        onResume = { progress ->
+                            navController.navigate(
+                                Screen.Player.createRoute(
+                                    mediaType = progress.mediaType,
+                                    animeId = progress.tmdbId,
+                                    season = progress.season,
+                                    episode = progress.episode
+                                )
+                            )
+                        },
+                        onOpenDetails = { mediaType, id ->
+                            navController.navigate(Screen.Details.createRoute(mediaType, id))
+                        },
                         onSettingsClick = { navController.navigate(Screen.Settings.route) },
                         onUpdateClick = { navController.navigate(Screen.Update.route) }
                     )
@@ -274,8 +287,8 @@ fun AppNavigation(
                         episode = episode,
                         downloadId = downloadId,
                         onBackClick = { navController.popBackStack() },
-                        onEpisodeClick = { newEpisode ->
-                            navController.navigate(Screen.Player.createRoute(mediaType, animeId, season, newEpisode)) {
+                        onEpisodeClick = { newSeason, newEpisode ->
+                            navController.navigate(Screen.Player.createRoute(mediaType, animeId, newSeason, newEpisode)) {
                                 popUpTo(Screen.Player.route) { inclusive = true }
                             }
                         }

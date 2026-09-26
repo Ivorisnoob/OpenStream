@@ -29,6 +29,23 @@ class BundledExtensionCatalog @Inject constructor(
         )
     }.getOrNull()
 
+    /**
+     * Reconciles a fetched or cached copy of the official repository with the one in this APK.
+     * Per entry the higher `versionCode` wins, and entries only this APK knows about are kept, so a
+     * new build's sources work before the published index catches up. Retiring a bundled entry
+     * therefore means publishing it with a higher `versionCode` (for example `status: 0`).
+     */
+    fun reconcile(remote: CachedRepoSnapshot): CachedRepoSnapshot {
+        val local = load() ?: return remote
+        val merged = LinkedHashMap<String, ExtensionEntryDto>()
+        remote.extensions.forEach { merged[it.id] = it }
+        local.extensions.forEach { entry ->
+            val current = merged[entry.id]
+            if (current == null || entry.versionCode > current.versionCode) merged[entry.id] = entry
+        }
+        return remote.copy(extensions = merged.values.toList())
+    }
+
     companion object {
         const val ASSET_PATH = "extensions/official-repo.json"
         const val OFFICIAL_REPO_URL =

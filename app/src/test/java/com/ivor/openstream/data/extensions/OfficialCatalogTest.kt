@@ -54,7 +54,7 @@ class OfficialCatalogTest {
             "killjoy", "fade", "omen", "raze", "web-fallback"
         )
 
-        assertEquals(expected, repo.extensions.map { it.id }.toSet())
+        assertTrue(repo.extensions.map { it.id }.toSet().containsAll(expected))
     }
 
     @Test
@@ -67,12 +67,15 @@ class OfficialCatalogTest {
     }
 
     @Test
-    fun `exactly one fallback resolver is published`() {
+    fun `web resolvers are only ever used as fallbacks`() {
         val repo = parser.parseRepo(bundled.readText())
-        val fallbacks = repo.extensions.filter {
-            it.fallback || it.engine.type == ExtensionEngineType.VIDKING_WEBVIEW.key
-        }
+        val webEngines = setOf(ExtensionEngineType.VIDKING_WEBVIEW.key, ExtensionEngineType.WEB_EMBED.key)
+        val webEntries = repo.extensions.filter { it.engine.type in webEngines }
 
-        assertEquals(1, fallbacks.size)
+        assertEquals(1, webEntries.count { it.engine.type == ExtensionEngineType.VIDKING_WEBVIEW.key })
+        // Hidden-browser resolvers are slow; they must never run ahead of the direct routes.
+        webEntries.forEach { entry ->
+            assertTrue("${entry.id} must be a fallback", entry.fallback || entry.engine.type == ExtensionEngineType.VIDKING_WEBVIEW.key)
+        }
     }
 }

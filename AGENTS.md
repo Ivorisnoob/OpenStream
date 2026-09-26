@@ -36,9 +36,9 @@ For new work:
 
 ## Tech Stack
 
-- Kotlin 2.0.21
+- Kotlin 2.3.21 (compiled by AGP 9.4 built-in Kotlin), Gradle 9.8, compileSdk 37
 - Jetpack Compose
-- Material 3 Expressive `1.5.0-alpha13`
+- Material 3 Expressive `1.5.0-alpha29`
 - Hilt + KSP
 - Retrofit + OkHttp + kotlinx serialization
 - Coil 3

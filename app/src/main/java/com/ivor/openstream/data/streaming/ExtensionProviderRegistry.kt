@@ -3,7 +3,9 @@ package com.ivor.openstream.data.streaming
 import com.ivor.openstream.data.streaming.providers.VidkingDirectApi
 import com.ivor.openstream.data.streaming.providers.VidkingDirectProvider
 import com.ivor.openstream.data.streaming.providers.VidkingServerSpec
-import com.ivor.openstream.data.streaming.providers.VidkingWebViewProvider
+import com.ivor.openstream.data.streaming.providers.WebEmbedProvider
+import com.ivor.openstream.data.streaming.providers.WebEmbedResolver
+import com.ivor.openstream.data.streaming.providers.WebEmbedSpec
 import com.ivor.openstream.domain.model.ExtensionEngineType
 import com.ivor.openstream.domain.model.MarketplaceExtension
 import com.ivor.openstream.domain.model.MediaIdentity
@@ -38,7 +40,7 @@ class ExtensionStreamProvider(
 class ExtensionProviderRegistry @Inject constructor(
     private val extensionRepository: ExtensionRepository,
     private val vidkingApi: VidkingDirectApi,
-    private val webViewProvider: VidkingWebViewProvider
+    private val webEmbedResolver: WebEmbedResolver
 ) {
     private val cache = ConcurrentHashMap<String, ExtensionStreamProvider>()
 
@@ -57,7 +59,8 @@ class ExtensionProviderRegistry @Inject constructor(
         val engine = manifest.engine
         if (!engine.isRunnable) return null
 
-        val cacheKey = "${manifest.key}@${manifest.versionCode}@${engine.type.key}@${engine.endpoint}"
+        val cacheKey = "${manifest.key}@${manifest.versionCode}@${engine.type.key}@${engine.endpoint}" +
+            "@${engine.movieUrl}@${engine.tvUrl}"
         cache[cacheKey]?.let { return it }
 
         val delegate: StreamProvider = when (engine.type) {
@@ -72,7 +75,21 @@ class ExtensionProviderRegistry @Inject constructor(
                     qualityFilter = engine.qualityFilter
                 )
             )
-            ExtensionEngineType.VIDKING_WEBVIEW -> webViewProvider
+            ExtensionEngineType.VIDKING_WEBVIEW -> WebEmbedProvider(
+                resolver = webEmbedResolver,
+                spec = WebEmbedSpec.VIDKING_FALLBACK
+            )
+            ExtensionEngineType.WEB_EMBED -> WebEmbedProvider(
+                resolver = webEmbedResolver,
+                spec = WebEmbedSpec(
+                    id = "web-${manifest.id}",
+                    name = manifest.name,
+                    movieUrl = engine.movieUrl,
+                    tvUrl = engine.tvUrl,
+                    priority = engine.priority,
+                    isFallback = manifest.isFallback
+                )
+            )
             ExtensionEngineType.UNSUPPORTED -> return null
         }
 

@@ -68,8 +68,13 @@ class ExtensionRepositoryImpl @Inject constructor(
             val targets = synchronized(lock) { snapshots.map { (id, snapshot) -> id to snapshot.url } }
             targets.forEach { (repoId, url) ->
                 runCatching { client.fetch(url) }
-                    .onSuccess { snapshot ->
-                        cache.write(repoId, snapshot)
+                    .onSuccess { fetched ->
+                        cache.write(repoId, fetched)
+                        val snapshot = if (repoId == BundledExtensionCatalog.OFFICIAL_REPO_ID) {
+                            bundled.reconcile(fetched)
+                        } else {
+                            fetched
+                        }
                         synchronized(lock) {
                             snapshots[repoId] = snapshot
                             repoErrors[repoId] = null
@@ -207,7 +212,7 @@ class ExtensionRepositoryImpl @Inject constructor(
         synchronized(lock) {
             if (loaded) return
             val officialId = BundledExtensionCatalog.OFFICIAL_REPO_ID
-            val official = cache.read(officialId)
+            val official = cache.read(officialId)?.let(bundled::reconcile)
                 ?: bundled.load()
                 ?: CachedRepoSnapshot(url = BundledExtensionCatalog.OFFICIAL_REPO_URL, name = "OpenStream Official")
             snapshots[officialId] = official

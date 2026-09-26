@@ -26,6 +26,8 @@
             android:exported="true"
             android:label="@string/app_name"
             android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
             android:theme="@style/Theme.OpenStream">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

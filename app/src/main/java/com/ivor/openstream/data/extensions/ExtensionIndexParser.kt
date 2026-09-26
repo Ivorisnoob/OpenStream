@@ -84,7 +84,9 @@ class ExtensionIndexParser @Inject constructor() {
                 endpoint = entry.engine.endpoint.trim(),
                 priority = entry.engine.priority,
                 language = entry.engine.language?.trim()?.takeIf { it.isNotEmpty() },
-                qualityFilter = entry.engine.qualityFilter?.trim()?.takeIf { it.isNotEmpty() }
+                qualityFilter = entry.engine.qualityFilter?.trim()?.takeIf { it.isNotEmpty() },
+                movieUrl = entry.engine.movieUrl?.trim()?.takeIf { it.isNotEmpty() },
+                tvUrl = entry.engine.tvUrl?.trim()?.takeIf { it.isNotEmpty() }
             ),
             isFallback = entry.fallback || engineType == ExtensionEngineType.VIDKING_WEBVIEW,
             installedByDefault = entry.installedByDefault

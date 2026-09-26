@@ -72,6 +72,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -102,7 +103,9 @@ import androidx.media3.common.util.UnstableApi
 import coil3.compose.AsyncImage
 import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.presentation.player.components.ExoPlayerView
-import com.ivor.openstream.presentation.player.components.ServerPickerSheet
+import com.ivor.openstream.presentation.player.components.SourcesPageActions
+import com.ivor.openstream.presentation.player.components.SourcesPanel
+import com.ivor.openstream.presentation.player.components.UpNextOverlay
 import com.ivor.openstream.presentation.components.ExpressiveBackButton
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 import androidx.compose.runtime.key
@@ -123,7 +126,7 @@ fun PlayerScreen(
     episode: Int,
     downloadId: String? = null,
     onBackClick: () -> Unit,
-    onEpisodeClick: (Int) -> Unit,
+    onEpisodeClick: (season: Int, episode: Int) -> Unit,
     viewModel: PlayerViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -139,13 +142,8 @@ fun PlayerScreen(
     val serversState by viewModel.serversState.collectAsState()
     val activeServer by viewModel.activeServer.collectAsState()
     val currentDownload by viewModel.currentDownload.collectAsState()
-
-    val availableSourceCount = when (val state = serversState) {
-        is ServersState.Resolving -> state.servers.size
-        is ServersState.Ready -> state.servers.size
-        else -> 0
-    }
-    val isResolvingSources = serversState is ServersState.Resolving
+    val startPositionMs by viewModel.startPositionMs.collectAsState()
+    val nextEpisode by viewModel.nextEpisode.collectAsState()
 
     var localVideoUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var isResolvingLocalUri by remember { mutableStateOf(downloadId != null) }
@@ -172,10 +170,28 @@ fun PlayerScreen(
     val allSubtitles = remember(remoteSubtitles, providerSubtitles) {
         (providerSubtitles + remoteSubtitles).distinctBy { it.url }
     }
-    val videoUrl = localVideoUrl ?: activeServer?.url
+    // Hold playback until the saved position is known so a resume never starts from zero.
+    val videoUrl = (localVideoUrl ?: activeServer?.url)?.takeIf { startPositionMs != null }
+    var showUpNext by remember(tmdbId, season, episode) { mutableStateOf(false) }
+
+    LaunchedEffect(startPositionMs) {
+        val saved = startPositionMs ?: return@LaunchedEffect
+        if (resumePositionMs == 0L && saved > 0L) resumePositionMs = saved
+    }
 
     // Fullscreen state
     var isFullscreen by rememberSaveable { mutableStateOf(false) }
+    val isInPictureInPicture = rememberIsInPictureInPicture()
+    // Picture-in-picture shows the bare video, exactly like fullscreen minus the chrome.
+    val isImmersive = isFullscreen || isInPictureInPicture
+    var isVideoPlaying by remember { mutableStateOf(false) }
+    var togglePlaybackSignal by remember { mutableIntStateOf(0) }
+
+    PictureInPictureEffect(
+        enabled = videoUrl != null,
+        isPlaying = isVideoPlaying,
+        onTogglePlayback = { togglePlaybackSignal++ }
+    )
 
     // Trigger data fetch
     LaunchedEffect(tmdbId, season, episode, downloadId) {
@@ -259,13 +275,21 @@ fun PlayerScreen(
         }
     }
 
-    // Determine next episode click
-    val nextEpisode = nextEpisodes.firstOrNull { it.episodeNumber > episode }
-    val onNextClick: (() -> Unit)? = if (nextEpisode != null) {
-        {
-            onEpisodeClick(nextEpisode.episodeNumber)
+    val onNextClick: (() -> Unit)? = nextEpisode?.let { target ->
+        { onEpisodeClick(target.season, target.episode) }
+    }
+
+    val downloadFileName = "${playerTitle.replace(Regex("[^a-zA-Z0-9.-]"), "_")}_$tmdbId.mp4"
+    val sourceActions = SourcesPageActions(
+        onSelect = { server ->
+            viewModel.selectServer(server.id)
+            showServerPicker = false
+        },
+        onRetry = viewModel::retryResolution,
+        onDownload = { server ->
+            viewModel.downloadVideo(server, playerTitle, downloadFileName, mediaType, tmdbId, season, episode)
         }
-    } else null
+    )
 
     Box(
         modifier = Modifier
@@ -275,10 +299,10 @@ fun PlayerScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(if (isFullscreen) PaddingValues(0.dp) else WindowInsets.statusBars.asPaddingValues())
+                .padding(if (isImmersive) PaddingValues(0.dp) else WindowInsets.statusBars.asPaddingValues())
         ) {
             // 1. Video Player Area - Always present, size depends on isFullscreen
-            val videoModifier = if (isFullscreen) {
+            val videoModifier = if (isImmersive) {
                 Modifier.fillMaxSize()
             } else {
                 Modifier
@@ -330,14 +354,18 @@ fun PlayerScreen(
                             } else {
                                 activeServer?.let { "${it.providerName} · ${it.sourceSummary()}" }
                             },
-                            sourceCount = availableSourceCount,
+                            serversState = serversState,
                             canChangeSource = downloadId == null,
-                            isResolvingSources = isResolvingSources,
                             initialPositionMs = resumePositionMs,
                             onPositionChanged = { resumePositionMs = it },
+                            onProgressChanged = viewModel::onProgress,
+                            onPlaybackEnded = { showUpNext = nextEpisode != null },
+                            onIsPlayingChanged = { isVideoPlaying = it },
+                            isInPictureInPicture = isInPictureInPicture,
+                            togglePlaybackSignal = togglePlaybackSignal,
                             initialPlaybackSpeed = sessionPlaybackSpeed,
                             onPlaybackSpeedChanged = { sessionPlaybackSpeed = it },
-                            onServersClick = { showServerPicker = true },
+                            sourceActions = sourceActions,
                             onNextClick = onNextClick,
                             captionSettings = captionSettings,
                             onCaptionSettingsChange = viewModel::updateCaptionSettings,
@@ -446,6 +474,14 @@ fun PlayerScreen(
                                             ) {
                                                 Text("Retry sources")
                                             }
+                                        } else if (serversState is ServersState.Ready) {
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                            Button(
+                                                onClick = { showServerPicker = true },
+                                                shape = ExpressiveShapes.medium
+                                            ) {
+                                                Text("Choose a source")
+                                            }
                                         }
                                     }
                                 }
@@ -466,11 +502,34 @@ fun PlayerScreen(
                     }
                 }
             }
+            val target = nextEpisode
+            if (showUpNext && target != null && !isInPictureInPicture) {
+                UpNextOverlay(
+                    target = target,
+                    onPlayNow = {
+                        showUpNext = false
+                        onEpisodeClick(target.season, target.episode)
+                    },
+                    onCancel = { showUpNext = false },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(if (isFullscreen) 32.dp else 12.dp)
+                )
+            }
+
+            // Once a stream plays, Sources is a page inside the player's settings panel.
+            SourcesPanel(
+                visible = showServerPicker && videoUrl == null && downloadId == null,
+                isFullscreen = isFullscreen,
+                state = serversState,
+                actions = sourceActions,
+                onDismiss = { showServerPicker = false }
+            )
         }
 
             // 2. Details and Next Episodes - Only visible when NOT in fullscreen
             AnimatedVisibility(
-            visible = !isFullscreen,
+            visible = !isImmersive,
             enter = fadeIn(tween(DurationEffectsDefault, easing = ExpressiveDefaultEffects)) + 
                     slideInVertically(tween(DurationSpatialDefault, easing = ExpressiveDefaultSpatial)) { it / 4 },
             exit = fadeOut(tween(DurationEffectsDefault, easing = ExpressiveDefaultEffects)) + 
@@ -702,7 +761,7 @@ fun PlayerScreen(
                         onClick = {
                             // Navigation replaces this screen with a fresh Player
                             // (popUpTo inclusive), so no manual state reset is needed.
-                            onEpisodeClick(ep.episodeNumber)
+                            onEpisodeClick(season, ep.episodeNumber)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -796,22 +855,6 @@ fun PlayerScreen(
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(horizontal = 16.dp, vertical = 16.dp)
-        )
-    }
-
-    if (showServerPicker && downloadId == null) {
-        ServerPickerSheet(
-            state = serversState,
-            onDismiss = { showServerPicker = false },
-            onSelect = { serverId ->
-                viewModel.selectServer(serverId)
-                showServerPicker = false
-            },
-            onRetry = viewModel::retryResolution,
-            onDownload = { server ->
-                val fileName = "${playerTitle.replace(Regex("[^a-zA-Z0-9.-]"), "_")}_$tmdbId.mp4"
-                viewModel.downloadVideo(server, playerTitle, fileName, mediaType, tmdbId, season, episode)
-            }
         )
     }
 }

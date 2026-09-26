@@ -30,15 +30,26 @@ class StreamingRepositoryImpl @Inject constructor(
 ) : StreamingRepository {
     private val consecutiveFailures = ConcurrentHashMap<String, Int>()
 
-    override fun resolveServers(identity: MediaIdentity): Flow<ServerResolution> = channelFlow {
+    override fun resolveServers(
+        identity: MediaIdentity,
+        includeFallbacks: Boolean
+    ): Flow<ServerResolution> = channelFlow {
         val enrichedIdentity = idMappingService.enrich(identity)
         val installedProviders = withContext(Dispatchers.IO) { providerRegistry.activeProviders() }
         val providerPriorities = installedProviders.associate { it.id to it.priority }
         val enabledProviders = installedProviders.filter {
             it.isEnabled && (consecutiveFailures[it.id] ?: 0) < CIRCUIT_BREAKER_THRESHOLD
         }
-        val directProviders = enabledProviders.filterNot(ExtensionStreamProvider::isFallback)
-        val fallbackProviders = enabledProviders.filter(ExtensionStreamProvider::isFallback)
+        val directProviders = if (includeFallbacks) {
+            enabledProviders
+        } else {
+            enabledProviders.filterNot(ExtensionStreamProvider::isFallback)
+        }
+        val fallbackProviders = if (includeFallbacks) {
+            emptyList()
+        } else {
+            enabledProviders.filter(ExtensionStreamProvider::isFallback)
+        }
         val firstStageProviders = directProviders.ifEmpty { fallbackProviders }
         val deferredFallbackProviders = fallbackProviders.takeIf { directProviders.isNotEmpty() }.orEmpty()
         val preferredServerId = preferences.getString(preferenceKey(identity), null)

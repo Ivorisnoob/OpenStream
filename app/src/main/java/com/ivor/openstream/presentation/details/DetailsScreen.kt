@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -28,6 +29,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material3.LinearProgressIndicator
+import com.ivor.openstream.domain.model.WatchProgress
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.PlayArrow
@@ -118,6 +122,8 @@ fun DetailsScreen(
     val uriHandler = LocalUriHandler.current
     val isWatchLater by viewModel.isWatchLater.collectAsState()
     val downloadQueueState by viewModel.downloadQueueState.collectAsState()
+    val episodeProgress by viewModel.episodeProgress.collectAsState()
+    val resumeTarget by viewModel.resumeTarget.collectAsState()
     
     val screenState = remember(uiState) {
         when (uiState) {
@@ -188,15 +194,32 @@ fun DetailsScreen(
                         )
                     }
 
+                    val resume = resumeTarget
                     ExtendedFloatingActionButton(
                         onClick = {
-                            val seasonNum = seasonDetails?.seasonNumber 
-                                ?: details.seasons?.firstOrNull()?.seasonNumber ?: 1
-                            val episodeNum = 1
-                            onPlayClick(seasonNum, episodeNum)
+                            if (resume != null) {
+                                onPlayClick(resume.season, resume.episode)
+                            } else {
+                                val firstSeason = details.seasons
+                                    ?.filter { it.seasonNumber > 0 }
+                                    ?.minByOrNull { it.seasonNumber }
+                                    ?.seasonNumber
+                                    ?: details.seasons?.firstOrNull()?.seasonNumber
+                                    ?: 1
+                                onPlayClick(firstSeason, 1)
+                            }
                         },
                         icon = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
-                        text = { Text("Play Now") },
+                        text = {
+                            Text(
+                                when {
+                                    resume == null -> "Play"
+                                    mediaType == "movie" -> "Resume"
+                                    resume.isUpNext -> "Continue · S${resume.season} E${resume.episode}"
+                                    else -> "Resume · S${resume.season} E${resume.episode}"
+                                }
+                            )
+                        },
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary,
                         expanded = true
@@ -458,6 +481,7 @@ fun DetailsScreen(
                                         ) { episode ->
                                             EpisodeItem(
                                                 episode = episode,
+                                                progress = episodeProgress[episode.seasonNumber to episode.episodeNumber],
                                                 onClick = { onPlayClick(episode.seasonNumber, episode.episodeNumber) },
                                                 onDownloadClick = {
                                                     viewModel.downloadEpisodes(listOf(episode))
@@ -510,6 +534,7 @@ fun DetailsScreen(
 @Composable
 fun EpisodeItem(
     episode: EpisodeDto,
+    progress: WatchProgress? = null,
     onClick: () -> Unit,
     onDownloadClick: () -> Unit
 ) {
@@ -556,12 +581,15 @@ fun EpisodeItem(
                 shape = ExpressiveShapes.small,
                 modifier = Modifier.size(width = 100.dp, height = 56.dp)
             ) {
-                AsyncImage(
-                    model = "https://image.tmdb.org/t/p/w300${episode.stillPath}",
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
+                Box(modifier = Modifier.fillMaxSize()) {
+                    AsyncImage(
+                        model = "https://image.tmdb.org/t/p/w300${episode.stillPath}",
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    EpisodeProgressOverlay(progress)
+                }
             }
         },
         trailingContent = {
@@ -581,4 +609,36 @@ fun EpisodeItem(
             .padding(horizontal = 8.dp) // Indent items slightly
             .alpha(alpha)
     )
+}
+
+/** Watched badge or a thin progress line on an episode thumbnail. */
+@Composable
+private fun BoxScope.EpisodeProgressOverlay(progress: WatchProgress?) {
+    when {
+        progress == null -> Unit
+        progress.completed -> Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.45f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.CheckCircle,
+                contentDescription = "Watched",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        progress.fraction > 0f -> LinearProgressIndicator(
+            progress = { progress.fraction },
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = Color.Black.copy(alpha = 0.45f),
+            gapSize = 0.dp,
+            drawStopIndicator = {},
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(4.dp)
+        )
+    }
 }

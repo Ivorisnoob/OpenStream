@@ -175,6 +175,216 @@
       }
     },
     {
+      "id": "jett",
+      "name": "Jett",
+      "description": "Fast web player route with adaptive quality. Backs up the main routes when they fail.",
+      "version": "1.0.0",
+      "versionCode": 1,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Multi",
+      "tags": ["movies", "series", "fallback", "official"],
+      "status": 3,
+      "updatedAt": "2026-09-26",
+      "installedByDefault": true,
+      "fallback": true,
+      "engine": {
+        "type": "web-embed",
+        "movieUrl": "https://vidlink.pro/movie/{tmdbId}",
+        "tvUrl": "https://vidlink.pro/tv/{tmdbId}/{season}/{episode}",
+        "priority": 20
+      }
+    },
+    {
+      "id": "sage",
+      "name": "Sage",
+      "description": "Web player route with wide series coverage. Steps in when the main routes fail.",
+      "version": "1.0.0",
+      "versionCode": 1,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Multi",
+      "tags": ["movies", "series", "fallback", "official"],
+      "status": 3,
+      "updatedAt": "2026-09-26",
+      "installedByDefault": true,
+      "fallback": true,
+      "engine": {
+        "type": "web-embed",
+        "movieUrl": "https://player.videasy.net/movie/{tmdbId}",
+        "tvUrl": "https://player.videasy.net/tv/{tmdbId}/{season}/{episode}",
+        "priority": 21
+      }
+    },
+    {
+      "id": "sova",
+      "name": "Sova",
+      "description": "Web player route that tracks new releases quickly. Used as a backup.",
+      "version": "1.0.0",
+      "versionCode": 1,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Multi",
+      "tags": ["movies", "series", "fallback", "official"],
+      "status": 3,
+      "updatedAt": "2026-09-26",
+      "installedByDefault": true,
+      "fallback": true,
+      "engine": {
+        "type": "web-embed",
+        "movieUrl": "https://vidfast.pro/movie/{tmdbId}?autoPlay=true",
+        "tvUrl": "https://vidfast.pro/tv/{tmdbId}/{season}/{episode}?autoPlay=true",
+        "priority": 22
+      }
+    },
+    {
+      "id": "phoenix",
+      "name": "Phoenix",
+      "description": "Independent web player route for titles the main routes cannot find.",
+      "version": "1.0.0",
+      "versionCode": 1,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Multi",
+      "tags": ["movies", "series", "fallback", "official"],
+      "status": 3,
+      "updatedAt": "2026-09-26",
+      "installedByDefault": true,
+      "fallback": true,
+      "engine": {
+        "type": "web-embed",
+        "movieUrl": "https://vidrock.net/movie/{tmdbId}",
+        "tvUrl": "https://vidrock.net/tv/{tmdbId}/{season}/{episode}",
+        "priority": 23
+      }
+    },
+    {
+      "id": "reyna",
+      "name": "Reyna",
+      "description": "Web player route with multiple mirrors behind it. Used as a backup.",
+      "version": "1.0.0",
+      "versionCode": 1,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Multi",
+      "tags": ["movies", "series", "fallback", "official"],
+      "status": 3,
+      "updatedAt": "2026-09-26",
+      "installedByDefault": true,
+      "fallback": true,
+      "engine": {
+        "type": "web-embed",
+        "movieUrl": "https://vidzee.wtf/movie/{tmdbId}",
+        "tvUrl": "https://vidzee.wtf/tv/{tmdbId}/{season}/{episode}",
+        "priority": 24
+      }
+    },
+    {
+      "id": "viper",
+      "name": "Viper",
+      "description": "Web player route kept for extra coverage when other backups are busy.",
+      "version": "1.0.0",
+      "versionCode": 1,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Multi",
+      "tags": ["movies", "series", "fallback", "official"],
+      "status": 3,
+      "updatedAt": "2026-09-26",
+      "installedByDefault": true,
+      "fallback": true,
+      "engine": {
+        "type": "web-embed",
+        "movieUrl": "https://player.vidplus.pro/embed/movie/{tmdbId}",
+        "tvUrl": "https://player.vidplus.pro/embed/tv/{tmdbId}/{season}/{episode}",
+        "priority": 25
+      }
+    },
+    {
+      "id": "skye",
+      "name": "Skye",
+      "description": "Long-running web player route with a large movie library. Used as a backup.",
+      "version": "1.0.0",
+      "versionCode": 1,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Multi",
+      "tags": ["movies", "series", "fallback", "official"],
+      "status": 3,
+      "updatedAt": "2026-09-26",
+      "installedByDefault": true,
+      "fallback": true,
+      "engine": {
+        "type": "web-embed",
+        "movieUrl": "https://www.2embed.cc/embed/{tmdbId}",
+        "tvUrl": "https://www.2embed.cc/embedtv/{tmdbId}&s={season}&e={episode}",
+        "priority": 26
+      }
+    },
+    {
+      "id": "astra",
+      "name": "Astra",
+      "description": "Web player route with its own source network. Used as a backup.",
+      "version": "1.0.0",
+      "versionCode": 1,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Multi",
+      "tags": ["movies", "series", "fallback", "official"],
+      "status": 3,
+      "updatedAt": "2026-09-26",
+      "installedByDefault": true,
+      "fallback": true,
+      "engine": {
+        "type": "web-embed",
+        "movieUrl": "https://vidsrc.wtf/api/1/movie/?id={tmdbId}",
+        "tvUrl": "https://vidsrc.wtf/api/1/tv/?id={tmdbId}&s={season}&e={episode}",
+        "priority": 27
+      }
+    },
+    {
+      "id": "harbor",
+      "name": "Harbor",
+      "description": "Lightweight web player route for extra failover.",
+      "version": "1.0.0",
+      "versionCode": 1,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Multi",
+      "tags": ["movies", "series", "fallback", "official"],
+      "status": 3,
+      "updatedAt": "2026-09-26",
+      "installedByDefault": true,
+      "fallback": true,
+      "engine": {
+        "type": "web-embed",
+        "movieUrl": "https://vidjoy.pro/embed/movie/{tmdbId}",
+        "tvUrl": "https://vidjoy.pro/embed/tv/{tmdbId}/{season}/{episode}",
+        "priority": 28
+      }
+    },
+    {
+      "id": "gekko",
+      "name": "Gekko",
+      "description": "Community web player route, tried last among the backups.",
+      "version": "1.0.0",
+      "versionCode": 1,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Multi",
+      "tags": ["movies", "series", "fallback", "official"],
+      "status": 3,
+      "updatedAt": "2026-09-26",
+      "installedByDefault": true,
+      "fallback": true,
+      "engine": {
+        "type": "web-embed",
+        "movieUrl": "https://spencerdevs.xyz/movie/{tmdbId}",
+        "tvUrl": "https://spencerdevs.xyz/tv/{tmdbId}/{season}/{episode}",
+        "priority": 29
+      }
+    },
+    {
       "id": "web-fallback",
       "name": "Web compatibility",
       "description": "Slow compatibility resolver that loads the page in a hidden browser. Only used when every direct route fails.",
