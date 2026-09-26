@@ -121,25 +121,17 @@ When reporting bugs, include:
 
 ### Areas for Contribution
 
-**High Priority:**
-- Paging 3 implementation for infinite scroll
-- Room database migration for local storage
-- Watch history tracking from player
-- Error handling and retry mechanisms
-- Offline support
+**Sources (no Kotlin needed):**
+- Add, fix or retire streaming sources in the extension catalog. See
+  [extensions/README.md](extensions/README.md).
 
-**Medium Priority:**
-- Subtitle support
-- Download functionality
-- Advanced search filters
-- User preferences and settings
-- Performance optimizations
-
-**Low Priority:**
-- Additional themes
-- Accessibility improvements
+**App:**
+- Reliable dubs: dub routes return links locked to the provider's server, so playback on devices
+  is unreliable
+- Paging for long search results and catalogs
+- Accessibility audits (TalkBack, font scaling, contrast)
+- Tablet and foldable layouts
 - Localization
-- Widget support
 
 ## Dependency Management
 

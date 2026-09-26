@@ -132,6 +132,11 @@ the higher `versionCode` wins and entries only the APK knows are kept, so a new 
 before the published index catches up. To retire a bundled entry, publish it with a higher
 `versionCode`.
 
+## Contributing to the official catalog
+
+Step-by-step instructions, catalog rules and the review checklist are in
+[`extensions/README.md`](../extensions/README.md).
+
 ## Publishing a repository
 
 1. Host a JSON document in one of the shapes above (GitHub raw is fine).
