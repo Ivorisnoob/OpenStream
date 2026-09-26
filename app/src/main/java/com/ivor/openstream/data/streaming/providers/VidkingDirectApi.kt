@@ -125,6 +125,7 @@ class VidkingDirectApi @Inject constructor(
 
     private fun SourcesPayload.toVideoServers(spec: VidkingServerSpec): List<VideoServer> {
         val requestHeaders = vidkingRequestHeaders()
+        val audioLanguage = (spec.qualityFilter ?: spec.language)?.replaceFirstChar { it.uppercase() }
         val streamSubtitles = subtitles.mapNotNull { subtitle ->
             val url = subtitle.url?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
             StreamSubtitle(
@@ -150,7 +151,8 @@ class VidkingDirectApi @Inject constructor(
                     quality = best,
                     audio = StreamAudio.parse(spec.language.orEmpty()),
                     headers = requestHeaders,
-                    subtitles = streamSubtitles
+                    subtitles = streamSubtitles,
+                    audioLanguage = audioLanguage
                 )
             )
         }
@@ -181,7 +183,8 @@ class VidkingDirectApi @Inject constructor(
                     audio = StreamAudio.parse(descriptor),
                     headers = requestHeaders,
                     subtitles = streamSubtitles,
-                    isDownloadable = !url.substringBefore('?').endsWith(".mpd", ignoreCase = true)
+                    isDownloadable = !url.substringBefore('?').endsWith(".mpd", ignoreCase = true),
+                    audioLanguage = audioLanguage
                 )
             }.toList()
     }

@@ -70,6 +70,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ivor.openstream.presentation.player.CaptionStyleSettings
 import com.ivor.openstream.presentation.player.ServersState
+import com.ivor.openstream.presentation.player.sourceSummary
+import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 import java.util.Locale
 
@@ -240,7 +242,7 @@ private fun ColumnScope.SettingsContent(
             when (current) {
                 PlayerSettingsPage.MAIN -> mainPage(model, onNavigate = { page = it })
                 PlayerSettingsPage.SOURCES -> sourcesPage(model.serversState, sourceFilter, sourceActions)
-                PlayerSettingsPage.AUDIO -> audioPage(model, actions, onDone = goHome)
+                PlayerSettingsPage.AUDIO -> audioPage(model, actions, sourceActions, onDone = goHome)
                 PlayerSettingsPage.QUALITY -> qualityPage(
                     model = model,
                     actions = actions,
@@ -276,6 +278,7 @@ private fun LazyListScope.mainPage(
             )
         )
         val selectedAudio = model.audioOptions.firstOrNull { it.isSelected }
+        val otherLanguages = model.serversState.otherLanguageServers()
         add(
             MainRow(
                 icon = Icons.Default.RecordVoiceOver,
@@ -283,8 +286,12 @@ private fun LazyListScope.mainPage(
                 value = selectedAudio?.let { audio ->
                     listOfNotNull(audio.label, audio.kind(model.originalLanguage)?.label).joinToString(" · ")
                 } ?: "Default",
-                supporting = if (model.audioOptions.size > 1) "${model.audioOptions.size} languages in this stream" else null,
-                enabled = model.audioOptions.size > 1,
+                supporting = when {
+                    otherLanguages.isNotEmpty() -> "${otherLanguages.size} more from other sources"
+                    model.audioOptions.size > 1 -> "${model.audioOptions.size} languages in this stream"
+                    else -> null
+                },
+                enabled = model.audioOptions.size > 1 || otherLanguages.isNotEmpty(),
                 onClick = { onNavigate(PlayerSettingsPage.AUDIO) }
             )
         )
@@ -432,9 +439,13 @@ private fun LazyListScope.qualityPage(
 private fun LazyListScope.audioPage(
     model: PlayerSettingsModel,
     actions: PlayerSettingsActions,
+    sourceActions: SourcesPageActions,
     onDone: () -> Unit
 ) {
     val options = model.audioOptions
+    if (options.isNotEmpty()) {
+        item(key = "audio-this-stream") { AudioGroupLabel("In this stream") }
+    }
     itemsIndexed(options, key = { _, option -> "${option.groupIndex}:${option.trackIndex}" }) { index, option ->
         val kind = option.kind(model.originalLanguage)
         SelectableRow(
@@ -455,6 +466,25 @@ private fun LazyListScope.audioPage(
                 onDone()
             }
         )
+    }
+    // Dubs usually come from a separate route rather than as a track in the same stream.
+    val others = model.serversState.otherLanguageServers()
+    if (others.isNotEmpty()) {
+        item(key = "audio-other-sources") { AudioGroupLabel("From other sources") }
+        itemsIndexed(others, key = { _, server -> "server:${server.id}" }) { index, server ->
+            SelectableRow(
+                selected = false,
+                index = index,
+                count = others.size,
+                title = server.audioLanguage.orEmpty(),
+                supporting = listOfNotNull(
+                    if (server.audioLanguage.equals(model.originalLanguageName(), ignoreCase = true)) "Original audio" else "Dub",
+                    "from ${server.name}",
+                    server.sourceSummary()
+                ).joinToString(" · "),
+                onClick = { sourceActions.onSelect(server) }
+            )
+        }
     }
     item(key = "audio-note") {
         Text(
@@ -710,3 +740,31 @@ private fun qualityOptionDescription(option: QualityOption, activeVideoHeight: I
         if (option.bitrate > 0) add(String.format(Locale.US, "%.1f Mbps", option.bitrate / 1_000_000f))
     }.joinToString(" · ").ifEmpty { "Fixed track" }
 }
+
+@Composable
+private fun AudioGroupLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 8.dp, top = 12.dp, bottom = 8.dp)
+    )
+}
+
+/** One server per spoken language the other sources offer, excluding what is playing now. */
+private fun ServersState.otherLanguageServers(): List<VideoServer> {
+    val activeId = when (this) {
+        is ServersState.Resolving -> activeId
+        is ServersState.Ready -> activeId
+        else -> null
+    }
+    val active = availableServers.firstOrNull { it.id == activeId }
+    return availableServers
+        .filter { it.audioLanguage != null && it.id != activeId && it.audioLanguage != active?.audioLanguage }
+        .distinctBy { it.audioLanguage }
+}
+
+private fun PlayerSettingsModel.originalLanguageName(): String? =
+    originalLanguage?.let { Locale.forLanguageTag(it).getDisplayLanguage(Locale.ENGLISH) }
+

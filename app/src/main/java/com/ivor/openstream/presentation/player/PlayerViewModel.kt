@@ -329,6 +329,7 @@ class PlayerViewModel @Inject constructor(
         failedServerIds.clear()
         automaticFailovers = 0
         backupSourcesSearched = false
+        switchedFrom = null
 
         val continuing = playbackSession.nowPlaying.value
             ?.takeIf { it.matches(mediaType, tmdbId, seasonNumber, currentEpisodeNumber) }
@@ -428,8 +429,12 @@ class PlayerViewModel @Inject constructor(
         return runCatching { !LocalDate.parse(airDate).isAfter(LocalDate.now()) }.getOrDefault(true)
     }
 
+    /** The stream the user switched away from; restored if their pick refuses to play. */
+    private var switchedFrom: VideoServer? = null
+
     fun selectServer(serverId: String) {
         val server = availableServers().firstOrNull { it.id == serverId } ?: return
+        switchedFrom = _activeServer.value?.takeIf { it.id != serverId }
         failedServerIds.remove(serverId)
         automaticFailovers = 0
         _activeServer.value = server
@@ -446,6 +451,18 @@ class PlayerViewModel @Inject constructor(
     fun onPlaybackError() {
         val failed = _activeServer.value ?: return
         failedServerIds += failed.id
+        // A source the user picked by hand (often a dub) failed: go back to what was playing rather
+        // than jumping to an arbitrary server. Some dub hosts lock links to Vidking's own servers.
+        val previous = switchedFrom?.takeIf { it.id !in failedServerIds }
+        switchedFrom = null
+        if (previous != null) {
+            _activeServer.value = previous
+            setActiveId(previous.id)
+            currentIdentity?.let { streamingRepository.rememberServer(it, previous) }
+            val label = failed.audioLanguage?.let { "${failed.name} ($it)" } ?: failed.name
+            _playerEvents.tryEmit("$label won't play on this device. Back to ${previous.name}.")
+            return
+        }
         val next = availableServers().firstOrNull { it.id !in failedServerIds }
         if (next != null && automaticFailovers < MAX_AUTOMATIC_FAILOVERS) {
             automaticFailovers++

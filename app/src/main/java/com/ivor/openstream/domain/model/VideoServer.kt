@@ -11,6 +11,8 @@ data class VideoServer(
     val headers: Map<String, String> = emptyMap(),
     val subtitles: List<StreamSubtitle> = emptyList(),
     val isDownloadable: Boolean = true,
+    /** Spoken language when the source says so (dub routes), e.g. "English" or "Hindi". */
+    val audioLanguage: String? = null,
     val resolvedAt: Long = System.currentTimeMillis()
 ) {
     val isDub: Boolean

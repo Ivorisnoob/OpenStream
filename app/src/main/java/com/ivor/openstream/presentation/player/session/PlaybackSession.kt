@@ -14,6 +14,8 @@ import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.exoplayer.util.EventLogger
+import com.ivor.openstream.BuildConfig
 import com.ivor.openstream.data.streaming.BROWSER_USER_AGENT
 import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.domain.model.WatchProgress
@@ -139,6 +141,8 @@ class PlaybackSession @Inject constructor(
             .build()
             .apply {
                 playWhenReady = true
+                // Debug builds log load errors, format switches and dropped frames under "EventLogger".
+                if (BuildConfig.DEBUG) addAnalyticsListener(EventLogger())
                 addListener(object : Player.Listener {
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
                         _isPlaying.value = isPlaying
