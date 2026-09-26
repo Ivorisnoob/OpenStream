@@ -253,6 +253,7 @@ fun PlayerScreen(
             val controller = WindowInsetsControllerCompat(window, window.decorView)
             controller.hide(WindowInsetsCompat.Type.systemBars())
             controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            setCutoutMode(window, drawIntoCutout = true)
         }
         isFullscreen = true
     }
@@ -264,6 +265,7 @@ fun PlayerScreen(
             WindowCompat.setDecorFitsSystemWindows(window, true)
             val controller = WindowInsetsControllerCompat(window, window.decorView)
             controller.show(WindowInsetsCompat.Type.systemBars())
+            setCutoutMode(window, drawIntoCutout = false)
         }
         isFullscreen = false
     }
@@ -282,6 +284,7 @@ fun PlayerScreen(
                 WindowCompat.setDecorFitsSystemWindows(window, true)
                 val controller = WindowInsetsControllerCompat(window, window.decorView)
                 controller.show(WindowInsetsCompat.Type.systemBars())
+                setCutoutMode(window, drawIntoCutout = false)
             }
         }
     }
@@ -579,4 +582,19 @@ fun PlayerScreen(
                 .padding(horizontal = 16.dp, vertical = 16.dp)
         )
     }
+}
+
+/**
+ * Lets fullscreen video use the area beside a notch or punch-hole instead of letterboxing around it.
+ * Android 15+ already draws there for edge-to-edge apps; this covers older versions.
+ */
+private fun setCutoutMode(window: android.view.Window, drawIntoCutout: Boolean) {
+    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.P) return
+    val mode = when {
+        !drawIntoCutout -> android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R ->
+            android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+        else -> android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+    }
+    window.attributes = window.attributes.apply { layoutInDisplayCutoutMode = mode }
 }

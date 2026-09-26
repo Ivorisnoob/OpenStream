@@ -17,15 +17,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.ClosedCaptionDisabled
@@ -155,8 +152,8 @@ fun PlayerControls(
                         1f to Color.Black.copy(alpha = 0.8f)
                     )
                 )
-                // Only fullscreen reaches under the system bars and cutout; inline sits below them.
-                .then(if (isFullscreen) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier)
+                // Fullscreen ignores the display cutout: controls keep their normal edge margin instead of
+                // shifting sideways around the notch, and the bars are hidden anyway.
         ) {
             TopBar(
                 isFullscreen = isFullscreen,

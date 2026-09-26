@@ -1,68 +1,73 @@
 package com.ivor.openstream.presentation.search
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.ContentTransform
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.InputChip
-import androidx.compose.material3.InputChipDefaults
+import com.ivor.openstream.presentation.components.SkeletonBox
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridItemSpanScope
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.Animation
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FamilyRestroom
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Nightlight
+import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.SentimentVerySatisfied
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.TheaterComedy
+import androidx.compose.material.icons.filled.TravelExplore
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.LoadingIndicator
-import androidx.compose.material3.ToggleButton
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -72,54 +77,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.ivor.openstream.presentation.components.AnimeCard
-import com.ivor.openstream.presentation.components.ExpressiveBackButton
+import coil3.compose.AsyncImage
+import com.ivor.openstream.data.remote.model.AnimeDto
+import com.ivor.openstream.domain.model.BrowseGenre
+import com.ivor.openstream.presentation.components.ChoiceChips
+import com.ivor.openstream.presentation.components.LibraryEmptyState
 import com.ivor.openstream.ui.theme.ExpressiveShapes
+import java.util.Locale
 
+private val FullWidth: LazyGridItemSpanScope.() -> GridItemSpan = { GridItemSpan(maxLineSpan) }
 
-
-// Expressive Motion Tokens (Spring approximations from M3 specs)
-// Source: https://m3.material.io/styles/motion/overview/specs
-
-// Spatial (Large movements)
-val ExpressiveFastSpatial = CubicBezierEasing(0.42f, 1.67f, 0.21f, 0.90f) // 350ms
-val ExpressiveDefaultSpatial = CubicBezierEasing(0.38f, 1.21f, 0.22f, 1.00f) // 500ms
-val ExpressiveSlowSpatial = CubicBezierEasing(0.39f, 1.29f, 0.35f, 0.98f) // 650ms
-
-// Effects (Small movements like fade, scale)
-val ExpressiveFastEffects = CubicBezierEasing(0.31f, 0.94f, 0.34f, 1.00f) // 150ms
-val ExpressiveDefaultEffects = CubicBezierEasing(0.34f, 0.80f, 0.34f, 1.00f) // 200ms
-val ExpressiveSlowEffects = CubicBezierEasing(0.34f, 0.88f, 0.34f, 1.00f) // 300ms
-
-private const val DurationSpatialDefault = 500
-private const val DurationEffectsDefault = 200
-
-private fun materialSharedAxisYIn(): ContentTransform {
-    // Shared Axis Y (Expressive)
-    // Slide uses Spatial curve (physics-based), opacity uses Effects curve
-    return (slideInVertically(
-                animationSpec = tween(DurationSpatialDefault, easing = ExpressiveDefaultSpatial)
-            ) { height -> height / 2 } + 
-            fadeIn(
-                animationSpec = tween(DurationEffectsDefault, delayMillis = 50, easing = ExpressiveDefaultEffects)
-            ))
-        .togetherWith(
-            slideOutVertically(
-                animationSpec = tween(DurationSpatialDefault, easing = ExpressiveDefaultSpatial)
-            ) { height -> -height / 2 } + 
-            fadeOut(
-                animationSpec = tween(DurationEffectsDefault, easing = ExpressiveDefaultEffects)
-            )
-        )
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun SearchScreen(
     onBackClick: () -> Unit,
@@ -127,311 +107,175 @@ fun SearchScreen(
     focusTrigger: Long = 0L,
     viewModel: SearchViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    var searchQuery by remember { mutableStateOf("") }
+    val state by viewModel.uiState.collectAsState()
     val focusRequester = remember { FocusRequester() }
-    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+    val gridState = rememberLazyGridState()
+    val open: (AnimeDto) -> Unit = { onAnimeClick(it.id, if (it.isMovie) "movie" else "tv") }
+    val results = state.visibleResults
 
-    LaunchedEffect(uiState.query) {
-        if (uiState.query != searchQuery) {
-            searchQuery = uiState.query
-        }
-    }
-
+    // Tapping the Search tab while already on it focuses the field.
     LaunchedEffect(focusTrigger) {
-        if (focusTrigger > 0L) {
-            focusRequester.requestFocus()
-            keyboardController?.show()
-        }
+        if (focusTrigger > 0L) focusRequester.requestFocus()
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp)
-        ) {
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Expressive Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                ExpressiveBackButton(onClick = onBackClick)
-                Spacer(modifier = Modifier.weight(1f))
-            }
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            Text(
-                text = "Discover",
-                style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            
-            Spacer(modifier = Modifier.height(24.dp))
+    // Infinite scroll: fetch the next page as the grid nears its end.
+    val nearEnd by remember {
+        derivedStateOf {
+            val last = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            last >= gridState.layoutInfo.totalItemsCount - 6
+        }
+    }
+    LaunchedEffect(nearEnd, results.size) {
+        if (nearEnd && results.isNotEmpty()) viewModel.loadMore()
+    }
 
-            // Custom Expressive Search Bar
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(64.dp)
-                    .clip(ExpressiveShapes.large),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                shadowElevation = 4.dp
-            ) {
-                Row(
+    LazyVerticalGrid(
+        state = gridState,
+        columns = GridCells.Adaptive(minSize = 112.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 200.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        item(key = "header", span = FullWidth) {
+            Column(modifier = Modifier.statusBarsPadding().padding(top = 20.dp)) {
+                Text(
+                    text = "Search",
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Black,
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Search",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    
-                    TextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        placeholder = { Text("Search movies, shows and anime") },
-                        modifier = Modifier
-                            .weight(1f)
-                            .focusRequester(focusRequester),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            disabledContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        ),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = {
-                            viewModel.onSearch(searchQuery)
-                            keyboardController?.hide()
-                        })
-                    )
-
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { 
-                            searchQuery = "" 
-                            viewModel.onSearch("") 
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Clear",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        .padding(start = 4.dp, bottom = 16.dp)
+                        .semantics { heading() }
+                )
+                TextField(
+                    value = state.query,
+                    onValueChange = viewModel::onQueryChange,
+                    placeholder = { Text("Movies, shows and anime") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (state.query.isNotEmpty() || state.genre != null) {
+                            IconButton(onClick = viewModel::clear) {
+                                Icon(Icons.Default.Close, contentDescription = "Clear search")
+                            }
                         }
-                    }
-                    IconButton(onClick = { viewModel.toggleFilterPane() }) {
-                        Icon(
-                            imageVector = Icons.Default.Tune,
-                            contentDescription = "Filters",
-                            tint = if (uiState.isFilterOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(24.dp))
-
-            AnimatedVisibility(
-                visible = uiState.isFilterOpen,
-                enter = expandVertically(
-                    animationSpec = spring(
-                        dampingRatio = 0.7f,
-                        stiffness = Spring.StiffnessLow
-                    )
-                ) + fadeIn(),
-                exit = shrinkVertically(
-                    animationSpec = spring(
-                        dampingRatio = 0.7f,
-                        stiffness = Spring.StiffnessLow
-                    )
-                ) + fadeOut()
-            ) {
-                Surface(
+                    },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.titleMedium,
+                    shape = ExpressiveShapes.extraLarge,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = {
+                        viewModel.submit()
+                        focusManager.clearFocus()
+                    }),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 24.dp)
-                        .clip(ExpressiveShapes.medium),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    shadowElevation = 2.dp
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                    ) {
-                        Text(
-                            text = "Sort By",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
+                        .heightIn(min = 64.dp)
+                        .focusRequester(focusRequester)
+                )
+            }
+        }
+
+        if (!state.isBrowsing) {
+            item(key = "controls", span = FullWidth) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    state.genre?.let { genre ->
+                        InputChip(
+                            selected = true,
+                            onClick = viewModel::clear,
+                            label = { Text(genre.label) },
+                            trailingIcon = { Icon(Icons.Default.Close, contentDescription = "Stop browsing ${genre.label}", modifier = Modifier.size(18.dp)) },
+                            shape = ExpressiveShapes.small
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(SortOption.entries.toTypedArray()) { option ->
-                                InputChip(
-                                    selected = uiState.sortBy == option,
-                                    onClick = { viewModel.onSortSelected(option) },
-                                    label = { Text(option.displayName) },
-                                    colors = InputChipDefaults.inputChipColors(
-                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                )
-                            }
-                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ChoiceChips(
+                            options = if (state.genre?.isAnime == true) {
+                                listOf(SearchFilter.ALL, SearchFilter.MOVIES, SearchFilter.SERIES)
+                            } else {
+                                SearchFilter.entries
+                            },
+                            selected = state.filter,
+                            label = { it.label },
+                            onSelect = viewModel::onFilterSelected,
+                            modifier = Modifier.weight(1f)
+                        )
+                        SortMenu(state.sort, onSelect = viewModel::onSortSelected)
                     }
                 }
             }
+        }
 
-            // Filters (Connected Button Group)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
-            ) {
-                SearchFilter.entries.forEachIndexed { index, filter ->
-                    ToggleButton(
-                        checked = uiState.filter == filter,
-                        onCheckedChange = { viewModel.onFilterSelected(filter) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .semantics { role = Role.RadioButton },
-                        shapes = when (index) {
-                            0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                            SearchFilter.entries.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                            else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                        }
-                    ) {
-                        Text(
-                            when (filter) {
-                                SearchFilter.ALL -> "All"
-                                SearchFilter.MOVIE -> "Movies"
-                                SearchFilter.TV -> "TV Shows"
-                            }
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Main Content Area with Material Motion
-            AnimatedContent(
-                targetState = when {
-                    uiState.isLoading -> SearchContentState.Loading
-                    uiState.error != null -> SearchContentState.Error
-                    uiState.searchResults.isNotEmpty() -> SearchContentState.Results
-                    searchQuery.isNotEmpty() -> SearchContentState.Empty
-                    else -> SearchContentState.History
+        when {
+            state.isBrowsing -> browseContent(
+                state = state,
+                onRecent = { query ->
+                    viewModel.submit(query)
+                    focusManager.clearFocus()
                 },
-                transitionSpec = { materialSharedAxisYIn() },
-                label = "SearchContent"
-            ) { targetState ->
-                Box(modifier = Modifier.fillMaxSize()) {
-                    when (targetState) {
-                        SearchContentState.Loading -> {
-                            LoadingIndicator(modifier = Modifier.align(Alignment.Center))
-                        }
-                        SearchContentState.Error -> {
-                            Text(
-                                text = uiState.error ?: "Unknown error",
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.align(Alignment.Center)
-                            )
-                        }
-                        SearchContentState.Results -> {
-                            LazyVerticalStaggeredGrid(
-                                columns = StaggeredGridCells.Adaptive(150.dp),
-                                verticalItemSpacing = 16.dp,
-                                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                contentPadding = PaddingValues(bottom = 24.dp)
-                            ) {
-                                items(uiState.searchResults, key = { it.id }) { anime ->
-                                    AnimeCard(
-                                        anime = anime,
-                                        onClick = { onAnimeClick(anime.id, anime.mediaType ?: "tv") }
-                                    )
-                                }
-                            }
-                        }
-                        SearchContentState.History -> {
-                            Column {
-                                Text(
-                                    text = "Recent Searches",
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                
-                                LazyColumn {
-                                    items(uiState.history) { historyItem ->
-                                        ListItem(
-                                            headlineContent = { Text(historyItem) },
-                                            leadingContent = { 
-                                                Icon(
-                                                    Icons.Default.History, 
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.primary 
-                                                ) 
-                                            },
-                                            trailingContent = {
-                                                IconButton(onClick = { viewModel.removeHistoryItem(historyItem) }) {
-                                                    Icon(Icons.Default.Close, contentDescription = "Remove")
-                                                }
-                                            },
-                                            colors = ListItemDefaults.colors(
-                                                containerColor = Color.Transparent
-                                            ),
-                                            modifier = Modifier
-                                                .clickable {
-                                                    searchQuery = historyItem
-                                                    viewModel.onSearch(historyItem)
-                                                    keyboardController?.hide()
-                                                }
-                                        )
-                                    }
-                                    item {
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        Text(
-                                            text = "Clear History",
-                                            color = MaterialTheme.colorScheme.primary,
-                                            style = MaterialTheme.typography.labelLarge,
-                                            modifier = Modifier
-                                                .clickable { viewModel.clearHistory() }
-                                                .padding(8.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        SearchContentState.Empty -> {
-                            Column(
-                                modifier = Modifier.align(Alignment.Center),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "No matches found",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = "Try a different keyword",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                )
-                            }
-                        }
+                onRemoveRecent = viewModel::removeRecent,
+                onClearRecent = viewModel::clearRecent,
+                onOpen = open,
+                onGenre = { genre ->
+                    viewModel.selectGenre(genre)
+                    focusManager.clearFocus()
+                }
+            )
+
+            state.isLoading -> items(9, key = { "skeleton:$it" }) {
+                Column {
+                    SkeletonBox(modifier = Modifier.fillMaxWidth().aspectRatio(0.68f))
+                    SkeletonBox(
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .fillMaxWidth(0.8f)
+                            .heightIn(min = 12.dp),
+                        shape = ExpressiveShapes.small
+                    )
+                }
+            }
+
+            state.error != null -> item(key = "error", span = FullWidth) {
+                LibraryEmptyState(
+                    icon = Icons.Default.SearchOff,
+                    title = "Search didn't go through",
+                    body = "Check your connection and try again.",
+                    action = { Button(onClick = viewModel::retry, shape = ExpressiveShapes.medium) { Text("Try again") } }
+                )
+            }
+
+            results.isEmpty() && state.query.trim().length >= 2 -> item(key = "no-results", span = FullWidth) {
+                LibraryEmptyState(
+                    icon = Icons.Default.TravelExplore,
+                    title = "No results for \"${state.query.trim()}\"",
+                    body = if (state.filter != SearchFilter.ALL) {
+                        "Try another filter, a different spelling, or browse by genre."
+                    } else {
+                        "Try a different spelling or the original title, or browse by genre."
+                    }
+                )
+            }
+
+            else -> {
+                val showTopResult = state.genre == null && results.firstOrNull()?.backdropPath != null
+                if (showTopResult) {
+                    item(key = "top-result", span = FullWidth) { TopResultCard(results.first(), onClick = { open(results.first()) }) }
+                }
+                val grid = if (showTopResult) results.drop(1) else results
+                itemsIndexed(grid, key = { _, item -> "result:${item.mediaType}:${item.id}" }) { _, item ->
+                    ResultCard(item, onClick = { open(item) })
+                }
+                if (state.isLoadingMore) {
+                    item(key = "loading-more", span = FullWidth) {
+                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { LoadingIndicator() }
                     }
                 }
             }
@@ -439,6 +283,289 @@ fun SearchScreen(
     }
 }
 
-enum class SearchContentState {
-    Loading, Error, Results, History, Empty
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3ExpressiveApi::class)
+private fun androidx.compose.foundation.lazy.grid.LazyGridScope.browseContent(
+    state: SearchUiState,
+    onRecent: (String) -> Unit,
+    onRemoveRecent: (String) -> Unit,
+    onClearRecent: () -> Unit,
+    onOpen: (AnimeDto) -> Unit,
+    onGenre: (BrowseGenre) -> Unit
+) {
+    if (state.recent.isNotEmpty()) {
+        item(key = "recent", span = FullWidth) {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SectionLabel("Recent searches", Modifier.weight(1f))
+                    TextButton(onClick = onClearRecent) { Text("Clear") }
+                }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    state.recent.forEach { query ->
+                        InputChip(
+                            selected = false,
+                            onClick = { onRecent(query) },
+                            label = { Text(query) },
+                            leadingIcon = { Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                            trailingIcon = {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Remove $query",
+                                    modifier = Modifier
+                                        .size(18.dp)
+                                        .clickable { onRemoveRecent(query) }
+                                )
+                            },
+                            shape = ExpressiveShapes.small
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (state.trending.isNotEmpty()) {
+        item(key = "trending", span = FullWidth) {
+            Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+                SectionLabel("Trending now")
+                state.trending.forEachIndexed { index, item ->
+                    SegmentedListItem(
+                        onClick = { onOpen(item) },
+                        shapes = ListItemDefaults.segmentedShapes(index = index, count = state.trending.size),
+                        colors = ListItemDefaults.segmentedColors(),
+                        leadingContent = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "${index + 1}",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Black,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.width(32.dp)
+                                )
+                                AsyncImage(
+                                    model = "https://image.tmdb.org/t/p/w154${item.posterPath}",
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(width = 40.dp, height = 58.dp)
+                                        .clip(ExpressiveShapes.extraSmall)
+                                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                )
+                            }
+                        },
+                        supportingContent = { Text(metaLine(item)) }
+                    ) {
+                        Text(item.name, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
+    }
+
+    item(key = "genres", span = FullWidth) {
+        Column {
+            SectionLabel("Browse by genre")
+            val palette = listOf(
+                MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer,
+                MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer,
+                MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+            )
+            BrowseGenre.entries.chunked(2).forEachIndexed { row, pair ->
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.padding(bottom = 10.dp)
+                ) {
+                    pair.forEachIndexed { column, genre ->
+                        val (container, content) = palette[(row * 2 + column) % palette.size]
+                        Surface(
+                            onClick = { onGenre(genre) },
+                            // Alternating corner sizes keep the grid from reading as a spreadsheet.
+                            shape = if ((row + column) % 2 == 0) ExpressiveShapes.large else ExpressiveShapes.medium,
+                            color = container,
+                            contentColor = content,
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 72.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(genre.icon(), contentDescription = null)
+                                Text(
+                                    text = genre.label,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 2,
+                                    modifier = Modifier.padding(start = 12.dp)
+                                )
+                            }
+                        }
+                    }
+                    if (pair.size == 1) Box(Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.Black,
+        modifier = modifier
+            .padding(start = 4.dp, top = 12.dp, bottom = 10.dp)
+            .semantics { heading() }
+    )
+}
+
+@Composable
+private fun SortMenu(selected: SortOption, onSelect: (SortOption) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        AssistChip(
+            onClick = { open = true },
+            label = { Text(selected.label) },
+            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null, modifier = Modifier.size(18.dp)) },
+            shape = ExpressiveShapes.small,
+            modifier = Modifier.padding(start = 8.dp)
+        )
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            SortOption.entries.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option.label) },
+                    trailingIcon = if (option == selected) {
+                        { Icon(Icons.Default.Check, contentDescription = "Selected") }
+                    } else {
+                        null
+                    },
+                    onClick = {
+                        open = false
+                        onSelect(option)
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TopResultCard(item: AnimeDto, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = ExpressiveShapes.extraLarge,
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(16f / 9f)
+    ) {
+        Box {
+            AsyncImage(
+                model = "https://image.tmdb.org/t/p/w780${item.backdropPath}",
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Brush.verticalGradient(0.35f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.85f)))
+            )
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(18.dp)
+            ) {
+                Surface(shape = ExpressiveShapes.small, color = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) {
+                    Text(
+                        "TOP RESULT",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Black,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+                Text(
+                    text = item.name,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Black,
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                Text(metaLine(item), style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.85f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ResultCard(item: AnimeDto, onClick: () -> Unit) {
+    Column(modifier = Modifier.clickable(onClickLabel = "Open ${item.name}", onClick = onClick)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(0.68f)
+                .clip(ExpressiveShapes.medium)
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+        ) {
+            AsyncImage(
+                model = item.posterPath?.let { "https://image.tmdb.org/t/p/w342$it" },
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            if (item.isMovie) {
+                Surface(
+                    shape = ExpressiveShapes.extraSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp)
+                ) {
+                    Text("MOVIE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                }
+            }
+        }
+        Text(
+            text = item.name,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            item.date.take(4).takeIf { it.length == 4 }?.let {
+                Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            item.voteAverage?.takeIf { it > 0 }?.let { rating ->
+                Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFFFB300), modifier = Modifier.padding(start = 6.dp).size(12.dp))
+                Text(String.format(Locale.US, " %.1f", rating), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+private fun metaLine(item: AnimeDto): String = listOfNotNull(
+    if (item.isMovie) "Movie" else "Series",
+    item.date.take(4).takeIf { it.length == 4 },
+    item.voteAverage?.takeIf { it > 0 }?.let { String.format(Locale.US, "★ %.1f", it) }
+).joinToString("  ·  ")
+
+private fun BrowseGenre.icon(): ImageVector = when (this) {
+    BrowseGenre.ANIME -> Icons.Default.AutoAwesome
+    BrowseGenre.ACTION -> Icons.Default.LocalFireDepartment
+    BrowseGenre.COMEDY -> Icons.Default.SentimentVerySatisfied
+    BrowseGenre.DRAMA -> Icons.Default.TheaterComedy
+    BrowseGenre.SCI_FI -> Icons.Default.RocketLaunch
+    BrowseGenre.ROMANCE -> Icons.Default.Favorite
+    BrowseGenre.HORROR -> Icons.Default.Nightlight
+    BrowseGenre.MYSTERY -> Icons.Default.Search
+    BrowseGenre.CRIME -> Icons.Default.Gavel
+    BrowseGenre.THRILLER -> Icons.Default.Bolt
+    BrowseGenre.ANIMATION -> Icons.Default.Animation
+    BrowseGenre.FAMILY -> Icons.Default.FamilyRestroom
+    BrowseGenre.DOCUMENTARY -> Icons.Default.Videocam
 }

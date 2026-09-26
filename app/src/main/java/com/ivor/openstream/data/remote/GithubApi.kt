@@ -7,8 +7,8 @@ import retrofit2.http.GET
 @Serializable
 data class GithubReleaseDto(
     @SerialName("tag_name") val tagName: String,
-    @SerialName("name") val name: String,
-    @SerialName("body") val body: String,
+    @SerialName("name") val name: String? = null,
+    @SerialName("body") val body: String? = null,
     @SerialName("html_url") val htmlUrl: String,
     @SerialName("published_at") val publishedAt: String,
     @SerialName("assets") val assets: List<GithubAssetDto> = emptyList()

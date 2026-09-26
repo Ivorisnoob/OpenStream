@@ -4,6 +4,7 @@ import com.ivor.openstream.data.remote.model.AnimeDetailsDto
 import com.ivor.openstream.data.remote.model.AnimeDto
 import com.ivor.openstream.data.remote.model.SeasonDetailsDto
 import com.ivor.openstream.domain.model.AnimeCatalog
+import com.ivor.openstream.domain.model.BrowseGenre
 
 interface AnimeRepository {
     suspend fun getPopularAnime(page: Int): Result<List<AnimeDto>>
@@ -12,7 +13,14 @@ interface AnimeRepository {
     suspend fun getAiringTodayAnime(page: Int = 1): Result<List<AnimeDto>>
 
     /** One of Home's curated, anime-only lists. */
-    suspend fun getCatalog(catalog: AnimeCatalog): Result<List<AnimeDto>>
+    /**
+     * One of Home's curated lists. Lists are cached for a few hours so Home opens instantly and
+     * stays stable; [forceRefresh] fetches a fresh copy (pull to refresh).
+     */
+    suspend fun getCatalog(catalog: AnimeCatalog, forceRefresh: Boolean = false): Result<List<AnimeDto>>
+
+    /** Popular movies and series in a genre, interleaved by popularity. */
+    suspend fun discoverByGenre(genre: BrowseGenre, page: Int): Result<List<AnimeDto>>
 
     suspend fun searchAnime(
         query: String,

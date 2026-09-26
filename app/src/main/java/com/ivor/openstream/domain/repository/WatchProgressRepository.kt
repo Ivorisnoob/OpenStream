@@ -9,6 +9,9 @@ interface WatchProgressRepository {
 
     fun progressForTitle(mediaType: String, tmdbId: Int): Flow<List<WatchProgress>>
 
+    /** Every recorded episode and movie, newest first. */
+    fun allProgress(): Flow<List<WatchProgress>>
+
     suspend fun get(mediaType: String, tmdbId: Int, season: Int, episode: Int): WatchProgress?
 
     /**

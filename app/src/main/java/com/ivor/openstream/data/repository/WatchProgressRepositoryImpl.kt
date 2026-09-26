@@ -22,6 +22,9 @@ class WatchProgressRepositoryImpl @Inject constructor(
     override fun continueWatching(limit: Int): Flow<List<WatchProgress>> =
         dao.observeContinueWatching(limit).map { rows -> rows.map { it.toDomain() } }
 
+    override fun allProgress(): Flow<List<WatchProgress>> =
+        dao.observeAll().map { rows -> rows.map { it.toDomain() } }
+
     override fun progressForTitle(mediaType: String, tmdbId: Int): Flow<List<WatchProgress>> =
         dao.observeForTitle(mediaType, tmdbId).map { rows -> rows.map { it.toDomain() } }
 

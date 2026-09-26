@@ -2,6 +2,8 @@
 
 package com.ivor.openstream.presentation.player.components
 
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
@@ -472,6 +474,7 @@ private fun LazyListScope.audioPage(
     if (others.isNotEmpty()) {
         item(key = "audio-other-sources") { AudioGroupLabel("From other sources") }
         itemsIndexed(others, key = { _, server -> "server:${server.id}" }) { index, server ->
+            val haptics = LocalHapticFeedback.current
             SelectableRow(
                 selected = false,
                 index = index,
@@ -482,7 +485,10 @@ private fun LazyListScope.audioPage(
                     "from ${server.name}",
                     server.sourceSummary()
                 ).joinToString(" · "),
-                onClick = { sourceActions.onSelect(server) }
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                    sourceActions.onSelect(server)
+                }
             )
         }
     }

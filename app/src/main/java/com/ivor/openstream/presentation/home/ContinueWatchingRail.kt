@@ -1,5 +1,7 @@
 package com.ivor.openstream.presentation.home
 
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -77,6 +79,7 @@ private fun ContinueWatchingCard(
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
+    val haptics = LocalHapticFeedback.current
     val image = item.stillPath ?: item.backdropPath ?: item.posterPath
 
     Column(modifier = modifier.width(264.dp)) {
@@ -88,7 +91,10 @@ private fun ContinueWatchingCard(
                 .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                 .combinedClickable(
                     onClick = onResume,
-                    onLongClick = { showMenu = true },
+                    onLongClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                showMenu = true
+            },
                     onLongClickLabel = "More options"
                 )
         ) {

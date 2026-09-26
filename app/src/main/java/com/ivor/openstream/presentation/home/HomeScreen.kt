@@ -1,9 +1,11 @@
 package com.ivor.openstream.presentation.home
 
+import com.ivor.openstream.presentation.components.SkeletonBox
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -82,9 +84,7 @@ fun HomeScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         when (val state = uiState) {
-            HomeUiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                LoadingIndicator(modifier = Modifier.size(64.dp))
-            }
+            HomeUiState.Loading -> HomeSkeleton()
 
             is HomeUiState.Error -> HomeError(onRetry = { viewModel.loadData() })
 
@@ -168,19 +168,24 @@ private fun HeroSection(
         }
 
         if (items.isNotEmpty()) {
-            HorizontalCenteredHeroCarousel(
-                state = rememberCarouselState { items.size },
-                itemSpacing = 8.dp,
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(480.dp)
-            ) { index ->
-                HeroCard(
-                    anime = items[index],
-                    rank = index + 1,
-                    onClick = { onOpen(items[index]) }
-                )
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                // Wide screens (tablets, landscape) get landscape artwork at a calmer height.
+                val wide = maxWidth >= 600.dp
+                HorizontalCenteredHeroCarousel(
+                    state = rememberCarouselState { items.size },
+                    itemSpacing = 8.dp,
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(if (wide) 400.dp else 480.dp)
+                ) { index ->
+                    HeroCard(
+                        anime = items[index],
+                        rank = index + 1,
+                        wide = wide,
+                        onClick = { onOpen(items[index]) }
+                    )
+                }
             }
         }
     }
@@ -203,6 +208,7 @@ private val CarouselItemScope.focus: Float
 private fun CarouselItemScope.HeroCard(
     anime: AnimeDto,
     rank: Int,
+    wide: Boolean,
     onClick: () -> Unit
 ) {
     Box(
@@ -212,7 +218,11 @@ private fun CarouselItemScope.HeroCard(
             .clickable(onClick = onClick)
     ) {
         AsyncImage(
-            model = "https://image.tmdb.org/t/p/w780${anime.posterPath}",
+            model = if (wide && anime.backdropPath != null) {
+                "https://image.tmdb.org/t/p/w1280${anime.backdropPath}"
+            } else {
+                "https://image.tmdb.org/t/p/w780${anime.posterPath}"
+            },
             contentDescription = anime.name,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
@@ -476,3 +486,43 @@ private val GENRE_NAMES = mapOf(
     36 to "History",
     10402 to "Music"
 )
+
+/** Mirrors the Home layout (title, hero, two shelves) so nothing jumps when content arrives. */
+@Composable
+private fun HomeSkeleton() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+    ) {
+        SkeletonBox(
+            modifier = Modifier
+                .padding(start = 24.dp, top = 16.dp, bottom = 20.dp)
+                .size(width = 180.dp, height = 32.dp),
+            shape = ExpressiveShapes.small
+        )
+        SkeletonBox(
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .fillMaxWidth()
+                .height(420.dp),
+            shape = ExpressiveShapes.extraLarge
+        )
+        repeat(2) {
+            SkeletonBox(
+                modifier = Modifier
+                    .padding(start = 24.dp, top = 28.dp, bottom = 14.dp)
+                    .size(width = 200.dp, height = 24.dp),
+                shape = ExpressiveShapes.small
+            )
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                repeat(4) {
+                    SkeletonBox(modifier = Modifier.size(width = 132.dp, height = 194.dp))
+                }
+            }
+        }
+    }
+}

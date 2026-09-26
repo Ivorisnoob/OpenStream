@@ -2,62 +2,112 @@ package com.ivor.openstream.presentation.watch_history
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ivor.openstream.data.remote.model.AnimeDto
-import com.ivor.openstream.domain.repository.AnimeRepository
+import com.ivor.openstream.domain.model.WatchProgress
+import com.ivor.openstream.domain.repository.WatchProgressRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
+import java.util.Locale
 import javax.inject.Inject
 
-data class WatchHistoryUiState(
-    val history: List<AnimeDto> = emptyList(),
-    val isLoading: Boolean = false
-)
+enum class HistoryFilter(val label: String) {
+    ALL("All"),
+    MOVIES("Movies"),
+    SERIES("Series"),
+    IN_PROGRESS("In progress"),
+    FINISHED("Finished")
+}
+
+/** Entries watched in one period ("Today", "Yesterday", "March 2026"…). */
+data class HistoryGroup(val label: String, val items: List<WatchProgress>)
+
+data class HistoryUiState(
+    val isLoading: Boolean = true,
+    val query: String = "",
+    val filter: HistoryFilter = HistoryFilter.ALL,
+    val groups: List<HistoryGroup> = emptyList(),
+    /** Everything recorded, before search and filters; drives the empty state. */
+    val totalCount: Int = 0,
+    val watchedThisWeekMs: Long = 0L
+) {
+    val hasResults: Boolean get() = groups.isNotEmpty()
+}
 
 @HiltViewModel
 class WatchHistoryViewModel @Inject constructor(
-    private val repository: AnimeRepository
+    private val repository: WatchProgressRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(WatchHistoryUiState())
-    val uiState: StateFlow<WatchHistoryUiState> = _uiState.asStateFlow()
+    private val query = MutableStateFlow("")
+    private val filter = MutableStateFlow(HistoryFilter.ALL)
 
-    init {
-        loadHistory()
+    val uiState: StateFlow<HistoryUiState> = combine(repository.allProgress(), query, filter) { all, q, f ->
+        // "Up next" placeholders were queued, not watched.
+        val watched = all.filterNot { it.isUpNext }
+        val weekAgo = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000
+        val matches = watched
+            .filter { entry ->
+                when (f) {
+                    HistoryFilter.ALL -> true
+                    HistoryFilter.MOVIES -> entry.isMovie
+                    HistoryFilter.SERIES -> !entry.isMovie
+                    HistoryFilter.IN_PROGRESS -> !entry.completed
+                    HistoryFilter.FINISHED -> entry.completed
+                }
+            }
+            .filter { entry ->
+                q.isBlank() || entry.title.contains(q, ignoreCase = true) ||
+                    entry.episodeTitle?.contains(q, ignoreCase = true) == true
+            }
+        HistoryUiState(
+            isLoading = false,
+            query = q,
+            filter = f,
+            groups = matches.groupBy { dayLabel(it.updatedAt) }.map { (label, items) -> HistoryGroup(label, items) },
+            totalCount = watched.size,
+            watchedThisWeekMs = watched.filter { it.updatedAt >= weekAgo }.sumOf { it.positionMs }
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HistoryUiState())
+
+    fun onQueryChange(value: String) {
+        query.value = value
     }
 
-    private fun loadHistory() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
-            val historyList = repository.getWatchHistory()
-            _uiState.update { it.copy(history = historyList, isLoading = false) }
-        }
+    fun onFilterChange(value: HistoryFilter) {
+        filter.value = value
     }
 
-    fun clearHistory() {
-        viewModelScope.launch {
-            repository.clearWatchHistory()
-            _uiState.update { it.copy(history = emptyList()) }
-        }
+    fun remove(entry: WatchProgress) {
+        viewModelScope.launch { repository.clearEpisode(entry.mediaType, entry.tmdbId, entry.season, entry.episode) }
     }
-    
-    fun removeFromHistory(animeId: Int) {
-        viewModelScope.launch {
-            // Re-use clear logic or add a remove method to repository
-            val history = repository.getWatchHistory().toMutableList()
-            history.removeIf { it.id == animeId }
-            // Currently repo only has addToHistory which overwrites/adds. 
-            // We can just clear and re-add or better, just leave it as is if repo handles duplicates.
-            // Actually, I'll just clear and re-add for now or add a remove method if needed.
-            // But repo.addToHistory already handles duplicates by removing first.
-            repository.clearWatchHistory()
-            history.forEach { repository.addToWatchHistory(it) }
-            _uiState.update { it.copy(history = history) }
+
+    /** Puts back an entry removed a moment ago (Undo). */
+    fun restore(entry: WatchProgress) = repository.record(entry)
+
+    fun clearAll() {
+        viewModelScope.launch { repository.clearAll() }
+    }
+
+    private fun dayLabel(timestamp: Long): String {
+        val zone = ZoneId.systemDefault()
+        val day = Instant.ofEpochMilli(timestamp).atZone(zone).toLocalDate()
+        val today = LocalDate.now(zone)
+        val daysAgo = ChronoUnit.DAYS.between(day, today)
+        return when {
+            daysAgo <= 0L -> "Today"
+            daysAgo == 1L -> "Yesterday"
+            daysAgo < 7L -> "This week"
+            day.year == today.year && day.month == today.month -> "Earlier this month"
+            else -> day.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault()))
         }
     }
 }

@@ -11,6 +11,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import com.ivor.openstream.domain.model.AnimeCatalog
+import com.ivor.openstream.domain.model.BrowseGenre
 import kotlinx.coroutines.awaitAll
 import javax.inject.Inject
 
@@ -38,7 +39,27 @@ class AnimeRepositoryImpl @Inject constructor(
         api.getAiringTodayAnime(page).results
     }
 
-    override suspend fun getCatalog(catalog: AnimeCatalog): Result<List<AnimeDto>> = runCatching {
+    override suspend fun getCatalog(catalog: AnimeCatalog, forceRefresh: Boolean): Result<List<AnimeDto>> {
+        val cached = catalogCache[catalog] ?: readCachedCatalog(catalog)?.also { catalogCache[catalog] = it }
+        val isFresh = cached != null && System.currentTimeMillis() - cached.savedAt < CATALOG_TTL_MS
+        if (!forceRefresh && isFresh) return Result.success(cached!!.items)
+        return fetchCatalog(catalog)
+            .onSuccess { items ->
+                val entry = CachedCatalog(System.currentTimeMillis(), items)
+                catalogCache[catalog] = entry
+                sharedPreferences.edit().putString(catalogKey(catalog), json.encodeToString(entry)).apply()
+            }
+            // Offline or rate limited: an older list beats an empty Home.
+            .recoverCatching { error -> cached?.items ?: throw error }
+    }
+
+    private fun readCachedCatalog(catalog: AnimeCatalog): CachedCatalog? = runCatching {
+        sharedPreferences.getString(catalogKey(catalog), null)?.let { json.decodeFromString<CachedCatalog>(it) }
+    }.getOrNull()
+
+    private fun catalogKey(catalog: AnimeCatalog) = "catalog_cache_${catalog.name}"
+
+    private suspend fun fetchCatalog(catalog: AnimeCatalog): Result<List<AnimeDto>> = runCatching {
         val anime = mapOf(
             "with_genres" to "$ANIMATION_GENRE",
             "with_original_language" to "ja",
@@ -72,6 +93,28 @@ class AnimeRepositoryImpl @Inject constructor(
         results.filter { it.posterPath != null }.distinctBy { "${it.mediaType}:${it.id}" }
     }
 
+    override suspend fun discoverByGenre(genre: BrowseGenre, page: Int): Result<List<AnimeDto>> = runCatching {
+        coroutineScope {
+            val common = mapOf("sort_by" to "popularity.desc", "include_adult" to "false", "page" to "$page") +
+                if (genre.isAnime) mapOf("with_original_language" to "ja") else emptyMap()
+            val movies = genre.movieGenreId?.let { id ->
+                async {
+                    api.discoverMovieWith(common + mapOf("with_genres" to "$id", "vote_count.gte" to "50"))
+                        .results.map { it.copy(mediaType = "movie") }
+                }
+            }
+            val series = genre.tvGenreId?.let { id ->
+                async {
+                    api.discoverTvWith(common + mapOf("with_genres" to "$id", "vote_count.gte" to "30"))
+                        .results.map { it.copy(mediaType = "tv") }
+                }
+            }
+            (movies?.await().orEmpty() + series?.await().orEmpty())
+                .filter { it.posterPath != null }
+                .sortedByDescending { it.popularity ?: 0.0 }
+        }
+    }
+
     override suspend fun searchAnime(
         query: String,
         page: Int,
@@ -95,7 +138,8 @@ class AnimeRepositoryImpl @Inject constructor(
         AnimeSearchResults.prepare(
             tvShows = tvShows,
             movies = movies,
-            sortBy = sortBy
+            sortBy = sortBy,
+            query = query
         )
     }
 
@@ -142,7 +186,13 @@ class AnimeRepositoryImpl @Inject constructor(
         sharedPreferences.edit().remove(HISTORY_KEY).apply()
     }
 
+    private val catalogCache = java.util.concurrent.ConcurrentHashMap<AnimeCatalog, CachedCatalog>()
+
+    @kotlinx.serialization.Serializable
+    private data class CachedCatalog(val savedAt: Long, val items: List<AnimeDto>)
+
     private companion object {
         const val ANIMATION_GENRE = 16
+        const val CATALOG_TTL_MS = 3 * 60 * 60 * 1000L
     }
 }

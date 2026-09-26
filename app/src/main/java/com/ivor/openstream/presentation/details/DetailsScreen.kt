@@ -1,5 +1,11 @@
 package com.ivor.openstream.presentation.details
 
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import com.ivor.openstream.presentation.components.SkeletonBox
 import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -132,9 +138,7 @@ fun DetailsScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         when (val state = uiState) {
-            DetailsUiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                LoadingIndicator(modifier = Modifier.size(64.dp))
-            }
+            DetailsUiState.Loading -> DetailsSkeleton()
 
             is DetailsUiState.Error -> DetailsError(state.message, onRetry = viewModel::loadDetails)
 
@@ -145,11 +149,8 @@ fun DetailsScreen(
                 val trailers = details.videos?.results.orEmpty()
                     .filter { it.site == "YouTube" && (it.type == "Trailer" || it.type == "Teaser") }
 
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 200.dp)
-                ) {
+                // The page is built from four groups so wide screens can split them into two columns.
+                val summaryItems: LazyListScope.() -> Unit = {
                     item(key = "hero") {
                         Hero(
                             details = details,
@@ -205,7 +206,8 @@ fun DetailsScreen(
                     if (details.overview.isNotBlank()) {
                         item(key = "overview") { Overview(details.overview) }
                     }
-
+                }
+                val episodeItems: LazyListScope.() -> Unit = {
                     if (!isMovie && !details.seasons.isNullOrEmpty()) {
                         item(key = "episodes-header") {
                             SectionTitle("Episodes")
@@ -235,7 +237,8 @@ fun DetailsScreen(
                             }
                         }
                     }
-
+                }
+                val extraItems: LazyListScope.() -> Unit = {
                     if (details.cast.isNotEmpty()) {
                         item(key = "cast") {
                             SectionTitle("Cast")
@@ -261,10 +264,48 @@ fun DetailsScreen(
                             )
                         }
                     }
-
+                }
+                val infoItems: LazyListScope.() -> Unit = {
                     item(key = "info") {
                         SectionTitle("Details")
                         InfoList(details, isMovie)
+                    }
+                }
+
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    if (maxWidth >= TWO_PANE_MIN_WIDTH) {
+                        // Tablets, foldables and landscape: overview on the left, episodes on the right.
+                        Row(modifier = Modifier.fillMaxSize()) {
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier.weight(0.42f).fillMaxHeight(),
+                                contentPadding = PaddingValues(bottom = 120.dp)
+                            ) {
+                                summaryItems()
+                                infoItems()
+                            }
+                            LazyColumn(
+                                modifier = Modifier
+                                    .weight(0.58f)
+                                    .fillMaxHeight()
+                                    .statusBarsPadding(),
+                                contentPadding = PaddingValues(top = 56.dp, bottom = 200.dp)
+                            ) {
+                                episodeItems()
+                                extraItems()
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(bottom = 200.dp)
+                        ) {
+                            summaryItems()
+                            episodeItems()
+                            extraItems()
+                            infoItems()
+                        }
                     }
                 }
             }
@@ -740,6 +781,7 @@ private fun EpisodeCard(
     val released = episode.isReleased()
     val watched = progress?.completed == true
     var menuOpen by remember { mutableStateOf(false) }
+    val haptics = LocalHapticFeedback.current
     val meta = listOfNotNull(
         episode.runtime?.takeIf { it > 0 }?.let(::formatRuntime),
         episode.airDate?.let { formatDate(it, "MMM d, yyyy") }
@@ -753,7 +795,10 @@ private fun EpisodeCard(
             .combinedClickable(
                 enabled = released,
                 onClick = onPlay,
-                onLongClick = { menuOpen = true },
+                onLongClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                menuOpen = true
+            },
                 onClickLabel = "Play episode ${episode.episodeNumber}",
                 onLongClickLabel = "More options"
             )
@@ -1089,9 +1134,8 @@ private fun InfoList(details: AnimeDetailsDto, isMovie: Boolean) {
         verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)
     ) {
         rows.forEachIndexed { index, (label, value) ->
+            // Read-only rows: the non-clickable item. A disabled clickable one renders its text greyed out.
             SegmentedListItem(
-                onClick = {},
-                enabled = false,
                 shapes = ListItemDefaults.segmentedShapes(index = index, count = rows.size + if (details.homepage.isNullOrBlank()) 0 else 1),
                 colors = ListItemDefaults.segmentedColors(),
                 supportingContent = { Text(value) }
@@ -1178,3 +1222,44 @@ private fun compactCount(count: Int): String = when {
 }
 
 // endregion
+
+/** Mirrors the title page: artwork, poster and title, play button, action tiles, overview. */
+@Composable
+private fun DetailsSkeleton() {
+    Column(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxWidth().height(540.dp)) {
+            SkeletonBox(modifier = Modifier.fillMaxSize(), shape = androidx.compose.ui.graphics.RectangleShape)
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 112.dp, height = 166.dp)
+                        .clip(ExpressiveShapes.large)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                )
+                Column(modifier = Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.size(width = 190.dp, height = 30.dp).clip(ExpressiveShapes.small).background(MaterialTheme.colorScheme.surfaceContainerHigh))
+                    Box(Modifier.size(width = 130.dp, height = 16.dp).clip(ExpressiveShapes.small).background(MaterialTheme.colorScheme.surfaceContainerHigh))
+                }
+            }
+        }
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SkeletonBox(modifier = Modifier.fillMaxWidth().height(60.dp), shape = ExpressiveShapes.large)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                repeat(3) { SkeletonBox(modifier = Modifier.weight(1f).height(72.dp)) }
+            }
+            repeat(3) { index ->
+                SkeletonBox(
+                    modifier = Modifier.fillMaxWidth(if (index == 2) 0.6f else 1f).height(16.dp),
+                    shape = ExpressiveShapes.small
+                )
+            }
+        }
+    }
+}
+
+private val TWO_PANE_MIN_WIDTH = 840.dp

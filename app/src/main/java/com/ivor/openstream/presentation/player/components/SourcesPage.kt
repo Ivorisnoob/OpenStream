@@ -2,6 +2,8 @@
 
 package com.ivor.openstream.presentation.player.components
 
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -251,9 +253,13 @@ private fun SourceRow(
     count: Int,
     actions: SourcesPageActions
 ) {
+    val haptics = LocalHapticFeedback.current
     SegmentedListItem(
         selected = selected,
-        onClick = { actions.onSelect(server) },
+        onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+            actions.onSelect(server)
+        },
         shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
         colors = ListItemDefaults.segmentedColors(),
         leadingContent = {

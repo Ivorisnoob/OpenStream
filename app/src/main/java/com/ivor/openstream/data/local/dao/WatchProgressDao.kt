@@ -30,6 +30,9 @@ interface WatchProgressDao {
     )
     fun observeContinueWatching(limit: Int): Flow<List<WatchProgressEntity>>
 
+    @Query("SELECT * FROM watch_progress ORDER BY updatedAt DESC")
+    fun observeAll(): Flow<List<WatchProgressEntity>>
+
     @Query("SELECT * FROM watch_progress WHERE mediaType = :mediaType AND tmdbId = :tmdbId ORDER BY updatedAt DESC")
     fun observeForTitle(mediaType: String, tmdbId: Int): Flow<List<WatchProgressEntity>>
 

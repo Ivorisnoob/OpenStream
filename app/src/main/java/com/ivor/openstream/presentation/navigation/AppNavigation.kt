@@ -25,6 +25,7 @@ import com.ivor.openstream.presentation.update.UpdateScreen
 import com.ivor.openstream.presentation.settings.SettingsScreen
 import com.ivor.openstream.presentation.marketplace.MarketplaceScreen
 import com.ivor.openstream.presentation.player.session.MiniPlayer
+import com.ivor.openstream.presentation.welcome.WelcomeSheet
 import com.ivor.openstream.presentation.player.session.MiniPlayerViewModel
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -158,7 +159,11 @@ fun AppNavigation(
             NavHost(
                 navController = navController,
                 startDestination = Screen.Home.route,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                enterTransition = NavTransitions.enter,
+                exitTransition = NavTransitions.exit,
+                popEnterTransition = NavTransitions.popEnter,
+                popExitTransition = NavTransitions.popExit
             ) {
                 composable(Screen.Home.route) {
                     HomeScreen(
@@ -224,8 +229,13 @@ fun AppNavigation(
                 composable(Screen.History.route) {
                     WatchHistoryScreen(
                         onBackClick = { navController.popBackStack() },
-                        onAnimeClick = { animeId, mediaType ->
-                            navController.navigate(Screen.Details.createRoute(mediaType, animeId))
+                        onResume = { entry ->
+                            navController.navigate(
+                                Screen.Player.createRoute(entry.mediaType, entry.tmdbId, entry.season, entry.episode)
+                            )
+                        },
+                        onOpenDetails = { mediaType, id ->
+                            navController.navigate(Screen.Details.createRoute(mediaType, id))
                         }
                     )
                 }
@@ -318,6 +328,9 @@ fun AppNavigation(
                     )
                 }
             }
+
+            // First launch only: sets expectations about which titles can play.
+            WelcomeSheet()
 
             // Keeps the stream going while browsing; sits just above the floating toolbar.
             androidx.compose.animation.AnimatedVisibility(

@@ -71,14 +71,14 @@ class HomeViewModel @Inject constructor(
     fun refresh() {
         val current = _uiState.value
         if (current is HomeUiState.Success) _uiState.value = current.copy(isRefreshing = true)
-        loadData(showLoading = current !is HomeUiState.Success)
+        loadData(showLoading = current !is HomeUiState.Success, forceRefresh = true)
     }
 
-    fun loadData(showLoading: Boolean = true) {
+    fun loadData(showLoading: Boolean = true, forceRefresh: Boolean = false) {
         viewModelScope.launch {
             if (showLoading) _uiState.value = HomeUiState.Loading
             val catalogs = coroutineScope {
-                AnimeCatalog.entries.associateWith { catalog -> async { repository.getCatalog(catalog) } }
+                AnimeCatalog.entries.associateWith { catalog -> async { repository.getCatalog(catalog, forceRefresh) } }
                     .mapValues { (_, request) -> request.await().getOrDefault(emptyList()) }
             }
             if (catalogs.values.all { it.isEmpty() }) {
