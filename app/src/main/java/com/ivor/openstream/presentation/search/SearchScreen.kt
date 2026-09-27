@@ -104,6 +104,7 @@ import coil3.compose.AsyncImage
 import com.ivor.openstream.data.remote.model.AnimeDto
 import com.ivor.openstream.domain.model.BrowseGenre
 import com.ivor.openstream.presentation.components.ChoiceChips
+import com.ivor.openstream.presentation.components.ConnectedChoiceGroup
 import com.ivor.openstream.presentation.components.LibraryEmptyState
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 import java.util.Locale
@@ -531,13 +532,20 @@ private fun FiltersSheet(
                     SheetChip(range.label, selected = filters.year == range) { onChange(filters.copy(year = range)) }
                 }
             }
-            FilterSection("Rating") {
-                MinRating.entries.forEach { rating ->
-                    SheetChip(
-                        label = if (rating == MinRating.ANY) "Any" else "${rating.label} ★",
-                        selected = filters.minRating == rating
-                    ) { onChange(filters.copy(minRating = rating)) }
-                }
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "Minimum rating",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.semantics { heading() }
+                )
+                ConnectedChoiceGroup(
+                    options = MinRating.entries,
+                    selected = filters.minRating,
+                    label = { if (it == MinRating.ANY) "Any" else "${it.label} ★" },
+                    onSelect = { onChange(filters.copy(minRating = it)) }
+                )
             }
             FilterSection("Original language") {
                 SheetChip("Any", selected = filters.language == null) { onChange(filters.copy(language = null)) }

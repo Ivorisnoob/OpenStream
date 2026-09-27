@@ -6,6 +6,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.activity.compose.BackHandler
 import com.ivor.openstream.presentation.player.session.SleepTimer
 import com.ivor.openstream.data.repository.SkipSegment
+import com.ivor.openstream.data.remote.model.EpisodeDto
+import com.ivor.openstream.domain.model.WatchProgress
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.width
@@ -163,7 +165,12 @@ fun ExoPlayerView(
     /** Intro/recap/credits times from AniSkip; empty falls back to a manual skip early on. */
     skipSegments: List<SkipSegment> = emptyList(),
     /** Leave the player screen with playback continuing in the mini player (swipe down inline). */
-    onMinimize: () -> Unit = onBackClick
+    onMinimize: () -> Unit = onBackClick,
+    /** This season's episodes; a swipe up in fullscreen opens them. */
+    episodes: List<EpisodeDto> = emptyList(),
+    currentEpisodeNumber: Int = 0,
+    episodeProgress: Map<Pair<Int, Int>, WatchProgress> = emptyMap(),
+    onEpisodeSelected: (EpisodeDto) -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = remember(context) {
@@ -233,6 +240,7 @@ fun ExoPlayerView(
     val latestIsFullscreen by rememberUpdatedState(isFullscreen)
     val latestFullscreenToggle by rememberUpdatedState(onFullscreenToggle)
     val latestMinimize by rememberUpdatedState(onMinimize)
+    val hasEpisodes by rememberUpdatedState(episodes.isNotEmpty())
     var playPauseFeedback by remember { mutableIntStateOf(0) }
     var showPlayPauseFeedback by remember { mutableStateOf(false) }
     LaunchedEffect(playPauseFeedback) {
@@ -872,6 +880,11 @@ fun ExoPlayerView(
                                 !latestIsFullscreen && verticalTravel < -threshold -> latestFullscreenToggle()
                                 !latestIsFullscreen && verticalTravel > threshold -> latestMinimize()
                                 latestIsFullscreen && verticalTravel > threshold -> latestFullscreenToggle()
+                                latestIsFullscreen && verticalTravel < -threshold && hasEpisodes -> {
+                                    settingsInitialPage = PlayerSettingsPage.EPISODES
+                                    showSettingsDialog = true
+                                    areControlsVisible = false
+                                }
                             }
                         }
                         verticalMode = VerticalSwipe.NONE
@@ -1386,7 +1399,10 @@ fun ExoPlayerView(
                 audioOptions = audioOptions,
                 originalLanguage = originalLanguage,
                 subtitleOffsetMs = subtitleOffsetMs,
-                sleepTimer = sleepTimer
+                sleepTimer = sleepTimer,
+                episodes = episodes,
+                currentEpisode = currentEpisodeNumber,
+                episodeProgress = episodeProgress
             ),
             actions = PlayerSettingsActions(
                 sources = sourceActions,
@@ -1426,6 +1442,7 @@ fun ExoPlayerView(
                 onCaptionSettingsChange = onCaptionSettingsChange,
                 onSubtitleOffsetChange = { subtitleOffsetMs = it },
                 onSleepTimerChange = onSleepTimerChange,
+                onEpisodeSelected = onEpisodeSelected,
                 onAudioSelected = { option ->
                     val tracks = exoPlayer.currentTracks
                     if (option.groupIndex < tracks.groups.size) {

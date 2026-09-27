@@ -43,6 +43,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material.icons.filled.Storage
@@ -186,34 +188,50 @@ private fun StorageCard(
     val total = usedBytes + freeBytes
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = ExpressiveShapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerLow
+        shape = ExpressiveShapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
     ) {
-        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Storage, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.width(12.dp))
+                Surface(
+                    shape = ExpressiveShapes.medium,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ) {
+                    Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.padding(10.dp))
+                }
+                Spacer(Modifier.width(14.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "${formatBytes(usedBytes)} used by downloads",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        text = formatBytes(usedBytes),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Black
                     )
                     Text(
-                        text = "${formatBytes(freeBytes)} free on this device",
-                        style = MaterialTheme.typography.bodySmall,
+                        text = "used by downloads · ${formatBytes(freeBytes)} free",
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
             if (total > 0) {
                 LinearProgressIndicator(
-                    progress = { (usedBytes.toFloat() / total).coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth()
+                    progress = { (usedBytes.toFloat() / total).coerceIn(0.01f, 1f) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(10.dp),
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
                 )
             }
-            TextButton(onClick = onDeleteAll, modifier = Modifier.align(Alignment.End)) {
-                Text("Delete all downloads", color = MaterialTheme.colorScheme.error)
+            OutlinedButton(
+                onClick = onDeleteAll,
+                shape = ExpressiveShapes.medium,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Delete all")
             }
         }
     }

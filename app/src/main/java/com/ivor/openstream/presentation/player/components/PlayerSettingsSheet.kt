@@ -78,6 +78,9 @@ import androidx.compose.ui.unit.sp
 import com.ivor.openstream.presentation.player.CaptionStyleSettings
 import com.ivor.openstream.presentation.player.ServersState
 import com.ivor.openstream.presentation.player.session.SleepTimer
+import com.ivor.openstream.data.remote.model.EpisodeDto
+import com.ivor.openstream.domain.model.WatchProgress
+import androidx.compose.material.icons.filled.VideoLibrary
 import com.ivor.openstream.presentation.player.sourceSummary
 import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.ui.theme.ExpressiveShapes
@@ -151,7 +154,8 @@ enum class PlayerSettingsPage(val title: String) {
     SPEED("Speed"),
     SUBTITLES("Subtitles"),
     CAPTIONS("Caption style"),
-    SLEEP("Sleep timer")
+    SLEEP("Sleep timer"),
+    EPISODES("Episodes")
 }
 
 val SPEED_OPTIONS = listOf(0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
@@ -174,7 +178,11 @@ class PlayerSettingsModel(
     val originalLanguage: String?,
     /** Shift applied to sideloaded subtitle cues; positive shows them later. */
     val subtitleOffsetMs: Long = 0L,
-    val sleepTimer: SleepTimer? = null
+    val sleepTimer: SleepTimer? = null,
+    /** This season's episodes, for the in-player list (empty for movies). */
+    val episodes: List<EpisodeDto> = emptyList(),
+    val currentEpisode: Int = 0,
+    val episodeProgress: Map<Pair<Int, Int>, WatchProgress> = emptyMap()
 )
 
 class PlayerSettingsActions(
@@ -185,7 +193,8 @@ class PlayerSettingsActions(
     val onCaptionSettingsChange: (CaptionStyleSettings) -> Unit,
     val onAudioSelected: (AudioOption) -> Unit,
     val onSubtitleOffsetChange: (Long) -> Unit = {},
-    val onSleepTimerChange: (SleepTimer?) -> Unit = {}
+    val onSleepTimerChange: (SleepTimer?) -> Unit = {},
+    val onEpisodeSelected: (EpisodeDto) -> Unit = {}
 )
 
 /**
@@ -278,6 +287,10 @@ private fun ColumnScope.SettingsContent(
                 PlayerSettingsPage.SUBTITLES -> subtitlesPage(model, actions, onDone = goHome)
                 PlayerSettingsPage.CAPTIONS -> captionsPage(model, actions)
                 PlayerSettingsPage.SLEEP -> sleepPage(model, actions, onDone = goHome)
+                PlayerSettingsPage.EPISODES -> episodesPage(model, onSelect = { episode ->
+                    actions.onEpisodeSelected(episode)
+                    onDismiss()
+                })
             }
         }
     }
@@ -292,6 +305,16 @@ private fun LazyListScope.mainPage(
     val isResolving = model.serversState is ServersState.Resolving
     val hasSubtitles = model.subtitleOptions.isNotEmpty()
     val rows = buildList {
+        if (model.episodes.isNotEmpty()) {
+            add(
+                MainRow(
+                    icon = Icons.Default.VideoLibrary,
+                    title = "Episodes",
+                    value = "Episode ${model.currentEpisode}",
+                    onClick = { onNavigate(PlayerSettingsPage.EPISODES) }
+                )
+            )
+        }
         add(
             MainRow(
                 icon = Icons.Default.Dns,
@@ -698,6 +721,44 @@ private fun SubtitleSyncRow(offsetMs: Long, onChange: (Long) -> Unit) {
 private const val SUBTITLE_OFFSET_STEP_MS = 250L
 
 private fun formatOffset(ms: Long): String = String.format(Locale.US, "%.2f s", ms / 1000f)
+
+// endregion
+
+// region Episodes
+
+private fun LazyListScope.episodesPage(
+    model: PlayerSettingsModel,
+    onSelect: (EpisodeDto) -> Unit
+) {
+    itemsIndexed(model.episodes, key = { _, episode -> "episode:${episode.id}" }) { index, episode ->
+        val isCurrent = episode.episodeNumber == model.currentEpisode
+        val progress = model.episodeProgress[episode.seasonNumber to episode.episodeNumber]
+        SegmentedListItem(
+            selected = isCurrent,
+            onClick = { if (!isCurrent) onSelect(episode) },
+            shapes = ListItemDefaults.segmentedShapes(index = index, count = model.episodes.size),
+            colors = ListItemDefaults.segmentedColors(),
+            leadingContent = { EpisodeThumb(episode, progress) },
+            supportingContent = {
+                Text(
+                    text = when {
+                        isCurrent -> "Now playing"
+                        progress?.completed == true -> "Watched"
+                        else -> episode.runtime?.takeIf { it > 0 }?.let { "$it min" } ?: "Episode ${episode.episodeNumber}"
+                    },
+                    color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        ) {
+            Text(
+                text = "${episode.episodeNumber}. ${episode.name}",
+                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
 
 // endregion
 

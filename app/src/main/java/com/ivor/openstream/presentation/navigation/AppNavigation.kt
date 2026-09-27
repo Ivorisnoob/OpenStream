@@ -500,7 +500,7 @@ fun AppNavigation(
                                     val next = (start + (scrubTravel / stepPx).toInt()).coerceIn(0, bottomNavItems.lastIndex)
                                     if (next != scrubIndex) {
                                         scrubIndex = next
-                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                                     }
                                 }
                             )

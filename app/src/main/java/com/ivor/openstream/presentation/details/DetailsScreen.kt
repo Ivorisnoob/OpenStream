@@ -1,5 +1,18 @@
 package com.ivor.openstream.presentation.details
 
+import androidx.compose.animation.core.animate
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -134,11 +147,22 @@ fun DetailsScreen(
     val resumeTarget by viewModel.resumeTarget.collectAsState()
     val listState = rememberLazyListState()
     val collapsed by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
+    val pullToClose = rememberPullToClose(onClose = onBackClick)
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .nestedScroll(pullToClose.connection)
+            .graphicsLayer {
+                // The page follows a pull past the top, shrinking a little, before it closes.
+                translationY = pullToClose.distance
+                val scale = 1f - (pullToClose.distance / 2400f).coerceIn(0f, 0.08f)
+                scaleX = scale
+                scaleY = scale
+                shape = RoundedCornerShape((pullToClose.distance / 6f).coerceAtMost(32f).dp)
+                clip = pullToClose.distance > 0f
+            }
     ) {
         when (val state = uiState) {
             DetailsUiState.Loading -> DetailsSkeleton()
@@ -210,6 +234,19 @@ fun DetailsScreen(
                         item(key = "overview") { Overview(details.overview) }
                     }
                 }
+                // Swiping sideways across the episode list moves to the next or previous season.
+                val orderedSeasons = details.orderedSeasons().map { it.seasonNumber }
+                val selectedSeason = state.selectedSeasonDetails?.seasonNumber
+                val seasonSwipe = Modifier.seasonSwipe(
+                    onPrevious = {
+                        val index = orderedSeasons.indexOf(selectedSeason)
+                        if (index > 0) viewModel.loadSeason(orderedSeasons[index - 1])
+                    },
+                    onNext = {
+                        val index = orderedSeasons.indexOf(selectedSeason)
+                        if (index in 0 until orderedSeasons.lastIndex) viewModel.loadSeason(orderedSeasons[index + 1])
+                    }
+                )
                 val episodeItems: LazyListScope.() -> Unit = {
                     if (!isMovie && !details.seasons.isNullOrEmpty()) {
                         item(key = "episodes-header") {
@@ -222,7 +259,7 @@ fun DetailsScreen(
                         }
                         if (state.isLoadingEpisodes) {
                             item(key = "episodes-loading") {
-                                Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
+                                Box(Modifier.fillMaxWidth().height(160.dp).then(seasonSwipe), contentAlignment = Alignment.Center) {
                                     LoadingIndicator()
                                 }
                             }
@@ -241,14 +278,16 @@ fun DetailsScreen(
                                 }
                             }
                             items(episodes, key = { "episode:${it.id}" }) { episode ->
-                                EpisodeCard(
-                                    episode = episode,
-                                    progress = episodeProgress[episode.seasonNumber to episode.episodeNumber],
-                                    download = episodeDownloads[episode.seasonNumber to episode.episodeNumber],
-                                    onPlay = { onPlayClick(episode.seasonNumber, episode.episodeNumber) },
-                                    onDownload = { viewModel.downloadEpisodes(listOf(episode)) },
-                                    onSetWatched = { watched -> viewModel.setWatched(episode, watched) }
-                                )
+                                Box(modifier = seasonSwipe) {
+                                    EpisodeCard(
+                                        episode = episode,
+                                        progress = episodeProgress[episode.seasonNumber to episode.episodeNumber],
+                                        download = episodeDownloads[episode.seasonNumber to episode.episodeNumber],
+                                        onPlay = { onPlayClick(episode.seasonNumber, episode.episodeNumber) },
+                                        onDownload = { viewModel.downloadEpisodes(listOf(episode)) },
+                                        onSetWatched = { watched -> viewModel.setWatched(episode, watched) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -769,16 +808,99 @@ private fun SeasonWatchedAction(allWatched: Boolean, onClick: () -> Unit) {
     }
 }
 
+/** Seasons with episodes, specials last: the order the picker and the season swipe share. */
+private fun AnimeDetailsDto.orderedSeasons() = seasons.orEmpty()
+    .filter { it.episodeCount > 0 }
+    .sortedBy { if (it.seasonNumber == 0) Int.MAX_VALUE else it.seasonNumber }
+
+/** A decided horizontal swipe (a fifth of the width) calls [onPrevious] (right) or [onNext] (left). */
+@Composable
+private fun Modifier.seasonSwipe(onPrevious: () -> Unit, onNext: () -> Unit): Modifier {
+    val latestPrevious by rememberUpdatedState(onPrevious)
+    val latestNext by rememberUpdatedState(onNext)
+    val haptics = LocalHapticFeedback.current
+    return pointerInput(Unit) {
+        var travel = 0f
+        detectHorizontalDragGestures(
+            onDragStart = { travel = 0f },
+            onDragEnd = {
+                val threshold = size.width / 5f
+                when {
+                    travel < -threshold -> { haptics.performHapticFeedback(HapticFeedbackType.GestureEnd); latestNext() }
+                    travel > threshold -> { haptics.performHapticFeedback(HapticFeedbackType.GestureEnd); latestPrevious() }
+                }
+            }
+        ) { change, amount ->
+            change.consume()
+            travel += amount
+        }
+    }
+}
+
+/** Pulling the page down past its top closes it, the way a sheet would. */
+private class PullToClose(
+    private val thresholdPx: Float,
+    private val onClose: () -> Unit
+) {
+    var distance by mutableFloatStateOf(0f)
+        private set
+    private var closing = false
+
+    val connection = object : NestedScrollConnection {
+        override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+            // Scrolling back up first takes back the pull.
+            if (available.y < 0f && distance > 0f) {
+                val used = maxOf(available.y, -distance)
+                distance += used
+                return Offset(0f, used)
+            }
+            return Offset.Zero
+        }
+
+        override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+            // Whatever the list couldn't scroll (it's at the top) becomes the pull, with resistance.
+            if (source == NestedScrollSource.UserInput && available.y > 0f && !closing) {
+                distance += available.y * 0.5f
+                return Offset(0f, available.y)
+            }
+            return Offset.Zero
+        }
+
+        override suspend fun onPreFling(available: Velocity): Velocity {
+            if (distance <= 0f) return Velocity.Zero
+            if (distance > thresholdPx || (available.y > 2_000f && distance > thresholdPx / 3f)) {
+                closing = true
+                onClose()
+            } else {
+                animate(distance, 0f) { value, _ -> distance = value }
+            }
+            return available
+        }
+    }
+}
+
+@Composable
+private fun rememberPullToClose(onClose: () -> Unit): PullToClose {
+    val latestClose by rememberUpdatedState(onClose)
+    val thresholdPx = with(LocalDensity.current) { 140.dp.toPx() }
+    return remember(thresholdPx) { PullToClose(thresholdPx) { latestClose() } }
+}
+
 @Composable
 private fun SeasonPicker(
     details: AnimeDetailsDto,
     selected: Int?,
     onSelect: (Int) -> Unit
 ) {
-    val seasons = details.seasons.orEmpty()
-        .filter { it.episodeCount > 0 }
-        .sortedBy { if (it.seasonNumber == 0) Int.MAX_VALUE else it.seasonNumber } // Specials last
+    val seasons = details.orderedSeasons()
+    val rowState = rememberLazyListState()
+    // Keep the picked season in view, e.g. after swiping to it from the episode list.
+    LaunchedEffect(selected) {
+        val index = seasons.indexOfFirst { it.seasonNumber == selected }
+        if (index >= 0) rowState.animateScrollToItem(index)
+    }
     LazyRow(
+        state = rowState,
         contentPadding = PaddingValues(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.padding(bottom = 12.dp)

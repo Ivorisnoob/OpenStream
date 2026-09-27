@@ -42,6 +42,9 @@ source failover, in-app updates with release notes, dynamic color.
 - [x] **Double-tap the middle** to play/pause (the sides still seek).
 - [x] **Mini player swipes**: up to open the player, sideways to dismiss.
 - [x] **Navbar scrub**: drag across the floating toolbar to switch tabs.
+- [x] **Swipe up in fullscreen** opens this season's episodes in the player panel.
+- [x] **Details gestures**: swipe sideways on episodes to change season; pull down past the top
+      to close.
 - [x] **Hold for 2x speed** while long-pressing.
 - [x] **Stacking double-tap seek** (10s, 20s, 30s...).
 - [x] **Configurable seek step** (5, 10, 15 or 30s in Settings).
