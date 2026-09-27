@@ -1,5 +1,7 @@
 package com.ivor.openstream.presentation.player.components
 
+import android.app.Activity
+import android.provider.Settings
 import android.util.Log
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -64,6 +66,9 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -89,7 +94,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.net.URL
 import kotlin.math.roundToInt
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.mutableIntStateOf
 import com.ivor.openstream.data.streaming.BROWSER_USER_AGENT
 
@@ -178,13 +186,29 @@ fun ExoPlayerView(
     var subtitleLoadingState by remember { mutableStateOf<SubtitleLoadingState>(SubtitleLoadingState.IDLE) }
 
     // Gesture State
-    var brightness by remember { mutableFloatStateOf(1.0f) } // 0.0 to 1.0
+    var brightness by remember { mutableFloatStateOf(0.5f) } // 0.0 to 1.0, read at each swipe start
     var volume by remember { mutableFloatStateOf(exoPlayer.volume) }
     var showBrightnessOverlay by remember { mutableStateOf(false) }
     var showVolumeOverlay by remember { mutableStateOf(false) }
     var gestureOverlayTimeout by remember { mutableLongStateOf(0L) }
     var seekFeedbackDirection by remember { mutableIntStateOf(0) }
     var seekFeedbackSequence by remember { mutableIntStateOf(0) }
+    var videoScale by rememberSaveable { mutableStateOf(VideoScale.FIT) }
+    var scaleFeedbackSequence by remember { mutableIntStateOf(0) }
+    var showScaleFeedback by remember { mutableStateOf(false) }
+
+    fun changeVideoScale(scale: VideoScale) {
+        videoScale = scale
+        showScaleFeedback = true
+        scaleFeedbackSequence++
+    }
+
+    LaunchedEffect(scaleFeedbackSequence) {
+        if (scaleFeedbackSequence > 0) {
+            delay(900)
+            showScaleFeedback = false
+        }
+    }
 
     fun showSeekFeedback(direction: Int) {
         seekFeedbackDirection = direction
@@ -657,7 +681,10 @@ fun ExoPlayerView(
             }
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
-                    onDragStart = { },
+                    onDragStart = { offset ->
+                        // Start from the screen's real brightness so the first swipe doesn't jump.
+                        if (offset.x < size.width / 2) brightness = currentBrightness(activity)
+                    },
                     onDragEnd = {
                         showBrightnessOverlay = false
                         showVolumeOverlay = false
@@ -690,6 +717,29 @@ fun ExoPlayerView(
                     }
                 )
             }
+            // Declared last so it sees events first: once a second finger lands it consumes the
+            // gesture, which cancels the tap and brightness/volume detectors above.
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    var zoom = 1f
+                    var pinching = false
+                    do {
+                        val event = awaitPointerEvent()
+                        if (event.changes.count { it.pressed } >= 2) {
+                            pinching = true
+                            zoom *= event.calculateZoom()
+                            event.changes.forEach { it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
+                    if (pinching) {
+                        when {
+                            zoom > 1.1f && videoScale != VideoScale.ZOOM -> changeVideoScale(VideoScale.ZOOM)
+                            zoom < 0.9f && videoScale != VideoScale.FIT -> changeVideoScale(VideoScale.FIT)
+                        }
+                    }
+                }
+            }
     ) {
         AndroidView(
             factory = { ctx ->
@@ -703,6 +753,7 @@ fun ExoPlayerView(
                     subtitleView?.visibility = android.view.View.GONE
                 }
             },
+            update = { view -> view.resizeMode = videoScale.resizeMode },
             // Hand the video surface back so the mini player can take it over.
             onRelease = { view -> view.player = null },
             modifier = Modifier.fillMaxSize()
@@ -733,6 +784,32 @@ fun ExoPlayerView(
                 value = (volume * 100).toInt(),
                 label = "Volume"
             )
+        }
+
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showScaleFeedback,
+            enter = scaleIn() + fadeIn(),
+            exit = scaleOut() + fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Surface(
+                shape = ExpressiveShapes.extraLarge,
+                color = Color.Black.copy(alpha = 0.62f),
+                contentColor = Color.White
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(videoScale.icon, contentDescription = null, modifier = Modifier.size(24.dp))
+                    Text(
+                        videoScale.label,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
 
         // Auto-hide gesture overlays
@@ -845,6 +922,11 @@ fun ExoPlayerView(
             isFullscreen = isFullscreen,
             onFullscreenToggle = {
                 onFullscreenToggle()
+                areControlsVisible = true
+            },
+            videoScale = videoScale,
+            onVideoScaleClick = {
+                changeVideoScale(videoScale.next())
                 areControlsVisible = true
             },
             onBackClick = onBackClick
@@ -1139,6 +1221,26 @@ private fun GestureIndicator(
             )
         }
     }
+}
+
+/** How the video fills the player: letterboxed, cropped to fill the screen, or stretched. */
+enum class VideoScale(val resizeMode: Int, val label: String, val icon: ImageVector) {
+    FIT(AspectRatioFrameLayout.RESIZE_MODE_FIT, "Fit", Icons.Default.FitScreen),
+    ZOOM(AspectRatioFrameLayout.RESIZE_MODE_ZOOM, "Zoom to fill", Icons.Default.ZoomOutMap),
+    STRETCH(AspectRatioFrameLayout.RESIZE_MODE_FILL, "Stretch", Icons.Default.AspectRatio);
+
+    fun next(): VideoScale = entries[(ordinal + 1) % entries.size]
+}
+
+/** The window's brightness override, or the system brightness when the window has none. */
+private fun currentBrightness(activity: Activity?): Float {
+    val window = activity?.window ?: return 0.5f
+    val override = window.attributes.screenBrightness
+    if (override >= 0f) return override
+    val system = runCatching {
+        Settings.System.getInt(activity.contentResolver, Settings.System.SCREEN_BRIGHTNESS)
+    }.getOrNull() ?: return 0.5f
+    return (system / 255f).coerceIn(0f, 1f)
 }
 
 private data class SubtitleCue(val startMs: Long, val endMs: Long, val text: String)

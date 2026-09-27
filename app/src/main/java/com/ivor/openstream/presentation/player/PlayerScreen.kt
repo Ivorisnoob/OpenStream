@@ -2,6 +2,7 @@ package com.ivor.openstream.presentation.player
 
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedContent
@@ -285,6 +286,10 @@ fun PlayerScreen(
                 val controller = WindowInsetsControllerCompat(window, window.decorView)
                 controller.show(WindowInsetsCompat.Type.systemBars())
                 setCutoutMode(window, drawIntoCutout = false)
+                // Hand brightness back to the system after the player's swipe gesture.
+                window.attributes = window.attributes.apply {
+                    screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                }
             }
         }
     }

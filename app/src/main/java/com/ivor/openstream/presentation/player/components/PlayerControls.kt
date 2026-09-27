@@ -131,6 +131,8 @@ fun PlayerControls(
     onQualityClick: () -> Unit = {},
     onSubtitlesClick: () -> Unit = {},
     onFullscreenToggle: () -> Unit = {},
+    videoScale: VideoScale = VideoScale.FIT,
+    onVideoScaleClick: () -> Unit = {},
     onBackClick: () -> Unit
 ) {
     val metrics = if (isFullscreen) FullscreenMetrics else InlineMetrics
@@ -190,6 +192,8 @@ fun PlayerControls(
                 onSeek = onSeek,
                 onNextClick = onNextClick,
                 onFullscreenToggle = onFullscreenToggle,
+                videoScale = videoScale,
+                onVideoScaleClick = onVideoScaleClick,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
@@ -350,6 +354,8 @@ private fun Timeline(
     onSeek: (Long) -> Unit,
     onNextClick: (() -> Unit)?,
     onFullscreenToggle: () -> Unit,
+    videoScale: VideoScale,
+    onVideoScaleClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val duration = totalTime.coerceAtLeast(0L)
@@ -423,6 +429,14 @@ private fun Timeline(
         )
         onNextClick?.let { next ->
             HudIconButton(Icons.Default.SkipNext, "Next episode", next)
+        }
+        // The inline player is already 16:9, so resizing only matters in fullscreen.
+        if (isFullscreen) {
+            HudIconButton(
+                icon = videoScale.icon,
+                contentDescription = "Video size: ${videoScale.label}. Tap to change",
+                onClick = onVideoScaleClick
+            )
         }
         HudIconButton(
             icon = if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
