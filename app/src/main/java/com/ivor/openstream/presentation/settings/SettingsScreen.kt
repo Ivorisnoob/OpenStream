@@ -137,7 +137,9 @@ fun SettingsScreen(
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        containerColor = MaterialTheme.colorScheme.surface,
+        // Rows sit on surfaceBright over a surfaceContainer page, as in the system Settings app, so
+        // unselected rows keep a visible edge in light and dark themes.
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             LargeFlexibleTopAppBar(
@@ -147,8 +149,8 @@ fun SettingsScreen(
                     ExpressiveBackButton(onClick = onBackClick, modifier = Modifier.padding(start = 8.dp))
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                 ),
                 scrollBehavior = scrollBehavior
             )
@@ -424,6 +426,13 @@ private fun SettingsGroup(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun settingsRowColors() = ListItemDefaults.segmentedColors(
+    containerColor = MaterialTheme.colorScheme.surfaceBright,
+    selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer
+)
+
 @Composable
 private fun RowIcon(icon: ImageVector) {
     Surface(
@@ -451,7 +460,7 @@ private fun NavigationRow(
         onClick = onClick,
         shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
         enabled = enabled,
-        colors = ListItemDefaults.segmentedColors(),
+        colors = settingsRowColors(),
         leadingContent = { RowIcon(icon) },
         supportingContent = { Text(supporting) },
         trailingContent = {
@@ -484,7 +493,7 @@ private fun SwitchRow(
         checked = checked,
         onCheckedChange = onCheckedChange,
         shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
-        colors = ListItemDefaults.segmentedColors(),
+        colors = settingsRowColors(),
         leadingContent = { RowIcon(icon) },
         supportingContent = { Text(supporting) },
         // The whole row toggles; the switch only shows the state.
@@ -509,7 +518,7 @@ private fun RadioRow(
         selected = selected,
         onClick = onClick,
         shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
-        colors = ListItemDefaults.segmentedColors(),
+        colors = settingsRowColors(),
         leadingContent = { RowIcon(icon) },
         supportingContent = { Text(supporting) },
         trailingContent = {
@@ -536,7 +545,7 @@ private fun <T> ChoiceRow(
 ) {
     SegmentedListItem(
         shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
-        colors = ListItemDefaults.segmentedColors(),
+        colors = settingsRowColors(),
         verticalAlignment = Alignment.Top,
         leadingContent = { RowIcon(icon) },
         supportingContent = {
