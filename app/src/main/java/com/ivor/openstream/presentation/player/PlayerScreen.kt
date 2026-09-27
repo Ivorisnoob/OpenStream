@@ -152,6 +152,7 @@ fun PlayerScreen(
     val seasonEpisodes by viewModel.seasonEpisodes.collectAsState()
     val episodeProgress by viewModel.episodeProgress.collectAsState()
     val isSaved by viewModel.isSaved.collectAsState()
+    val sleepTimer by viewModel.sleepTimer.collectAsState()
 
     var localVideoUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var isResolvingLocalUri by remember { mutableStateOf(downloadId != null) }
@@ -193,6 +194,7 @@ fun PlayerScreen(
 
     // Fullscreen state
     var isFullscreen by rememberSaveable { mutableStateOf(false) }
+    var isRotationLocked by rememberSaveable { mutableStateOf(false) }
     val isInPictureInPicture = rememberIsInPictureInPicture()
     // Picture-in-picture shows the bare video, exactly like fullscreen minus the chrome.
     val isImmersive = isFullscreen || isInPictureInPicture
@@ -259,7 +261,25 @@ fun PlayerScreen(
         isFullscreen = true
     }
 
+    // Fullscreen follows the sensor between both landscape sides; locking pins the current side.
+    fun toggleRotationLock() {
+        val act = activity ?: return
+        isRotationLocked = !isRotationLocked
+        act.requestedOrientation = if (isRotationLocked) {
+            @Suppress("DEPRECATION")
+            val rotation = act.windowManager.defaultDisplay.rotation
+            if (rotation == android.view.Surface.ROTATION_270) {
+                ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+            } else {
+                ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            }
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+    }
+
     fun exitFullscreen() {
+        isRotationLocked = false
         activity?.let { act ->
             act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             val window = act.window
@@ -377,7 +397,13 @@ fun PlayerScreen(
                             canChangeSource = downloadId == null,
                             initialPositionMs = resumePositionMs,
                             onPositionChanged = { resumePositionMs = it },
-                            onPlaybackEnded = { showUpNext = nextEpisode != null },
+                            onPlaybackEnded = {
+                                showUpNext = nextEpisode != null && !viewModel.consumeEndedBySleepTimer()
+                            },
+                            isRotationLocked = isRotationLocked,
+                            onRotationLockToggle = { toggleRotationLock() },
+                            sleepTimer = sleepTimer,
+                            onSleepTimerChange = viewModel::setSleepTimer,
                             onIsPlayingChanged = { isVideoPlaying = it },
                             isInPictureInPicture = isInPictureInPicture,
                             togglePlaybackSignal = togglePlaybackSignal,

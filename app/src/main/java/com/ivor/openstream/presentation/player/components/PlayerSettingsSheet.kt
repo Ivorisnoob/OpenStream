@@ -32,6 +32,8 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
@@ -41,10 +43,12 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
@@ -55,6 +59,7 @@ import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -72,6 +77,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ivor.openstream.presentation.player.CaptionStyleSettings
 import com.ivor.openstream.presentation.player.ServersState
+import com.ivor.openstream.presentation.player.session.SleepTimer
 import com.ivor.openstream.presentation.player.sourceSummary
 import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.ui.theme.ExpressiveShapes
@@ -133,7 +139,8 @@ enum class PlayerSettingsPage(val title: String) {
     QUALITY("Quality"),
     SPEED("Speed"),
     SUBTITLES("Subtitles"),
-    CAPTIONS("Caption style")
+    CAPTIONS("Caption style"),
+    SLEEP("Sleep timer")
 }
 
 val SPEED_OPTIONS = listOf(0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
@@ -153,7 +160,10 @@ class PlayerSettingsModel(
     val subtitleLoadingState: SubtitleLoadingState,
     val captionSettings: CaptionStyleSettings,
     val audioOptions: List<AudioOption>,
-    val originalLanguage: String?
+    val originalLanguage: String?,
+    /** Shift applied to sideloaded subtitle cues; positive shows them later. */
+    val subtitleOffsetMs: Long = 0L,
+    val sleepTimer: SleepTimer? = null
 )
 
 class PlayerSettingsActions(
@@ -162,7 +172,9 @@ class PlayerSettingsActions(
     val onSpeedSelected: (Float) -> Unit,
     val onSubtitleSelected: (SubtitleOption?) -> Unit,
     val onCaptionSettingsChange: (CaptionStyleSettings) -> Unit,
-    val onAudioSelected: (AudioOption) -> Unit
+    val onAudioSelected: (AudioOption) -> Unit,
+    val onSubtitleOffsetChange: (Long) -> Unit = {},
+    val onSleepTimerChange: (SleepTimer?) -> Unit = {}
 )
 
 /**
@@ -254,6 +266,7 @@ private fun ColumnScope.SettingsContent(
                 PlayerSettingsPage.SPEED -> speedPage(model, actions)
                 PlayerSettingsPage.SUBTITLES -> subtitlesPage(model, actions, onDone = goHome)
                 PlayerSettingsPage.CAPTIONS -> captionsPage(model, actions)
+                PlayerSettingsPage.SLEEP -> sleepPage(model, actions, onDone = goHome)
             }
         }
     }
@@ -332,6 +345,18 @@ private fun LazyListScope.mainPage(
                 title = "Caption style",
                 value = "${model.captionSettings.textSizeSp.toInt()} sp",
                 onClick = { onNavigate(PlayerSettingsPage.CAPTIONS) }
+            )
+        )
+        add(
+            MainRow(
+                icon = Icons.Default.Bedtime,
+                title = "Sleep timer",
+                value = when (val timer = model.sleepTimer) {
+                    null -> "Off"
+                    is SleepTimer.EndOfEpisode -> "End of episode"
+                    is SleepTimer.After -> timer.remainingLabel()
+                },
+                onClick = { onNavigate(PlayerSettingsPage.SLEEP) }
             )
         )
     }
@@ -559,6 +584,17 @@ private fun LazyListScope.subtitlesPage(
                 .thenBy { it.label }
         )
 
+    val active = model.selectedSubtitle
+    // Only sideloaded files are timed by the app; embedded tracks are rendered by the player.
+    if (active != null && !active.isDisabled && active.url != null) {
+        item(key = "subtitle-sync") {
+            SubtitleSyncRow(
+                offsetMs = model.subtitleOffsetMs,
+                onChange = actions.onSubtitleOffsetChange
+            )
+        }
+    }
+
     item(key = "subtitle-list") {
         var query by remember { mutableStateOf("") }
         val filtered = if (query.isBlank()) sorted else sorted.filter { it.label.contains(query, ignoreCase = true) }
@@ -608,6 +644,93 @@ private fun LazyListScope.subtitlesPage(
             }
         }
     }
+}
+
+@Composable
+private fun SubtitleSyncRow(offsetMs: Long, onChange: (Long) -> Unit) {
+    Surface(
+        shape = ExpressiveShapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Sync", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = when {
+                        offsetMs == 0L -> "In time with the video"
+                        offsetMs > 0L -> "${formatOffset(offsetMs)} later"
+                        else -> "${formatOffset(-offsetMs)} earlier"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (offsetMs != 0L) {
+                TextButton(onClick = { onChange(0L) }) { Text("Reset") }
+            }
+            FilledTonalIconButton(onClick = { onChange(offsetMs - SUBTITLE_OFFSET_STEP_MS) }) {
+                Icon(Icons.Default.Remove, contentDescription = "Show subtitles earlier")
+            }
+            FilledTonalIconButton(onClick = { onChange(offsetMs + SUBTITLE_OFFSET_STEP_MS) }) {
+                Icon(Icons.Default.Add, contentDescription = "Show subtitles later")
+            }
+        }
+    }
+}
+
+private const val SUBTITLE_OFFSET_STEP_MS = 250L
+
+private fun formatOffset(ms: Long): String = String.format(Locale.US, "%.2f s", ms / 1000f)
+
+// endregion
+
+// region Sleep timer
+
+private val SLEEP_TIMER_MINUTES = listOf(15, 30, 45, 60, 90)
+
+private fun LazyListScope.sleepPage(
+    model: PlayerSettingsModel,
+    actions: PlayerSettingsActions,
+    onDone: () -> Unit
+) {
+    val current = model.sleepTimer
+    val choices: List<Pair<String, () -> SleepTimer?>> = buildList {
+        add("Off" to { null })
+        SLEEP_TIMER_MINUTES.forEach { minutes ->
+            add("$minutes minutes" to { SleepTimer.After(minutes, System.currentTimeMillis() + minutes * 60_000L) })
+        }
+        add("End of episode" to { SleepTimer.EndOfEpisode })
+    }
+    itemsIndexed(choices, key = { _, choice -> choice.first }) { index, (title, build) ->
+        val minutes = SLEEP_TIMER_MINUTES.getOrNull(index - 1)
+        val selected = when {
+            index == 0 -> current == null
+            minutes != null -> (current as? SleepTimer.After)?.minutes == minutes
+            else -> current == SleepTimer.EndOfEpisode
+        }
+        SelectableRow(
+            selected = selected,
+            index = index,
+            count = choices.size,
+            title = title,
+            supporting = (current as? SleepTimer.After)?.takeIf { selected }?.remainingLabel(),
+            onClick = {
+                actions.onSleepTimerChange(build())
+                onDone()
+            }
+        )
+    }
+}
+
+private fun SleepTimer.After.remainingLabel(): String {
+    val minutesLeft = ((endsAtMs - System.currentTimeMillis()).coerceAtLeast(0L) + 59_999L) / 60_000L
+    return "$minutesLeft min left"
 }
 
 // endregion

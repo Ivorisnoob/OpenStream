@@ -1,6 +1,8 @@
 package com.ivor.openstream.presentation.player.components
 
 import android.app.Activity
+import androidx.activity.compose.BackHandler
+import com.ivor.openstream.presentation.player.session.SleepTimer
 import android.provider.Settings
 import android.util.Log
 import android.view.ViewGroup
@@ -140,7 +142,11 @@ fun ExoPlayerView(
     onAudioLanguageChosen: (String?) -> Unit = {},
     onCaptionSettingsChange: (CaptionStyleSettings) -> Unit = {},
     onPlaybackError: () -> Unit = {},
-    onPlaybackReady: () -> Unit = {}
+    onPlaybackReady: () -> Unit = {},
+    isRotationLocked: Boolean = false,
+    onRotationLockToggle: () -> Unit = {},
+    sleepTimer: SleepTimer? = null,
+    onSleepTimerChange: (SleepTimer?) -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = remember(context) {
@@ -193,7 +199,14 @@ fun ExoPlayerView(
     var gestureOverlayTimeout by remember { mutableLongStateOf(0L) }
     var seekFeedbackDirection by remember { mutableIntStateOf(0) }
     var seekFeedbackSequence by remember { mutableIntStateOf(0) }
+    var seekStackSeconds by remember { mutableIntStateOf(0) }
     var videoScale by rememberSaveable { mutableStateOf(VideoScale.FIT) }
+    var isLocked by remember { mutableStateOf(false) }
+    var showUnlockButton by remember { mutableStateOf(false) }
+    var unlockButtonSequence by remember { mutableIntStateOf(0) }
+    var isSpeedBoosted by remember { mutableStateOf(false) }
+    /** Positive delays sideloaded subtitles, negative shows them earlier. */
+    var subtitleOffsetMs by remember { mutableLongStateOf(0L) }
     var scaleFeedbackSequence by remember { mutableIntStateOf(0) }
     var showScaleFeedback by remember { mutableStateOf(false) }
 
@@ -210,14 +223,38 @@ fun ExoPlayerView(
         }
     }
 
+    // Seeks in the same direction while the feedback is still up add together (10s, 20s, 30s...).
     fun showSeekFeedback(direction: Int) {
+        seekStackSeconds = if (direction == seekFeedbackDirection) seekStackSeconds + SEEK_STEP_SECONDS else SEEK_STEP_SECONDS
         seekFeedbackDirection = direction
         seekFeedbackSequence++
     }
 
+    fun seekStep(direction: Int) {
+        exoPlayer.seekTo((exoPlayer.currentPosition + direction * SEEK_STEP_SECONDS * 1_000L).coerceAtLeast(0L))
+        showSeekFeedback(direction)
+        currentTime = exoPlayer.currentPosition
+    }
+
+    fun revealUnlockButton() {
+        showUnlockButton = true
+        unlockButtonSequence++
+    }
+
+    LaunchedEffect(unlockButtonSequence) {
+        if (unlockButtonSequence > 0) {
+            delay(2500)
+            showUnlockButton = false
+        }
+    }
+
+    // While locked, back does nothing except show the unlock button.
+    BackHandler(enabled = isLocked) { revealUnlockButton() }
+
     LaunchedEffect(seekFeedbackSequence) {
         if (seekFeedbackSequence > 0) {
-            delay(700)
+            // Long enough for a follow-up tap to land after the double-tap timeout.
+            delay(1_000)
             seekFeedbackDirection = 0
         }
     }
@@ -230,6 +267,8 @@ fun ExoPlayerView(
         currentSubtitleText = ""
         subtitleLoadingState = SubtitleLoadingState.IDLE
     }
+
+    LaunchedEffect(selectedSubtitle) { subtitleOffsetMs = 0L }
 
     LaunchedEffect(selectedSubtitle, requestHeaders) {
         val urlStr = selectedSubtitle?.url
@@ -664,18 +703,35 @@ fun ExoPlayerView(
             .fillMaxSize()
             .pointerInput(Unit) {
                 detectTapGestures(
-                    onTap = { areControlsVisible = !areControlsVisible },
-                    onDoubleTap = { offset ->
-                        val isForward = offset.x > size.width / 2
-                        if (isForward) {
-                            exoPlayer.seekTo(exoPlayer.currentPosition + 10000)
-                            showSeekFeedback(1)
-                        } else {
-                            exoPlayer.seekTo(exoPlayer.currentPosition - 10000)
-                            showSeekFeedback(-1)
+                    onPress = {
+                        tryAwaitRelease()
+                        if (isSpeedBoosted) {
+                            isSpeedBoosted = false
+                            exoPlayer.setPlaybackParameters(exoPlayer.playbackParameters.withSpeed(playbackSpeed))
                         }
-                        currentTime = exoPlayer.currentPosition
-                        areControlsVisible = true
+                    },
+                    onTap = { offset ->
+                        val direction = if (offset.x > size.width / 2) 1 else -1
+                        when {
+                            isLocked -> revealUnlockButton()
+                            // With controls hidden, a tap on the same side while seek feedback shows keeps seeking.
+                            !areControlsVisible && seekFeedbackDirection == direction -> seekStep(direction)
+                            else -> areControlsVisible = !areControlsVisible
+                        }
+                    },
+                    onDoubleTap = { offset ->
+                        if (isLocked) {
+                            revealUnlockButton()
+                        } else {
+                            seekStep(if (offset.x > size.width / 2) 1 else -1)
+                        }
+                    },
+                    onLongPress = {
+                        if (!isLocked && exoPlayer.isPlaying) {
+                            isSpeedBoosted = true
+                            areControlsVisible = false
+                            exoPlayer.setPlaybackParameters(exoPlayer.playbackParameters.withSpeed(BOOST_SPEED))
+                        }
                     }
                 )
             }
@@ -684,6 +740,7 @@ fun ExoPlayerView(
                     onDragStart = { offset ->
                         // Start from the screen's real brightness so the first swipe doesn't jump.
                         if (offset.x < size.width / 2) brightness = currentBrightness(activity)
+                        if (isLocked) revealUnlockButton()
                     },
                     onDragEnd = {
                         showBrightnessOverlay = false
@@ -698,7 +755,9 @@ fun ExoPlayerView(
                         val isLeft = change.position.x < size.width / 2
                         val delta = -dragAmount / size.height // Swipe up to increase
                         
-                        if (isLeft) {
+                        if (isLocked) {
+                            // Locked: the swipe is swallowed.
+                        } else if (isLeft) {
                             brightness = (brightness + delta).coerceIn(0f, 1f)
                             showBrightnessOverlay = true
                             showVolumeOverlay = false
@@ -732,7 +791,7 @@ fun ExoPlayerView(
                             event.changes.forEach { it.consume() }
                         }
                     } while (event.changes.any { it.pressed })
-                    if (pinching) {
+                    if (pinching && !isLocked) {
                         when {
                             zoom > 1.1f && videoScale != VideoScale.ZOOM -> changeVideoScale(VideoScale.ZOOM)
                             zoom < 0.9f && videoScale != VideoScale.FIT -> changeVideoScale(VideoScale.FIT)
@@ -823,9 +882,10 @@ fun ExoPlayerView(
         }
 
         // Compose-rendered subtitles -- always on top of video, below controls
-        val displaySubtitleText = remember(currentTime, currentSubtitleText, manualCues) {
+        val displaySubtitleText = remember(currentTime, currentSubtitleText, manualCues, subtitleOffsetMs) {
             if (manualCues.isNotEmpty()) {
-                manualCues.find { currentTime in it.startMs..it.endMs }?.text ?: ""
+                val cueTime = currentTime - subtitleOffsetMs
+                manualCues.find { cueTime in it.startMs..it.endMs }?.text ?: ""
             } else {
                 currentSubtitleText
             }
@@ -862,7 +922,7 @@ fun ExoPlayerView(
         }
 
         PlayerControls(
-            isVisible = areControlsVisible && !isInPictureInPicture,
+            isVisible = areControlsVisible && !isInPictureInPicture && !isLocked,
             isPlaying = isPlaying,
             isBuffering = isBuffering,
             title = title,
@@ -887,15 +947,11 @@ fun ExoPlayerView(
                 areControlsVisible = true
             },
             onForward = {
-                exoPlayer.seekTo(exoPlayer.currentPosition + 10000)
-                showSeekFeedback(1)
-                currentTime = exoPlayer.currentPosition
+                seekStep(1)
                 areControlsVisible = true
             },
             onRewind = {
-                exoPlayer.seekTo(exoPlayer.currentPosition - 10000)
-                showSeekFeedback(-1)
-                currentTime = exoPlayer.currentPosition
+                seekStep(-1)
                 areControlsVisible = true
             },
             onNextClick = onNextClick,
@@ -922,6 +978,17 @@ fun ExoPlayerView(
             isFullscreen = isFullscreen,
             onFullscreenToggle = {
                 onFullscreenToggle()
+                areControlsVisible = true
+            },
+            onLockClick = {
+                isLocked = true
+                areControlsVisible = false
+                showSettingsDialog = false
+                revealUnlockButton()
+            },
+            isRotationLocked = isRotationLocked,
+            onRotationLockToggle = {
+                onRotationLockToggle()
                 areControlsVisible = true
             },
             videoScale = videoScale,
@@ -959,10 +1026,63 @@ fun ExoPlayerView(
                         modifier = Modifier.size(28.dp)
                     )
                     Text(
-                        if (seekFeedbackDirection < 0) "10 sec back" else "10 sec ahead",
+                        if (seekFeedbackDirection < 0) "$seekStackSeconds sec back" else "$seekStackSeconds sec ahead",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold
                     )
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = isSpeedBoosted,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 24.dp)
+        ) {
+            Surface(
+                shape = ExpressiveShapes.extraLarge,
+                color = Color.Black.copy(alpha = 0.62f),
+                contentColor = Color.White
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.FastForward, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Text("2× speed", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = isLocked && showUnlockButton,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 24.dp)
+        ) {
+            Surface(
+                onClick = {
+                    isLocked = false
+                    showUnlockButton = false
+                    areControlsVisible = true
+                },
+                shape = ExpressiveShapes.extraLarge,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.LockOpen, contentDescription = null)
+                    Text("Tap to unlock", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -1024,7 +1144,9 @@ fun ExoPlayerView(
                 subtitleLoadingState = subtitleLoadingState,
                 captionSettings = captionSettings,
                 audioOptions = audioOptions,
-                originalLanguage = originalLanguage
+                originalLanguage = originalLanguage,
+                subtitleOffsetMs = subtitleOffsetMs,
+                sleepTimer = sleepTimer
             ),
             actions = PlayerSettingsActions(
                 sources = sourceActions,
@@ -1094,6 +1216,8 @@ fun ExoPlayerView(
                 exoPlayer.play()
                 },
                 onCaptionSettingsChange = onCaptionSettingsChange,
+                onSubtitleOffsetChange = { subtitleOffsetMs = it },
+                onSleepTimerChange = onSleepTimerChange,
                 onAudioSelected = { option ->
                     val tracks = exoPlayer.currentTracks
                     if (option.groupIndex < tracks.groups.size) {
@@ -1222,6 +1346,9 @@ private fun GestureIndicator(
         }
     }
 }
+
+private const val SEEK_STEP_SECONDS = 10
+private const val BOOST_SPEED = 2f
 
 /** How the video fills the player: letterboxed, cropped to fill the screen, or stretched. */
 enum class VideoScale(val resizeMode: Int, val label: String, val icon: ImageVector) {

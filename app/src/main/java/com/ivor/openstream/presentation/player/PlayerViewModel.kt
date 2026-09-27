@@ -43,6 +43,7 @@ import java.time.LocalDate
 import androidx.media3.exoplayer.ExoPlayer
 import com.ivor.openstream.presentation.player.session.NowPlaying
 import com.ivor.openstream.presentation.player.session.PlaybackSession
+import com.ivor.openstream.presentation.player.session.SleepTimer
 import javax.inject.Inject
 
 private const val KEY_CAPTION_STYLE = "caption_style"
@@ -95,6 +96,12 @@ class PlayerViewModel @Inject constructor(
     val player: ExoPlayer get() = playbackSession.player
 
     fun applyRequestHeaders(headers: Map<String, String>) = playbackSession.setRequestHeaders(headers)
+
+    val sleepTimer: StateFlow<SleepTimer?> = playbackSession.sleepTimer
+
+    fun setSleepTimer(timer: SleepTimer?) = playbackSession.setSleepTimer(timer)
+
+    fun consumeEndedBySleepTimer(): Boolean = playbackSession.consumeEndedBySleepTimer()
 
     private val _mediaUri = MutableStateFlow<Pair<String, String?>?>(null)
 

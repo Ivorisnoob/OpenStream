@@ -1,8 +1,13 @@
 package com.ivor.openstream.presentation.settings
 
+import android.os.Build
+import android.text.format.Formatter
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,13 +20,26 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.ColorLens
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Update
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
@@ -31,16 +49,28 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ivor.openstream.BuildConfig
+import com.ivor.openstream.data.settings.AppSettings
+import com.ivor.openstream.data.settings.DnsProvider
+import com.ivor.openstream.data.settings.ThemeMode
 import com.ivor.openstream.presentation.components.ExpressiveBackButton
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 
@@ -52,11 +82,38 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
+    val appSettings by viewModel.appSettings.collectAsState()
+    val imageCacheBytes by viewModel.imageCacheBytes.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var confirmClearHistory by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        viewModel.messages.collect { snackbarHostState.showSnackbar(it) }
+    }
+
+    if (confirmClearHistory) {
+        AlertDialog(
+            onDismissRequest = { confirmClearHistory = false },
+            title = { Text("Clear watch history?") },
+            text = { Text("Removes history, Continue Watching and saved positions for every title. Downloads and Watch Later stay.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmClearHistory = false
+                    viewModel.clearWatchHistory()
+                }) { Text("Clear") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClearHistory = false }) { Text("Cancel") }
+            }
+        )
+    }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.surface,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             LargeTopAppBar(
                 title = {
@@ -123,6 +180,73 @@ fun SettingsScreen(
             }
 
             item { SafetyNote() }
+
+            item { SectionHeader("Appearance") }
+            item {
+                ChoiceCard(
+                    icon = Icons.Default.DarkMode,
+                    title = "Theme",
+                    subtitle = null,
+                    options = ThemeMode.entries,
+                    selected = appSettings.themeMode,
+                    label = { it.label },
+                    onSelect = viewModel::setThemeMode
+                )
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                item {
+                    SwitchRow(
+                        icon = Icons.Default.ColorLens,
+                        title = "Dynamic color",
+                        subtitle = "Match colors to your wallpaper",
+                        checked = appSettings.dynamicColor,
+                        onCheckedChange = viewModel::setDynamicColor
+                    )
+                }
+            }
+
+            item { SectionHeader("Network") }
+            item {
+                ChoiceCard(
+                    icon = Icons.Default.Dns,
+                    title = "DNS",
+                    subtitle = dnsDescription(appSettings),
+                    options = DnsProvider.entries,
+                    selected = appSettings.dnsProvider,
+                    label = { it.label },
+                    onSelect = viewModel::setDnsProvider
+                )
+            }
+
+            item { SectionHeader("Downloads") }
+            item {
+                SwitchRow(
+                    icon = Icons.Default.Wifi,
+                    title = "Download on Wi-Fi only",
+                    subtitle = "Downloads wait until you're on an unmetered network",
+                    checked = appSettings.wifiOnlyDownloads,
+                    onCheckedChange = viewModel::setWifiOnlyDownloads
+                )
+            }
+
+            item { SectionHeader("Storage and privacy") }
+            item {
+                SettingsRow(
+                    icon = Icons.Default.Image,
+                    title = "Clear image cache",
+                    subtitle = imageCacheBytes?.let { "${Formatter.formatShortFileSize(context, it)} of artwork stored" }
+                        ?: "Posters and backdrops kept for faster loading",
+                    onClick = viewModel::clearImageCache
+                )
+            }
+            item {
+                SettingsRow(
+                    icon = Icons.Default.History,
+                    title = "Clear watch history",
+                    subtitle = "History, Continue Watching and resume positions",
+                    onClick = { confirmClearHistory = true }
+                )
+            }
 
             item {
                 Text(
@@ -259,6 +383,127 @@ private fun SettingsRow(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+private fun dnsDescription(settings: AppSettings): String =
+    if (settings.dnsProvider == DnsProvider.SYSTEM) {
+        "Uses your network's DNS. Switch to a private resolver if titles or artwork don't load."
+    } else {
+        "Looks up servers through ${settings.dnsProvider.label} over HTTPS, so ISP DNS blocks don't stop TMDB. Falls back to your network's DNS if it can't be reached."
+    }
+
+@Composable
+private fun SectionHeader(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .padding(start = 4.dp, top = 12.dp)
+            .semantics { heading() }
+    )
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalLayoutApi::class)
+@Composable
+private fun <T> ChoiceCard(
+    icon: ImageVector,
+    title: String,
+    subtitle: String?,
+    options: List<T>,
+    selected: T,
+    label: (T) -> String,
+    onSelect: (T) -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ExpressiveShapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SettingsIcon(icon)
+                Spacer(Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    subtitle?.let {
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            // Four labels don't fit one row on a phone, so larger sets wrap two per row.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                maxItemsInEachRow = if (options.size > 3) 2 else options.size
+            ) {
+                options.forEach { option ->
+                    ToggleButton(
+                        checked = option == selected,
+                        onCheckedChange = { onSelect(option) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(label(option), maxLines = 1)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SwitchRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(ExpressiveShapes.large)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
+        shape = ExpressiveShapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        Row(modifier = Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+            SettingsIcon(icon)
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Switch(checked = checked, onCheckedChange = null)
+        }
+    }
+}
+
+@Composable
+private fun SettingsIcon(icon: ImageVector) {
+    Surface(
+        shape = ExpressiveShapes.small,
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.padding(10.dp).size(22.dp)
+        )
     }
 }
 

@@ -4,7 +4,7 @@ Features OpenStream is missing compared with other streaming apps, grouped by ar
 ordered roughly by priority. Tick items off as they land; if the code already does something listed
 here, trust the code and fix this file.
 
-Last reviewed: 2026-09-26 (after 2.0).
+Last reviewed: 2026-09-27.
 
 ## Already in place
 
@@ -14,30 +14,42 @@ volume (right), playback speed, picture-in-picture, auto-play next episode with 
 history, downloads with pause/resume/retry, OpenSubtitles plus embedded subtitles, caption styling,
 source failover, in-app updates with release notes, dynamic color.
 
+## Priority
+
+- [x] **Private DNS (DNS-over-HTTPS).** Several Indian ISPs poison DNS for TMDB, so titles and
+      artwork fail to load without AdGuard. Settings → Network → DNS picks System, AdGuard
+      (default), Cloudflare or Google; every OkHttp client and Coil go through `AppDns`, which falls
+      back to the network's DNS if the resolver is unreachable.
+- [ ] **DNS for playback and downloads.** Media3 still uses `DefaultHttpDataSource` (system DNS), and
+      WebView sources can't take a custom resolver. Switch Media3 to `OkHttpDataSource` if stream
+      CDNs turn out to be DNS-blocked too. High-risk playback change.
+
 ## Player
 
 - [ ] **MediaSession and media notification.** `media3-session` is not a dependency, so background
       and MiniPlayer playback has no notification, lock-screen controls, headset/Bluetooth buttons
       or Android Auto/Wear surface. Highest-impact player gap.
-- [ ] **Pinch to zoom.** Pinch out to fill (crop the black bars), pinch in to fit.
-- [ ] **Resize / aspect button.** Fit, Fill, Zoom, Stretch. Only `MiniPlayer` sets a resize mode today.
+- [x] **Pinch to zoom.** Pinch out to fill (crop the black bars), pinch in to fit.
+- [x] **Resize / aspect button.** Fit, Zoom to fill, Stretch (fullscreen).
 - [ ] **Skip intro / recap / credits.** AniSkip for anime (`anilistId`/MAL ids are already mapped);
       a manual "+85s" skip as a fallback for movies and series.
-- [ ] **Subtitle sync offset.** Shift cues earlier or later in the player.
-- [ ] **Screen lock.** Ignore touches during playback until unlocked.
+- [x] **Subtitle sync offset.** Shift cues earlier or later in the player (sideloaded subtitles only;
+      embedded tracks are rendered by Media3).
+- [x] **Screen lock.** Ignore touches during playback until unlocked.
 - [ ] **Horizontal swipe to scrub** with a time preview.
-- [ ] **Hold for 2x speed** while long-pressing.
-- [ ] **Stacking double-tap seek** (10s, 20s, 30s...) and a configurable seek step.
-- [ ] **Sleep timer.** End of episode or after N minutes.
-- [ ] **Orientation lock** in fullscreen.
+- [x] **Hold for 2x speed** while long-pressing.
+- [x] **Stacking double-tap seek** (10s, 20s, 30s...).
+- [ ] **Configurable seek step.**
+- [x] **Sleep timer.** End of episode or after N minutes.
+- [x] **Orientation lock** in fullscreen.
 - [ ] **Remembered audio and subtitle language** applied to every title (original vs. dub, subtitle
       language), instead of picking per episode.
 - [ ] **Chromecast.** Needs `media3-cast`; source URLs with Referer/Origin headers may not play on a
       Cast receiver.
 - [ ] **Seekbar thumbnail previews.** Only when the stream ships trick-play images; low priority.
 
-Bug: the brightness gesture starts from `1.0f` (`ExoPlayerView.kt`) instead of the window's current
-brightness, so the first swipe on a dim screen jumps to full.
+Fixed: the brightness gesture now starts from the current brightness, and leaving the player hands
+brightness back to the system.
 
 ## Discovery
 
@@ -61,7 +73,7 @@ brightness, so the first swipe on a dim screen jumps to full.
 
 ## Downloads
 
-- [ ] **Wi-Fi only** download setting (unmetered network requirement on the `DownloadManager`).
+- [x] **Wi-Fi only** download setting (unmetered network requirement on the `DownloadManager`).
 - [ ] **Download a whole season** in one action.
 - [ ] **Default download quality** setting (currently one rendition up to 1080p).
 - [ ] **Storage view**: space used, free space, delete all.
@@ -69,13 +81,11 @@ brightness, so the first swipe on a dim screen jumps to full.
 
 ## Settings
 
-Settings currently only covers sources, repositories and extension updates.
-
-- [ ] Theme: light / dark / system, and a dynamic color toggle.
+- [x] Theme: light / dark / system, and a dynamic color toggle.
 - [ ] Playback defaults: speed, quality, auto-play next, seek step, skip-intro behavior.
 - [ ] Subtitle defaults: language, auto-enable.
-- [ ] Clear image and stream cache.
-- [ ] Clear history / reset progress.
+- [x] Clear image cache. (There is no separate stream cache; the Media3 cache holds downloads.)
+- [x] Clear history / reset progress.
 
 ## Platform and app
 
@@ -84,7 +94,7 @@ Settings currently only covers sources, repositories and extension updates.
 - [ ] **Localization.** Almost all UI text is hard-coded in Compose; move it to `strings.xml`.
 - [ ] **Tablet and foldable layouts** (list-detail, nav rail on wide screens).
 - [ ] **Android TV** (leanback launcher entry, D-pad focus).
-- [ ] **Predictive back** (`android:enableOnBackInvokedCallback`).
+- [x] **Predictive back** (`android:enableOnBackInvokedCallback`).
 - [ ] **App shortcuts** (Continue Watching, Search, Downloads) and a Continue Watching widget.
 - [ ] **Shared element transitions** from cards to Details artwork.
 - [ ] **Crash and log export** (opt-in, local file) for bug reports.

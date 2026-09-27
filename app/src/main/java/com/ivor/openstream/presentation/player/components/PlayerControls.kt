@@ -30,9 +30,12 @@ import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.ScreenLockRotation
+import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -131,6 +134,9 @@ fun PlayerControls(
     onQualityClick: () -> Unit = {},
     onSubtitlesClick: () -> Unit = {},
     onFullscreenToggle: () -> Unit = {},
+    onLockClick: () -> Unit = {},
+    isRotationLocked: Boolean = false,
+    onRotationLockToggle: () -> Unit = {},
     videoScale: VideoScale = VideoScale.FIT,
     onVideoScaleClick: () -> Unit = {},
     onBackClick: () -> Unit
@@ -171,6 +177,9 @@ fun PlayerControls(
                 onQualityClick = onQualityClick,
                 onSubtitlesClick = onSubtitlesClick,
                 onSettingsClick = onSettingsClick,
+                onLockClick = onLockClick,
+                isRotationLocked = isRotationLocked,
+                onRotationLockToggle = onRotationLockToggle,
                 modifier = Modifier.align(Alignment.TopCenter)
             )
 
@@ -215,6 +224,9 @@ private fun TopBar(
     onQualityClick: () -> Unit,
     onSubtitlesClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onLockClick: () -> Unit,
+    isRotationLocked: Boolean,
+    onRotationLockToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -253,6 +265,12 @@ private fun TopBar(
         }
 
         if (isFullscreen) {
+            HudIconButton(Icons.Default.Lock, "Lock screen", onLockClick)
+            HudIconButton(
+                icon = if (isRotationLocked) Icons.Default.ScreenLockRotation else Icons.Default.ScreenRotation,
+                contentDescription = if (isRotationLocked) "Unlock rotation" else "Lock rotation",
+                onClick = onRotationLockToggle
+            )
             sourceLabel?.let { label ->
                 HudChip(icon = Icons.Default.Dns, label = label, onClick = onSourcesClick)
             }

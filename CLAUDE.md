@@ -16,9 +16,10 @@ When a doc and the code disagree, trust the code, then fix the doc.
 ```
 
 `local.properties` holds `TMDB_API_KEY` (falls back to `DEMO_KEY`) and optionally
-`VIDKING_API_BASE_URL`. There is no CI; releases are built locally. `assembleRelease` signs when
-`OPENSTREAM_KEYSTORE_PATH`, `OPENSTREAM_KEYSTORE_PASSWORD`, `OPENSTREAM_KEY_ALIAS` and
-`OPENSTREAM_KEY_PASSWORD` are set in the environment.
+`VIDKING_API_BASE_URL`. `assembleRelease` signs when `OPENSTREAM_KEYSTORE_PATH`,
+`OPENSTREAM_KEYSTORE_PASSWORD`, `OPENSTREAM_KEY_ALIAS` and `OPENSTREAM_KEY_PASSWORD` are set in the
+environment. `.github/workflows/release-apk.yml` builds a signed APK artifact on the owner's pushes
+to `main` and on manual dispatch (any branch); there are no other CI checks.
 
 ## Toolchain
 
@@ -76,6 +77,11 @@ Rules:
   (bottom sheet inline, in-player side panel in fullscreen so immersive mode survives).
 - **Subtitles.** `OpenSubtitlesRepository` (keyless legacy REST API) plus any the stream carries.
   Files are gzipped; the player decompresses and strips promo cues.
+- **Network.** `AppDns` (DNS-over-HTTPS, default AdGuard, chosen in Settings) backs every OkHttp
+  client and Coil's image loader (`OpenStreamApp`), because some ISPs block TMDB at the DNS level.
+  Media3 playback/downloads and WebView sources still use the system resolver.
+- **Settings.** `AppSettingsStore` (SharedPreferences) holds theme, dynamic color, DNS and
+  Wi-Fi-only downloads; `MainActivity` applies the theme.
 - **Downloads.** Everything goes through Media3's `DownloadManager` (`DownloadRepositoryImpl`):
   queue resolves sources in the app scope, live progress from the manager, pause/resume/retry,
   one rendition up to 1080p from master playlists. Offline playback reads the same cache.
