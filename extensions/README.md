@@ -22,7 +22,7 @@ A personal repository uses the same format. Any public JSON URL works, including
 
 ### 1. Pick an engine
 
-The engine decides how the app talks to the source. Only these three exist; anything else is shown
+The engine decides how the app talks to the source. Only these exist; anything else is shown
 as "Needs a newer app version".
 
 | `engine.type` | Use it for | Fields |
@@ -30,6 +30,7 @@ as "Needs a newer app version".
 | `vidking-direct` | A route of the Vidking API (`api.speedracelight.com/<route>/sources-with-title`) | `endpoint` (e.g. `cdn/sources-with-title`), optional `language`, `qualityFilter` |
 | `web-embed` | Any web player page the app can load in a hidden browser and record the video requests of | `movieUrl` and/or `tvUrl` |
 | `vidking-webview` | The built-in Vidking page fallback; there is already one, don't add another | none |
+| `anikoto` / `reanime` / `animepahe` | Anime sites with a built-in scraper; point `endpoint` at the site's current domain when it moves | `endpoint` (e.g. `https://anikototv.to`) |
 
 `web-embed` URL templates must be `https://` and can use these placeholders:
 

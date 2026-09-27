@@ -66,6 +66,10 @@ Rules:
   Engines: `vidking-direct` (`VidkingDirectApi`, encrypted payload, prefers the master playlist so
   quality switches in-player), `web-embed` and `vidking-webview` (`WebEmbedResolver`, hidden
   WebView that records media requests).
+  Anime engines (`data/streaming/anime`): `anikoto`, `reanime`, `animepahe`. `AnimeEpisodeMapper`
+  maps TMDB season/episode to an AniList episode (ani.zip + AniList GraphQL, both keyless);
+  megaplay embeds decrypt with a fixed AES key; `ImagePrefixStrippingDataSource` strips the fake
+  PNG header some anime CDNs put before TS segments.
 - **Catalog.** `extensions/index.json` is published; `app/src/main/assets/extensions/official-repo.json`
   must be a byte-identical copy (`OfficialCatalogTest` checks). Bundled and fetched copies are merged
   per entry by `versionCode`. Contributor guide: `extensions/README.md`; format: `docs/EXTENSIONS.md`.

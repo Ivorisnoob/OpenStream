@@ -1,5 +1,12 @@
 package com.ivor.openstream.data.streaming
 
+import com.ivor.openstream.data.streaming.anime.AnikotoProvider
+import com.ivor.openstream.data.streaming.anime.AnimeEpisodeMapper
+import com.ivor.openstream.data.streaming.anime.AnimePaheProvider
+import com.ivor.openstream.data.streaming.anime.AnimeSiteSpec
+import com.ivor.openstream.data.streaming.anime.CloudflareClearance
+import com.ivor.openstream.data.streaming.anime.MegaplayExtractor
+import com.ivor.openstream.data.streaming.anime.ReAnimeProvider
 import com.ivor.openstream.data.streaming.providers.VidkingDirectApi
 import com.ivor.openstream.data.streaming.providers.VidkingDirectProvider
 import com.ivor.openstream.data.streaming.providers.VidkingServerSpec
@@ -7,12 +14,16 @@ import com.ivor.openstream.data.streaming.providers.WebEmbedProvider
 import com.ivor.openstream.data.streaming.providers.WebEmbedResolver
 import com.ivor.openstream.data.streaming.providers.WebEmbedSpec
 import com.ivor.openstream.domain.model.ExtensionEngineType
+import com.ivor.openstream.domain.model.ExtensionManifest
 import com.ivor.openstream.domain.model.MarketplaceExtension
 import com.ivor.openstream.domain.model.MediaIdentity
 import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.domain.repository.ExtensionRepository
+import kotlinx.serialization.json.Json
+import okhttp3.OkHttpClient
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
+import javax.inject.Named
 import javax.inject.Singleton
 
 /** A provider that knows which marketplace extension it came from. */
@@ -40,7 +51,12 @@ class ExtensionStreamProvider(
 class ExtensionProviderRegistry @Inject constructor(
     private val extensionRepository: ExtensionRepository,
     private val vidkingApi: VidkingDirectApi,
-    private val webEmbedResolver: WebEmbedResolver
+    private val webEmbedResolver: WebEmbedResolver,
+    private val animeEpisodeMapper: AnimeEpisodeMapper,
+    private val megaplayExtractor: MegaplayExtractor,
+    private val cloudflareClearance: CloudflareClearance,
+    @Named("StreamingClient") private val streamingClient: OkHttpClient,
+    private val json: Json
 ) {
     private val cache = ConcurrentHashMap<String, ExtensionStreamProvider>()
 
@@ -90,6 +106,25 @@ class ExtensionProviderRegistry @Inject constructor(
                     isFallback = manifest.isFallback
                 )
             )
+            ExtensionEngineType.ANIKOTO -> AnikotoProvider(
+                spec = animeSiteSpec(manifest),
+                mapper = animeEpisodeMapper,
+                client = streamingClient,
+                json = json,
+                megaplay = megaplayExtractor
+            )
+            ExtensionEngineType.REANIME -> ReAnimeProvider(
+                spec = animeSiteSpec(manifest),
+                mapper = animeEpisodeMapper,
+                megaplay = megaplayExtractor
+            )
+            ExtensionEngineType.ANIMEPAHE -> AnimePaheProvider(
+                spec = animeSiteSpec(manifest),
+                mapper = animeEpisodeMapper,
+                client = streamingClient,
+                json = json,
+                clearance = cloudflareClearance
+            )
             ExtensionEngineType.UNSUPPORTED -> return null
         }
 
@@ -101,4 +136,11 @@ class ExtensionProviderRegistry @Inject constructor(
         cache[cacheKey] = provider
         return provider
     }
+
+    private fun animeSiteSpec(manifest: ExtensionManifest) = AnimeSiteSpec(
+        id = manifest.id,
+        name = manifest.name,
+        baseUrl = manifest.engine.endpoint,
+        priority = manifest.engine.priority
+    )
 }
