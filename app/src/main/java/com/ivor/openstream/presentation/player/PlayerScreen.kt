@@ -151,6 +151,8 @@ fun PlayerScreen(
     val episodeProgress by viewModel.episodeProgress.collectAsState()
     val isSaved by viewModel.isSaved.collectAsState()
     val sleepTimer by viewModel.sleepTimer.collectAsState()
+    val appSettings by viewModel.appSettings.collectAsState()
+    val preferredSubtitleLanguage by viewModel.preferredSubtitleLanguage.collectAsState()
 
     var localVideoUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var isResolvingLocalUri by remember { mutableStateOf(downloadId != null) }
@@ -159,7 +161,7 @@ fun PlayerScreen(
         mutableLongStateOf(0L)
     }
     var sessionPlaybackSpeed by rememberSaveable(tmdbId, season, episode, downloadId) {
-        mutableFloatStateOf(1f)
+        mutableFloatStateOf(viewModel.appSettings.value.defaultSpeed)
     }
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -396,12 +398,17 @@ fun PlayerScreen(
                             initialPositionMs = resumePositionMs,
                             onPositionChanged = { resumePositionMs = it },
                             onPlaybackEnded = {
-                                showUpNext = nextEpisode != null && !viewModel.consumeEndedBySleepTimer()
+                                // Always consumed, so a sleep-timer stop never leaks into the next ending.
+                                val stoppedBySleepTimer = viewModel.consumeEndedBySleepTimer()
+                                showUpNext = nextEpisode != null && appSettings.autoPlayNext && !stoppedBySleepTimer
                             },
                             isRotationLocked = isRotationLocked,
                             onRotationLockToggle = { toggleRotationLock() },
                             sleepTimer = sleepTimer,
                             onSleepTimerChange = viewModel::setSleepTimer,
+                            seekStepSeconds = appSettings.seekStepSeconds,
+                            preferredSubtitleLanguage = preferredSubtitleLanguage,
+                            onSubtitleLanguageChosen = viewModel::setPreferredSubtitleLanguage,
                             onIsPlayingChanged = { isVideoPlaying = it },
                             isInPictureInPicture = isInPictureInPicture,
                             togglePlaybackSignal = togglePlaybackSignal,

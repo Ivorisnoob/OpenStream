@@ -30,8 +30,22 @@ data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,
     val dnsProvider: DnsProvider = DnsProvider.ADGUARD,
-    val wifiOnlyDownloads: Boolean = false
-)
+    val wifiOnlyDownloads: Boolean = false,
+    /** Seconds per double-tap or seek button press. */
+    val seekStepSeconds: Int = 10,
+    /** Speed every title starts at. */
+    val defaultSpeed: Float = 1f,
+    /** Count down into the next episode when one ends. */
+    val autoPlayNext: Boolean = true,
+    /** Tallest rendition a download picks from a master playlist. */
+    val downloadMaxHeight: Int = 1080
+) {
+    companion object {
+        val SEEK_STEPS = listOf(5, 10, 15, 30)
+        val DEFAULT_SPEEDS = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
+        val DOWNLOAD_HEIGHTS = listOf(480, 720, 1080)
+    }
+}
 
 /** App-wide preferences, persisted in the shared preferences file. */
 @Singleton
@@ -51,6 +65,10 @@ class AppSettingsStore @Inject constructor(
             .putBoolean(KEY_DYNAMIC_COLOR, updated.dynamicColor)
             .putString(KEY_DNS, updated.dnsProvider.name)
             .putBoolean(KEY_WIFI_ONLY, updated.wifiOnlyDownloads)
+            .putInt(KEY_SEEK_STEP, updated.seekStepSeconds)
+            .putFloat(KEY_DEFAULT_SPEED, updated.defaultSpeed)
+            .putBoolean(KEY_AUTO_PLAY_NEXT, updated.autoPlayNext)
+            .putInt(KEY_DOWNLOAD_HEIGHT, updated.downloadMaxHeight)
             .apply()
     }
 
@@ -60,7 +78,14 @@ class AppSettingsStore @Inject constructor(
             themeMode = enumOrDefault(prefs.getString(KEY_THEME, null), defaults.themeMode),
             dynamicColor = prefs.getBoolean(KEY_DYNAMIC_COLOR, defaults.dynamicColor),
             dnsProvider = enumOrDefault(prefs.getString(KEY_DNS, null), defaults.dnsProvider),
-            wifiOnlyDownloads = prefs.getBoolean(KEY_WIFI_ONLY, defaults.wifiOnlyDownloads)
+            wifiOnlyDownloads = prefs.getBoolean(KEY_WIFI_ONLY, defaults.wifiOnlyDownloads),
+            seekStepSeconds = prefs.getInt(KEY_SEEK_STEP, defaults.seekStepSeconds)
+                .takeIf { it in AppSettings.SEEK_STEPS } ?: defaults.seekStepSeconds,
+            defaultSpeed = prefs.getFloat(KEY_DEFAULT_SPEED, defaults.defaultSpeed)
+                .takeIf { it in AppSettings.DEFAULT_SPEEDS } ?: defaults.defaultSpeed,
+            autoPlayNext = prefs.getBoolean(KEY_AUTO_PLAY_NEXT, defaults.autoPlayNext),
+            downloadMaxHeight = prefs.getInt(KEY_DOWNLOAD_HEIGHT, defaults.downloadMaxHeight)
+                .takeIf { it in AppSettings.DOWNLOAD_HEIGHTS } ?: defaults.downloadMaxHeight
         )
     }
 
@@ -72,5 +97,9 @@ class AppSettingsStore @Inject constructor(
         const val KEY_DYNAMIC_COLOR = "app_dynamic_color"
         const val KEY_DNS = "app_dns_provider"
         const val KEY_WIFI_ONLY = "app_wifi_only_downloads"
+        const val KEY_SEEK_STEP = "app_seek_step_seconds"
+        const val KEY_DEFAULT_SPEED = "app_default_speed"
+        const val KEY_AUTO_PLAY_NEXT = "app_auto_play_next"
+        const val KEY_DOWNLOAD_HEIGHT = "app_download_max_height"
     }
 }

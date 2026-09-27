@@ -146,7 +146,11 @@ fun ExoPlayerView(
     isRotationLocked: Boolean = false,
     onRotationLockToggle: () -> Unit = {},
     sleepTimer: SleepTimer? = null,
-    onSleepTimerChange: (SleepTimer?) -> Unit = {}
+    onSleepTimerChange: (SleepTimer?) -> Unit = {},
+    seekStepSeconds: Int = 10,
+    /** Last subtitle language picked, [SUBTITLES_OFF], or null if never chosen. */
+    preferredSubtitleLanguage: String? = null,
+    onSubtitleLanguageChosen: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = remember(context) {
@@ -207,6 +211,8 @@ fun ExoPlayerView(
     var isSpeedBoosted by remember { mutableStateOf(false) }
     /** Positive delays sideloaded subtitles, negative shows them earlier. */
     var subtitleOffsetMs by remember { mutableLongStateOf(0L) }
+    /** Set once this video's subtitle is settled, by the user or the remembered choice. */
+    var subtitleChoiceMade by remember { mutableStateOf(false) }
     var scaleFeedbackSequence by remember { mutableIntStateOf(0) }
     var showScaleFeedback by remember { mutableStateOf(false) }
 
@@ -223,15 +229,18 @@ fun ExoPlayerView(
         }
     }
 
+    // Read through State so the gesture handlers, created once, see a changed setting.
+    val currentSeekStep by rememberUpdatedState(seekStepSeconds)
+
     // Seeks in the same direction while the feedback is still up add together (10s, 20s, 30s...).
     fun showSeekFeedback(direction: Int) {
-        seekStackSeconds = if (direction == seekFeedbackDirection) seekStackSeconds + SEEK_STEP_SECONDS else SEEK_STEP_SECONDS
+        seekStackSeconds = if (direction == seekFeedbackDirection) seekStackSeconds + currentSeekStep else currentSeekStep
         seekFeedbackDirection = direction
         seekFeedbackSequence++
     }
 
     fun seekStep(direction: Int) {
-        exoPlayer.seekTo((exoPlayer.currentPosition + direction * SEEK_STEP_SECONDS * 1_000L).coerceAtLeast(0L))
+        exoPlayer.seekTo((exoPlayer.currentPosition + direction * currentSeekStep * 1_000L).coerceAtLeast(0L))
         showSeekFeedback(direction)
         currentTime = exoPlayer.currentPosition
     }
@@ -262,6 +271,7 @@ fun ExoPlayerView(
     // Reset subtitle state when switching videos
     LaunchedEffect(videoUrl) {
         activeVideoHeight = 0
+        subtitleChoiceMade = false
         selectedSubtitle = null
         manualCues = emptyList()
         currentSubtitleText = ""
@@ -424,7 +434,8 @@ fun ExoPlayerView(
                                 trackIndex = trackIndex,
                                 groupIndex = groupIndex,
                                 url = remoteMatch?.url,
-                                subLabel = remoteMatch?.let { "${it.release ?: ""} (${it.source ?: ""})".trim() }.takeIf { it?.isNotEmpty() == true }
+                                subLabel = remoteMatch?.let { "${it.release ?: ""} (${it.source ?: ""})".trim() }.takeIf { it?.isNotEmpty() == true },
+                                language = remoteMatch?.language ?: format.language
                             )
                         )
                     }
@@ -441,7 +452,8 @@ fun ExoPlayerView(
                         trackIndex = -1, // No internal track
                         groupIndex = -1,
                         url = remote.url,
-                        subLabel = "${remote.release ?: ""} (${remote.source ?: "External"})".trim()
+                        subLabel = "${remote.release ?: ""} (${remote.source ?: "External"})".trim(),
+                        language = remote.language
                     )
                 )
             }
@@ -460,8 +472,8 @@ fun ExoPlayerView(
             selectedQuality = qualityOptions.firstOrNull()
         }
 
-        // Auto-select extracted subtitle if none selected
-        if (selectedSubtitle == null) {
+        // Auto-select extracted subtitle if none selected, unless the user has a remembered choice.
+        if (selectedSubtitle == null && preferredSubtitleLanguage == null) {
             val extracted = subtitles.find { it.label == "English (Extracted)" }
             if (extracted != null) {
                 Log.i("PlayerSubtitles", "Auto-selecting extracted subtitle: ${extracted.label}")
@@ -480,6 +492,63 @@ fun ExoPlayerView(
                     .build()
             }
         }
+    }
+
+    /** Shows [option] (null turns subtitles off), whether it is a stream track or a sideloaded file. */
+    fun applySubtitle(option: SubtitleOption?) {
+        selectedSubtitle = option
+        if (option == null) {
+            exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                .buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                .build()
+            currentSubtitleText = ""
+        } else if (option.trackIndex != -1) {
+            // Enable internal track
+            val tracks = exoPlayer.currentTracks
+            if (option.groupIndex < tracks.groups.size) {
+                val override = TrackSelectionOverride(
+                    tracks.groups[option.groupIndex].mediaTrackGroup,
+                    listOf(option.trackIndex)
+                )
+                exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                    .buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                    .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                    .addOverride(override)
+                    .build()
+            }
+        } else {
+            // Purely external - disable internal text tracks to avoid mixing
+            exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                .buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                .build()
+            currentSubtitleText = ""
+        }
+    }
+
+    // Sideloaded files can arrive after the tracks were read; list them as soon as they do.
+    LaunchedEffect(remoteSubtitles) { parseTracksFromPlayer(exoPlayer.currentTracks) }
+
+    // Apply the remembered subtitle choice once per video, as soon as a matching track or file shows up.
+    LaunchedEffect(subtitleOptions, preferredSubtitleLanguage) {
+        val preferred = preferredSubtitleLanguage ?: return@LaunchedEffect
+        if (subtitleChoiceMade) return@LaunchedEffect
+        if (preferred == SUBTITLES_OFF) {
+            subtitleChoiceMade = true
+            applySubtitle(null)
+            return@LaunchedEffect
+        }
+        val match = subtitleOptions
+            .filter { !it.isDisabled && sameLanguage(it.language, preferred) }
+            // Stream tracks first: they need no download and stay in sync.
+            .minByOrNull { if (it.trackIndex != -1) 0 else 1 }
+            ?: return@LaunchedEffect
+        subtitleChoiceMade = true
+        applySubtitle(match)
     }
 
     LaunchedEffect(videoUrl, remoteSubtitles) {
@@ -991,6 +1060,7 @@ fun ExoPlayerView(
                 onRotationLockToggle()
                 areControlsVisible = true
             },
+            seekStepSeconds = seekStepSeconds,
             videoScale = videoScale,
             onVideoScaleClick = {
                 changeVideoScale(videoScale.next())
@@ -1021,7 +1091,7 @@ fun ExoPlayerView(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Icon(
-                        if (seekFeedbackDirection < 0) Icons.Default.Replay10 else Icons.Default.Forward10,
+                        if (seekFeedbackDirection < 0) Icons.Default.FastRewind else Icons.Default.FastForward,
                         contentDescription = null,
                         modifier = Modifier.size(28.dp)
                     )
@@ -1177,43 +1247,11 @@ fun ExoPlayerView(
                 )
                 },
                 onSubtitleSelected = { option ->
-                selectedSubtitle = option
-                if (option == null) {
-                    exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
-                        .buildUpon()
-                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-                        .clearOverridesOfType(C.TRACK_TYPE_TEXT)
-                        .build()
-                    currentSubtitleText = ""
-                } else {
-                    if (option.trackIndex != -1) {
-                        // Enable internal track
-                        val tracks = exoPlayer.currentTracks
-                        if (option.groupIndex < tracks.groups.size) {
-                            val group = tracks.groups[option.groupIndex]
-                            val override = TrackSelectionOverride(
-                                group.mediaTrackGroup,
-                                listOf(option.trackIndex)
-                            )
-                            
-                            exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
-                                .buildUpon()
-                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                                .clearOverridesOfType(C.TRACK_TYPE_TEXT)
-                                .addOverride(override)
-                                .build()
-                        }
-                    } else {
-                        // Purely external - disable internal text tracks to avoid mixing
-                        exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
-                            .buildUpon()
-                            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-                            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
-                            .build()
-                        currentSubtitleText = ""
-                    }
-                }
-                exoPlayer.play()
+                    subtitleChoiceMade = true
+                    applySubtitle(option)
+                    // Remembered for the next title: its language, or that subtitles are off.
+                    (if (option == null) SUBTITLES_OFF else option.language)?.let(onSubtitleLanguageChosen)
+                    exoPlayer.play()
                 },
                 onCaptionSettingsChange = onCaptionSettingsChange,
                 onSubtitleOffsetChange = { subtitleOffsetMs = it },
@@ -1347,7 +1385,6 @@ private fun GestureIndicator(
     }
 }
 
-private const val SEEK_STEP_SECONDS = 10
 private const val BOOST_SPEED = 2f
 
 /** How the video fills the player: letterboxed, cropped to fill the screen, or stretched. */

@@ -164,6 +164,11 @@ class DetailsViewModel @Inject constructor(
         }
     }
 
+    /** Marks every given episode watched or unwatched, e.g. a whole season. */
+    fun setSeasonWatched(episodes: List<EpisodeDto>, watched: Boolean) {
+        episodes.forEach { setWatched(it, watched) }
+    }
+
     /** Download state per episode of this title, keyed by (season, episode). */
     val episodeDownloads: StateFlow<Map<Pair<Int, Int>, DownloadEntity>> =
         downloadRepository.getDownloadsForTitle(animeId, mediaType)

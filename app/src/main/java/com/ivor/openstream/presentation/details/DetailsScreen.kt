@@ -50,6 +50,8 @@ import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.RemoveDone
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Theaters
 import androidx.compose.material3.Button
@@ -226,6 +228,18 @@ fun DetailsScreen(
                             }
                         } else {
                             val episodes = state.selectedSeasonDetails?.episodes.orEmpty()
+                            val released = episodes.filter { it.isReleased() }
+                            if (released.isNotEmpty()) {
+                                item(key = "season-watched") {
+                                    val allWatched = released.all {
+                                        episodeProgress[it.seasonNumber to it.episodeNumber]?.completed == true
+                                    }
+                                    SeasonWatchedAction(
+                                        allWatched = allWatched,
+                                        onClick = { viewModel.setSeasonWatched(released, !allWatched) }
+                                    )
+                                }
+                            }
                             items(episodes, key = { "episode:${it.id}" }) { episode ->
                                 EpisodeCard(
                                     episode = episode,
@@ -738,6 +752,21 @@ private fun SectionTitle(text: String) {
             .padding(start = 20.dp, end = 20.dp, top = 32.dp, bottom = 14.dp)
             .semantics { heading() }
     )
+}
+
+@Composable
+private fun SeasonWatchedAction(allWatched: Boolean, onClick: () -> Unit) {
+    Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp), contentAlignment = Alignment.CenterEnd) {
+        TextButton(onClick = onClick) {
+            Icon(
+                if (allWatched) Icons.Default.RemoveDone else Icons.Default.DoneAll,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(if (allWatched) "Mark season unwatched" else "Mark season watched")
+        }
+    }
 }
 
 @Composable

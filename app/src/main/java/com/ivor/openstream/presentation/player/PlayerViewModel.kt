@@ -43,11 +43,14 @@ import java.time.LocalDate
 import androidx.media3.exoplayer.ExoPlayer
 import com.ivor.openstream.presentation.player.session.NowPlaying
 import com.ivor.openstream.presentation.player.session.PlaybackSession
+import com.ivor.openstream.data.settings.AppSettings
+import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.presentation.player.session.SleepTimer
 import javax.inject.Inject
 
 private const val KEY_CAPTION_STYLE = "caption_style"
 private const val KEY_PREFERRED_AUDIO = "preferred_audio_language"
+private const val KEY_PREFERRED_SUBTITLE = "preferred_subtitle_language"
 private const val MAX_AUTOMATIC_FAILOVERS = 3
 private const val STREAM_REFRESH_AGE_MS = 6 * 60 * 60 * 1_000L
 
@@ -90,8 +93,12 @@ class PlayerViewModel @Inject constructor(
     private val watchLaterRepository: WatchLaterRepository,
     private val sharedPreferences: SharedPreferences,
     private val json: Json,
-    private val playbackSession: PlaybackSession
+    private val playbackSession: PlaybackSession,
+    appSettingsStore: AppSettingsStore
 ) : ViewModel() {
+    /** Seek step, default speed and auto-play from Settings. */
+    val appSettings: StateFlow<AppSettings> = appSettingsStore.settings
+
     /** The app-wide player; the screen attaches to it rather than owning one. */
     val player: ExoPlayer get() = playbackSession.player
 
@@ -124,6 +131,18 @@ class PlayerViewModel @Inject constructor(
     fun setPreferredAudioLanguage(language: String?) {
         _preferredAudioLanguage.value = language
         sharedPreferences.edit().putString(KEY_PREFERRED_AUDIO, language).apply()
+    }
+
+    /**
+     * Subtitle language the user last picked, [SUBTITLES_OFF] if they turned subtitles off, or
+     * null if they never chose; applied to every new stream.
+     */
+    private val _preferredSubtitleLanguage = MutableStateFlow(sharedPreferences.getString(KEY_PREFERRED_SUBTITLE, null))
+    val preferredSubtitleLanguage: StateFlow<String?> = _preferredSubtitleLanguage.asStateFlow()
+
+    fun setPreferredSubtitleLanguage(language: String) {
+        _preferredSubtitleLanguage.value = language
+        sharedPreferences.edit().putString(KEY_PREFERRED_SUBTITLE, language).apply()
     }
 
     private val _nextEpisodes = MutableStateFlow<List<EpisodeDto>>(emptyList())

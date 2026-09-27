@@ -39,10 +39,10 @@ source failover, in-app updates with release notes, dynamic color.
 - [ ] **Horizontal swipe to scrub** with a time preview.
 - [x] **Hold for 2x speed** while long-pressing.
 - [x] **Stacking double-tap seek** (10s, 20s, 30s...).
-- [ ] **Configurable seek step.**
+- [x] **Configurable seek step** (5, 10, 15 or 30s in Settings).
 - [x] **Sleep timer.** End of episode or after N minutes.
 - [x] **Orientation lock** in fullscreen.
-- [ ] **Remembered audio and subtitle language** applied to every title (original vs. dub, subtitle
+- [x] **Remembered audio and subtitle language** applied to every title (original vs. dub, subtitle
       language), instead of picking per episode.
 - [ ] **Chromecast.** Needs `media3-cast`; source URLs with Referer/Origin headers may not play on a
       Cast receiver.
@@ -65,8 +65,8 @@ brightness back to the system.
       account needed, fits the "no API keys" rule.
 - [ ] **Trakt / AniList / MAL sync** for history, progress and ratings (optional sign-in, OAuth; no
       user-supplied keys).
-- [ ] **Mark watched / unwatched** by season or title. (Per episode already works from the episode's
-      long-press menu.)
+- [x] **Mark watched / unwatched** by season (and per episode from its long-press menu).
+- [ ] **Mark a whole title watched / unwatched.**
 - [ ] **Custom lists** beyond Watch Later.
 - [ ] **New episode notifications** for followed shows (needs WorkManager, not in the app yet).
 - [ ] **Profiles** with separate history and progress.
@@ -75,15 +75,16 @@ brightness back to the system.
 
 - [x] **Wi-Fi only** download setting (unmetered network requirement on the `DownloadManager`).
 - [x] **Download a whole season** in one action ("Download season" on Details).
-- [ ] **Default download quality** setting (currently one rendition up to 1080p).
+- [x] **Default download quality** setting (480p, 720p or 1080p).
 - [x] **Storage view**: space used, free space, delete all.
 - [ ] **Download subtitles** alongside the video for offline playback.
 
 ## Settings
 
 - [x] Theme: light / dark / system, and a dynamic color toggle.
-- [ ] Playback defaults: speed, quality, auto-play next, seek step, skip-intro behavior.
-- [ ] Subtitle defaults: language, auto-enable.
+- [x] Playback defaults: speed, auto-play next, seek step.
+- [ ] Playback defaults: streaming quality, skip-intro behavior.
+- [x] Subtitle defaults: the last language picked (or off) is applied to every title.
 - [x] Clear image cache. (There is no separate stream cache; the Media3 cache holds downloads.)
 - [x] Clear history / reset progress.
 

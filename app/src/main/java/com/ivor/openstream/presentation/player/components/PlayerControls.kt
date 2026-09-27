@@ -27,13 +27,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.ClosedCaptionDisabled
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Forward30
+import androidx.compose.material.icons.filled.Forward5
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Replay30
+import androidx.compose.material.icons.filled.Replay5
 import androidx.compose.material.icons.filled.ScreenLockRotation
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Settings
@@ -137,6 +143,7 @@ fun PlayerControls(
     onLockClick: () -> Unit = {},
     isRotationLocked: Boolean = false,
     onRotationLockToggle: () -> Unit = {},
+    seekStepSeconds: Int = 10,
     videoScale: VideoScale = VideoScale.FIT,
     onVideoScaleClick: () -> Unit = {},
     onBackClick: () -> Unit
@@ -185,6 +192,7 @@ fun PlayerControls(
 
             TransportControls(
                 metrics = metrics,
+                seekStepSeconds = seekStepSeconds,
                 isPlaying = isPlaying,
                 isBuffering = isBuffering,
                 onRewind = onRewind,
@@ -293,6 +301,7 @@ private fun TopBar(
 @Composable
 private fun TransportControls(
     metrics: ControlMetrics,
+    seekStepSeconds: Int,
     isPlaying: Boolean,
     isBuffering: Boolean,
     onRewind: () -> Unit,
@@ -305,7 +314,7 @@ private fun TransportControls(
         horizontalArrangement = Arrangement.spacedBy(metrics.centerGap),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        SeekButton(Icons.Default.Replay10, "Rewind 10 seconds", metrics, onRewind)
+        SeekButton(rewindIcon(seekStepSeconds), "Rewind $seekStepSeconds seconds", metrics, onRewind)
 
         FilledIconButton(
             onClick = onPauseToggle,
@@ -339,8 +348,23 @@ private fun TransportControls(
             }
         }
 
-        SeekButton(Icons.Default.Forward10, "Forward 10 seconds", metrics, onForward)
+        SeekButton(forwardIcon(seekStepSeconds), "Forward $seekStepSeconds seconds", metrics, onForward)
     }
+}
+
+/** Material has numbered icons for 5, 10 and 30 seconds; other steps use the plain arrows. */
+private fun rewindIcon(seconds: Int): ImageVector = when (seconds) {
+    5 -> Icons.Default.Replay5
+    10 -> Icons.Default.Replay10
+    30 -> Icons.Default.Replay30
+    else -> Icons.Default.FastRewind
+}
+
+private fun forwardIcon(seconds: Int): ImageVector = when (seconds) {
+    5 -> Icons.Default.Forward5
+    10 -> Icons.Default.Forward10
+    30 -> Icons.Default.Forward30
+    else -> Icons.Default.FastForward
 }
 
 @Composable

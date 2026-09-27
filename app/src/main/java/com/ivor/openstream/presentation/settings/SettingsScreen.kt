@@ -24,6 +24,10 @@ import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.HighQuality
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -207,6 +211,40 @@ fun SettingsScreen(
                 }
             }
 
+            item { SectionHeader("Playback") }
+            item {
+                ChoiceCard(
+                    icon = Icons.Default.Forward10,
+                    title = "Seek step",
+                    subtitle = "How far double-tap and the skip buttons jump",
+                    options = AppSettings.SEEK_STEPS,
+                    selected = appSettings.seekStepSeconds,
+                    label = { "${it}s" },
+                    onSelect = viewModel::setSeekStep
+                )
+            }
+            item {
+                ChoiceCard(
+                    icon = Icons.Default.Speed,
+                    title = "Default speed",
+                    subtitle = "Every title starts at this speed",
+                    options = AppSettings.DEFAULT_SPEEDS,
+                    selected = appSettings.defaultSpeed,
+                    label = { if (it == 1f) "Normal" else "${formatSpeed(it)}×" },
+                    onSelect = viewModel::setDefaultSpeed,
+                    maxPerRow = 3
+                )
+            }
+            item {
+                SwitchRow(
+                    icon = Icons.Default.SkipNext,
+                    title = "Auto-play next episode",
+                    subtitle = "Count down into the next episode when one ends",
+                    checked = appSettings.autoPlayNext,
+                    onCheckedChange = viewModel::setAutoPlayNext
+                )
+            }
+
             item { SectionHeader("Network") }
             item {
                 ChoiceCard(
@@ -221,6 +259,17 @@ fun SettingsScreen(
             }
 
             item { SectionHeader("Downloads") }
+            item {
+                ChoiceCard(
+                    icon = Icons.Default.HighQuality,
+                    title = "Download quality",
+                    subtitle = "Highest quality a download picks when a source offers several",
+                    options = AppSettings.DOWNLOAD_HEIGHTS,
+                    selected = appSettings.downloadMaxHeight,
+                    label = { "${it}p" },
+                    onSelect = viewModel::setDownloadMaxHeight
+                )
+            }
             item {
                 SwitchRow(
                     icon = Icons.Default.Wifi,
@@ -398,6 +447,9 @@ private fun SettingsRow(
     }
 }
 
+private fun formatSpeed(speed: Float): String =
+    if (speed % 1f == 0f) speed.toInt().toString() else speed.toString().trimEnd('0')
+
 private fun dnsDescription(settings: AppSettings): String =
     if (settings.dnsProvider == DnsProvider.SYSTEM) {
         "Uses your network's DNS. Switch to a private resolver if titles or artwork don't load."
@@ -427,7 +479,8 @@ private fun <T> ChoiceCard(
     options: List<T>,
     selected: T,
     label: (T) -> String,
-    onSelect: (T) -> Unit
+    onSelect: (T) -> Unit,
+    maxPerRow: Int = if (options.size > 3) 2 else options.size
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -450,11 +503,11 @@ private fun <T> ChoiceCard(
                     }
                 }
             }
-            // Four labels don't fit one row on a phone, so larger sets wrap two per row.
+            // Four long labels don't fit one row on a phone, so larger sets wrap.
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
-                maxItemsInEachRow = if (options.size > 3) 2 else options.size
+                maxItemsInEachRow = maxPerRow
             ) {
                 options.forEach { option ->
                     ToggleButton(

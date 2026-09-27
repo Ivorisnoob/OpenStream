@@ -91,6 +91,14 @@ class SettingsViewModel @Inject constructor(
 
     fun setDnsProvider(provider: DnsProvider) = appSettingsStore.update { it.copy(dnsProvider = provider) }
 
+    fun setSeekStep(seconds: Int) = appSettingsStore.update { it.copy(seekStepSeconds = seconds) }
+
+    fun setDefaultSpeed(speed: Float) = appSettingsStore.update { it.copy(defaultSpeed = speed) }
+
+    fun setAutoPlayNext(enabled: Boolean) = appSettingsStore.update { it.copy(autoPlayNext = enabled) }
+
+    fun setDownloadMaxHeight(height: Int) = appSettingsStore.update { it.copy(downloadMaxHeight = height) }
+
     fun setWifiOnlyDownloads(wifiOnly: Boolean) {
         appSettingsStore.update { it.copy(wifiOnlyDownloads = wifiOnly) }
         downloadManager.requirements = downloadRequirements(wifiOnly)

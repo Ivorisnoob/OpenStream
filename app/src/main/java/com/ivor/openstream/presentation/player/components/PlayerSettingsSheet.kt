@@ -99,8 +99,13 @@ data class SubtitleOption(
     val groupIndex: Int,
     val isDisabled: Boolean = false,
     val url: String? = null,
-    val subLabel: String? = null
+    val subLabel: String? = null,
+    /** ISO 639 code when the track or file declares one; used to remember the user's choice. */
+    val language: String? = null
 )
+
+/** Stored as the preferred subtitle language when the user turned subtitles off. */
+const val SUBTITLES_OFF = "off"
 
 enum class SubtitleLoadingState { IDLE, LOADING, SUCCESS, ERROR }
 
@@ -124,6 +129,12 @@ fun AudioOption.kind(originalLanguage: String?): AudioKind? {
     val track = language?.takeUnless { it.isBlank() || it == "und" } ?: return null
     val original = originalLanguage?.takeUnless { it.isBlank() } ?: return null
     return if (iso3(track) == iso3(original)) AudioKind.ORIGINAL else AudioKind.DUB
+}
+
+/** True when both codes name the same language, whether written as `en`, `eng` or `en-US`. */
+fun sameLanguage(a: String?, b: String?): Boolean {
+    if (a.isNullOrBlank() || b.isNullOrBlank()) return false
+    return iso3(a) == iso3(b)
 }
 
 private fun iso3(code: String): String =
