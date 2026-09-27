@@ -82,6 +82,12 @@ Rules:
   Media3 playback/downloads and WebView sources still use the system resolver.
 - **Settings.** `AppSettingsStore` (SharedPreferences) holds theme, dynamic color, DNS and
   Wi-Fi-only downloads; `MainActivity` applies the theme.
+- **Skip intro.** `SkipTimesRepository`: AniList GraphQL finds the MAL id, AniSkip v2 gives the
+  intro/recap/credits times (anime only). Both are keyless public APIs with no stability promise.
+- **Backup / diagnostics.** `LibraryBackup` (JSON, merge on restore) and `Diagnostics` (crash files
+  in `filesDir/crashes`, recorder installed in `OpenStreamApp`) back the Settings entries.
+- **Deep links.** `MainActivity` is `singleTask`; `DeepLinks` turns TMDB links (VIEW or shared text)
+  into Details, `AppShortcut` handles launcher shortcuts.
 - **Downloads.** Everything goes through Media3's `DownloadManager` (`DownloadRepositoryImpl`):
   queue resolves sources in the app scope, live progress from the manager, pause/resume/retry,
   one rendition up to 1080p from master playlists. Offline playback reads the same cache.
@@ -92,6 +98,8 @@ Rules:
 - Vidking dub routes (English/Hindi) return links locked to Vidking's server IP, so their CDN often
   answers 403 on devices. The player falls back to the previous stream when a picked source fails.
 - Several Vidking routes currently 404/500 for most titles; Yoru (`cdn`) is the reliable one.
+- AniList (about 90 requests a minute) and AniSkip are unauthenticated and undocumented as a
+  contract; skip buttons simply don't appear when they fail.
 - Wyzie subtitles now require an API key and were removed. Don't add features that need users to
   supply API keys.
 

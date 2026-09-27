@@ -44,6 +44,8 @@ import androidx.media3.exoplayer.ExoPlayer
 import com.ivor.openstream.presentation.player.session.NowPlaying
 import com.ivor.openstream.presentation.player.session.PlaybackSession
 import com.ivor.openstream.data.settings.AppSettings
+import com.ivor.openstream.data.repository.SkipSegment
+import com.ivor.openstream.data.repository.SkipTimesRepository
 import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.presentation.player.session.SleepTimer
 import javax.inject.Inject
@@ -94,8 +96,13 @@ class PlayerViewModel @Inject constructor(
     private val sharedPreferences: SharedPreferences,
     private val json: Json,
     private val playbackSession: PlaybackSession,
-    appSettingsStore: AppSettingsStore
+    appSettingsStore: AppSettingsStore,
+    private val skipTimesRepository: SkipTimesRepository
 ) : ViewModel() {
+    /** Intro/recap/credits times for the current anime episode; empty when unknown. */
+    private val _skipSegments = MutableStateFlow<List<SkipSegment>>(emptyList())
+    val skipSegments: StateFlow<List<SkipSegment>> = _skipSegments.asStateFlow()
+
     /** Seek step, default speed and auto-play from Settings. */
     val appSettings: StateFlow<AppSettings> = appSettingsStore.settings
 
@@ -347,6 +354,7 @@ class PlayerViewModel @Inject constructor(
         _mediaDetails.value = null
         _currentEpisode.value = null
         _remoteSubtitles.value = emptyList()
+        _skipSegments.value = emptyList()
         _nextEpisodes.value = emptyList()
         _seasonEpisodes.value = emptyList()
         _title.value = mediaType to tmdbId
@@ -388,6 +396,9 @@ class PlayerViewModel @Inject constructor(
                     )
                     currentIdentity = identity
                     if (resolveStreams) startResolution(identity)
+                    if (details.isAnime()) {
+                        launch { loadSkipSegments(details, mediaType, seasonNumber, currentEpisodeNumber) }
+                    }
                 }.onFailure {
                     if (resolveStreams) _serversState.value = ServersState.Empty(emptyList())
                 }
@@ -428,6 +439,17 @@ class PlayerViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private suspend fun loadSkipSegments(details: AnimeDetailsDto, mediaType: String, season: Int, episode: Int) {
+        val isMovie = mediaType == "movie"
+        // Later seasons are separate AniSkip/MAL entries, told apart by the year they started.
+        val seasonYear = if (isMovie || season <= 1) {
+            null
+        } else {
+            details.seasons?.firstOrNull { it.seasonNumber == season }?.airDate?.take(4)?.toIntOrNull()
+        }
+        _skipSegments.value = skipTimesRepository.segmentsFor(details.name, isMovie, seasonYear, episode)
     }
 
     private suspend fun findNextEpisode(
@@ -564,3 +586,7 @@ class PlayerViewModel @Inject constructor(
         }
     }
 }
+
+/** Japanese animation: the titles AniSkip can have times for. */
+private fun AnimeDetailsDto.isAnime(): Boolean =
+    genres.orEmpty().any { it.id == 16 } && originalLanguage.equals("ja", ignoreCase = true)

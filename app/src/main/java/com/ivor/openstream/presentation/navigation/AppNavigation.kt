@@ -120,7 +120,9 @@ fun AppNavigation(
     navController: NavHostController = rememberNavController(),
     windowSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact,
     shortcutRequest: ShortcutRequest? = null,
-    onShortcutHandled: () -> Unit = {}
+    onShortcutHandled: () -> Unit = {},
+    deepLinkRequest: DeepLinkRequest? = null,
+    onDeepLinkHandled: () -> Unit = {}
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
@@ -159,6 +161,12 @@ fun AppNavigation(
             }
         }
         onShortcutHandled()
+    }
+
+    LaunchedEffect(deepLinkRequest) {
+        val request = deepLinkRequest ?: return@LaunchedEffect
+        navController.navigate(Screen.Details.createRoute(request.mediaType, request.tmdbId))
+        onDeepLinkHandled()
     }
 
     Row(modifier = Modifier.fillMaxSize()) {

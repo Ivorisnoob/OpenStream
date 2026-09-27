@@ -3,6 +3,12 @@ package com.ivor.openstream.presentation.player.components
 import android.app.Activity
 import androidx.activity.compose.BackHandler
 import com.ivor.openstream.presentation.player.session.SleepTimer
+import com.ivor.openstream.data.repository.SkipSegment
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import android.provider.Settings
 import android.util.Log
 import android.view.ViewGroup
@@ -71,6 +77,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -150,7 +157,9 @@ fun ExoPlayerView(
     seekStepSeconds: Int = 10,
     /** Last subtitle language picked, [SUBTITLES_OFF], or null if never chosen. */
     preferredSubtitleLanguage: String? = null,
-    onSubtitleLanguageChosen: (String) -> Unit = {}
+    onSubtitleLanguageChosen: (String) -> Unit = {},
+    /** Intro/recap/credits times from AniSkip; empty falls back to a manual skip early on. */
+    skipSegments: List<SkipSegment> = emptyList()
 ) {
     val context = LocalContext.current
     val activity = remember(context) {
@@ -209,6 +218,10 @@ fun ExoPlayerView(
     var showUnlockButton by remember { mutableStateOf(false) }
     var unlockButtonSequence by remember { mutableIntStateOf(0) }
     var isSpeedBoosted by remember { mutableStateOf(false) }
+    // Horizontal swipe to scrub: where the swipe started and where it would seek to on release.
+    var isScrubbing by remember { mutableStateOf(false) }
+    var scrubStartMs by remember { mutableLongStateOf(0L) }
+    var scrubTargetMs by remember { mutableLongStateOf(0L) }
     /** Positive delays sideloaded subtitles, negative shows them earlier. */
     var subtitleOffsetMs by remember { mutableLongStateOf(0L) }
     /** Set once this video's subtitle is settled, by the user or the remembered choice. */
@@ -845,6 +858,37 @@ fun ExoPlayerView(
                     }
                 )
             }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = {
+                        if (isLocked) {
+                            revealUnlockButton()
+                        } else if (!isSpeedBoosted && exoPlayer.duration > 0) {
+                            scrubStartMs = exoPlayer.currentPosition
+                            scrubTargetMs = scrubStartMs
+                            isScrubbing = true
+                            areControlsVisible = false
+                        }
+                    },
+                    onDragEnd = {
+                        if (isScrubbing) {
+                            exoPlayer.seekTo(scrubTargetMs)
+                            currentTime = scrubTargetMs
+                            isScrubbing = false
+                        }
+                    },
+                    onDragCancel = { isScrubbing = false },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        if (isScrubbing) {
+                            val duration = exoPlayer.duration.coerceAtLeast(0L)
+                            // A full-width swipe covers up to three minutes, so short swipes stay precise.
+                            val msPerPx = duration.coerceAtMost(SCRUB_FULL_WIDTH_MS).toFloat() / size.width
+                            scrubTargetMs = (scrubTargetMs + (dragAmount * msPerPx).toLong()).coerceIn(0L, duration)
+                        }
+                    }
+                )
+            }
             // Declared last so it sees events first: once a second finger lands it consumes the
             // gesture, which cancels the tap and brightness/volume detectors above.
             .pointerInput(Unit) {
@@ -1157,6 +1201,53 @@ fun ExoPlayerView(
             }
         }
 
+        AnimatedVisibility(
+            visible = isScrubbing,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            ScrubPreview(
+                targetMs = scrubTargetMs,
+                deltaMs = scrubTargetMs - scrubStartMs,
+                durationMs = exoPlayer.duration.coerceAtLeast(0L)
+            )
+        }
+
+        // Skip intro / recap / credits. AniSkip segments show whenever playback is inside one; without
+        // them, a manual jump is offered early in the video while the controls are up.
+        var manualSkipUsed by remember(videoUrl) { mutableStateOf(false) }
+        val activeSegment = skipSegments.firstOrNull { currentTime >= it.startMs && currentTime < it.endMs - 1_000 }
+        val offerManualSkip = skipSegments.isEmpty() && !manualSkipUsed && areControlsVisible &&
+            totalTime > MANUAL_SKIP_MS * 4 && currentTime in 5_000L..MANUAL_SKIP_WINDOW_MS
+        val skipLabel = activeSegment?.type?.label ?: "Skip ${MANUAL_SKIP_MS / 1_000}s"
+        AnimatedVisibility(
+            visible = (activeSegment != null || offerManualSkip) && !isLocked && !isInPictureInPicture && !showSettingsDialog,
+            enter = slideInHorizontally { it / 2 } + fadeIn(),
+            exit = slideOutHorizontally { it / 2 } + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = if (isFullscreen) 24.dp else 12.dp, bottom = if (isFullscreen) 88.dp else 56.dp)
+        ) {
+            Button(
+                onClick = {
+                    val target = activeSegment?.endMs ?: (exoPlayer.currentPosition + MANUAL_SKIP_MS)
+                    exoPlayer.seekTo(target)
+                    currentTime = target
+                    if (activeSegment == null) manualSkipUsed = true
+                },
+                shape = ExpressiveShapes.medium,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            ) {
+                Icon(Icons.Default.SkipNext, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(skipLabel, fontWeight = FontWeight.Bold)
+            }
+        }
+
         // Buffering indicator overlay -- drawn AFTER controls so it renders on top
         AnimatedVisibility(
             visible = isBuffering && !areControlsVisible && !isInPictureInPicture,
@@ -1386,6 +1477,48 @@ private fun GestureIndicator(
 }
 
 private const val BOOST_SPEED = 2f
+/** A typical opening's length, for titles AniSkip has no times for. */
+private const val MANUAL_SKIP_MS = 85_000L
+/** The manual skip is only offered this early in a video. */
+private const val MANUAL_SKIP_WINDOW_MS = 10 * 60_000L
+
+/** A full-width horizontal swipe scrubs at most this far. */
+private const val SCRUB_FULL_WIDTH_MS = 180_000L
+
+@Composable
+private fun ScrubPreview(targetMs: Long, deltaMs: Long, durationMs: Long) {
+    Surface(
+        shape = ExpressiveShapes.extraLarge,
+        color = Color.Black.copy(alpha = 0.7f),
+        contentColor = Color.White
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .width(200.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "${formatTime(targetMs)} / ${formatTime(durationMs)}",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = (if (deltaMs < 0) "−" else "+") + formatTime(kotlin.math.abs(deltaMs)),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+            if (durationMs > 0) {
+                androidx.compose.material3.LinearProgressIndicator(
+                    progress = { (targetMs.toFloat() / durationMs).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth(),
+                    trackColor = Color.White.copy(alpha = 0.3f)
+                )
+            }
+        }
+    }
+}
 
 /** How the video fills the player: letterboxed, cropped to fill the screen, or stretched. */
 enum class VideoScale(val resizeMode: Int, val label: String, val icon: ImageVector) {

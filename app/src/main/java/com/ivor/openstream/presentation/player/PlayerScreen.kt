@@ -153,6 +153,7 @@ fun PlayerScreen(
     val sleepTimer by viewModel.sleepTimer.collectAsState()
     val appSettings by viewModel.appSettings.collectAsState()
     val preferredSubtitleLanguage by viewModel.preferredSubtitleLanguage.collectAsState()
+    val skipSegments by viewModel.skipSegments.collectAsState()
 
     var localVideoUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var isResolvingLocalUri by remember { mutableStateOf(downloadId != null) }
@@ -409,6 +410,7 @@ fun PlayerScreen(
                             seekStepSeconds = appSettings.seekStepSeconds,
                             preferredSubtitleLanguage = preferredSubtitleLanguage,
                             onSubtitleLanguageChosen = viewModel::setPreferredSubtitleLanguage,
+                            skipSegments = skipSegments,
                             onIsPlayingChanged = { isVideoPlaying = it },
                             isInPictureInPicture = isInPictureInPicture,
                             togglePlaybackSignal = togglePlaybackSignal,

@@ -2,6 +2,8 @@ package com.ivor.openstream.presentation.settings
 
 import android.os.Build
 import android.text.format.Formatter
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,7 +22,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ColorLens
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Extension
@@ -62,6 +68,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -73,6 +80,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ivor.openstream.BuildConfig
+import com.ivor.openstream.data.backup.LibraryBackup
 import com.ivor.openstream.data.settings.AppSettings
 import com.ivor.openstream.data.settings.DnsProvider
 import com.ivor.openstream.data.settings.ThemeMode
@@ -90,6 +98,17 @@ fun SettingsScreen(
     val appSettings by viewModel.appSettings.collectAsState()
     val imageCacheBytes by viewModel.imageCacheBytes.collectAsState()
     val hiddenTitleCount by viewModel.hiddenTitleCount.collectAsState()
+    val crashCount by viewModel.crashCount.collectAsState()
+    val isWorking by viewModel.isWorking.collectAsState()
+    val exportBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(LibraryBackup.MIME_TYPE)) { uri ->
+        uri?.let(viewModel::exportBackup)
+    }
+    val restoreBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(viewModel::restoreBackup)
+    }
+    val exportDiagnostics = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        uri?.let(viewModel::exportDiagnostics)
+    }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val snackbarHostState = remember { SnackbarHostState() }
     var confirmClearHistory by rememberSaveable { mutableStateOf(false) }
@@ -280,6 +299,26 @@ fun SettingsScreen(
                 )
             }
 
+            item { SectionHeader("Backup") }
+            item {
+                SettingsRow(
+                    icon = Icons.Default.Backup,
+                    title = "Back up library",
+                    subtitle = "Save Watch Later, history, progress, hidden titles and settings to a file",
+                    onClick = { exportBackup.launch("openstream-backup-${fileDate()}.json") },
+                    enabled = !isWorking
+                )
+            }
+            item {
+                SettingsRow(
+                    icon = Icons.Default.Restore,
+                    title = "Restore from backup",
+                    subtitle = "Merges into this device; nothing here is deleted",
+                    onClick = { restoreBackup.launch(arrayOf(LibraryBackup.MIME_TYPE, "text/plain", "application/octet-stream")) },
+                    enabled = !isWorking
+                )
+            }
+
             item { SectionHeader("Storage and privacy") }
             item {
                 SettingsRow(
@@ -305,6 +344,31 @@ fun SettingsScreen(
                         title = "Hidden titles",
                         subtitle = "$hiddenTitleCount hidden from Home · tap to show them again",
                         onClick = viewModel::unhideAllTitles
+                    )
+                }
+            }
+
+            item { SectionHeader("Help") }
+            item {
+                SettingsRow(
+                    icon = Icons.Default.BugReport,
+                    title = "Export diagnostics",
+                    subtitle = if (crashCount > 0) {
+                        "Includes ${if (crashCount == 1) "1 crash report" else "$crashCount crash reports"} · attach it to a bug report"
+                    } else {
+                        "Device details and the app's recent log, to attach to a bug report"
+                    },
+                    onClick = { exportDiagnostics.launch("openstream-diagnostics-${fileDate(withTime = true)}.txt") },
+                    enabled = !isWorking
+                )
+            }
+            if (crashCount > 0) {
+                item {
+                    SettingsRow(
+                        icon = Icons.Default.DeleteSweep,
+                        title = "Clear crash reports",
+                        subtitle = "Stored only on this device",
+                        onClick = viewModel::clearCrashReports
                     )
                 }
             }
@@ -399,13 +463,15 @@ private fun SettingsRow(
     icon: ImageVector,
     title: String,
     subtitle: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    enabled: Boolean = true
 ) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .clip(ExpressiveShapes.large)
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick)
+            .alpha(if (enabled) 1f else 0.5f),
         shape = ExpressiveShapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
@@ -446,6 +512,11 @@ private fun SettingsRow(
         }
     }
 }
+
+/** Date for suggested file names, e.g. 2026-09-27 or 2026-09-27-1715. */
+private fun fileDate(withTime: Boolean = false): String =
+    java.text.SimpleDateFormat(if (withTime) "yyyy-MM-dd-HHmm" else "yyyy-MM-dd", java.util.Locale.US)
+        .format(java.util.Date())
 
 private fun formatSpeed(speed: Float): String =
     if (speed % 1f == 0f) speed.toInt().toString() else speed.toString().trimEnd('0')

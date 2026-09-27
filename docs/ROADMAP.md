@@ -31,12 +31,12 @@ source failover, in-app updates with release notes, dynamic color.
       or Android Auto/Wear surface. Highest-impact player gap.
 - [x] **Pinch to zoom.** Pinch out to fill (crop the black bars), pinch in to fit.
 - [x] **Resize / aspect button.** Fit, Zoom to fill, Stretch (fullscreen).
-- [ ] **Skip intro / recap / credits.** AniSkip for anime (`anilistId`/MAL ids are already mapped);
-      a manual "+85s" skip as a fallback for movies and series.
+- [x] **Skip intro / recap / credits.** AniSkip for anime (MAL id looked up on AniList); a manual
+      "Skip 85s" early in anything else.
 - [x] **Subtitle sync offset.** Shift cues earlier or later in the player (sideloaded subtitles only;
       embedded tracks are rendered by Media3).
 - [x] **Screen lock.** Ignore touches during playback until unlocked.
-- [ ] **Horizontal swipe to scrub** with a time preview.
+- [x] **Horizontal swipe to scrub** with a time preview.
 - [x] **Hold for 2x speed** while long-pressing.
 - [x] **Stacking double-tap seek** (10s, 20s, 30s...).
 - [x] **Configurable seek step** (5, 10, 15 or 30s in Settings).
@@ -54,15 +54,15 @@ brightness back to the system.
 ## Discovery
 
 - [x] **Person pages.** Cast on Details opens a page with photo, bio and filmography.
-- [ ] **Filters and sorting** in search beyond genre: type, year, rating, original language.
+- [x] **Filters and sorting** in search beyond genre: type, year, rating, original language.
 - [ ] **In-app trailers.** Trailers currently open YouTube externally.
 - [ ] **Upcoming episodes calendar** for followed shows.
 - [x] **"Not interested" / hide title** from Home rows (long-press; undo in Settings).
 
 ## Library and sync
 
-- [ ] **Backup and restore.** Export and import watch later, history and progress as a file. No
-      account needed, fits the "no API keys" rule.
+- [x] **Backup and restore.** Watch Later, history/progress, hidden titles and settings as a JSON
+      file; restoring merges.
 - [ ] **Trakt / AniList / MAL sync** for history, progress and ratings (optional sign-in, OAuth; no
       user-supplied keys).
 - [x] **Mark watched / unwatched** by season (and per episode from its long-press menu).
@@ -91,7 +91,8 @@ brightness back to the system.
 ## Platform and app
 
 - [x] **Offline state.** Offline banner with a shortcut to Downloads.
-- [ ] **Deep links.** Open TMDB links and shared titles straight into Details; share a title link.
+- [x] **Deep links.** TMDB links and text shared to the app open Details (Android 12+ needs the user
+      to allow the links under "Open by default").
 - [ ] **Localization.** Almost all UI text is hard-coded in Compose; move it to `strings.xml`.
 - [ ] **Tablet and foldable layouts** (list-detail, nav rail on wide screens).
 - [ ] **Android TV** (leanback launcher entry, D-pad focus).
@@ -99,7 +100,7 @@ brightness back to the system.
 - [x] **App shortcuts** (Continue Watching, Search, Downloads).
 - [ ] **Continue Watching widget.**
 - [ ] **Shared element transitions** from cards to Details artwork.
-- [ ] **Crash and log export** (opt-in, local file) for bug reports.
+- [x] **Crash and log export** (local file) for bug reports.
 - [ ] **Media3 upgrade.** The project is on 1.3.1; newer releases bring session, HLS and
       decoder fixes. Treat as a high-risk playback change.
 

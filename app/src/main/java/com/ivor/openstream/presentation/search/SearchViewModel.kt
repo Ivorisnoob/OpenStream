@@ -27,6 +27,59 @@ enum class SortOption(val label: String, val apiValue: String) {
     NEWEST("Newest", "first_air_date.desc")
 }
 
+enum class YearRange(val label: String, val years: IntRange?) {
+    ANY("Any", null),
+    Y2020S("2020s", 2020..2029),
+    Y2010S("2010s", 2010..2019),
+    Y2000S("2000s", 2000..2009),
+    Y1990S("1990s", 1990..1999),
+    OLDER("Older", 0..1989)
+}
+
+enum class MinRating(val label: String, val minimum: Double) {
+    ANY("Any", 0.0),
+    SIX("6+", 6.0),
+    SEVEN("7+", 7.0),
+    EIGHT("8+", 8.0)
+}
+
+/** Original languages offered as filters, as TMDB's ISO 639-1 codes. */
+val FILTER_LANGUAGES = listOf(
+    "en" to "English",
+    "ja" to "Japanese",
+    "ko" to "Korean",
+    "hi" to "Hindi",
+    "zh" to "Chinese",
+    "es" to "Spanish",
+    "fr" to "French",
+    "ta" to "Tamil",
+    "te" to "Telugu",
+    "de" to "German"
+)
+
+/**
+ * Year, rating and language. TMDB's search endpoints can't filter on these, so they apply to the
+ * results on the device (and more pages are fetched when they leave too few).
+ */
+data class ResultFilters(
+    val year: YearRange = YearRange.ANY,
+    val minRating: MinRating = MinRating.ANY,
+    val language: String? = null
+) {
+    val activeCount: Int
+        get() = listOf(year != YearRange.ANY, minRating != MinRating.ANY, language != null).count { it }
+
+    fun matches(item: AnimeDto): Boolean {
+        year.years?.let { range ->
+            val itemYear = item.date.take(4).toIntOrNull() ?: return false
+            if (itemYear !in range) return false
+        }
+        if (minRating != MinRating.ANY && (item.voteAverage ?: 0.0) < minRating.minimum) return false
+        if (language != null && !item.originalLanguage.equals(language, ignoreCase = true)) return false
+        return true
+    }
+}
+
 data class SearchUiState(
     val query: String = "",
     val genre: BrowseGenre? = null,
@@ -35,6 +88,7 @@ data class SearchUiState(
     val results: List<AnimeDto> = emptyList(),
     val filter: SearchFilter = SearchFilter.ALL,
     val sort: SortOption = SortOption.BEST_MATCH,
+    val filters: ResultFilters = ResultFilters(),
     val isLoading: Boolean = false,
     val isLoadingMore: Boolean = false,
     val endReached: Boolean = false,
@@ -43,15 +97,16 @@ data class SearchUiState(
     /** Nothing typed and no genre picked: show recent searches, trending and genres. */
     val isBrowsing: Boolean get() = query.isBlank() && genre == null
 
-    /** Results after the client-side filters (anime is not a TMDB search filter). */
+    /** Results after the client-side filters (anime, year, rating and language aren't TMDB search filters). */
     val visibleResults: List<AnimeDto>
         get() = results.filter { item ->
-            when (filter) {
+            val typeMatches = when (filter) {
                 SearchFilter.ALL -> true
                 SearchFilter.MOVIES -> item.isMovie
                 SearchFilter.SERIES -> !item.isMovie
                 SearchFilter.ANIME -> item.isAnime()
             }
+            typeMatches && filters.matches(item)
         }
 }
 
@@ -70,6 +125,8 @@ class SearchViewModel @Inject constructor(
 
     private var searchJob: Job? = null
     private var page = 1
+    /** Pages fetched only because filters hid most results; capped so a rare filter can't page forever. */
+    private var autoLoadedPages = 0
 
     init {
         viewModelScope.launch {
@@ -135,6 +192,15 @@ class SearchViewModel @Inject constructor(
         if (!_uiState.value.isBrowsing) retry()
     }
 
+    fun onFiltersChange(filters: ResultFilters) {
+        if (_uiState.value.filters == filters) return
+        _uiState.update { it.copy(filters = filters) }
+        autoLoadedPages = 0
+        fillFilteredResults()
+    }
+
+    fun resetFilters() = onFiltersChange(ResultFilters())
+
     fun retry() {
         searchJob?.cancel()
         searchJob = viewModelScope.launch { loadPage(1) }
@@ -169,6 +235,7 @@ class SearchViewModel @Inject constructor(
             }
             repository.searchAnime(state.query.trim(), target, type, state.sort.apiValue)
         }
+        if (target == 1) autoLoadedPages = 0
         result.fold(
             onSuccess = { list ->
                 page = target
@@ -181,6 +248,7 @@ class SearchViewModel @Inject constructor(
                         endReached = list.isEmpty() || (target > 1 && merged.size == current.results.size)
                     )
                 }
+                fillFilteredResults()
             },
             onFailure = { error ->
                 _uiState.update {
@@ -188,6 +256,16 @@ class SearchViewModel @Inject constructor(
                 }
             }
         )
+    }
+
+    /** With filters on, keeps fetching (a few pages at most) until there's a screenful to show. */
+    private fun fillFilteredResults() {
+        val state = _uiState.value
+        if (state.filters.activeCount == 0 || state.isBrowsing) return
+        if (state.isLoading || state.isLoadingMore || state.endReached) return
+        if (state.visibleResults.size >= MIN_FILTERED_RESULTS || autoLoadedPages >= MAX_AUTO_PAGES) return
+        autoLoadedPages++
+        searchJob = viewModelScope.launch { loadPage(page + 1) }
     }
 
     fun removeRecent(query: String) {
@@ -220,5 +298,7 @@ class SearchViewModel @Inject constructor(
         const val MAX_RECENT = 10
         const val MIN_QUERY_LENGTH = 2
         const val TYPING_DEBOUNCE_MS = 400L
+        const val MIN_FILTERED_RESULTS = 12
+        const val MAX_AUTO_PAGES = 5
     }
 }

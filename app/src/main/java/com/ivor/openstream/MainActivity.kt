@@ -2,6 +2,7 @@ package com.ivor.openstream
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -15,6 +16,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.ivor.openstream.presentation.navigation.AppNavigation
+import com.ivor.openstream.presentation.navigation.DeepLinkRequest
+import com.ivor.openstream.presentation.navigation.DeepLinks
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import com.ivor.openstream.data.settings.AppSettingsStore
@@ -33,6 +36,7 @@ class MainActivity : ComponentActivity() {
     lateinit var appSettings: AppSettingsStore
 
     private var shortcutRequest by mutableStateOf<ShortcutRequest?>(null)
+    private var deepLinkRequest by mutableStateOf<DeepLinkRequest?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,9 +52,7 @@ class MainActivity : ComponentActivity() {
 
         AppShortcut.publish(this)
         // Only a fresh launch; a recreated activity already acted on its shortcut.
-        if (savedInstanceState == null) {
-            shortcutRequest = AppShortcut.from(intent)?.let(::ShortcutRequest)
-        }
+        if (savedInstanceState == null) handleLaunchIntent(intent)
 
         enableEdgeToEdge()
         setContent {
@@ -68,7 +70,9 @@ class MainActivity : ComponentActivity() {
                     AppNavigation(
                         windowSizeClass = windowSizeClass.widthSizeClass,
                         shortcutRequest = shortcutRequest,
-                        onShortcutHandled = { shortcutRequest = null }
+                        onShortcutHandled = { shortcutRequest = null },
+                        deepLinkRequest = deepLinkRequest,
+                        onDeepLinkHandled = { deepLinkRequest = null }
                     )
                 }
             }
@@ -78,6 +82,14 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        handleLaunchIntent(intent)
+    }
+
+    private fun handleLaunchIntent(intent: Intent?) {
         AppShortcut.from(intent)?.let { shortcutRequest = ShortcutRequest(it) }
+        DeepLinks.from(intent)?.let { deepLinkRequest = it }
+        if (DeepLinks.isUnrecognisedShare(intent)) {
+            Toast.makeText(this, "OpenStream opens TMDB movie and TV links", Toast.LENGTH_LONG).show()
+        }
     }
 }
