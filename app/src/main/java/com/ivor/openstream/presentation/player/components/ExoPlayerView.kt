@@ -755,10 +755,20 @@ fun ExoPlayerView(
         }
 
         if (displaySubtitleText.isNotEmpty()) {
+            // The PiP window is only a couple hundred dp tall: full-size captions with the
+            // controls' clearance would sit mid-frame, so hug the bottom edge and shrink them.
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = if (isFullscreen) 64.dp else 40.dp, start = 12.dp, end = 12.dp)
+                    .padding(
+                        bottom = when {
+                            isInPictureInPicture -> 4.dp
+                            isFullscreen -> 64.dp
+                            else -> 40.dp
+                        },
+                        start = if (isInPictureInPicture) 4.dp else 12.dp,
+                        end = if (isInPictureInPicture) 4.dp else 12.dp
+                    )
                     .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
@@ -766,7 +776,11 @@ fun ExoPlayerView(
                     text = displaySubtitleText,
                     style = TextStyle(
                         color = Color.White,
-                        fontSize = captionSettings.textSizeSp.sp,
+                        fontSize = if (isInPictureInPicture) {
+                            (captionSettings.textSizeSp * PIP_CAPTION_SCALE).coerceAtLeast(9f).sp
+                        } else {
+                            captionSettings.textSizeSp.sp
+                        },
                         fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center,
                         shadow = Shadow(
@@ -779,7 +793,10 @@ fun ExoPlayerView(
                             Color.Black.copy(alpha = captionSettings.backgroundOpacity),
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
                         )
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .padding(
+                            horizontal = if (isInPictureInPicture) 4.dp else 12.dp,
+                            vertical = if (isInPictureInPicture) 1.dp else 6.dp
+                        )
                 )
             }
         }
@@ -1190,6 +1207,9 @@ private fun displayLanguageOrNull(code: String): String? {
 
 private fun SubtitleDto.isSideloadOnly(): Boolean =
     source == OpenSubtitlesRepository.SOURCE_NAME || url.substringBefore('?').endsWith(".gz", ignoreCase = true)
+
+/** Caption size in picture-in-picture relative to the user's chosen size. */
+private const val PIP_CAPTION_SCALE = 0.55f
 
 /** Community subtitle files often open with a promo line (a site address); drop those cues. */
 private val SUBTITLE_AD = Regex("""(?i)(www\.|https?://|\.(link|lt|com|net|org)\b|opensubtitles|osdb|subtitletools)""")

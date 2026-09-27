@@ -136,7 +136,10 @@ class PlaybackSession @Inject constructor(
                 .build()
         }
         return ExoPlayer.Builder(context)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(context).setDataSourceFactory(dataSource))
+            .setMediaSourceFactory(
+                DefaultMediaSourceFactory(context)
+                    .setDataSourceFactory(ImagePrefixStrippingDataSource.Factory(dataSource))
+            )
             .setTrackSelector(trackSelector)
             .build()
             .apply {

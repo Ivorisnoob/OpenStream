@@ -175,6 +175,62 @@
       }
     },
     {
+      "id": "anikoto",
+      "name": "Anikoto",
+      "description": "Anime only. Sub and dub with soft subtitles in many languages, matched to the right season through AniList.",
+      "version": "1.0.0",
+      "versionCode": 1,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Multi",
+      "tags": ["anime", "sub", "dub", "official"],
+      "status": 3,
+      "updatedAt": "2026-09-27",
+      "installedByDefault": true,
+      "engine": {
+        "type": "anikoto",
+        "endpoint": "https://anikototv.to",
+        "priority": 9
+      }
+    },
+    {
+      "id": "reanime",
+      "name": "Re:Anime",
+      "description": "Anime only. Two sub and dub servers per episode, found by AniList id.",
+      "version": "1.0.0",
+      "versionCode": 1,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Multi",
+      "tags": ["anime", "sub", "dub", "official"],
+      "status": 3,
+      "updatedAt": "2026-09-27",
+      "installedByDefault": true,
+      "engine": {
+        "type": "reanime",
+        "endpoint": "https://reanime.to",
+        "priority": 10
+      }
+    },
+    {
+      "id": "animepahe",
+      "name": "animepahe",
+      "description": "Anime only. Small, high-quality encodes from several fansub groups. Passes a Cloudflare check in a hidden browser the first time, so it can be slow to start.",
+      "version": "1.0.0",
+      "versionCode": 1,
+      "apiVersion": 1,
+      "authors": ["OpenStream"],
+      "language": "Multi",
+      "tags": ["anime", "sub", "dub", "official"],
+      "status": 3,
+      "updatedAt": "2026-09-27",
+      "engine": {
+        "type": "animepahe",
+        "endpoint": "https://animepahe.pw",
+        "priority": 11
+      }
+    },
+    {
       "id": "jett",
       "name": "Jett",
       "description": "Fast web player route with adaptive quality. Backs up the main routes when they fail.",
