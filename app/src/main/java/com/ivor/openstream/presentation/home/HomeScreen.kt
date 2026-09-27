@@ -2,7 +2,9 @@ package com.ivor.openstream.presentation.home
 
 import com.ivor.openstream.presentation.components.SkeletonBox
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -26,6 +28,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -43,6 +52,12 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,6 +78,7 @@ import com.ivor.openstream.data.remote.model.AnimeDto
 import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -77,6 +93,19 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val continueWatching by viewModel.continueWatching.collectAsState()
     val open: (AnimeDto) -> Unit = { onAnimeClick(it.id, if (it.isMovie) "movie" else "tv") }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val hide: (AnimeDto) -> Unit = { anime ->
+        viewModel.hideTitle(anime)
+        scope.launch {
+            val result = snackbarHostState.showSnackbar(
+                message = "${anime.name} hidden from Home",
+                actionLabel = "Undo",
+                duration = SnackbarDuration.Short
+            )
+            if (result == SnackbarResult.ActionPerformed) viewModel.unhideTitle(anime)
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -123,15 +152,23 @@ fun HomeScreen(
                         item(key = rail.key) {
                             SectionHeader(title = rail.title)
                             when (rail.style) {
-                                RailStyle.RANKED -> RankedRail(rail.items, open)
-                                RailStyle.LANDSCAPE -> LandscapeRail(rail.items, open)
-                                RailStyle.POSTER -> PosterRail(rail.items, open)
+                                RailStyle.RANKED -> RankedRail(rail.items, open, hide)
+                                RailStyle.LANDSCAPE -> LandscapeRail(rail.items, open, hide)
+                                RailStyle.POSTER -> PosterRail(rail.items, open, hide)
                             }
                         }
                     }
                 }
             }
         }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            // Above the floating toolbar and the mini player.
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 180.dp)
+        )
     }
 }
 
@@ -306,7 +343,7 @@ private fun MetaLine(anime: AnimeDto) {
 // region Rails
 
 @Composable
-private fun RankedRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit) {
+private fun RankedRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit, onHide: (AnimeDto) -> Unit) {
     val numeralStyle = TextStyle(
         fontSize = 132.sp,
         fontWeight = FontWeight.Black,
@@ -317,6 +354,7 @@ private fun RankedRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         itemsIndexed(items, key = { _, anime -> anime.id }) { index, anime ->
+            var menuOpen by remember { mutableStateOf(false) }
             Box(modifier = Modifier.size(width = 184.dp, height = 214.dp)) {
                 Text(
                     text = "${index + 1}",
@@ -336,8 +374,9 @@ private fun RankedRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit) {
                         .aspectRatio(0.68f)
                         .clip(ExpressiveShapes.medium)
                         .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                        .clickable { onOpen(anime) }
+                        .titleClickable(anime, onOpen) { menuOpen = true }
                 )
+                NotInterestedMenu(menuOpen, onDismiss = { menuOpen = false }, onHide = { onHide(anime) })
             }
         }
     }
@@ -345,7 +384,7 @@ private fun RankedRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LandscapeRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit) {
+private fun LandscapeRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit, onHide: (AnimeDto) -> Unit) {
     HorizontalMultiBrowseCarousel(
         state = rememberCarouselState { items.size },
         preferredItemWidth = 300.dp,
@@ -356,12 +395,14 @@ private fun LandscapeRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit) {
             .height(188.dp)
     ) { index ->
         val anime = items[index]
+        var menuOpen by remember { mutableStateOf(false) }
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .maskClip(ExpressiveShapes.large)
-                .clickable { onOpen(anime) }
+                .titleClickable(anime, onOpen) { menuOpen = true }
         ) {
+            NotInterestedMenu(menuOpen, onDismiss = { menuOpen = false }, onHide = { onHide(anime) })
             AsyncImage(
                 model = "https://image.tmdb.org/t/p/w780${anime.backdropPath}",
                 contentDescription = anime.name,
@@ -390,18 +431,20 @@ private fun LandscapeRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit) {
 }
 
 @Composable
-private fun PosterRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit) {
+private fun PosterRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit, onHide: (AnimeDto) -> Unit) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         itemsIndexed(items, key = { _, anime -> anime.id }) { _, anime ->
+            var menuOpen by remember { mutableStateOf(false) }
             // Only the artwork is rounded; clipping the whole card would cut into the title below it.
             Column(
                 modifier = Modifier
                     .width(132.dp)
-                    .clickable(onClickLabel = "Open ${anime.name}") { onOpen(anime) }
+                    .titleClickable(anime, onOpen) { menuOpen = true }
             ) {
+                NotInterestedMenu(menuOpen, onDismiss = { menuOpen = false }, onHide = { onHide(anime) })
                 AsyncImage(
                     model = "https://image.tmdb.org/t/p/w342${anime.posterPath}",
                     contentDescription = anime.name,
@@ -422,6 +465,36 @@ private fun PosterRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit) {
                 )
             }
         }
+    }
+}
+
+/** Tap opens the title; long-press opens its menu. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun Modifier.titleClickable(anime: AnimeDto, onOpen: (AnimeDto) -> Unit, onLongPress: () -> Unit): Modifier {
+    val haptics = LocalHapticFeedback.current
+    return combinedClickable(
+        onClickLabel = "Open ${anime.name}",
+        onLongClickLabel = "More options",
+        onLongClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            onLongPress()
+        },
+        onClick = { onOpen(anime) }
+    )
+}
+
+@Composable
+private fun NotInterestedMenu(expanded: Boolean, onDismiss: () -> Unit, onHide: () -> Unit) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        DropdownMenuItem(
+            text = { Text("Not interested") },
+            leadingIcon = { Icon(Icons.Default.VisibilityOff, contentDescription = null) },
+            onClick = {
+                onDismiss()
+                onHide()
+            }
+        )
     }
 }
 

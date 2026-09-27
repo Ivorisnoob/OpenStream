@@ -11,7 +11,7 @@ Last reviewed: 2026-09-27.
 For reference, so these don't get re-added: double-tap to seek 10s, swipe for brightness (left) and
 volume (right), playback speed, picture-in-picture, auto-play next episode with countdown
 (`UpNextOverlay`), recent searches and genre browsing in Search, Continue Watching, watch later,
-history, downloads with pause/resume/retry, OpenSubtitles plus embedded subtitles, caption styling,
+history, downloads with pause/resume/retry, share a title, OpenSubtitles plus embedded subtitles, caption styling,
 source failover, in-app updates with release notes, dynamic color.
 
 ## Priority
@@ -53,12 +53,11 @@ brightness back to the system.
 
 ## Discovery
 
-- [ ] **Person pages.** The cast row on Details doesn't link anywhere; open an actor/director page
-      with their filmography.
+- [x] **Person pages.** Cast on Details opens a page with photo, bio and filmography.
 - [ ] **Filters and sorting** in search beyond genre: type, year, rating, original language.
 - [ ] **In-app trailers.** Trailers currently open YouTube externally.
 - [ ] **Upcoming episodes calendar** for followed shows.
-- [ ] **"Not interested" / hide title** from Home rows.
+- [x] **"Not interested" / hide title** from Home rows (long-press; undo in Settings).
 
 ## Library and sync
 
@@ -66,7 +65,8 @@ brightness back to the system.
       account needed, fits the "no API keys" rule.
 - [ ] **Trakt / AniList / MAL sync** for history, progress and ratings (optional sign-in, OAuth; no
       user-supplied keys).
-- [ ] **Mark watched / unwatched** by episode, season or title.
+- [ ] **Mark watched / unwatched** by season or title. (Per episode already works from the episode's
+      long-press menu.)
 - [ ] **Custom lists** beyond Watch Later.
 - [ ] **New episode notifications** for followed shows (needs WorkManager, not in the app yet).
 - [ ] **Profiles** with separate history and progress.
@@ -74,9 +74,9 @@ brightness back to the system.
 ## Downloads
 
 - [x] **Wi-Fi only** download setting (unmetered network requirement on the `DownloadManager`).
-- [ ] **Download a whole season** in one action.
+- [x] **Download a whole season** in one action ("Download season" on Details).
 - [ ] **Default download quality** setting (currently one rendition up to 1080p).
-- [ ] **Storage view**: space used, free space, delete all.
+- [x] **Storage view**: space used, free space, delete all.
 - [ ] **Download subtitles** alongside the video for offline playback.
 
 ## Settings
@@ -89,13 +89,14 @@ brightness back to the system.
 
 ## Platform and app
 
-- [ ] **Offline state.** No connectivity handling; show an offline banner and route to downloads.
+- [x] **Offline state.** Offline banner with a shortcut to Downloads.
 - [ ] **Deep links.** Open TMDB links and shared titles straight into Details; share a title link.
 - [ ] **Localization.** Almost all UI text is hard-coded in Compose; move it to `strings.xml`.
 - [ ] **Tablet and foldable layouts** (list-detail, nav rail on wide screens).
 - [ ] **Android TV** (leanback launcher entry, D-pad focus).
 - [x] **Predictive back** (`android:enableOnBackInvokedCallback`).
-- [ ] **App shortcuts** (Continue Watching, Search, Downloads) and a Continue Watching widget.
+- [x] **App shortcuts** (Continue Watching, Search, Downloads).
+- [ ] **Continue Watching widget.**
 - [ ] **Shared element transitions** from cards to Details artwork.
 - [ ] **Crash and log export** (opt-in, local file) for bug reports.
 - [ ] **Media3 upgrade.** The project is on 1.3.1; newer releases bring session, HLS and

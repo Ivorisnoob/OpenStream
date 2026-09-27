@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Shield
@@ -84,6 +85,7 @@ fun SettingsScreen(
     val state by viewModel.state.collectAsState()
     val appSettings by viewModel.appSettings.collectAsState()
     val imageCacheBytes by viewModel.imageCacheBytes.collectAsState()
+    val hiddenTitleCount by viewModel.hiddenTitleCount.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val snackbarHostState = remember { SnackbarHostState() }
     var confirmClearHistory by rememberSaveable { mutableStateOf(false) }
@@ -246,6 +248,16 @@ fun SettingsScreen(
                     subtitle = "History, Continue Watching and resume positions",
                     onClick = { confirmClearHistory = true }
                 )
+            }
+            if (hiddenTitleCount > 0) {
+                item {
+                    SettingsRow(
+                        icon = Icons.Default.VisibilityOff,
+                        title = "Hidden titles",
+                        subtitle = "$hiddenTitleCount hidden from Home · tap to show them again",
+                        onClick = viewModel::unhideAllTitles
+                    )
+                }
             }
 
             item {

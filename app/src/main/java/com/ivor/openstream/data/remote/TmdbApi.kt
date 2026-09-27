@@ -6,6 +6,7 @@ import com.ivor.openstream.data.remote.model.SeasonDetailsDto
 import com.ivor.openstream.data.remote.model.TmdbResponse
 import com.ivor.openstream.data.remote.model.KeywordDto
 import com.ivor.openstream.data.remote.model.ExternalIdsDto
+import com.ivor.openstream.data.remote.model.PersonDto
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -117,4 +118,10 @@ interface TmdbApi {
         @Path("id") id: Int,
         @Path("season_number") seasonNumber: Int
     ): SeasonDetailsDto
+
+    @GET("person/{id}")
+    suspend fun getPerson(
+        @Path("id") id: Int,
+        @Query("append_to_response") appendToResponse: String = "combined_credits"
+    ): PersonDto
 }

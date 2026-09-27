@@ -43,6 +43,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -74,6 +78,24 @@ fun DownloadsScreen(
     viewModel: DownloadViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    var confirmDeleteAll by rememberSaveable { mutableStateOf(false) }
+
+    if (confirmDeleteAll) {
+        AlertDialog(
+            onDismissRequest = { confirmDeleteAll = false },
+            title = { Text("Delete all downloads?") },
+            text = { Text("Removes every downloaded and queued video from this device.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDeleteAll = false
+                    viewModel.removeAll()
+                }) { Text("Delete all", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeleteAll = false }) { Text("Cancel") }
+            }
+        )
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -94,12 +116,23 @@ fun DownloadsScreen(
                 )
                 if (state.completedCount > 0) {
                     Text(
-                        text = "${pluralize(state.completedCount, "video")} · ${formatBytes(state.storedBytes)} on this device",
+                        text = pluralize(state.completedCount, "video") + " on this device",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
+            }
+        }
+
+        if (!state.isLoading && !state.isEmpty) {
+            item(key = "storage") {
+                StorageCard(
+                    usedBytes = state.storedBytes,
+                    freeBytes = state.freeBytes,
+                    onDeleteAll = { confirmDeleteAll = true },
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
             }
         }
 
@@ -138,6 +171,49 @@ fun DownloadsScreen(
                         .animateItem()
                         .padding(bottom = 12.dp)
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StorageCard(
+    usedBytes: Long,
+    freeBytes: Long,
+    onDeleteAll: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val total = usedBytes + freeBytes
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = ExpressiveShapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Storage, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "${formatBytes(usedBytes)} used by downloads",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "${formatBytes(freeBytes)} free on this device",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            if (total > 0) {
+                LinearProgressIndicator(
+                    progress = { (usedBytes.toFloat() / total).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            TextButton(onClick = onDeleteAll, modifier = Modifier.align(Alignment.End)) {
+                Text("Delete all downloads", color = MaterialTheme.colorScheme.error)
             }
         }
     }

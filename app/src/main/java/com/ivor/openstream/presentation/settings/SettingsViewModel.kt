@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.DownloadManager
 import coil3.SingletonImageLoader
+import com.ivor.openstream.data.repository.HiddenTitlesRepository
 import com.ivor.openstream.data.settings.AppSettings
 import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.settings.DnsProvider
@@ -46,7 +47,8 @@ class SettingsViewModel @Inject constructor(
     private val extensionRepository: ExtensionRepository,
     private val appSettingsStore: AppSettingsStore,
     private val downloadManager: DownloadManager,
-    private val watchProgressRepository: WatchProgressRepository
+    private val watchProgressRepository: WatchProgressRepository,
+    private val hiddenTitlesRepository: HiddenTitlesRepository
 ) : ViewModel() {
 
     val state: StateFlow<SettingsUiState> = extensionRepository.catalog
@@ -63,6 +65,9 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
 
     val appSettings: StateFlow<AppSettings> = appSettingsStore.settings
+
+    val hiddenTitleCount: StateFlow<Int> = hiddenTitlesRepository.count
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     private val _imageCacheBytes = MutableStateFlow<Long?>(null)
     val imageCacheBytes: StateFlow<Long?> = _imageCacheBytes.asStateFlow()
@@ -107,6 +112,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             watchProgressRepository.clearAll()
             _messages.tryEmit("Watch history and progress cleared")
+        }
+    }
+
+    fun unhideAllTitles() {
+        viewModelScope.launch {
+            hiddenTitlesRepository.unhideAll()
+            _messages.tryEmit("Hidden titles are back on Home")
         }
     }
 

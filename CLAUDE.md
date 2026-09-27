@@ -55,7 +55,7 @@ Rules:
 - Composables render state and forward intent. ViewModels own screen state as `StateFlow`.
   Networking and persistence stay in `data/`.
 - Routes and arguments live in `presentation/navigation/AppNavigation.kt`.
-- Room schema changes need a real `Migration` in `di/DatabaseModule.kt` (current version 5).
+- Room schema changes need a real `Migration` in `di/DatabaseModule.kt` (current version 6).
   `fallbackToDestructiveMigration` is only a safety net; users' downloads and progress live there.
 
 ## How the main features work

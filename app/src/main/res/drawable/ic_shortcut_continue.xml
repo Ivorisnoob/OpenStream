@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher shortcut icon: brand circle with a Material glyph. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:pathData="M24,24m-24,0a24,24 0,1 1,48 0a24,24 0,1 1,-48 0"
+        android:fillColor="#FFFF5F8A" />
+    <group
+        android:translateX="12"
+        android:translateY="12">
+        <path
+            android:pathData="M8,5v14l11,-7z"
+            android:fillColor="#FFFFFFFF" />
+    </group>
+</vector>

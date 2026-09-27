@@ -122,6 +122,7 @@ fun DetailsScreen(
     onPlayClick: (season: Int, episode: Int) -> Unit,
     onOpenDownloads: () -> Unit = {},
     onOpenTitle: (id: Int, mediaType: String) -> Unit = { _, _ -> },
+    onOpenPerson: (personId: Int) -> Unit = {},
     viewModel: DetailsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -242,7 +243,7 @@ fun DetailsScreen(
                     if (details.cast.isNotEmpty()) {
                         item(key = "cast") {
                             SectionTitle("Cast")
-                            CastRail(details.cast.take(20))
+                            CastRail(details.cast.take(20), onOpenPerson)
                         }
                     }
 
@@ -972,7 +973,7 @@ private fun EpisodeDownloadAction(download: DownloadEntity?, onDownload: () -> U
 // region Rails & info
 
 @Composable
-private fun CastRail(cast: List<CastDto>) {
+private fun CastRail(cast: List<CastDto>, onOpenPerson: (Int) -> Unit) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp)
@@ -981,6 +982,8 @@ private fun CastRail(cast: List<CastDto>) {
             Column(
                 modifier = Modifier
                     .width(88.dp)
+                    .clip(ExpressiveShapes.medium)
+                    .clickable(onClickLabel = "Open ${person.name}") { onOpenPerson(person.id) }
                     .semantics(mergeDescendants = true) {},
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {

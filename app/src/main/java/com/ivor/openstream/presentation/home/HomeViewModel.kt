@@ -3,6 +3,7 @@ package com.ivor.openstream.presentation.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ivor.openstream.data.remote.model.AnimeDto
+import com.ivor.openstream.data.repository.HiddenTitlesRepository
 import com.ivor.openstream.domain.model.AnimeCatalog
 import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.domain.repository.AnimeRepository
@@ -13,7 +14,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -50,17 +51,29 @@ sealed interface HomeUiState {
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val repository: AnimeRepository,
-    private val watchProgressRepository: WatchProgressRepository
+    private val watchProgressRepository: WatchProgressRepository,
+    private val hiddenTitlesRepository: HiddenTitlesRepository
 ) : ViewModel() {
 
+    /** The feed as loaded; [uiState] is this minus the titles the user hid. */
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
-    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    val uiState: StateFlow<HomeUiState> = combine(_uiState, hiddenTitlesRepository.hiddenKeys) { state, hidden ->
+        if (state is HomeUiState.Success && hidden.isNotEmpty()) state.without(hidden) else state
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, HomeUiState.Loading)
 
     val continueWatching: StateFlow<List<WatchProgress>> = watchProgressRepository.continueWatching()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     init {
         loadData()
+    }
+
+    fun hideTitle(anime: AnimeDto) {
+        viewModelScope.launch { hiddenTitlesRepository.hide(anime.homeMediaType, anime.id, anime.name) }
+    }
+
+    fun unhideTitle(anime: AnimeDto) {
+        viewModelScope.launch { hiddenTitlesRepository.unhide(anime.homeMediaType, anime.id) }
     }
 
     fun removeFromContinueWatching(item: WatchProgress) {
@@ -108,4 +121,14 @@ class HomeViewModel @Inject constructor(
             )
         }
     }
+}
+
+private val AnimeDto.homeMediaType: String get() = if (isMovie) "movie" else "tv"
+
+private fun HomeUiState.Success.without(hidden: Set<String>): HomeUiState.Success {
+    fun List<AnimeDto>.visible() = filterNot { HiddenTitlesRepository.key(it.homeMediaType, it.id) in hidden }
+    return copy(
+        hero = hero.visible(),
+        rails = rails.map { it.copy(items = it.items.visible()) }.filter { it.items.isNotEmpty() }
+    )
 }
