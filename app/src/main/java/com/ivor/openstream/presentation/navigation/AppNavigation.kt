@@ -1,5 +1,15 @@
 package com.ivor.openstream.presentation.navigation
 
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -457,47 +467,63 @@ fun AppNavigation(
                 exit = slideOutVertically { it } + fadeOut(),
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
+                // Tap a tab, or drag across the toolbar to scrub between them (one tick per tab,
+                // switching when the finger lifts).
+                val haptics = LocalHapticFeedback.current
+                val currentIndex = bottomNavItems.indexOfFirst { screen ->
+                    currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                }
+                var scrubIndex by remember { mutableStateOf<Int?>(null) }
+                var scrubTravel by remember { mutableFloatStateOf(0f) }
+                val stepPx = with(LocalDensity.current) { 50.dp.toPx() }
+                val latestIndex by rememberUpdatedState(currentIndex)
                 HorizontalFloatingToolbar(
                     expanded = true,
-                    modifier = Modifier.padding(bottom = 50.dp),
+                    modifier = Modifier
+                        .padding(bottom = 50.dp)
+                        .pointerInput(Unit) {
+                            detectHorizontalDragGestures(
+                                onDragStart = {
+                                    scrubTravel = 0f
+                                    scrubIndex = latestIndex.coerceAtLeast(0)
+                                },
+                                onDragEnd = {
+                                    val target = scrubIndex
+                                    scrubIndex = null
+                                    if (target != null && target != latestIndex) openTab(bottomNavItems[target])
+                                },
+                                onDragCancel = { scrubIndex = null },
+                                onHorizontalDrag = { change, amount ->
+                                    change.consume()
+                                    scrubTravel += amount
+                                    val start = latestIndex.coerceAtLeast(0)
+                                    val next = (start + (scrubTravel / stepPx).toInt()).coerceIn(0, bottomNavItems.lastIndex)
+                                    if (next != scrubIndex) {
+                                        scrubIndex = next
+                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+                                }
+                            )
+                        },
                     content = {
-                        bottomNavItems.forEach { screen ->
-                            val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
-
+                        val shownIndex = scrubIndex ?: currentIndex
+                        bottomNavItems.forEachIndexed { index, screen ->
+                            val selected = index == shownIndex
+                            val onClick = {
+                                if (selected && screen.route == Screen.Search.route) {
+                                    navController.currentBackStackEntry?.savedStateHandle?.set(
+                                        "focusSearch",
+                                        System.currentTimeMillis()
+                                    )
+                                }
+                                openTab(screen)
+                            }
                             if (selected) {
-                                FilledIconButton(
-                                    onClick = {
-                                        if (screen.route == Screen.Search.route) {
-                                            navController.currentBackStackEntry?.savedStateHandle?.set(
-                                                "focusSearch",
-                                                System.currentTimeMillis()
-                                            )
-                                        }
-                                        navController.navigate(screen.route) {
-                                            popUpTo(navController.graph.findStartDestination().id) {
-                                                saveState = true
-                                            }
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
-                                    },
-                                    modifier = Modifier.size(50.dp)
-                                ) {
+                                FilledIconButton(onClick = onClick, modifier = Modifier.size(50.dp)) {
                                     Icon(screen.icon!!, contentDescription = screen.label)
                                 }
                             } else {
-                                IconButton(
-                                    onClick = {
-                                        navController.navigate(screen.route) {
-                                            popUpTo(navController.graph.findStartDestination().id) {
-                                                saveState = true
-                                            }
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
-                                    },
-                                    modifier = Modifier.size(50.dp)
-                                ) {
+                                IconButton(onClick = onClick, modifier = Modifier.size(50.dp)) {
                                     Icon(screen.icon!!, contentDescription = screen.label)
                                 }
                             }

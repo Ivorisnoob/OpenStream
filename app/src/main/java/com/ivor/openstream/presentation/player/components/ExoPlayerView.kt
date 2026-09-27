@@ -1,6 +1,8 @@
 package com.ivor.openstream.presentation.player.components
 
 import android.app.Activity
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.activity.compose.BackHandler
 import com.ivor.openstream.presentation.player.session.SleepTimer
 import com.ivor.openstream.data.repository.SkipSegment
@@ -159,7 +161,9 @@ fun ExoPlayerView(
     preferredSubtitleLanguage: String? = null,
     onSubtitleLanguageChosen: (String) -> Unit = {},
     /** Intro/recap/credits times from AniSkip; empty falls back to a manual skip early on. */
-    skipSegments: List<SkipSegment> = emptyList()
+    skipSegments: List<SkipSegment> = emptyList(),
+    /** Leave the player screen with playback continuing in the mini player (swipe down inline). */
+    onMinimize: () -> Unit = onBackClick
 ) {
     val context = LocalContext.current
     val activity = remember(context) {
@@ -218,6 +222,26 @@ fun ExoPlayerView(
     var showUnlockButton by remember { mutableStateOf(false) }
     var unlockButtonSequence by remember { mutableIntStateOf(0) }
     var isSpeedBoosted by remember { mutableStateOf(false) }
+    // Vertical swipes: which job this swipe does, decided where it starts, and how far it has gone.
+    var verticalMode by remember { mutableStateOf(VerticalSwipe.NONE) }
+    var verticalTravel by remember { mutableFloatStateOf(0f) }
+    // Follows the finger during a fullscreen/minimize swipe, then springs back.
+    val swipeOffset by animateFloatAsState(
+        targetValue = if (verticalMode == VerticalSwipe.FULLSCREEN) (verticalTravel * 0.25f).coerceIn(-120f, 120f) else 0f,
+        label = "swipeOffset"
+    )
+    val latestIsFullscreen by rememberUpdatedState(isFullscreen)
+    val latestFullscreenToggle by rememberUpdatedState(onFullscreenToggle)
+    val latestMinimize by rememberUpdatedState(onMinimize)
+    var playPauseFeedback by remember { mutableIntStateOf(0) }
+    var showPlayPauseFeedback by remember { mutableStateOf(false) }
+    LaunchedEffect(playPauseFeedback) {
+        if (playPauseFeedback > 0) {
+            showPlayPauseFeedback = true
+            delay(600)
+            showPlayPauseFeedback = false
+        }
+    }
     // Horizontal swipe to scrub: where the swipe started and where it would seek to on release.
     var isScrubbing by remember { mutableStateOf(false) }
     var scrubStartMs by remember { mutableLongStateOf(0L) }
@@ -793,19 +817,24 @@ fun ExoPlayerView(
                         }
                     },
                     onTap = { offset ->
-                        val direction = if (offset.x > size.width / 2) 1 else -1
+                        val direction = tapZone(offset.x, size.width)
                         when {
                             isLocked -> revealUnlockButton()
                             // With controls hidden, a tap on the same side while seek feedback shows keeps seeking.
-                            !areControlsVisible && seekFeedbackDirection == direction -> seekStep(direction)
+                            !areControlsVisible && direction != 0 && seekFeedbackDirection == direction -> seekStep(direction)
                             else -> areControlsVisible = !areControlsVisible
                         }
                     },
                     onDoubleTap = { offset ->
-                        if (isLocked) {
-                            revealUnlockButton()
-                        } else {
-                            seekStep(if (offset.x > size.width / 2) 1 else -1)
+                        val direction = tapZone(offset.x, size.width)
+                        when {
+                            isLocked -> revealUnlockButton()
+                            // The middle toggles playback; the sides seek.
+                            direction == 0 -> {
+                                if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
+                                playPauseFeedback++
+                            }
+                            else -> seekStep(direction)
                         }
                     },
                     onLongPress = {
@@ -820,41 +849,67 @@ fun ExoPlayerView(
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragStart = { offset ->
+                        verticalTravel = 0f
+                        verticalMode = when {
+                            isLocked -> VerticalSwipe.NONE
+                            // Inline, any vertical swipe is about the player itself: up for
+                            // fullscreen, down to shrink into the mini player.
+                            !latestIsFullscreen -> VerticalSwipe.FULLSCREEN
+                            // Fullscreen: brightness on the left third, volume on the right, and a
+                            // swipe down the middle exits.
+                            offset.x < size.width / 3f -> VerticalSwipe.BRIGHTNESS
+                            offset.x > size.width * 2f / 3f -> VerticalSwipe.VOLUME
+                            else -> VerticalSwipe.FULLSCREEN
+                        }
                         // Start from the screen's real brightness so the first swipe doesn't jump.
-                        if (offset.x < size.width / 2) brightness = currentBrightness(activity)
+                        if (verticalMode == VerticalSwipe.BRIGHTNESS) brightness = currentBrightness(activity)
                         if (isLocked) revealUnlockButton()
                     },
                     onDragEnd = {
+                        if (verticalMode == VerticalSwipe.FULLSCREEN) {
+                            val threshold = size.height * SWIPE_ACTION_FRACTION
+                            when {
+                                !latestIsFullscreen && verticalTravel < -threshold -> latestFullscreenToggle()
+                                !latestIsFullscreen && verticalTravel > threshold -> latestMinimize()
+                                latestIsFullscreen && verticalTravel > threshold -> latestFullscreenToggle()
+                            }
+                        }
+                        verticalMode = VerticalSwipe.NONE
+                        verticalTravel = 0f
                         showBrightnessOverlay = false
                         showVolumeOverlay = false
                     },
                     onDragCancel = {
+                        verticalMode = VerticalSwipe.NONE
+                        verticalTravel = 0f
                         showBrightnessOverlay = false
                         showVolumeOverlay = false
                     },
                     onVerticalDrag = { change, dragAmount ->
                         change.consume()
-                        val isLeft = change.position.x < size.width / 2
                         val delta = -dragAmount / size.height // Swipe up to increase
-                        
-                        if (isLocked) {
-                            // Locked: the swipe is swallowed.
-                        } else if (isLeft) {
-                            brightness = (brightness + delta).coerceIn(0f, 1f)
-                            showBrightnessOverlay = true
-                            showVolumeOverlay = false
-                            activity?.let { act ->
-                                val params = act.window.attributes
-                                params.screenBrightness = brightness
-                                act.window.setAttributes(params)
+                        when (verticalMode) {
+                            VerticalSwipe.NONE -> Unit
+                            VerticalSwipe.FULLSCREEN -> verticalTravel += dragAmount
+                            VerticalSwipe.BRIGHTNESS -> {
+                                brightness = (brightness + delta).coerceIn(0f, 1f)
+                                showBrightnessOverlay = true
+                                showVolumeOverlay = false
+                                activity?.let { act ->
+                                    val params = act.window.attributes
+                                    params.screenBrightness = brightness
+                                    act.window.setAttributes(params)
+                                }
+                                gestureOverlayTimeout = System.currentTimeMillis() + 2000
                             }
-                        } else {
-                            volume = (volume + delta).coerceIn(0f, 1f)
-                            exoPlayer.volume = volume
-                            showVolumeOverlay = true
-                            showBrightnessOverlay = false
+                            VerticalSwipe.VOLUME -> {
+                                volume = (volume + delta).coerceIn(0f, 1f)
+                                exoPlayer.volume = volume
+                                showVolumeOverlay = true
+                                showBrightnessOverlay = false
+                                gestureOverlayTimeout = System.currentTimeMillis() + 2000
+                            }
                         }
-                        gestureOverlayTimeout = System.currentTimeMillis() + 2000
                     }
                 )
             }
@@ -928,7 +983,14 @@ fun ExoPlayerView(
             update = { view -> view.resizeMode = videoScale.resizeMode },
             // Hand the video surface back so the mini player can take it over.
             onRelease = { view -> view.player = null },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    translationY = swipeOffset
+                    val shrink = 1f - (kotlin.math.abs(swipeOffset) / 1200f)
+                    scaleX = shrink
+                    scaleY = shrink
+                }
         )
 
         // Gesture Overlays
@@ -1198,6 +1260,23 @@ fun ExoPlayerView(
                     Icon(Icons.Default.LockOpen, contentDescription = null)
                     Text("Tap to unlock", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                 }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = showPlayPauseFeedback,
+            enter = scaleIn() + fadeIn(),
+            exit = scaleOut() + fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Surface(shape = CircleShape, color = Color.Black.copy(alpha = 0.55f), contentColor = Color.White) {
+                Icon(
+                    if (isPlaying) Icons.Default.PlayArrow else Icons.Default.Pause,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .padding(18.dp)
+                        .size(40.dp)
+                )
             }
         }
 
@@ -1481,6 +1560,18 @@ private const val BOOST_SPEED = 2f
 private const val MANUAL_SKIP_MS = 85_000L
 /** The manual skip is only offered this early in a video. */
 private const val MANUAL_SKIP_WINDOW_MS = 10 * 60_000L
+
+private enum class VerticalSwipe { NONE, BRIGHTNESS, VOLUME, FULLSCREEN }
+
+/** How far (as a share of the player's height) a swipe must travel to go fullscreen, exit or minimize. */
+private const val SWIPE_ACTION_FRACTION = 0.12f
+
+/** -1 for the left 35% of the player, 1 for the right 35%, 0 for the middle. */
+private fun tapZone(x: Float, width: Int): Int = when {
+    x < width * 0.35f -> -1
+    x > width * 0.65f -> 1
+    else -> 0
+}
 
 /** A full-width horizontal swipe scrubs at most this far. */
 private const val SCRUB_FULL_WIDTH_MS = 180_000L

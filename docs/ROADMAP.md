@@ -37,6 +37,11 @@ source failover, in-app updates with release notes, dynamic color.
       embedded tracks are rendered by Media3).
 - [x] **Screen lock.** Ignore touches during playback until unlocked.
 - [x] **Horizontal swipe to scrub** with a time preview.
+- [x] **Fullscreen swipes.** Inline: swipe up for fullscreen, down to shrink into the mini player.
+      Fullscreen: swipe down the middle to exit; brightness and volume moved to the outer thirds.
+- [x] **Double-tap the middle** to play/pause (the sides still seek).
+- [x] **Mini player swipes**: up to open the player, sideways to dismiss.
+- [x] **Navbar scrub**: drag across the floating toolbar to switch tabs.
 - [x] **Hold for 2x speed** while long-pressing.
 - [x] **Stacking double-tap seek** (10s, 20s, 30s...).
 - [x] **Configurable seek step** (5, 10, 15 or 30s in Settings).
