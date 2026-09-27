@@ -24,14 +24,12 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import android.app.DownloadManager
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
@@ -463,72 +461,77 @@ fun PlayerScreen(
                                     )
                                 }
 
-                                // Centered Loading Content
+                                // Centered loading content. Inline it has to fit a 16:9 box about
+                                // 200dp tall, so type and spacing stay compact there.
                                 Column(
-                                    modifier = Modifier.align(Alignment.Center),
+                                    modifier = Modifier
+                                        .align(Alignment.Center)
+                                        .padding(horizontal = 64.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                                    verticalArrangement = Arrangement.spacedBy(if (isFullscreen) 12.dp else 6.dp)
                                 ) {
                                     if (serversState !is ServersState.Empty) {
                                         LoadingIndicator(
-                                            modifier = Modifier.size(64.dp),
+                                            modifier = Modifier.size(if (isFullscreen) 56.dp else 40.dp),
                                             color = MaterialTheme.colorScheme.primary
                                         )
                                     }
-                                    
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = playerTitle,
+                                        color = Color.White,
+                                        style = if (isFullscreen) {
+                                            MaterialTheme.typography.headlineSmall
+                                        } else {
+                                            MaterialTheme.typography.titleMedium
+                                        },
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    if (playerSubtitle.isNotEmpty()) {
                                         Text(
-                                            text = playerTitle,
-                                            color = Color.White,
-                                            style = MaterialTheme.typography.displaySmall.copy(
-                                                fontWeight = FontWeight.Black
-                                            ),
-                                            textAlign = TextAlign.Center
-                                        )
-                                        
-                                        if (playerSubtitle.isNotEmpty()) {
-                                            Text(
-                                                text = playerSubtitle,
-                                                color = Color.White.copy(alpha = 0.7f),
-                                                style = MaterialTheme.typography.headlineSmall,
-                                                textAlign = TextAlign.Center,
-                                                modifier = Modifier.padding(top = 8.dp)
-                                            )
-                                        }
-                                        
-                                        Spacer(modifier = Modifier.height(32.dp))
-                                        
-                                        Text(
-                                            text = when (val state = serversState) {
-                                                is ServersState.Resolving ->
-                                                    "Searching sources… ${state.servers.size} found"
-                                                is ServersState.Empty -> "No servers responded"
-                                                is ServersState.Ready -> "Choose a server to continue"
-                                                ServersState.Idle -> if (isResolvingLocalUri) {
-                                                    "Opening offline video…"
-                                                } else {
-                                                    "Preparing sources…"
-                                                }
+                                            text = playerSubtitle,
+                                            color = Color.White.copy(alpha = 0.7f),
+                                            style = if (isFullscreen) {
+                                                MaterialTheme.typography.titleSmall
+                                            } else {
+                                                MaterialTheme.typography.bodySmall
                                             },
-                                            color = Color.White.copy(alpha = 0.5f),
-                                            style = MaterialTheme.typography.labelLarge
+                                            textAlign = TextAlign.Center,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
-                                        if (serversState is ServersState.Empty) {
-                                            Spacer(modifier = Modifier.height(16.dp))
-                                            Button(
-                                                onClick = viewModel::retryResolution,
-                                                shape = ExpressiveShapes.medium
-                                            ) {
-                                                Text("Retry sources")
+                                    }
+                                    Text(
+                                        text = when (val state = serversState) {
+                                            is ServersState.Resolving ->
+                                                "Searching sources… ${state.servers.size} found"
+                                            is ServersState.Empty -> "No servers responded"
+                                            is ServersState.Ready -> "Choose a server to continue"
+                                            ServersState.Idle -> if (isResolvingLocalUri) {
+                                                "Opening offline video…"
+                                            } else {
+                                                "Preparing sources…"
                                             }
-                                        } else if (serversState is ServersState.Ready) {
-                                            Spacer(modifier = Modifier.height(16.dp))
-                                            Button(
-                                                onClick = { showServerPicker = true },
-                                                shape = ExpressiveShapes.medium
-                                            ) {
-                                                Text("Choose a source")
-                                            }
+                                        },
+                                        color = Color.White.copy(alpha = 0.6f),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        textAlign = TextAlign.Center
+                                    )
+                                    if (serversState is ServersState.Empty) {
+                                        Button(
+                                            onClick = viewModel::retryResolution,
+                                            shape = ExpressiveShapes.medium
+                                        ) {
+                                            Text("Retry sources")
+                                        }
+                                    } else if (serversState is ServersState.Ready) {
+                                        Button(
+                                            onClick = { showServerPicker = true },
+                                            shape = ExpressiveShapes.medium
+                                        ) {
+                                            Text("Choose a source")
                                         }
                                     }
                                 }
