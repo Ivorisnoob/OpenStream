@@ -16,10 +16,11 @@ import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.ContentMetadata
-import com.ivor.openstream.data.repository.OpenSubtitlesRepository
 import com.ivor.openstream.data.streaming.BROWSER_USER_AGENT
 import com.ivor.openstream.data.streaming.ImagePrefixStrippingDataSource
+import com.ivor.openstream.data.subtitles.SubtitleFetcher
 import com.ivor.openstream.data.subtitles.isSubtitleAd
+import kotlinx.coroutines.runBlocking
 import com.ivor.openstream.data.subtitles.parseSubtitles
 import com.ivor.openstream.data.subtitles.toWebVtt
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -41,7 +42,6 @@ import java.security.SecureRandom
 import java.util.Collections
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import java.util.zip.GZIPInputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -64,7 +64,8 @@ import javax.inject.Singleton
 class CastMediaProxy @Inject constructor(
     @ApplicationContext private val context: Context,
     private val cache: Cache,
-    private val preferences: SharedPreferences
+    private val preferences: SharedPreferences,
+    private val subtitleFetcher: SubtitleFetcher
 ) {
     private val executor: ExecutorService = Executors.newCachedThreadPool { runnable ->
         Thread(runnable, "CastProxy").apply { isDaemon = true }
@@ -350,32 +351,10 @@ class CastMediaProxy @Inject constructor(
     }
 
     private fun fetchSubtitleAsVtt(target: String, headers: Map<String, String>): ByteArray {
-        val url = java.net.URL(target)
-        val connection = url.openConnection() as java.net.HttpURLConnection
-        try {
-            if (url.host.endsWith("opensubtitles.org")) {
-                // OpenSubtitles only asks for a User-Agent; the stream's Referer would be wrong there.
-                connection.setRequestProperty("User-Agent", OpenSubtitlesRepository.USER_AGENT)
-            } else {
-                connection.setRequestProperty("User-Agent", BROWSER_USER_AGENT)
-                headers.forEach { (name, value) -> connection.setRequestProperty(name, value) }
-            }
-            connection.connectTimeout = 10_000
-            connection.readTimeout = 15_000
-            if (connection.responseCode !in 200..299) throw IOException("HTTP ${connection.responseCode}")
-            val bytes = connection.inputStream.use { it.readBytes() }
-            val isGzip = bytes.size > 2 && bytes[0] == 0x1f.toByte() && bytes[1] == 0x8b.toByte()
-            val text = if (isGzip) {
-                GZIPInputStream(bytes.inputStream()).bufferedReader().use { it.readText() }
-            } else {
-                bytes.toString(Charsets.UTF_8)
-            }
-            val cues = parseSubtitles(text).filterNot { it.text.isSubtitleAd() }
-            if (cues.isEmpty()) throw IOException("No cues")
-            return cues.toWebVtt().toByteArray(Charsets.UTF_8)
-        } finally {
-            connection.disconnect()
-        }
+        val text = runBlocking { subtitleFetcher.fetchText(target, headers) }
+        val cues = parseSubtitles(text).filterNot { it.text.isSubtitleAd() }
+        if (cues.isEmpty()) throw IOException("No cues")
+        return cues.toWebVtt().toByteArray(Charsets.UTF_8)
     }
 
     private fun writeHead(

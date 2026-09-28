@@ -478,7 +478,8 @@ fun PlayerScreen(
                             },
                             onPlaybackReady = viewModel::onPlaybackReady,
                             onCastClick = { showCastSheet = true }.takeIf { castStatus.supported },
-                            onPictureInPictureClick = enterPictureInPicture
+                            onPictureInPictureClick = enterPictureInPicture,
+                            loadSubtitleText = viewModel::loadSubtitleText
                         )
                     }
                 } else {

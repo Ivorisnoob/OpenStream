@@ -47,6 +47,7 @@ import com.ivor.openstream.data.settings.AppSettings
 import com.ivor.openstream.data.repository.SkipSegment
 import com.ivor.openstream.data.repository.SkipTimesRepository
 import com.ivor.openstream.data.settings.AppSettingsStore
+import com.ivor.openstream.data.subtitles.SubtitleFetcher
 import com.ivor.openstream.presentation.player.session.SleepTimer
 import com.ivor.openstream.presentation.player.session.CastError
 import com.ivor.openstream.presentation.player.session.CastStatus
@@ -104,8 +105,14 @@ class PlayerViewModel @Inject constructor(
     private val json: Json,
     private val playbackSession: PlaybackSession,
     appSettingsStore: AppSettingsStore,
-    private val skipTimesRepository: SkipTimesRepository
+    private val skipTimesRepository: SkipTimesRepository,
+    private val subtitleFetcher: SubtitleFetcher
 ) : ViewModel() {
+
+    /** A sideloaded subtitle's text, downloaded and unwrapped by the data layer. */
+    suspend fun loadSubtitleText(url: String, headers: Map<String, String>): String =
+        subtitleFetcher.fetchText(url, headers)
+
     /** Intro/recap/credits times for the current anime episode; empty when unknown. */
     private val _skipSegments = MutableStateFlow<List<SkipSegment>>(emptyList())
     val skipSegments: StateFlow<List<SkipSegment>> = _skipSegments.asStateFlow()

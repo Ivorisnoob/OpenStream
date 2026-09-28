@@ -87,8 +87,10 @@ Rules:
   phone must stay on the TV's network. `PlayerScreen` swaps `ExoPlayerView` for `CastPlaybackView`.
 - **Player UI.** Controls in `PlayerControls`; settings and sources share `PlayerPanelHost`
   (bottom sheet inline, in-player side panel in fullscreen so immersive mode survives).
-- **Subtitles.** `OpenSubtitlesRepository` (keyless legacy REST API) plus any the stream carries.
-  Files are gzipped; the player decompresses and strips promo cues.
+- **Subtitles.** `CombinedSubtitleRepository`: `OpenSubtitlesRepository` (keyless legacy REST API)
+  and `SubSourceRepository` (keyless, mirrors subsource.net's own API: IMDb search -> list ->
+  download token -> zip), plus any the stream carries. `SubtitleFetcher` downloads and unwraps
+  them (gzip, zip, charset) for both the player and the cast proxy; promo cues are stripped.
 - **Network.** `AppDns` (DNS-over-HTTPS, default AdGuard, chosen in Settings) backs every OkHttp
   client and Coil's image loader (`OpenStreamApp`), because some ISPs block TMDB at the DNS level.
   Media3 playback/downloads and WebView sources still use the system resolver.

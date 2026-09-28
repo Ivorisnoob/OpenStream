@@ -115,6 +115,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import com.ivor.openstream.data.streaming.BROWSER_USER_AGENT
 import com.ivor.openstream.data.repository.forDuration
 import com.ivor.openstream.data.subtitles.SubtitleCue
+import com.ivor.openstream.data.repository.SubSourceRepository
 import com.ivor.openstream.data.subtitles.isSubtitleAd
 import com.ivor.openstream.data.subtitles.parseSubtitles
 
@@ -178,7 +179,9 @@ fun ExoPlayerView(
     /** Opens the Cast device picker; null hides the Cast button. */
     onCastClick: (() -> Unit)? = null,
     /** Pops the video out into picture-in-picture; null hides the button. */
-    onPictureInPictureClick: (() -> Unit)? = null
+    onPictureInPictureClick: (() -> Unit)? = null,
+    /** Downloads a sideloaded subtitle as text (gzip/zip handled); throws when it can't. */
+    loadSubtitleText: suspend (url: String, headers: Map<String, String>) -> String = { _, _ -> throw IllegalStateException("No subtitle loader") }
 ) {
     val context = LocalContext.current
     val activity = remember(context) {
@@ -337,55 +340,23 @@ fun ExoPlayerView(
         val urlStr = selectedSubtitle?.url
         if (urlStr != null) {
             subtitleLoadingState = SubtitleLoadingState.LOADING
-            withContext(Dispatchers.IO) {
-                try {
-                    val url = java.net.URL(urlStr)
-                    val connection = url.openConnection() as java.net.HttpURLConnection
-                    if (url.host.endsWith("opensubtitles.org")) {
-                        // OpenSubtitles only asks for a User-Agent; the stream's Referer would be wrong here.
-                        connection.setRequestProperty("User-Agent", OpenSubtitlesRepository.USER_AGENT)
-                    } else {
-                        connection.setRequestProperty("User-Agent", BROWSER_USER_AGENT)
-                        requestHeaders.forEach { (name, value) -> connection.setRequestProperty(name, value) }
-                    }
-                    connection.connectTimeout = 10000
-                    connection.readTimeout = 10000
-                    
-                    if (connection.responseCode != 200) {
-                        throw Exception("Server returned code ${connection.responseCode} (Subtitles might be restricted)")
-                    }
-
-                    val bytes = connection.inputStream.use { it.readBytes() }
-                    // OpenSubtitles serves gzip files; detect by magic bytes rather than trusting the URL.
-                    val isGzip = bytes.size > 2 && bytes[0] == 0x1f.toByte() && bytes[1] == 0x8b.toByte()
-                    val raw = if (isGzip) {
-                        java.util.zip.GZIPInputStream(bytes.inputStream()).bufferedReader().use { it.readText() }
-                    } else {
-                        bytes.toString(Charsets.UTF_8)
-                    }
-                    Log.d("PlayerSubtitles", "Downloaded raw data: ${raw.take(100)}...")
-                    
-                    if (raw.trim().isEmpty()) {
-                        throw Exception("Subtitle file is empty")
-                    }
-
-                    manualCues = parseSubtitles(raw).filterNot { it.text.isSubtitleAd() }
-                    subtitleLoadingState = if (manualCues.isNotEmpty()) SubtitleLoadingState.SUCCESS else SubtitleLoadingState.ERROR
-                    
-                    Log.i("PlayerSubtitles", "Parsed ${manualCues.size} cues for manual sync")
-                } catch (e: Exception) {
-                    Log.e("PlayerSubtitles", "Failed to parse sideloaded subtitles: ${e.message}")
-                    manualCues = emptyList()
-                    subtitleLoadingState = SubtitleLoadingState.ERROR
-                }
+            try {
+                val raw = loadSubtitleText(urlStr, requestHeaders)
+                manualCues = withContext(Dispatchers.Default) { parseSubtitles(raw).filterNot { it.text.isSubtitleAd() } }
+                subtitleLoadingState = if (manualCues.isNotEmpty()) SubtitleLoadingState.SUCCESS else SubtitleLoadingState.ERROR
+                Log.i("PlayerSubtitles", "Parsed ${manualCues.size} cues for manual sync")
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("PlayerSubtitles", "Failed to load sideloaded subtitles: ${e.message}")
+                manualCues = emptyList()
+                subtitleLoadingState = SubtitleLoadingState.ERROR
             }
         } else {
             manualCues = emptyList()
             subtitleLoadingState = SubtitleLoadingState.IDLE
         }
     }
-
-
 
     // Helper: parse available tracks from ExoPlayer
     fun parseTracksFromPlayer(tracks: Tracks) {
@@ -1622,8 +1593,10 @@ private fun displayLanguageOrNull(code: String): String? {
     return name.takeIf { it.isNotBlank() && !it.equals(normalized, ignoreCase = true) }
 }
 
+/** Files the player can't read itself (compressed, or behind a download token); loaded on demand. */
 private fun SubtitleDto.isSideloadOnly(): Boolean =
-    source == OpenSubtitlesRepository.SOURCE_NAME || url.substringBefore('?').endsWith(".gz", ignoreCase = true)
+    source == OpenSubtitlesRepository.SOURCE_NAME || source == SubSourceRepository.SOURCE_NAME ||
+        url.substringBefore('?').substringAfterLast('.').lowercase() in setOf("gz", "zip")
 
 /** Caption size in picture-in-picture relative to the user's chosen size. */
 private const val PIP_CAPTION_SCALE = 0.55f
