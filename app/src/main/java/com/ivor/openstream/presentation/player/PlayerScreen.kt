@@ -103,7 +103,7 @@ import coil3.compose.AsyncImage
 import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.presentation.player.components.ExoPlayerView
 import com.ivor.openstream.presentation.player.components.MANUAL_SKIP_MS
-import com.ivor.openstream.data.repository.forDuration
+import com.ivor.openstream.domain.model.forDuration
 import com.ivor.openstream.data.settings.PipAction
 import com.ivor.openstream.presentation.player.components.CastDeviceSheet
 import com.ivor.openstream.presentation.player.components.CastPlaybackView
@@ -236,7 +236,8 @@ fun PlayerScreen(
                 PipAction.NEXT_EPISODE -> nextEpisode?.let { onEpisodeClick(it.season, it.episode) }
                 PipAction.SKIP_INTRO -> {
                     // The segment playing now (AniSkip), else the same jump as the manual skip.
-                    val segment = skipSegments.forDuration(player.duration.coerceAtLeast(0L))
+                    val segments = activeServer?.skipSegments?.takeIf { it.isNotEmpty() } ?: skipSegments
+                    val segment = segments.forDuration(player.duration.coerceAtLeast(0L))
                         .firstOrNull { position >= it.startMs && position < it.endMs - 1_000 }
                     player.seekTo(segment?.endMs ?: (position + MANUAL_SKIP_MS))
                 }
@@ -476,7 +477,8 @@ fun PlayerScreen(
                             seekStepSeconds = appSettings.seekStepSeconds,
                             preferredSubtitleLanguage = preferredSubtitleLanguage,
                             onSubtitleLanguageChosen = viewModel::setPreferredSubtitleLanguage,
-                            skipSegments = skipSegments,
+                            // Times from the source itself beat AniSkip's crowd-sourced ones.
+                            skipSegments = activeServer?.skipSegments?.takeIf { it.isNotEmpty() } ?: skipSegments,
                             episodes = if (mediaType == "movie") emptyList() else seasonEpisodes,
                             currentEpisodeNumber = episode,
                             episodeProgress = episodeProgress,
@@ -502,7 +504,8 @@ fun PlayerScreen(
                             onPlaybackReady = viewModel::onPlaybackReady,
                             onCastClick = { showCastSheet = true }.takeIf { castStatus.supported },
                             onPictureInPictureClick = enterPictureInPicture,
-                            loadSubtitleText = viewModel::loadSubtitleText
+                            loadSubtitleText = viewModel::loadSubtitleText,
+                            mimeType = activeServer?.mimeType.takeIf { downloadId == null }
                         )
                     }
                 } else {

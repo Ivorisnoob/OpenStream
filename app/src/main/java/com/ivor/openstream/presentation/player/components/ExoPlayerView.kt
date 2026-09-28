@@ -5,7 +5,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.activity.compose.BackHandler
 import com.ivor.openstream.presentation.player.session.SleepTimer
-import com.ivor.openstream.data.repository.SkipSegment
+import com.ivor.openstream.domain.model.SkipSegment
 import com.ivor.openstream.data.remote.model.EpisodeDto
 import com.ivor.openstream.domain.model.WatchProgress
 import androidx.compose.animation.slideInHorizontally
@@ -113,7 +113,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.mutableIntStateOf
 import com.ivor.openstream.data.streaming.BROWSER_USER_AGENT
-import com.ivor.openstream.data.repository.forDuration
+import com.ivor.openstream.domain.model.forDuration
 import com.ivor.openstream.data.subtitles.SubtitleCue
 import com.ivor.openstream.data.repository.SubSourceRepository
 import com.ivor.openstream.data.subtitles.isSubtitleAd
@@ -181,7 +181,9 @@ fun ExoPlayerView(
     /** Pops the video out into picture-in-picture; null hides the button. */
     onPictureInPictureClick: (() -> Unit)? = null,
     /** Downloads a sideloaded subtitle as text (gzip/zip handled); throws when it can't. */
-    loadSubtitleText: suspend (url: String, headers: Map<String, String>) -> String = { _, _ -> throw IllegalStateException("No subtitle loader") }
+    loadSubtitleText: suspend (url: String, headers: Map<String, String>) -> String = { _, _ -> throw IllegalStateException("No subtitle loader") },
+    /** Container hint from the source (HLS for hosts whose URLs don't end in .m3u8). */
+    mimeType: String? = null
 ) {
     val context = LocalContext.current
     val activity = remember(context) {
@@ -603,7 +605,7 @@ fun ExoPlayerView(
         // CASE 1: Video URL changed (Episode switch) -> Full Reset
         if (currentUri != newUri) {
             applyRequestHeaders(requestHeaders)
-            val mediaItemBuilder = MediaItem.Builder().setUri(videoUrl)
+            val mediaItemBuilder = MediaItem.Builder().setUri(videoUrl).setMimeType(mimeType)
             val configs = buildSubtitleConfigs(remoteSubtitles)
             if (configs.isNotEmpty()) {
                 mediaItemBuilder.setSubtitleConfigurations(configs)
@@ -622,7 +624,7 @@ fun ExoPlayerView(
             val currentPosition = exoPlayer.currentPosition
             val wasPlaying = exoPlayer.isPlaying
             
-            val mediaItemBuilder = MediaItem.Builder().setUri(videoUrl)
+            val mediaItemBuilder = MediaItem.Builder().setUri(videoUrl).setMimeType(mimeType)
             val configs = buildSubtitleConfigs(remoteSubtitles)
             mediaItemBuilder.setSubtitleConfigurations(configs)
             

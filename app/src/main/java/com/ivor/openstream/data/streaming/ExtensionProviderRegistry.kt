@@ -3,6 +3,8 @@ package com.ivor.openstream.data.streaming
 import com.ivor.openstream.data.streaming.anime.AnikotoProvider
 import com.ivor.openstream.data.streaming.anime.AnimeEpisodeMapper
 import com.ivor.openstream.data.streaming.anime.AnimePaheProvider
+import com.ivor.openstream.data.streaming.anime.AnimeGGProvider
+import com.ivor.openstream.data.streaming.anime.FourAnimoProvider
 import com.ivor.openstream.data.streaming.anime.AnimeSiteSpec
 import com.ivor.openstream.data.streaming.anime.CloudflareClearance
 import com.ivor.openstream.data.streaming.anime.MegaplayExtractor
@@ -124,6 +126,17 @@ class ExtensionProviderRegistry @Inject constructor(
                 client = streamingClient,
                 json = json,
                 clearance = cloudflareClearance
+            )
+            ExtensionEngineType.FOURANIMO -> FourAnimoProvider(
+                spec = animeSiteSpec(manifest),
+                mapper = animeEpisodeMapper,
+                client = streamingClient,
+                json = json
+            )
+            ExtensionEngineType.ANIMEGG -> AnimeGGProvider(
+                spec = animeSiteSpec(manifest),
+                mapper = animeEpisodeMapper,
+                client = streamingClient
             )
             ExtensionEngineType.UNSUPPORTED -> return null
         }

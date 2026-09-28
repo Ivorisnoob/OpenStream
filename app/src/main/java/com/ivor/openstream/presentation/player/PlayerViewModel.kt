@@ -44,7 +44,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import com.ivor.openstream.presentation.player.session.NowPlaying
 import com.ivor.openstream.presentation.player.session.PlaybackSession
 import com.ivor.openstream.data.settings.AppSettings
-import com.ivor.openstream.data.repository.SkipSegment
+import com.ivor.openstream.domain.model.SkipSegment
 import com.ivor.openstream.data.repository.SkipTimesRepository
 import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.subtitles.SubtitleFetcher
