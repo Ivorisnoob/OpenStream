@@ -65,8 +65,9 @@ Rules:
   `StreamingRepositoryImpl` resolves them in parallel, ranks with `ServerRanker`, and runs
   `fallback` providers only when direct ones return nothing (or on "Find more" / failover).
   Engines: `vidking-direct` (`VidkingDirectApi`, encrypted payload, prefers the master playlist so
-  quality switches in-player), `web-embed` and `vidking-webview` (`WebEmbedResolver`, hidden
-  WebView that records media requests).
+  quality switches in-player), `web-embed` and `vidking-webview` (`WebEmbedResolver`: first a native
+  pass through `HosterExtractors` (Filemoon, StreamWish/VidHide, Voe, Mp4Upload, Vidmoly, ok.ru) when
+  the embed is or frames a known hoster, else a hidden WebView that records media requests).
   Anime engines (`data/streaming/anime`): `anikoto`, `reanime`, `animepahe`, `fouranimo`, `animegg`.
   `VideoServer` can carry a MIME hint (HLS for URLs without `.m3u8`) and the source's own intro/outro
   times, which the player prefers over AniSkip. `AnimeEpisodeMapper`

@@ -3,6 +3,7 @@ package com.ivor.openstream.data.streaming
 import com.ivor.openstream.data.streaming.anime.AnikotoProvider
 import com.ivor.openstream.data.streaming.anime.AnimeEpisodeMapper
 import com.ivor.openstream.data.streaming.anime.AnimePaheProvider
+import com.ivor.openstream.data.streaming.hosters.HosterExtractors
 import com.ivor.openstream.data.streaming.anime.AnimeGGProvider
 import com.ivor.openstream.data.streaming.anime.FourAnimoProvider
 import com.ivor.openstream.data.streaming.anime.AnimeSiteSpec
@@ -57,6 +58,7 @@ class ExtensionProviderRegistry @Inject constructor(
     private val animeEpisodeMapper: AnimeEpisodeMapper,
     private val megaplayExtractor: MegaplayExtractor,
     private val cloudflareClearance: CloudflareClearance,
+    private val hosterExtractors: HosterExtractors,
     @Named("StreamingClient") private val streamingClient: OkHttpClient,
     private val json: Json
 ) {
@@ -113,7 +115,8 @@ class ExtensionProviderRegistry @Inject constructor(
                 mapper = animeEpisodeMapper,
                 client = streamingClient,
                 json = json,
-                megaplay = megaplayExtractor
+                megaplay = megaplayExtractor,
+                hosters = hosterExtractors
             )
             ExtensionEngineType.REANIME -> ReAnimeProvider(
                 spec = animeSiteSpec(manifest),
