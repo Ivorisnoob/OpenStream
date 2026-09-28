@@ -22,6 +22,7 @@ import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.settings.ThemeMode
+import com.ivor.openstream.presentation.player.session.PlaybackSession
 import com.ivor.openstream.presentation.shortcuts.AppShortcut
 import com.ivor.openstream.presentation.shortcuts.ShortcutRequest
 import com.ivor.openstream.ui.theme.OpenStreamTheme
@@ -34,6 +35,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var appSettings: AppSettingsStore
+
+    @Inject
+    lateinit var playbackSession: PlaybackSession
 
     private var shortcutRequest by mutableStateOf<ShortcutRequest?>(null)
     private var deepLinkRequest by mutableStateOf<DeepLinkRequest?>(null)
@@ -50,6 +54,7 @@ class MainActivity : ComponentActivity() {
             )
         }
 
+        playbackSession.initCast()
         AppShortcut.publish(this)
         // Only a fresh launch; a recreated activity already acted on its shortcut.
         if (savedInstanceState == null) handleLaunchIntent(intent)
@@ -91,5 +96,17 @@ class MainActivity : ComponentActivity() {
         if (DeepLinks.isUnrecognisedShare(intent)) {
             Toast.makeText(this, "OpenStream opens TMDB movie and TV links", Toast.LENGTH_LONG).show()
         }
+    }
+
+    /** While casting, the volume keys change the TV's volume rather than the phone's. */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        val up = when (event.keyCode) {
+            android.view.KeyEvent.KEYCODE_VOLUME_UP -> true
+            android.view.KeyEvent.KEYCODE_VOLUME_DOWN -> false
+            else -> return super.dispatchKeyEvent(event)
+        }
+        if (!playbackSession.castStatus.value.isCasting) return super.dispatchKeyEvent(event)
+        if (event.action == android.view.KeyEvent.ACTION_DOWN) playbackSession.adjustCastVolume(up)
+        return true
     }
 }

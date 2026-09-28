@@ -102,6 +102,8 @@ import androidx.media3.common.util.UnstableApi
 import coil3.compose.AsyncImage
 import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.presentation.player.components.ExoPlayerView
+import com.ivor.openstream.presentation.player.components.CastDeviceSheet
+import com.ivor.openstream.presentation.player.components.CastPlaybackView
 import com.ivor.openstream.presentation.player.components.SourcesPageActions
 import com.ivor.openstream.presentation.player.components.SourcesPanel
 import com.ivor.openstream.presentation.player.components.UpNextOverlay
@@ -154,6 +156,13 @@ fun PlayerScreen(
     val appSettings by viewModel.appSettings.collectAsState()
     val preferredSubtitleLanguage by viewModel.preferredSubtitleLanguage.collectAsState()
     val skipSegments by viewModel.skipSegments.collectAsState()
+    val castStatus by viewModel.castStatus.collectAsState()
+    val castError by viewModel.castError.collectAsState()
+    val castLoading by viewModel.castLoading.collectAsState()
+    val castSubtitles by viewModel.castSubtitles.collectAsState()
+    val isCasting = castStatus.isCasting
+    var showCastSheet by remember { mutableStateOf(false) }
+    val enterPictureInPicture = rememberEnterPictureInPicture()
 
     var localVideoUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var isResolvingLocalUri by remember { mutableStateOf(downloadId != null) }
@@ -180,6 +189,10 @@ fun PlayerScreen(
     val allSubtitles = remember(remoteSubtitles, providerSubtitles) {
         (providerSubtitles + remoteSubtitles).distinctBy { it.url }
     }
+    // The TV gets the same subtitles, starting with the remembered language.
+    LaunchedEffect(allSubtitles, preferredSubtitleLanguage) {
+        viewModel.setCastSubtitleCandidates(allSubtitles, preferredSubtitleLanguage)
+    }
     // Hold playback until the saved position is known so a resume never starts from zero.
     val videoUrl = (localVideoUrl ?: activeServer?.url)?.takeIf { startPositionMs != null }
     var showUpNext by remember(tmdbId, season, episode) { mutableStateOf(false) }
@@ -203,7 +216,7 @@ fun PlayerScreen(
     var togglePlaybackSignal by remember { mutableIntStateOf(0) }
 
     PictureInPictureEffect(
-        enabled = videoUrl != null,
+        enabled = videoUrl != null && !isCasting,
         isPlaying = isVideoPlaying,
         onTogglePlayback = { togglePlaybackSignal++ }
     )
@@ -292,6 +305,11 @@ fun PlayerScreen(
         isFullscreen = false
     }
 
+    // The video is on the TV: the phone shows remote controls inline, not a fullscreen player.
+    LaunchedEffect(isCasting) {
+        if (isCasting && isFullscreen) exitFullscreen()
+    }
+
     // Handle back press in fullscreen -- exit fullscreen instead of navigating back
     BackHandler(enabled = isFullscreen) {
         exitFullscreen()
@@ -366,7 +384,32 @@ fun PlayerScreen(
                 // targetState still says "has url" but it was just cleared on an
                 // episode switch) can't dereference a null and crash.
                 val currentUrl = videoUrl
-                if (hasUrl && currentUrl != null) {
+                if (hasUrl && currentUrl != null && isCasting) {
+                    CastPlaybackView(
+                        castPlayer = viewModel.castPlayer ?: return@AnimatedContent,
+                        deviceName = castStatus.deviceName.orEmpty(),
+                        title = playerTitle,
+                        subtitle = playerSubtitle,
+                        artworkUrl = (currentEpisode?.stillPath ?: mediaDetails?.backdropPath)
+                            ?.let { "https://image.tmdb.org/t/p/w1280$it" },
+                        isLoading = castLoading,
+                        error = castError,
+                        subtitles = castSubtitles,
+                        seekStepSeconds = appSettings.seekStepSeconds,
+                        onSelectSubtitle = viewModel::selectCastSubtitle,
+                        onRetry = viewModel::retryCast,
+                        onChooseSource = { showServerPicker = true }.takeIf { downloadId == null },
+                        onNextClick = onNextClick,
+                        onBackClick = onBackClick,
+                        onCastClick = { showCastSheet = true },
+                        onPlaybackEnded = {
+                            val stoppedBySleepTimer = viewModel.consumeEndedBySleepTimer()
+                            showUpNext = nextEpisode != null && appSettings.autoPlayNext && !stoppedBySleepTimer
+                        },
+                        onPlaybackReady = viewModel::onPlaybackReady,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else if (hasUrl && currentUrl != null) {
                     key(activeServer?.id ?: currentUrl) {
                         ExoPlayerView(
                             videoUrl = currentUrl,
@@ -433,7 +476,9 @@ fun PlayerScreen(
                                     showServerPicker = viewModel.activeServer.value == null
                                 }
                             },
-                            onPlaybackReady = viewModel::onPlaybackReady
+                            onPlaybackReady = viewModel::onPlaybackReady,
+                            onCastClick = { showCastSheet = true }.takeIf { castStatus.supported },
+                            onPictureInPictureClick = enterPictureInPicture
                         )
                     }
                 } else {
@@ -582,7 +627,8 @@ fun PlayerScreen(
 
             // Once a stream plays, Sources is a page inside the player's settings panel.
             SourcesPanel(
-                visible = showServerPicker && videoUrl == null && downloadId == null,
+                // While casting there is no in-player settings panel, so sources open here too.
+                visible = showServerPicker && (videoUrl == null || isCasting) && downloadId == null,
                 isFullscreen = isFullscreen,
                 state = serversState,
                 actions = sourceActions,
@@ -619,6 +665,15 @@ fun PlayerScreen(
                     onOpenTitle = onOpenTitle
                 )
             }
+        }
+
+        if (showCastSheet) {
+            CastDeviceSheet(
+                selector = viewModel.castRouteSelector,
+                status = castStatus,
+                onStopCasting = viewModel::stopCasting,
+                onDismiss = { showCastSheet = false }
+            )
         }
 
         SnackbarHost(

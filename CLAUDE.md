@@ -41,8 +41,9 @@ Single activity (`MainActivity`), Navigation Compose, Hilt everywhere.
 
 ```
 data/remote        TMDB (TmdbApi), GitHub releases, DTOs
-data/local         Room: watch later, downloads, watch progress, id mappings
-data/repository    Repository implementations (anime, downloads, progress, OpenSubtitles)
+data/local         Room: watch later, custom lists, downloads, watch progress, id mappings
+data/repository    Repository implementations (anime, downloads, progress, lists, OpenSubtitles)
+data/cast          Cast options, media item converter, LAN proxy the receiver streams through
 data/streaming     Source resolution, extension -> provider registry, id mapping
 data/extensions    Extension catalog: repos, cache, parser, ranking, bundled copy
 data/service       Media3 download service
@@ -55,7 +56,7 @@ Rules:
 - Composables render state and forward intent. ViewModels own screen state as `StateFlow`.
   Networking and persistence stay in `data/`.
 - Routes and arguments live in `presentation/navigation/AppNavigation.kt`.
-- Room schema changes need a real `Migration` in `di/DatabaseModule.kt` (current version 6).
+- Room schema changes need a real `Migration` in `di/DatabaseModule.kt` (current version 7).
   `fallbackToDestructiveMigration` is only a safety net; users' downloads and progress live there.
 
 ## How the main features work
@@ -77,6 +78,13 @@ Rules:
   to it and never releases it; leaving the player keeps playback going in `MiniPlayer`. The session
   also records watch progress (`WatchProgressRepository`) and queues the next episode for
   Continue Watching. Debug builds log player events under `EventLogger`.
+- **Casting.** `PlaybackSession` also owns a Media3 `CastPlayer` (Default Media Receiver, options in
+  `CastOptionsProvider`, initialised from `MainActivity`). `activePlayer` is the TV while casting;
+  connecting moves the item there at the phone's position, disconnecting brings it back paused.
+  Everything the receiver loads goes through `CastMediaProxy`, a small HTTP server on the phone:
+  stateless URLs carry the target and headers, HLS playlists are rewritten, segments are read through
+  the download cache and `ImagePrefixStrippingDataSource`, subtitles are served as WebVTT. The
+  phone must stay on the TV's network. `PlayerScreen` swaps `ExoPlayerView` for `CastPlaybackView`.
 - **Player UI.** Controls in `PlayerControls`; settings and sources share `PlayerPanelHost`
   (bottom sheet inline, in-player side panel in fullscreen so immersive mode survives).
 - **Subtitles.** `OpenSubtitlesRepository` (keyless legacy REST API) plus any the stream carries.
@@ -86,8 +94,12 @@ Rules:
   Media3 playback/downloads and WebView sources still use the system resolver.
 - **Settings.** `AppSettingsStore` (SharedPreferences) holds theme, dynamic color, DNS and
   Wi-Fi-only downloads; `MainActivity` applies the theme.
-- **Skip intro.** `SkipTimesRepository`: AniList GraphQL finds the MAL id, AniSkip v2 gives the
-  intro/recap/credits times (anime only). Both are keyless public APIs with no stability promise.
+- **Skip intro.** `SkipTimesRepository`: `AnimeEpisodeMapper` gives the MAL id and the episode within
+  that entry (AniList title search only as a fallback), AniSkip v2 gives the intro/recap/credits
+  times (anime only), and the player picks the submission timed on the closest file length. All
+  keyless public APIs with no stability promise.
+- **Lists.** Watch Later plus user lists (`CustomListRepository`, `custom_lists` tables); Details has
+  "Add to list" and "Mark all watched", the Saved tab shows the lists.
 - **Backup / diagnostics.** `LibraryBackup` (JSON, merge on restore) and `Diagnostics` (crash files
   in `filesDir/crashes`, recorder installed in `OpenStreamApp`) back the Settings entries.
 - **Deep links.** `MainActivity` is `singleTask`; `DeepLinks` turns TMDB links (VIEW or shared text)
@@ -104,6 +116,8 @@ Rules:
 - Several Vidking routes currently 404/500 for most titles; Yoru (`cdn`) is the reliable one.
 - AniList (about 90 requests a minute) and AniSkip are unauthenticated and undocumented as a
   contract; skip buttons simply don't appear when they fail.
+- Casting relies on the receiver being allowed to load `http://` media from the phone's LAN address
+  (the Default Media Receiver page is HTTPS). Networks with client isolation block it.
 - Wyzie subtitles now require an API key and were removed. Don't add features that need users to
   supply API keys.
 

@@ -36,6 +36,7 @@ import com.ivor.openstream.presentation.update.UpdateScreen
 import com.ivor.openstream.presentation.settings.SettingsScreen
 import com.ivor.openstream.presentation.marketplace.MarketplaceScreen
 import com.ivor.openstream.presentation.player.session.MiniPlayer
+import com.ivor.openstream.presentation.lists.CustomListScreen
 import com.ivor.openstream.presentation.welcome.WelcomeSheet
 import com.ivor.openstream.presentation.shortcuts.AppShortcut
 import com.ivor.openstream.presentation.shortcuts.ShortcutRequest
@@ -104,6 +105,10 @@ sealed class Screen(
     data object Marketplace : Screen("marketplace")
     data object Person : Screen("person/{personId}") {
         fun createRoute(personId: Int) = "person/$personId"
+    }
+
+    data object CustomList : Screen("list/{listId}") {
+        fun createRoute(listId: Long) = "list/$listId"
     }
 
     data object Details : Screen("details/{mediaType}/{animeId}") {
@@ -272,6 +277,21 @@ fun AppNavigation(
                         onBackClick = { navController.popBackStack() },
                         onAnimeClick = { animeId, mediaType ->
                             navController.navigate(Screen.Details.createRoute(mediaType, animeId))
+                        },
+                        onOpenList = { listId ->
+                            navController.navigate(Screen.CustomList.createRoute(listId))
+                        }
+                    )
+                }
+
+                composable(
+                    route = Screen.CustomList.route,
+                    arguments = listOf(navArgument("listId") { type = NavType.LongType })
+                ) {
+                    CustomListScreen(
+                        onBackClick = { navController.popBackStack() },
+                        onOpenTitle = { id, type ->
+                            navController.navigate(Screen.Details.createRoute(type, id))
                         }
                     )
                 }

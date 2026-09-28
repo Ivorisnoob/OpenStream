@@ -65,6 +65,13 @@ import com.ivor.openstream.presentation.components.ChoiceChips
 import com.ivor.openstream.presentation.components.LibraryEmptyState
 import com.ivor.openstream.presentation.components.LibraryHeader
 import com.ivor.openstream.presentation.components.LocalSearchField
+import com.ivor.openstream.presentation.lists.ListCard
+import com.ivor.openstream.presentation.lists.ListNameDialog
+import com.ivor.openstream.presentation.lists.NewListCard
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items as lazyItems
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -74,9 +81,12 @@ import java.util.Locale
 fun WatchLaterScreen(
     onBackClick: () -> Unit,
     onAnimeClick: (Int, String) -> Unit,
+    onOpenList: (listId: Long) -> Unit = {},
     viewModel: WatchLaterViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val lists by viewModel.lists.collectAsState()
+    var creatingList by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var sortMenuOpen by remember { mutableStateOf(false) }
@@ -140,6 +150,38 @@ fun WatchLaterScreen(
                 )
             }
 
+            // The user's own lists sit above Watch Later; the row ends with "New list".
+            item(key = "lists", span = fullWidth) {
+                Column(modifier = Modifier.bleed(16.dp)) {
+                    Text(
+                        text = "Your lists",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp)
+                            .semantics { heading() }
+                    )
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.padding(top = 12.dp)
+                    ) {
+                        lazyItems(lists, key = { "list:${it.id}" }) { list ->
+                            ListCard(list = list, onClick = { onOpenList(list.id) })
+                        }
+                        item(key = "new-list") { NewListCard(onClick = { creatingList = true }) }
+                    }
+                    Text(
+                        text = "Watch later",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .padding(start = 16.dp, end = 16.dp, top = 24.dp)
+                            .semantics { heading() }
+                    )
+                }
+            }
+
             if (state.totalCount > 0) {
                 item(key = "search", span = fullWidth) {
                     Column(modifier = Modifier.bleed(16.dp)) {
@@ -200,6 +242,18 @@ fun WatchLaterScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 112.dp)
+        )
+    }
+
+    if (creatingList) {
+        ListNameDialog(
+            title = "New list",
+            confirmLabel = "Create",
+            onConfirm = { name ->
+                creatingList = false
+                viewModel.createList(name, onOpenList)
+            },
+            onDismiss = { creatingList = false }
         )
     }
 }

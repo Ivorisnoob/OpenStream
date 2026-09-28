@@ -52,6 +52,29 @@ fun rememberIsInPictureInPicture(): Boolean {
 }
 
 /**
+ * Enters picture-in-picture right away (the player's PiP button), or null when the device has no
+ * picture-in-picture support.
+ */
+@Composable
+fun rememberEnterPictureInPicture(): (() -> Unit)? {
+    val context = LocalContext.current
+    val activity = context.findComponentActivity() ?: return null
+    val supported = remember(activity) {
+        activity.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)
+    }
+    if (!supported) return null
+    return remember(activity) {
+        {
+            runCatching {
+                activity.enterPictureInPictureMode(
+                    PictureInPictureParams.Builder().setAspectRatio(VIDEO_ASPECT_RATIO).build()
+                )
+            }
+        }
+    }
+}
+
+/**
  * Lets playback continue in a floating window when the user leaves the app mid-video.
  * Android 12+ enters automatically; older versions enter on the user-leave hint.
  * The window carries a play/pause action so it is useful without reopening the app.

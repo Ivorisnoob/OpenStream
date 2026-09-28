@@ -68,6 +68,11 @@
             </intent-filter>
         </service>
 
+        <!-- Cast: receiver app, media notification and lock-screen controls while casting. -->
+        <meta-data
+            android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
+            android:value="com.ivor.openstream.data.cast.CastOptionsProvider" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"

@@ -108,6 +108,7 @@ class SettingsViewModel @Inject constructor(
             if (summary.watchLater > 0) add("${summary.watchLater} saved")
             if (summary.progress > 0) add("${summary.progress} progress entries")
             if (summary.hidden > 0) add("${summary.hidden} hidden")
+            if (summary.lists > 0) add("${summary.lists} lists")
         }.let { parts ->
             if (parts.isEmpty()) "Restored settings; your library was already up to date"
             else "Restored " + parts.joinToString(", ")

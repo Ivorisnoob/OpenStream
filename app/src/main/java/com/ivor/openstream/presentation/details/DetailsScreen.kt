@@ -63,6 +63,13 @@ import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.foundation.layout.navigationBarsPadding
+import com.ivor.openstream.presentation.lists.AddToListSheet
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.RemoveDone
 import androidx.compose.material.icons.filled.Star
@@ -145,6 +152,16 @@ fun DetailsScreen(
     val episodeDownloads by viewModel.episodeDownloads.collectAsState()
     val episodeProgress by viewModel.episodeProgress.collectAsState()
     val resumeTarget by viewModel.resumeTarget.collectAsState()
+    val titleWatched by viewModel.titleWatched.collectAsState()
+    val titleWatchedBusy by viewModel.titleWatchedBusy.collectAsState()
+    val lists by viewModel.lists.collectAsState()
+    val memberOf by viewModel.memberOf.collectAsState()
+    var showListSheet by remember { mutableStateOf(false) }
+    var confirmUnwatched by remember { mutableStateOf(false) }
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(Unit) {
+        viewModel.messages.collect { snackbar.showSnackbar(it) }
+    }
     val listState = rememberLazyListState()
     val collapsed by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
     val pullToClose = rememberPullToClose(onClose = onBackClick)
@@ -205,6 +222,13 @@ fun DetailsScreen(
                                 }
                             },
                             onToggleSaved = viewModel::toggleWatchLater,
+                            isWatched = titleWatched,
+                            watchedBusy = titleWatchedBusy,
+                            onToggleWatched = {
+                                if (titleWatched) confirmUnwatched = true else viewModel.setTitleWatched(true)
+                            },
+                            inListCount = memberOf.size,
+                            onAddToList = { showListSheet = true },
                             onDownload = {
                                 if (activeDownloads > 0) {
                                     onOpenDownloads()
@@ -370,6 +394,42 @@ fun DetailsScreen(
             collapsed = collapsed,
             shareUrl = (uiState as? DetailsUiState.Success)?.details?.let { "https://www.themoviedb.org/$mediaType/${it.id}" },
             onBackClick = onBackClick
+        )
+
+        SnackbarHost(
+            hostState = snackbar,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(16.dp)
+        )
+    }
+
+    val loadedTitle = (uiState as? DetailsUiState.Success)?.details?.name
+    if (showListSheet && loadedTitle != null) {
+        AddToListSheet(
+            titleName = loadedTitle,
+            lists = lists,
+            memberOf = memberOf,
+            isInWatchLater = isSaved,
+            onToggleWatchLater = viewModel::toggleWatchLater,
+            onToggleList = viewModel::setInList,
+            onCreateList = viewModel::createListWithTitle,
+            onDismiss = { showListSheet = false }
+        )
+    }
+    if (confirmUnwatched && loadedTitle != null) {
+        AlertDialog(
+            onDismissRequest = { confirmUnwatched = false },
+            title = { Text("Mark $loadedTitle unwatched?") },
+            text = { Text("This clears its watch history and resume points, including Continue Watching.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmUnwatched = false
+                    viewModel.setTitleWatched(false)
+                }) { Text("Mark unwatched") }
+            },
+            dismissButton = { TextButton(onClick = { confirmUnwatched = false }) { Text("Cancel") } }
         )
     }
 }
@@ -615,6 +675,11 @@ private fun PrimaryActions(
     trailer: VideoDto?,
     onPlay: () -> Unit,
     onToggleSaved: () -> Unit,
+    isWatched: Boolean,
+    watchedBusy: Boolean,
+    onToggleWatched: () -> Unit,
+    inListCount: Int,
+    onAddToList: () -> Unit,
     onDownload: () -> Unit
 ) {
     val uriHandler = LocalUriHandler.current
@@ -689,6 +754,33 @@ private fun PrimaryActions(
                     modifier = Modifier.weight(1f)
                 )
             }
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ActionTile(
+                icon = if (isWatched) Icons.Default.DoneAll else Icons.Default.Done,
+                label = when {
+                    watchedBusy -> "Marking…"
+                    isWatched -> "Watched"
+                    isMovie -> "Mark watched"
+                    else -> "Mark all watched"
+                },
+                highlighted = isWatched,
+                busy = watchedBusy,
+                onClick = onToggleWatched,
+                modifier = Modifier.weight(1f)
+            )
+            ActionTile(
+                icon = Icons.AutoMirrored.Filled.PlaylistAdd,
+                label = if (inListCount > 0) "In $inListCount list${if (inListCount == 1) "" else "s"}" else "Add to list",
+                highlighted = inListCount > 0,
+                onClick = onAddToList,
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }

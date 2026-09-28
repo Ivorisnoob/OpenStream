@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CastConnected
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -44,6 +45,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -80,13 +83,15 @@ fun MiniPlayer(
     val session = viewModel.session
     val nowPlaying by session.nowPlaying.collectAsState()
     val isPlaying by session.isPlaying.collectAsState()
+    val castStatus by session.castStatus.collectAsState()
     val item = nowPlaying ?: return
 
     var progress by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(item.mediaUri) {
         while (true) {
-            val duration = session.player.duration
-            progress = if (duration > 0) (session.player.currentPosition.toFloat() / duration).coerceIn(0f, 1f) else 0f
+            val active = session.activePlayer
+            val duration = active.duration
+            progress = if (duration > 0) (active.currentPosition.toFloat() / duration).coerceIn(0f, 1f) else 0f
             delay(500)
         }
     }
@@ -95,7 +100,8 @@ fun MiniPlayer(
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) session.player.pause()
+            // A TV keeps playing when the phone locks or the app goes to the background.
+            if (event == Lifecycle.Event.ON_STOP && !session.castStatus.value.isCasting) session.player.pause()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -156,7 +162,23 @@ fun MiniPlayer(
                         .clip(ExpressiveShapes.medium)
                         .background(Color.Black)
                 ) {
-                    AndroidView(
+                    if (castStatus.isCasting) {
+                        AsyncImage(
+                            model = (item.stillPath ?: item.backdropPath ?: item.posterPath)
+                                ?.let { "https://image.tmdb.org/t/p/w300$it" },
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        Icon(
+                            Icons.Default.CastConnected,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .size(28.dp)
+                        )
+                    } else AndroidView(
                         factory = { context ->
                             PlayerView(context).apply {
                                 useController = false
@@ -184,9 +206,10 @@ fun MiniPlayer(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    if (item.subtitle.isNotEmpty()) {
+                    val detail = castStatus.deviceName?.let { "Casting to $it" } ?: item.subtitle
+                    if (detail.isNotEmpty()) {
                         Text(
-                            text = item.subtitle,
+                            text = detail,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,

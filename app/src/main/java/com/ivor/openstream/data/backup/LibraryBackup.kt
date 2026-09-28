@@ -1,8 +1,11 @@
 package com.ivor.openstream.data.backup
 
+import com.ivor.openstream.data.local.dao.CustomListDao
 import com.ivor.openstream.data.local.dao.HiddenTitleDao
 import com.ivor.openstream.data.local.dao.WatchLaterDao
 import com.ivor.openstream.data.local.dao.WatchProgressDao
+import com.ivor.openstream.data.local.entity.CustomListEntity
+import com.ivor.openstream.data.local.entity.CustomListItemEntity
 import com.ivor.openstream.data.local.entity.HiddenTitleEntity
 import com.ivor.openstream.data.local.entity.WatchLaterEntity
 import com.ivor.openstream.data.local.entity.WatchProgressEntity
@@ -19,20 +22,28 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /** What a restore added, for the confirmation message. */
-data class RestoreSummary(val watchLater: Int, val progress: Int, val hidden: Int, val settingsRestored: Boolean)
+data class RestoreSummary(
+    val watchLater: Int,
+    val progress: Int,
+    val hidden: Int,
+    val settingsRestored: Boolean,
+    val lists: Int = 0
+)
 
 class BackupFormatException(message: String) : Exception(message)
 
 /**
- * The user's library as one JSON file: Watch Later, watch progress (which is also History), hidden
- * titles and app settings. Downloads aren't included; they're video files tied to this device.
- * Restoring merges: nothing already on the device is deleted, and progress keeps the newer row.
+ * The user's library as one JSON file: Watch Later, custom lists, watch progress (which is also
+ * History), hidden titles and app settings. Downloads aren't included; they're video files tied to this device.
+ * Restoring merges: nothing already on the device is deleted, progress keeps the newer row, and
+ * lists merge by name.
  */
 @Singleton
 class LibraryBackup @Inject constructor(
     private val watchLaterDao: WatchLaterDao,
     private val watchProgressDao: WatchProgressDao,
     private val hiddenTitleDao: HiddenTitleDao,
+    private val customListDao: CustomListDao,
     private val settingsStore: AppSettingsStore
 ) {
     private val json = Json {
@@ -47,6 +58,15 @@ class LibraryBackup @Inject constructor(
             watchLater = watchLaterDao.getAllWatchLaterItems().first().map { it.toBackup() },
             progress = watchProgressDao.observeAll().first().map { it.toBackup() },
             hidden = hiddenTitleDao.observeAll().first().map { it.toBackup() },
+            lists = customListDao.allItems().groupBy { it.listId }.let { itemsByList ->
+                customListDao.allLists().map { list ->
+                    BackupList(
+                        name = list.name,
+                        createdAt = list.createdAt,
+                        items = itemsByList[list.id].orEmpty().map { it.toBackup() }
+                    )
+                }
+            },
             settings = settingsStore.current.toBackup()
         )
         output.bufferedWriter().use { it.write(json.encodeToString(BackupFile.serializer(), backup)) }
@@ -69,13 +89,19 @@ class LibraryBackup @Inject constructor(
             }
         }
         backup.hidden.forEach { hiddenTitleDao.insert(it.toEntity()) }
+        backup.lists.forEach { list ->
+            val listId = customListDao.findByName(list.name)
+                ?: customListDao.insertList(CustomListEntity(name = list.name, createdAt = list.createdAt))
+            list.items.forEach { customListDao.addItem(it.toEntity(listId)) }
+        }
         backup.settings?.let { saved -> settingsStore.update { saved.applyTo(it) } }
 
         return RestoreSummary(
             watchLater = backup.watchLater.size,
             progress = progressAdded,
             hidden = backup.hidden.size,
-            settingsRestored = backup.settings != null
+            settingsRestored = backup.settings != null,
+            lists = backup.lists.size
         )
     }
 
@@ -94,8 +120,30 @@ private data class BackupFile(
     val watchLater: List<BackupWatchLater> = emptyList(),
     val progress: List<BackupProgress> = emptyList(),
     val hidden: List<BackupHidden> = emptyList(),
+    val lists: List<BackupList> = emptyList(),
     val settings: BackupSettings? = null
 )
+
+@Serializable
+private data class BackupList(
+    val name: String,
+    val createdAt: Long = 0L,
+    val items: List<BackupListItem> = emptyList()
+)
+
+@Serializable
+private data class BackupListItem(
+    val tmdbId: Int,
+    val mediaType: String,
+    val title: String,
+    val posterPath: String? = null,
+    val voteAverage: Double = 0.0,
+    val addedAt: Long = 0L
+) {
+    fun toEntity(listId: Long) = CustomListItemEntity(listId, tmdbId, mediaType, title, posterPath, voteAverage, addedAt)
+}
+
+private fun CustomListItemEntity.toBackup() = BackupListItem(tmdbId, mediaType, title, posterPath, voteAverage, addedAt)
 
 @Serializable
 private data class BackupWatchLater(

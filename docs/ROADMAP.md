@@ -4,7 +4,7 @@ Features OpenStream is missing compared with other streaming apps, grouped by ar
 ordered roughly by priority. Tick items off as they land; if the code already does something listed
 here, trust the code and fix this file.
 
-Last reviewed: 2026-09-27.
+Last reviewed: 2026-09-28.
 
 ## Already in place
 
@@ -20,9 +20,6 @@ source failover, in-app updates with release notes, dynamic color.
       artwork fail to load without AdGuard. Settings → Network → DNS picks System, AdGuard
       (default), Cloudflare or Google; every OkHttp client and Coil go through `AppDns`, which falls
       back to the network's DNS if the resolver is unreachable.
-- [ ] **DNS for playback and downloads.** Media3 still uses `DefaultHttpDataSource` (system DNS), and
-      WebView sources can't take a custom resolver. Switch Media3 to `OkHttpDataSource` if stream
-      CDNs turn out to be DNS-blocked too. High-risk playback change.
 
 ## Player
 
@@ -31,8 +28,9 @@ source failover, in-app updates with release notes, dynamic color.
       or Android Auto/Wear surface. Highest-impact player gap.
 - [x] **Pinch to zoom.** Pinch out to fill (crop the black bars), pinch in to fit.
 - [x] **Resize / aspect button.** Fit, Zoom to fill, Stretch (fullscreen).
-- [x] **Skip intro / recap / credits.** AniSkip for anime (MAL id looked up on AniList); a manual
-      "Skip 85s" early in anything else.
+- [x] **Skip intro / recap / credits.** AniSkip for anime; the MAL id and episode come from the same
+      TMDB -> AniList mapping the anime sources use (title search only as a fallback), and the
+      submission timed on the closest file length wins. A manual "Skip 85s" early in anything else.
 - [x] **Subtitle sync offset.** Shift cues earlier or later in the player (sideloaded subtitles only;
       embedded tracks are rendered by Media3).
 - [x] **Screen lock.** Ignore touches during playback until unlocked.
@@ -52,8 +50,12 @@ source failover, in-app updates with release notes, dynamic color.
 - [x] **Orientation lock** in fullscreen.
 - [x] **Remembered audio and subtitle language** applied to every title (original vs. dub, subtitle
       language), instead of picking per episode.
-- [ ] **Chromecast.** Needs `media3-cast`; source URLs with Referer/Origin headers may not play on a
-      Cast receiver.
+- [x] **Chromecast.** Cast button in the player (Default Media Receiver). The phone runs a small LAN
+      proxy (`CastMediaProxy`) so the TV gets the stream's Referer/Origin headers, CORS, rewritten HLS
+      playlists, PNG-prefix stripping and WebVTT subtitles; downloads cast from the cache. Playback
+      moves to the TV at the current position and back to the phone (paused) on disconnect; progress,
+      mini player, up next, sleep timer, TV subtitles and volume keys work while casting.
+- [x] **Picture-in-picture button** in the player's top bar, besides auto-entering on Home.
 - [ ] **Seekbar thumbnail previews.** Only when the stream ships trick-play images; low priority.
 
 Fixed: the brightness gesture now starts from the current brightness, and leaving the player hands
@@ -74,8 +76,9 @@ brightness back to the system.
 - [ ] **Trakt / AniList / MAL sync** for history, progress and ratings (optional sign-in, OAuth; no
       user-supplied keys).
 - [x] **Mark watched / unwatched** by season (and per episode from its long-press menu).
-- [ ] **Mark a whole title watched / unwatched.**
-- [ ] **Custom lists** beyond Watch Later.
+- [x] **Mark a whole title watched / unwatched** (every aired episode, specials aside; unwatched asks first).
+- [x] **Custom lists** beyond Watch Later: "Add to list" on Details, lists on the Saved tab, rename,
+      delete, remove with undo; included in backups.
 - [ ] **New episode notifications** for followed shows (needs WorkManager, not in the app yet).
 - [ ] **Profiles** with separate history and progress.
 

@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.ivor.openstream.data.local.AppDatabase
+import com.ivor.openstream.data.local.dao.CustomListDao
 import com.ivor.openstream.data.local.dao.DownloadDao
 import com.ivor.openstream.data.local.dao.HiddenTitleDao
 import com.ivor.openstream.data.local.dao.IdMappingDao
@@ -97,6 +98,39 @@ object DatabaseModule {
         }
     }
 
+    private val migration6To7 = object : Migration(6, 7) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `custom_lists` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `name` TEXT NOT NULL,
+                    `createdAt` INTEGER NOT NULL,
+                    `updatedAt` INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+            database.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `custom_list_items` (
+                    `listId` INTEGER NOT NULL,
+                    `tmdbId` INTEGER NOT NULL,
+                    `mediaType` TEXT NOT NULL,
+                    `title` TEXT NOT NULL,
+                    `posterPath` TEXT,
+                    `voteAverage` REAL NOT NULL,
+                    `addedAt` INTEGER NOT NULL,
+                    PRIMARY KEY(`listId`, `mediaType`, `tmdbId`)
+                )
+                """.trimIndent()
+            )
+            database.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_custom_list_items_mediaType_tmdbId` " +
+                    "ON `custom_list_items` (`mediaType`, `tmdbId`)"
+            )
+        }
+    }
+
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -105,7 +139,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "open_stream_db"
         )
-            .addMigrations(migration2To3, migration3To4, migration4To5, migration5To6)
+            .addMigrations(migration2To3, migration3To4, migration4To5, migration5To6, migration6To7)
             .fallbackToDestructiveMigration()
             .build()
     }
@@ -128,6 +162,11 @@ object DatabaseModule {
     @Provides
     fun provideHiddenTitleDao(database: AppDatabase): HiddenTitleDao {
         return database.hiddenTitleDao()
+    }
+
+    @Provides
+    fun provideCustomListDao(database: AppDatabase): CustomListDao {
+        return database.customListDao()
     }
 
     @Provides

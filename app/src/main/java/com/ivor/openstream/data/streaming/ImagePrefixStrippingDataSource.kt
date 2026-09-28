@@ -1,4 +1,4 @@
-package com.ivor.openstream.presentation.player.session
+package com.ivor.openstream.data.streaming
 
 import android.net.Uri
 import androidx.media3.common.C
