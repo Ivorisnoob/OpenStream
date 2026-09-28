@@ -1510,7 +1510,8 @@ private fun GestureIndicator(
 
 private const val BOOST_SPEED = 2f
 /** A typical opening's length, for titles AniSkip has no times for. */
-private const val MANUAL_SKIP_MS = 85_000L
+/** How far the manual skip (and PiP "Skip intro" without AniSkip times) jumps. */
+const val MANUAL_SKIP_MS = 85_000L
 /** The manual skip is only offered this early in a video. */
 private const val MANUAL_SKIP_WINDOW_MS = 10 * 60_000L
 

@@ -13,6 +13,7 @@ import com.ivor.openstream.data.repository.ProfileRepository
 import com.ivor.openstream.data.settings.AppSettings
 import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.settings.DnsProvider
+import com.ivor.openstream.data.settings.PipAction
 import com.ivor.openstream.data.settings.ThemeMode
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
@@ -263,7 +264,9 @@ private data class BackupSettings(
     val seekStepSeconds: Int? = null,
     val defaultSpeed: Float? = null,
     val autoPlayNext: Boolean? = null,
-    val downloadMaxHeight: Int? = null
+    val downloadMaxHeight: Int? = null,
+    val pipLeftAction: String? = null,
+    val pipRightAction: String? = null
 ) {
     fun applyTo(current: AppSettings) = current.copy(
         themeMode = ThemeMode.entries.firstOrNull { it.name == themeMode } ?: current.themeMode,
@@ -273,7 +276,9 @@ private data class BackupSettings(
         seekStepSeconds = seekStepSeconds?.takeIf { it in AppSettings.SEEK_STEPS } ?: current.seekStepSeconds,
         defaultSpeed = defaultSpeed?.takeIf { it in AppSettings.DEFAULT_SPEEDS } ?: current.defaultSpeed,
         autoPlayNext = autoPlayNext ?: current.autoPlayNext,
-        downloadMaxHeight = downloadMaxHeight?.takeIf { it in AppSettings.DOWNLOAD_HEIGHTS } ?: current.downloadMaxHeight
+        downloadMaxHeight = downloadMaxHeight?.takeIf { it in AppSettings.DOWNLOAD_HEIGHTS } ?: current.downloadMaxHeight,
+        pipLeftAction = PipAction.entries.firstOrNull { it.name == pipLeftAction } ?: current.pipLeftAction,
+        pipRightAction = PipAction.entries.firstOrNull { it.name == pipRightAction } ?: current.pipRightAction
     )
 }
 
@@ -285,5 +290,7 @@ private fun AppSettings.toBackup() = BackupSettings(
     seekStepSeconds = seekStepSeconds,
     defaultSpeed = defaultSpeed,
     autoPlayNext = autoPlayNext,
-    downloadMaxHeight = downloadMaxHeight
+    downloadMaxHeight = downloadMaxHeight,
+    pipLeftAction = pipLeftAction.name,
+    pipRightAction = pipRightAction.name
 )

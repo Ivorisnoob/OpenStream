@@ -26,6 +26,14 @@ enum class DnsProvider(
     GOOGLE("Google", "https://dns.google/dns-query", listOf("8.8.8.8", "8.8.4.4"))
 }
 
+/** A button in the picture-in-picture window, beside play/pause. */
+enum class PipAction(val label: String) {
+    REWIND("Back"),
+    FORWARD("Forward"),
+    NEXT_EPISODE("Next"),
+    SKIP_INTRO("Skip intro")
+}
+
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,
@@ -38,7 +46,10 @@ data class AppSettings(
     /** Count down into the next episode when one ends. */
     val autoPlayNext: Boolean = true,
     /** Tallest rendition a download picks from a master playlist. */
-    val downloadMaxHeight: Int = 1080
+    val downloadMaxHeight: Int = 1080,
+    /** Picture-in-picture buttons left and right of play/pause (Android shows three at most). */
+    val pipLeftAction: PipAction = PipAction.REWIND,
+    val pipRightAction: PipAction = PipAction.FORWARD
 ) {
     companion object {
         val SEEK_STEPS = listOf(5, 10, 15, 30)
@@ -82,6 +93,8 @@ class AppSettingsStore @Inject constructor(
             .putFloat(KEY_DEFAULT_SPEED, updated.defaultSpeed)
             .putBoolean(KEY_AUTO_PLAY_NEXT, updated.autoPlayNext)
             .putInt(KEY_DOWNLOAD_HEIGHT, updated.downloadMaxHeight)
+            .putString(KEY_PIP_LEFT, updated.pipLeftAction.name)
+            .putString(KEY_PIP_RIGHT, updated.pipRightAction.name)
             .apply()
     }
 
@@ -98,7 +111,9 @@ class AppSettingsStore @Inject constructor(
                 .takeIf { it in AppSettings.DEFAULT_SPEEDS } ?: defaults.defaultSpeed,
             autoPlayNext = prefs.getBoolean(KEY_AUTO_PLAY_NEXT, defaults.autoPlayNext),
             downloadMaxHeight = prefs.getInt(KEY_DOWNLOAD_HEIGHT, defaults.downloadMaxHeight)
-                .takeIf { it in AppSettings.DOWNLOAD_HEIGHTS } ?: defaults.downloadMaxHeight
+                .takeIf { it in AppSettings.DOWNLOAD_HEIGHTS } ?: defaults.downloadMaxHeight,
+            pipLeftAction = enumOrDefault(prefs.getString(KEY_PIP_LEFT, null), defaults.pipLeftAction),
+            pipRightAction = enumOrDefault(prefs.getString(KEY_PIP_RIGHT, null), defaults.pipRightAction)
         )
     }
 
@@ -115,6 +130,8 @@ class AppSettingsStore @Inject constructor(
         const val KEY_AUTO_PLAY_NEXT = "app_auto_play_next"
         const val KEY_DOWNLOAD_HEIGHT = "app_download_max_height"
         const val KEY_ACTIVE_PROFILE = "app_active_profile_id"
+        const val KEY_PIP_LEFT = "app_pip_left_action"
+        const val KEY_PIP_RIGHT = "app_pip_right_action"
         /** Matches ProfileEntity.DEFAULT_ID, the profile the Room migration seeds. */
         const val DEFAULT_PROFILE_ID = 1L
     }

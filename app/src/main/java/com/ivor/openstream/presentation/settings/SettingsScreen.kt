@@ -26,6 +26,8 @@ import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.PictureInPictureAlt
+import com.ivor.openstream.data.settings.PipAction
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Restore
@@ -255,6 +257,32 @@ fun SettingsScreen(
                         supporting = "Count down into the next episode",
                         checked = appSettings.autoPlayNext,
                         onCheckedChange = viewModel::setAutoPlayNext
+                    )
+                }
+            }
+
+            item(key = "pip") {
+                SettingsGroup(
+                    title = "Picture-in-picture",
+                    footer = "Play/pause always sits in the middle. Android shows three buttons at most."
+                ) {
+                    ChoiceRow(
+                        index = 0, count = 2,
+                        icon = Icons.Default.PictureInPictureAlt,
+                        title = "Left button",
+                        options = PipAction.entries,
+                        selected = appSettings.pipLeftAction,
+                        label = { it.label },
+                        onSelect = viewModel::setPipLeftAction
+                    )
+                    ChoiceRow(
+                        index = 1, count = 2,
+                        icon = Icons.Default.PictureInPictureAlt,
+                        title = "Right button",
+                        options = PipAction.entries,
+                        selected = appSettings.pipRightAction,
+                        label = { it.label },
+                        onSelect = viewModel::setPipRightAction
                     )
                 }
             }

@@ -55,7 +55,8 @@ source failover, in-app updates with release notes, dynamic color.
       playlists, PNG-prefix stripping and WebVTT subtitles; downloads cast from the cache. Playback
       moves to the TV at the current position and back to the phone (paused) on disconnect; progress,
       mini player, up next, sleep timer, TV subtitles and volume keys work while casting.
-- [x] **Picture-in-picture button** in the player's top bar, besides auto-entering on Home.
+- [x] **Picture-in-picture button** in the player's top bar, besides auto-entering on Home. The
+      PiP window has play/pause plus two buttons picked in Settings (back, forward, next, skip intro).
 - [ ] **Seekbar thumbnail previews.** Only when the stream ships trick-play images; low priority.
 
 Fixed: the brightness gesture now starts from the current brightness, and leaving the player hands

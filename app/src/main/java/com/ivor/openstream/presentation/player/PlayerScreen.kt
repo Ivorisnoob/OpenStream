@@ -102,6 +102,9 @@ import androidx.media3.common.util.UnstableApi
 import coil3.compose.AsyncImage
 import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.presentation.player.components.ExoPlayerView
+import com.ivor.openstream.presentation.player.components.MANUAL_SKIP_MS
+import com.ivor.openstream.data.repository.forDuration
+import com.ivor.openstream.data.settings.PipAction
 import com.ivor.openstream.presentation.player.components.CastDeviceSheet
 import com.ivor.openstream.presentation.player.components.CastPlaybackView
 import com.ivor.openstream.presentation.player.components.SourcesPageActions
@@ -218,7 +221,27 @@ fun PlayerScreen(
     PictureInPictureEffect(
         enabled = videoUrl != null && !isCasting,
         isPlaying = isVideoPlaying,
-        onTogglePlayback = { togglePlaybackSignal++ }
+        onTogglePlayback = { togglePlaybackSignal++ },
+        leftAction = appSettings.pipLeftAction,
+        rightAction = appSettings.pipRightAction,
+        seekStepSeconds = appSettings.seekStepSeconds,
+        canGoNext = nextEpisode != null,
+        onAction = { action ->
+            val player = viewModel.player
+            val position = player.currentPosition.coerceAtLeast(0L)
+            val stepMs = appSettings.seekStepSeconds * 1_000L
+            when (action) {
+                PipAction.REWIND -> player.seekTo((position - stepMs).coerceAtLeast(0L))
+                PipAction.FORWARD -> player.seekTo(position + stepMs)
+                PipAction.NEXT_EPISODE -> nextEpisode?.let { onEpisodeClick(it.season, it.episode) }
+                PipAction.SKIP_INTRO -> {
+                    // The segment playing now (AniSkip), else the same jump as the manual skip.
+                    val segment = skipSegments.forDuration(player.duration.coerceAtLeast(0L))
+                        .firstOrNull { position >= it.startMs && position < it.endMs - 1_000 }
+                    player.seekTo(segment?.endMs ?: (position + MANUAL_SKIP_MS))
+                }
+            }
+        }
     )
 
     // Trigger data fetch
