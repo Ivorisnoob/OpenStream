@@ -6,6 +6,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.ivor.openstream.data.local.AppDatabase
 import com.ivor.openstream.data.local.dao.DownloadDao
+import com.ivor.openstream.data.local.dao.HiddenTitleDao
 import com.ivor.openstream.data.local.dao.IdMappingDao
 import com.ivor.openstream.data.local.dao.WatchLaterDao
 import com.ivor.openstream.data.local.dao.WatchProgressDao
@@ -80,6 +81,22 @@ object DatabaseModule {
         }
     }
 
+    private val migration5To6 = object : Migration(5, 6) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `hidden_titles` (
+                    `tmdbId` INTEGER NOT NULL,
+                    `mediaType` TEXT NOT NULL,
+                    `title` TEXT NOT NULL,
+                    `hiddenAt` INTEGER NOT NULL,
+                    PRIMARY KEY(`mediaType`, `tmdbId`)
+                )
+                """.trimIndent()
+            )
+        }
+    }
+
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -88,7 +105,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "open_stream_db"
         )
-            .addMigrations(migration2To3, migration3To4, migration4To5)
+            .addMigrations(migration2To3, migration3To4, migration4To5, migration5To6)
             .fallbackToDestructiveMigration()
             .build()
     }
@@ -106,6 +123,11 @@ object DatabaseModule {
     @Provides
     fun provideIdMappingDao(database: AppDatabase): IdMappingDao {
         return database.idMappingDao()
+    }
+
+    @Provides
+    fun provideHiddenTitleDao(database: AppDatabase): HiddenTitleDao {
+        return database.hiddenTitleDao()
     }
 
     @Provides

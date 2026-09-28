@@ -405,7 +405,7 @@ private fun ExpandableText(text: String) {
 }
 
 @Composable
-private fun EpisodeThumb(episode: EpisodeDto, progress: WatchProgress?) {
+internal fun EpisodeThumb(episode: EpisodeDto, progress: WatchProgress?) {
     Box(
         modifier = Modifier
             .width(112.dp)

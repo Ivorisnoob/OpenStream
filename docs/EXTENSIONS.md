@@ -97,6 +97,13 @@ falls back to `main/extensions/index.json`.
 | `vidking-direct` | `VidkingDirectProvider` | `endpoint`; optional `language`, `qualityFilter`, `priority` |
 | `vidking-webview` | `WebEmbedResolver` with the built-in Vidking page (slow compatibility resolver) | none |
 | `web-embed` | `WebEmbedResolver` (hidden WebView that records the player's media requests) | `movieUrl` and/or `tvUrl` (https templates using `{tmdbId}`, `{imdbId}`, `{season}`, `{episode}`); optional `priority` |
+| `anikoto` | `AnikotoProvider` (site search, MAL-id check, megaplay embeds via `MegaplayExtractor`) | `endpoint`: the site origin (`https://…`) |
+| `reanime` | `ReAnimeProvider` (megaplay by AniList id; the site is the Referer) | `endpoint`: the site origin |
+| `animepahe` | `AnimePaheProvider` (Cloudflare cleared in a hidden WebView by `CloudflareClearance`, kwik packed-script unpacking) | `endpoint`: the site origin |
+
+The three anime engines resolve only titles that `AnimeEpisodeMapper` can map to an AniList
+episode (ani.zip by TMDB id, then AniList sequels, matched by TVDB season/episode or air date);
+everything else returns no servers. Each returns sub and dub streams when the site has them.
 
 `web-embed` entries should be published with `"fallback": true`: they load third-party pages in an
 off-screen browser, which is slow, so they run only when the direct routes return nothing or every

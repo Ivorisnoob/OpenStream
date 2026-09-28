@@ -1,11 +1,16 @@
 package com.ivor.openstream.presentation.downloads
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ivor.openstream.data.local.entity.DownloadEntity
 import com.ivor.openstream.domain.model.DownloadStatus
 import com.ivor.openstream.domain.repository.DownloadRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -29,13 +34,16 @@ data class DownloadsUiState(
     val inProgress: List<DownloadEntity> = emptyList(),
     val library: List<DownloadGroup> = emptyList(),
     val completedCount: Int = 0,
-    val storedBytes: Long = 0L
+    val storedBytes: Long = 0L,
+    /** Free space on the volume downloads are written to. */
+    val freeBytes: Long = 0L
 ) {
     val isEmpty: Boolean get() = !isLoading && inProgress.isEmpty() && library.isEmpty()
 }
 
 @HiltViewModel
 class DownloadViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val repository: DownloadRepository
 ) : ViewModel() {
 
@@ -62,9 +70,11 @@ class DownloadViewModel @Inject constructor(
                     }
                     .sortedByDescending { group -> group.items.maxOf { it.dateAdded } },
                 completedCount = completed.size,
-                storedBytes = completed.sumOf { it.totalBytes }
+                storedBytes = completed.sumOf { it.totalBytes },
+                freeBytes = (context.getExternalFilesDir(null) ?: context.filesDir).usableSpace
             )
         }
+        .flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DownloadsUiState())
 
     fun pause(download: DownloadEntity) = repository.pause(download.downloadId)
@@ -75,6 +85,13 @@ class DownloadViewModel @Inject constructor(
 
     fun remove(download: DownloadEntity) {
         viewModelScope.launch { repository.removeDownload(download.downloadId) }
+    }
+
+    /** Removes every download, finished or not. */
+    fun removeAll() {
+        viewModelScope.launch {
+            repository.getAllDownloads().first().forEach { repository.removeDownload(it.downloadId) }
+        }
     }
 
     fun removeGroup(group: DownloadGroup) {

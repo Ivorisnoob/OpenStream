@@ -23,6 +23,7 @@ import com.ivor.openstream.domain.repository.WatchProgressRepository
 import com.ivor.openstream.presentation.player.NextEpisodeTarget
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -59,6 +60,12 @@ data class NowPlaying(
         this.mediaType == mediaType && this.tmdbId == tmdbId && this.season == season && this.episode == episode
 }
 
+/** A pending stop: after a set time, or when the current episode or movie ends. */
+sealed interface SleepTimer {
+    data class After(val minutes: Int, val endsAtMs: Long) : SleepTimer
+    data object EndOfEpisode : SleepTimer
+}
+
 /**
  * One player for the whole app. The player screen attaches to it; leaving that screen keeps
  * playback going in the mini player instead of tearing the stream down. Watch progress is saved
@@ -83,6 +90,11 @@ class PlaybackSession @Inject constructor(
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
+    private val _sleepTimer = MutableStateFlow<SleepTimer?>(null)
+    val sleepTimer: StateFlow<SleepTimer?> = _sleepTimer.asStateFlow()
+    private var sleepJob: Job? = null
+    private var endedBySleepTimer = false
+
     private var lastSavedPositionMs = -1L
     private var completionRecordedFor: String? = null
 
@@ -99,6 +111,7 @@ class PlaybackSession @Inject constructor(
         if (previous == null || !previous.matches(nowPlaying.mediaType, nowPlaying.tmdbId, nowPlaying.season, nowPlaying.episode)) {
             lastSavedPositionMs = -1L
             completionRecordedFor = null
+            endedBySleepTimer = false
         }
         _nowPlaying.value = nowPlaying
     }
@@ -107,8 +120,33 @@ class PlaybackSession @Inject constructor(
         if (player.isPlaying) player.pause() else player.play()
     }
 
+    /** Arms, replaces or (with null) cancels the sleep timer. */
+    fun setSleepTimer(timer: SleepTimer?) {
+        sleepJob?.cancel()
+        sleepJob = null
+        _sleepTimer.value = timer
+        if (timer is SleepTimer.After) {
+            sleepJob = scope.launch {
+                delay((timer.endsAtMs - System.currentTimeMillis()).coerceAtLeast(0L))
+                player.pause()
+                _sleepTimer.value = null
+            }
+        }
+    }
+
+    /**
+     * True once after playback ended because of the end-of-episode timer, so the screen skips
+     * auto-playing the next episode.
+     */
+    fun consumeEndedBySleepTimer(): Boolean {
+        val ended = endedBySleepTimer
+        endedBySleepTimer = false
+        return ended
+    }
+
     /** Ends the session: saves where the user stopped and unloads the stream. */
     fun stop() {
+        setSleepTimer(null)
         recordProgress(force = true)
         player.stop()
         player.clearMediaItems()
@@ -136,7 +174,10 @@ class PlaybackSession @Inject constructor(
                 .build()
         }
         return ExoPlayer.Builder(context)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(context).setDataSourceFactory(dataSource))
+            .setMediaSourceFactory(
+                DefaultMediaSourceFactory(context)
+                    .setDataSourceFactory(ImagePrefixStrippingDataSource.Factory(dataSource))
+            )
             .setTrackSelector(trackSelector)
             .build()
             .apply {
@@ -150,7 +191,14 @@ class PlaybackSession @Inject constructor(
                     }
 
                     override fun onPlaybackStateChanged(playbackState: Int) {
-                        if (playbackState == Player.STATE_ENDED) recordProgress(force = true, ended = true)
+                        if (playbackState == Player.STATE_ENDED) {
+                            recordProgress(force = true, ended = true)
+                            // Registered before the screen's listener, so this is set by the time it asks.
+                            if (_sleepTimer.value == SleepTimer.EndOfEpisode) {
+                                endedBySleepTimer = true
+                                setSleepTimer(null)
+                            }
+                        }
                     }
                 })
                 scope.launch {

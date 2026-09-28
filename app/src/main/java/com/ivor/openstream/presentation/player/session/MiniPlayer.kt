@@ -1,5 +1,12 @@
 package com.ivor.openstream.presentation.player.session
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.launch
 import android.widget.FrameLayout
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedContent
@@ -94,13 +101,49 @@ fun MiniPlayer(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // Swipe sideways to dismiss (stops playback), swipe up to open the player.
+    val scope = rememberCoroutineScope()
+    val offsetX = remember(item.mediaUri) { Animatable(0f) }
+    var dragY by remember { mutableFloatStateOf(0f) }
+    val density = LocalDensity.current
+    val expandThresholdPx = with(density) { 48.dp.toPx() }
+
     Surface(
         onClick = { onExpand(item) },
         shape = ExpressiveShapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
         tonalElevation = 6.dp,
         shadowElevation = 10.dp,
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                translationX = offsetX.value
+                alpha = 1f - (kotlin.math.abs(offsetX.value) / size.width.coerceAtLeast(1f)).coerceIn(0f, 0.8f)
+            }
+            .pointerInput(item.mediaUri) {
+                detectDragGestures(
+                    onDragStart = { dragY = 0f },
+                    onDragEnd = {
+                        val dismissAt = size.width * 0.35f
+                        when {
+                            kotlin.math.abs(offsetX.value) > dismissAt -> scope.launch {
+                                offsetX.animateTo(if (offsetX.value > 0) size.width.toFloat() else -size.width.toFloat())
+                                session.stop()
+                            }
+                            dragY < -expandThresholdPx -> {
+                                scope.launch { offsetX.animateTo(0f) }
+                                onExpand(item)
+                            }
+                            else -> scope.launch { offsetX.animateTo(0f) }
+                        }
+                    },
+                    onDragCancel = { scope.launch { offsetX.animateTo(0f) } }
+                ) { change, drag ->
+                    change.consume()
+                    dragY += drag.y
+                    scope.launch { offsetX.snapTo(offsetX.value + drag.x) }
+                }
+            }
     ) {
         Column {
             Row(

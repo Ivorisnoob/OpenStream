@@ -13,6 +13,7 @@ import androidx.media3.exoplayer.offline.DownloadService
 import com.ivor.openstream.data.local.dao.DownloadDao
 import com.ivor.openstream.data.local.entity.DownloadEntity
 import com.ivor.openstream.data.service.HlsDownloadService
+import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.streaming.DownloadRequestHeaderStore
 import com.ivor.openstream.domain.model.DownloadStatus
 import com.ivor.openstream.domain.model.DownloadTarget
@@ -60,7 +61,8 @@ class DownloadRepositoryImpl @Inject constructor(
     private val headerStore: DownloadRequestHeaderStore,
     private val streamingRepository: StreamingRepository,
     @Named("StreamingClient") private val client: OkHttpClient,
-    private val json: Json
+    private val json: Json,
+    private val appSettings: AppSettingsStore
 ) : DownloadRepository {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -210,7 +212,8 @@ class DownloadRepositoryImpl @Inject constructor(
 
     /**
      * Master playlists list every quality; downloading one would fetch all of them. Pick the best
-     * rendition up to 1080p instead, unless audio lives in separate renditions (then keep the master).
+     * rendition up to the quality set in Settings (1080p by default) instead, unless audio lives in
+     * separate renditions (then keep the master).
      */
     private fun singleRenditionUrl(server: VideoServer): String {
         if (!server.url.isHls()) return server.url
@@ -235,7 +238,10 @@ class DownloadRepositoryImpl @Inject constructor(
             val bandwidth = Regex("BANDWIDTH=(\\d+)").find(line)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
             Triple(uri, height, bandwidth)
         }
-        val chosen = variants.filter { it.second in 1..MAX_DOWNLOAD_HEIGHT }.maxByOrNull { it.second * 10_000_000L + it.third }
+        val maxHeight = appSettings.current.downloadMaxHeight
+        val chosen = variants.filter { it.second in 1..maxHeight }.maxByOrNull { it.second * 10_000_000L + it.third }
+            // Nothing that small: take the smallest listed size rather than the largest.
+            ?: variants.filter { it.second > 0 }.minByOrNull { it.second }
             ?: variants.maxByOrNull { it.third }
             ?: return server.url
         return server.url.toHttpUrlOrNull()?.resolve(chosen.first)?.toString() ?: server.url
@@ -354,7 +360,6 @@ class DownloadRepositoryImpl @Inject constructor(
         const val TAG = "Downloads"
         const val STOP_REASON_PAUSED = 1
         const val MAX_PARALLEL_RESOLUTIONS = 2
-        const val MAX_DOWNLOAD_HEIGHT = 1080
         const val RESOLUTION_TIMEOUT_MS = 30_000L
         const val PROGRESS_INTERVAL_MS = 1_000L
     }

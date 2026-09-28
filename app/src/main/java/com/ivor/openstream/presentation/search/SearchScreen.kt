@@ -10,6 +10,10 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,6 +38,8 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FamilyRestroom
+import androidx.compose.material.icons.filled.FilterAltOff
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.History
@@ -51,7 +57,11 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
@@ -71,6 +81,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,6 +104,7 @@ import coil3.compose.AsyncImage
 import com.ivor.openstream.data.remote.model.AnimeDto
 import com.ivor.openstream.domain.model.BrowseGenre
 import com.ivor.openstream.presentation.components.ChoiceChips
+import com.ivor.openstream.presentation.components.ConnectedChoiceGroup
 import com.ivor.openstream.presentation.components.LibraryEmptyState
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 import java.util.Locale
@@ -113,6 +125,17 @@ fun SearchScreen(
     val gridState = rememberLazyGridState()
     val open: (AnimeDto) -> Unit = { onAnimeClick(it.id, if (it.isMovie) "movie" else "tv") }
     val results = state.visibleResults
+    var showFilters by rememberSaveable { mutableStateOf(false) }
+
+    if (showFilters) {
+        FiltersSheet(
+            filters = state.filters,
+            matchCount = results.size,
+            onChange = viewModel::onFiltersChange,
+            onReset = viewModel::resetFilters,
+            onDismiss = { showFilters = false }
+        )
+    }
 
     // Tapping the Search tab while already on it focuses the field.
     LaunchedEffect(focusTrigger) {
@@ -210,6 +233,11 @@ fun SearchScreen(
                         )
                         SortMenu(state.sort, onSelect = viewModel::onSortSelected)
                     }
+                    ActiveFiltersRow(
+                        filters = state.filters,
+                        onOpen = { showFilters = true },
+                        onChange = viewModel::onFiltersChange
+                    )
                 }
             }
         }
@@ -249,6 +277,15 @@ fun SearchScreen(
                     title = "Search didn't go through",
                     body = "Check your connection and try again.",
                     action = { Button(onClick = viewModel::retry, shape = ExpressiveShapes.medium) { Text("Try again") } }
+                )
+            }
+
+            results.isEmpty() && state.filters.activeCount > 0 && !state.isLoadingMore -> item(key = "no-filtered-results", span = FullWidth) {
+                LibraryEmptyState(
+                    icon = Icons.Default.FilterAltOff,
+                    title = "Nothing matches these filters",
+                    body = "Loosen the year, rating or language, or clear them to see everything.",
+                    action = { Button(onClick = viewModel::resetFilters, shape = ExpressiveShapes.medium) { Text("Clear filters") } }
                 )
             }
 
@@ -419,6 +456,154 @@ private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
             .semantics { heading() }
     )
 }
+
+/** "Filters" chip plus one removable chip per active filter. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ActiveFiltersRow(
+    filters: ResultFilters,
+    onOpen: () -> Unit,
+    onChange: (ResultFilters) -> Unit
+) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        item(key = "open") {
+            FilterChip(
+                selected = filters.activeCount > 0,
+                onClick = onOpen,
+                label = { Text(if (filters.activeCount > 0) "Filters · ${filters.activeCount}" else "Filters") },
+                leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                shape = ExpressiveShapes.small
+            )
+        }
+        if (filters.year != YearRange.ANY) {
+            item(key = "year") {
+                RemovableChip(filters.year.label, "year") { onChange(filters.copy(year = YearRange.ANY)) }
+            }
+        }
+        if (filters.minRating != MinRating.ANY) {
+            item(key = "rating") {
+                RemovableChip("Rated ${filters.minRating.label}", "rating") { onChange(filters.copy(minRating = MinRating.ANY)) }
+            }
+        }
+        filters.language?.let { code ->
+            item(key = "language") {
+                RemovableChip(languageName(code), "language") { onChange(filters.copy(language = null)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RemovableChip(label: String, what: String, onRemove: () -> Unit) {
+    InputChip(
+        selected = true,
+        onClick = onRemove,
+        label = { Text(label) },
+        trailingIcon = { Icon(Icons.Default.Close, contentDescription = "Remove $what filter", modifier = Modifier.size(18.dp)) },
+        shape = ExpressiveShapes.small
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun FiltersSheet(
+    filters: ResultFilters,
+    matchCount: Int,
+    onChange: (ResultFilters) -> Unit,
+    onReset: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 24.dp, end = 24.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Text(
+                text = "Filters",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { heading() }
+            )
+            FilterSection("Release year") {
+                YearRange.entries.forEach { range ->
+                    SheetChip(range.label, selected = filters.year == range) { onChange(filters.copy(year = range)) }
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "Minimum rating",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.semantics { heading() }
+                )
+                ConnectedChoiceGroup(
+                    options = MinRating.entries,
+                    selected = filters.minRating,
+                    label = { if (it == MinRating.ANY) "Any" else "${it.label} ★" },
+                    onSelect = { onChange(filters.copy(minRating = it)) }
+                )
+            }
+            FilterSection("Original language") {
+                SheetChip("Any", selected = filters.language == null) { onChange(filters.copy(language = null)) }
+                FILTER_LANGUAGES.forEach { (code, name) ->
+                    SheetChip(name, selected = filters.language == code) { onChange(filters.copy(language = code)) }
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TextButton(onClick = onReset, enabled = filters.activeCount > 0) { Text("Reset") }
+                Spacer(Modifier.weight(1f))
+                Button(onClick = onDismiss, shape = ExpressiveShapes.medium) {
+                    Text(if (matchCount == 1) "Show 1 result" else "Show $matchCount results")
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FilterSection(title: String, chips: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.semantics { heading() }
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            chips()
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SheetChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label) },
+        leadingIcon = if (selected) {
+            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+        } else {
+            null
+        },
+        shape = ExpressiveShapes.small
+    )
+}
+
+private fun languageName(code: String): String =
+    FILTER_LANGUAGES.firstOrNull { it.first == code }?.second
+        ?: Locale.forLanguageTag(code).getDisplayLanguage(Locale.ENGLISH).ifBlank { code.uppercase() }
 
 @Composable
 private fun SortMenu(selected: SortOption, onSelect: (SortOption) -> Unit) {

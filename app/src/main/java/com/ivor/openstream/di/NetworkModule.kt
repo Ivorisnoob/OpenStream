@@ -3,6 +3,7 @@ package com.ivor.openstream.di
 import com.ivor.openstream.BuildConfig
 import com.ivor.openstream.data.remote.TmdbApi
 import com.ivor.openstream.data.remote.GithubApi
+import com.ivor.openstream.data.settings.AppDns
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -47,8 +48,9 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(authInterceptor: Interceptor): OkHttpClient {
+    fun provideOkHttpClient(authInterceptor: Interceptor, dns: AppDns): OkHttpClient {
         return OkHttpClient.Builder()
+            .dns(dns)
             .addInterceptor(authInterceptor)
             .addInterceptor(HttpLoggingInterceptor().apply {
                 level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY else HttpLoggingInterceptor.Level.NONE
@@ -62,8 +64,9 @@ object NetworkModule {
     @Provides
     @Singleton
     @Named("StreamingClient")
-    fun provideStreamingOkHttpClient(): OkHttpClient {
+    fun provideStreamingOkHttpClient(dns: AppDns): OkHttpClient {
         return OkHttpClient.Builder()
+            .dns(dns)
             .addInterceptor(HttpLoggingInterceptor().apply {
                 level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC else HttpLoggingInterceptor.Level.NONE
             })
@@ -94,12 +97,13 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideGithubApi(json: Json): GithubApi {
+    fun provideGithubApi(json: Json, dns: AppDns): GithubApi {
         val contentType = "application/json".toMediaType()
         return Retrofit.Builder()
             .baseUrl("https://api.github.com/")
             .client(
                 OkHttpClient.Builder()
+                    .dns(dns)
                     .addInterceptor { chain ->
                         chain.proceed(
                             chain.request().newBuilder()

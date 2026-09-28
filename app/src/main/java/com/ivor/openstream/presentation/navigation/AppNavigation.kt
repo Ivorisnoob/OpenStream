@@ -1,5 +1,15 @@
 package com.ivor.openstream.presentation.navigation
 
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -15,6 +25,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import com.ivor.openstream.presentation.details.DetailsScreen
+import com.ivor.openstream.presentation.person.PersonScreen
 import com.ivor.openstream.presentation.home.HomeScreen
 import com.ivor.openstream.presentation.downloads.DownloadsScreen
 import com.ivor.openstream.presentation.player.PlayerScreen
@@ -26,6 +37,19 @@ import com.ivor.openstream.presentation.settings.SettingsScreen
 import com.ivor.openstream.presentation.marketplace.MarketplaceScreen
 import com.ivor.openstream.presentation.player.session.MiniPlayer
 import com.ivor.openstream.presentation.welcome.WelcomeSheet
+import com.ivor.openstream.presentation.shortcuts.AppShortcut
+import com.ivor.openstream.presentation.shortcuts.ShortcutRequest
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import com.ivor.openstream.ui.theme.ExpressiveShapes
 import com.ivor.openstream.presentation.player.session.MiniPlayerViewModel
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -78,6 +102,10 @@ sealed class Screen(
     data object Update : Screen("update")
     data object Settings : Screen("settings")
     data object Marketplace : Screen("marketplace")
+    data object Person : Screen("person/{personId}") {
+        fun createRoute(personId: Int) = "person/$personId"
+    }
+
     data object Details : Screen("details/{mediaType}/{animeId}") {
         fun createRoute(mediaType: String, animeId: Int) = "details/$mediaType/$animeId"
     }
@@ -100,7 +128,11 @@ sealed class Screen(
 @Composable
 fun AppNavigation(
     navController: NavHostController = rememberNavController(),
-    windowSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact
+    windowSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact,
+    shortcutRequest: ShortcutRequest? = null,
+    onShortcutHandled: () -> Unit = {},
+    deepLinkRequest: DeepLinkRequest? = null,
+    onDeepLinkHandled: () -> Unit = {}
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
@@ -111,6 +143,41 @@ fun AppNavigation(
     val isOnPlayer = currentDestination?.route?.startsWith("player/") == true
     val miniPlayerViewModel: MiniPlayerViewModel = hiltViewModel()
     val nowPlaying by miniPlayerViewModel.session.nowPlaying.collectAsState()
+    val appViewModel: AppViewModel = hiltViewModel()
+    val isOnline by appViewModel.isOnline.collectAsState()
+
+    fun openTab(screen: Screen) {
+        navController.navigate(screen.route) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
+    LaunchedEffect(shortcutRequest) {
+        val request = shortcutRequest ?: return@LaunchedEffect
+        when (request.shortcut) {
+            AppShortcut.SEARCH -> openTab(Screen.Search)
+            AppShortcut.DOWNLOADS -> openTab(Screen.Downloads)
+            AppShortcut.CONTINUE_WATCHING -> {
+                val latest = appViewModel.latestContinueWatching()
+                if (latest == null) {
+                    openTab(Screen.Home)
+                } else {
+                    navController.navigate(
+                        Screen.Player.createRoute(latest.mediaType, latest.tmdbId, latest.season, latest.episode)
+                    ) { launchSingleTop = true }
+                }
+            }
+        }
+        onShortcutHandled()
+    }
+
+    LaunchedEffect(deepLinkRequest) {
+        val request = deepLinkRequest ?: return@LaunchedEffect
+        navController.navigate(Screen.Details.createRoute(request.mediaType, request.tmdbId))
+        onDeepLinkHandled()
+    }
 
     Row(modifier = Modifier.fillMaxSize()) {
         AnimatedVisibility(
@@ -277,12 +344,27 @@ fun AppNavigation(
                         onOpenTitle = { id, type ->
                             navController.navigate(Screen.Details.createRoute(type, id))
                         },
+                        onOpenPerson = { personId ->
+                            navController.navigate(Screen.Person.createRoute(personId))
+                        },
                         onOpenDownloads = {
                             navController.navigate(Screen.Downloads.route) {
                                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                                 launchSingleTop = true
                                 restoreState = true
                             }
+                        }
+                    )
+                }
+
+                composable(
+                    route = Screen.Person.route,
+                    arguments = listOf(navArgument("personId") { type = NavType.IntType })
+                ) {
+                    PersonScreen(
+                        onBackClick = { navController.popBackStack() },
+                        onOpenTitle = { id, type ->
+                            navController.navigate(Screen.Details.createRoute(type, id))
                         }
                     )
                 }
@@ -332,6 +414,22 @@ fun AppNavigation(
             // First launch only: sets expectations about which titles can play.
             WelcomeSheet()
 
+            val onDownloads = currentDestination?.route == Screen.Downloads.route
+            androidx.compose.animation.AnimatedVisibility(
+                visible = !isOnline && !isOnPlayer,
+                enter = slideInVertically { -it } + fadeIn(),
+                exit = slideOutVertically { -it } + fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                OfflineBanner(
+                    showDownloadsAction = !onDownloads,
+                    onOpenDownloads = { openTab(Screen.Downloads) }
+                )
+            }
+
             // Keeps the stream going while browsing; sits just above the floating toolbar.
             androidx.compose.animation.AnimatedVisibility(
                 visible = !isOnPlayer && nowPlaying != null,
@@ -369,53 +467,96 @@ fun AppNavigation(
                 exit = slideOutVertically { it } + fadeOut(),
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
+                // Tap a tab, or drag across the toolbar to scrub between them (one tick per tab,
+                // switching when the finger lifts).
+                val haptics = LocalHapticFeedback.current
+                val currentIndex = bottomNavItems.indexOfFirst { screen ->
+                    currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                }
+                var scrubIndex by remember { mutableStateOf<Int?>(null) }
+                var scrubTravel by remember { mutableFloatStateOf(0f) }
+                val stepPx = with(LocalDensity.current) { 50.dp.toPx() }
+                val latestIndex by rememberUpdatedState(currentIndex)
                 HorizontalFloatingToolbar(
                     expanded = true,
-                    modifier = Modifier.padding(bottom = 50.dp),
+                    modifier = Modifier
+                        .padding(bottom = 50.dp)
+                        .pointerInput(Unit) {
+                            detectHorizontalDragGestures(
+                                onDragStart = {
+                                    scrubTravel = 0f
+                                    scrubIndex = latestIndex.coerceAtLeast(0)
+                                },
+                                onDragEnd = {
+                                    val target = scrubIndex
+                                    scrubIndex = null
+                                    if (target != null && target != latestIndex) openTab(bottomNavItems[target])
+                                },
+                                onDragCancel = { scrubIndex = null },
+                                onHorizontalDrag = { change, amount ->
+                                    change.consume()
+                                    scrubTravel += amount
+                                    val start = latestIndex.coerceAtLeast(0)
+                                    val next = (start + (scrubTravel / stepPx).toInt()).coerceIn(0, bottomNavItems.lastIndex)
+                                    if (next != scrubIndex) {
+                                        scrubIndex = next
+                                        haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                    }
+                                }
+                            )
+                        },
                     content = {
-                        bottomNavItems.forEach { screen ->
-                            val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
-
+                        val shownIndex = scrubIndex ?: currentIndex
+                        bottomNavItems.forEachIndexed { index, screen ->
+                            val selected = index == shownIndex
+                            val onClick = {
+                                if (selected && screen.route == Screen.Search.route) {
+                                    navController.currentBackStackEntry?.savedStateHandle?.set(
+                                        "focusSearch",
+                                        System.currentTimeMillis()
+                                    )
+                                }
+                                openTab(screen)
+                            }
                             if (selected) {
-                                FilledIconButton(
-                                    onClick = {
-                                        if (screen.route == Screen.Search.route) {
-                                            navController.currentBackStackEntry?.savedStateHandle?.set(
-                                                "focusSearch",
-                                                System.currentTimeMillis()
-                                            )
-                                        }
-                                        navController.navigate(screen.route) {
-                                            popUpTo(navController.graph.findStartDestination().id) {
-                                                saveState = true
-                                            }
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
-                                    },
-                                    modifier = Modifier.size(50.dp)
-                                ) {
+                                FilledIconButton(onClick = onClick, modifier = Modifier.size(50.dp)) {
                                     Icon(screen.icon!!, contentDescription = screen.label)
                                 }
                             } else {
-                                IconButton(
-                                    onClick = {
-                                        navController.navigate(screen.route) {
-                                            popUpTo(navController.graph.findStartDestination().id) {
-                                                saveState = true
-                                            }
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
-                                    },
-                                    modifier = Modifier.size(50.dp)
-                                ) {
+                                IconButton(onClick = onClick, modifier = Modifier.size(50.dp)) {
                                     Icon(screen.icon!!, contentDescription = screen.label)
                                 }
                             }
                         }
                     }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun OfflineBanner(showDownloadsAction: Boolean, onOpenDownloads: () -> Unit) {
+    Surface(
+        shape = ExpressiveShapes.extraLarge,
+        color = MaterialTheme.colorScheme.inverseSurface,
+        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+        shadowElevation = 6.dp,
+        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 16.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(Icons.Default.CloudOff, contentDescription = null, modifier = Modifier.size(20.dp))
+            Text("You're offline", style = MaterialTheme.typography.labelLarge)
+            if (showDownloadsAction) {
+                TextButton(onClick = onOpenDownloads) {
+                    Text("Downloads", color = MaterialTheme.colorScheme.inversePrimary)
+                }
+            } else {
+                Spacer(Modifier.size(width = 10.dp, height = 40.dp))
             }
         }
     }

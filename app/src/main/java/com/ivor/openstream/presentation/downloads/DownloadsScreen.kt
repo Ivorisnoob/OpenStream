@@ -43,6 +43,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -74,6 +80,24 @@ fun DownloadsScreen(
     viewModel: DownloadViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    var confirmDeleteAll by rememberSaveable { mutableStateOf(false) }
+
+    if (confirmDeleteAll) {
+        AlertDialog(
+            onDismissRequest = { confirmDeleteAll = false },
+            title = { Text("Delete all downloads?") },
+            text = { Text("Removes every downloaded and queued video from this device.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDeleteAll = false
+                    viewModel.removeAll()
+                }) { Text("Delete all", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeleteAll = false }) { Text("Cancel") }
+            }
+        )
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -94,12 +118,23 @@ fun DownloadsScreen(
                 )
                 if (state.completedCount > 0) {
                     Text(
-                        text = "${pluralize(state.completedCount, "video")} · ${formatBytes(state.storedBytes)} on this device",
+                        text = pluralize(state.completedCount, "video") + " on this device",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
+            }
+        }
+
+        if (!state.isLoading && !state.isEmpty) {
+            item(key = "storage") {
+                StorageCard(
+                    usedBytes = state.storedBytes,
+                    freeBytes = state.freeBytes,
+                    onDeleteAll = { confirmDeleteAll = true },
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
             }
         }
 
@@ -138,6 +173,65 @@ fun DownloadsScreen(
                         .animateItem()
                         .padding(bottom = 12.dp)
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StorageCard(
+    usedBytes: Long,
+    freeBytes: Long,
+    onDeleteAll: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val total = usedBytes + freeBytes
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = ExpressiveShapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
+    ) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = ExpressiveShapes.medium,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ) {
+                    Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.padding(10.dp))
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = formatBytes(usedBytes),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Black
+                    )
+                    Text(
+                        text = "used by downloads · ${formatBytes(freeBytes)} free",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            if (total > 0) {
+                LinearProgressIndicator(
+                    progress = { (usedBytes.toFloat() / total).coerceIn(0.01f, 1f) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(10.dp),
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                )
+            }
+            OutlinedButton(
+                onClick = onDeleteAll,
+                shape = ExpressiveShapes.medium,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Delete all")
             }
         }
     }

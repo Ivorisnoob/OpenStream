@@ -11,6 +11,8 @@ import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.NoOpCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.offline.DownloadManager
+import androidx.media3.exoplayer.scheduler.Requirements
+import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.streaming.BROWSER_USER_AGENT
 import com.ivor.openstream.data.streaming.DownloadRequestHeaderStore
 import dagger.Module
@@ -79,7 +81,8 @@ object DownloadModule {
         databaseProvider: DatabaseProvider,
         cache: Cache,
         dataSourceFactory: DataSource.Factory,
-        executor: Executor
+        executor: Executor,
+        settings: AppSettingsStore
     ): DownloadManager {
         val downloadManager = DownloadManager(
             context,
@@ -88,10 +91,7 @@ object DownloadModule {
             dataSourceFactory,
             executor
         )
-        // Allow downloading over cellular data
-        downloadManager.requirements = androidx.media3.exoplayer.scheduler.Requirements(
-            androidx.media3.exoplayer.scheduler.Requirements.NETWORK
-        )
+        downloadManager.requirements = downloadRequirements(settings.current.wifiOnlyDownloads)
         return downloadManager
     }
 
@@ -101,3 +101,7 @@ object DownloadModule {
         return androidx.media3.exoplayer.offline.DownloadNotificationHelper(context, "download_channel")
     }
 }
+
+/** Any network, or only unmetered ones (Wi-Fi) when the user asked for that. */
+fun downloadRequirements(wifiOnly: Boolean): Requirements =
+    Requirements(if (wifiOnly) Requirements.NETWORK_UNMETERED else Requirements.NETWORK)

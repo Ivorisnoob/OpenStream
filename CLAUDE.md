@@ -16,9 +16,10 @@ When a doc and the code disagree, trust the code, then fix the doc.
 ```
 
 `local.properties` holds `TMDB_API_KEY` (falls back to `DEMO_KEY`) and optionally
-`VIDKING_API_BASE_URL`. There is no CI; releases are built locally. `assembleRelease` signs when
-`OPENSTREAM_KEYSTORE_PATH`, `OPENSTREAM_KEYSTORE_PASSWORD`, `OPENSTREAM_KEY_ALIAS` and
-`OPENSTREAM_KEY_PASSWORD` are set in the environment.
+`VIDKING_API_BASE_URL`. `assembleRelease` signs when `OPENSTREAM_KEYSTORE_PATH`,
+`OPENSTREAM_KEYSTORE_PASSWORD`, `OPENSTREAM_KEY_ALIAS` and `OPENSTREAM_KEY_PASSWORD` are set in the
+environment. `.github/workflows/release-apk.yml` builds a signed APK artifact on the owner's pushes
+to `main` and on manual dispatch (any branch); there are no other CI checks.
 
 ## Toolchain
 
@@ -54,7 +55,7 @@ Rules:
 - Composables render state and forward intent. ViewModels own screen state as `StateFlow`.
   Networking and persistence stay in `data/`.
 - Routes and arguments live in `presentation/navigation/AppNavigation.kt`.
-- Room schema changes need a real `Migration` in `di/DatabaseModule.kt` (current version 5).
+- Room schema changes need a real `Migration` in `di/DatabaseModule.kt` (current version 6).
   `fallbackToDestructiveMigration` is only a safety net; users' downloads and progress live there.
 
 ## How the main features work
@@ -65,6 +66,10 @@ Rules:
   Engines: `vidking-direct` (`VidkingDirectApi`, encrypted payload, prefers the master playlist so
   quality switches in-player), `web-embed` and `vidking-webview` (`WebEmbedResolver`, hidden
   WebView that records media requests).
+  Anime engines (`data/streaming/anime`): `anikoto`, `reanime`, `animepahe`. `AnimeEpisodeMapper`
+  maps TMDB season/episode to an AniList episode (ani.zip + AniList GraphQL, both keyless);
+  megaplay embeds decrypt with a fixed AES key; `ImagePrefixStrippingDataSource` strips the fake
+  PNG header some anime CDNs put before TS segments.
 - **Catalog.** `extensions/index.json` is published; `app/src/main/assets/extensions/official-repo.json`
   must be a byte-identical copy (`OfficialCatalogTest` checks). Bundled and fetched copies are merged
   per entry by `versionCode`. Contributor guide: `extensions/README.md`; format: `docs/EXTENSIONS.md`.
@@ -76,6 +81,17 @@ Rules:
   (bottom sheet inline, in-player side panel in fullscreen so immersive mode survives).
 - **Subtitles.** `OpenSubtitlesRepository` (keyless legacy REST API) plus any the stream carries.
   Files are gzipped; the player decompresses and strips promo cues.
+- **Network.** `AppDns` (DNS-over-HTTPS, default AdGuard, chosen in Settings) backs every OkHttp
+  client and Coil's image loader (`OpenStreamApp`), because some ISPs block TMDB at the DNS level.
+  Media3 playback/downloads and WebView sources still use the system resolver.
+- **Settings.** `AppSettingsStore` (SharedPreferences) holds theme, dynamic color, DNS and
+  Wi-Fi-only downloads; `MainActivity` applies the theme.
+- **Skip intro.** `SkipTimesRepository`: AniList GraphQL finds the MAL id, AniSkip v2 gives the
+  intro/recap/credits times (anime only). Both are keyless public APIs with no stability promise.
+- **Backup / diagnostics.** `LibraryBackup` (JSON, merge on restore) and `Diagnostics` (crash files
+  in `filesDir/crashes`, recorder installed in `OpenStreamApp`) back the Settings entries.
+- **Deep links.** `MainActivity` is `singleTask`; `DeepLinks` turns TMDB links (VIEW or shared text)
+  into Details, `AppShortcut` handles launcher shortcuts.
 - **Downloads.** Everything goes through Media3's `DownloadManager` (`DownloadRepositoryImpl`):
   queue resolves sources in the app scope, live progress from the manager, pause/resume/retry,
   one rendition up to 1080p from master playlists. Offline playback reads the same cache.
@@ -86,6 +102,8 @@ Rules:
 - Vidking dub routes (English/Hindi) return links locked to Vidking's server IP, so their CDN often
   answers 403 on devices. The player falls back to the previous stream when a picked source fails.
 - Several Vidking routes currently 404/500 for most titles; Yoru (`cdn`) is the reliable one.
+- AniList (about 90 requests a minute) and AniSkip are unauthenticated and undocumented as a
+  contract; skip buttons simply don't appear when they fail.
 - Wyzie subtitles now require an API key and were removed. Don't add features that need users to
   supply API keys.
 

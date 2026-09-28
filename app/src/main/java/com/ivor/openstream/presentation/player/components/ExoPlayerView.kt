@@ -1,5 +1,19 @@
 package com.ivor.openstream.presentation.player.components
 
+import android.app.Activity
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.activity.compose.BackHandler
+import com.ivor.openstream.presentation.player.session.SleepTimer
+import com.ivor.openstream.data.repository.SkipSegment
+import com.ivor.openstream.data.remote.model.EpisodeDto
+import com.ivor.openstream.domain.model.WatchProgress
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import android.provider.Settings
 import android.util.Log
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -64,6 +78,10 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -89,7 +107,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.net.URL
 import kotlin.math.roundToInt
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.mutableIntStateOf
 import com.ivor.openstream.data.streaming.BROWSER_USER_AGENT
 
@@ -132,7 +153,24 @@ fun ExoPlayerView(
     onAudioLanguageChosen: (String?) -> Unit = {},
     onCaptionSettingsChange: (CaptionStyleSettings) -> Unit = {},
     onPlaybackError: () -> Unit = {},
-    onPlaybackReady: () -> Unit = {}
+    onPlaybackReady: () -> Unit = {},
+    isRotationLocked: Boolean = false,
+    onRotationLockToggle: () -> Unit = {},
+    sleepTimer: SleepTimer? = null,
+    onSleepTimerChange: (SleepTimer?) -> Unit = {},
+    seekStepSeconds: Int = 10,
+    /** Last subtitle language picked, [SUBTITLES_OFF], or null if never chosen. */
+    preferredSubtitleLanguage: String? = null,
+    onSubtitleLanguageChosen: (String) -> Unit = {},
+    /** Intro/recap/credits times from AniSkip; empty falls back to a manual skip early on. */
+    skipSegments: List<SkipSegment> = emptyList(),
+    /** Leave the player screen with playback continuing in the mini player (swipe down inline). */
+    onMinimize: () -> Unit = onBackClick,
+    /** This season's episodes; a swipe up in fullscreen opens them. */
+    episodes: List<EpisodeDto> = emptyList(),
+    currentEpisodeNumber: Int = 0,
+    episodeProgress: Map<Pair<Int, Int>, WatchProgress> = emptyMap(),
+    onEpisodeSelected: (EpisodeDto) -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = remember(context) {
@@ -178,22 +216,99 @@ fun ExoPlayerView(
     var subtitleLoadingState by remember { mutableStateOf<SubtitleLoadingState>(SubtitleLoadingState.IDLE) }
 
     // Gesture State
-    var brightness by remember { mutableFloatStateOf(1.0f) } // 0.0 to 1.0
+    var brightness by remember { mutableFloatStateOf(0.5f) } // 0.0 to 1.0, read at each swipe start
     var volume by remember { mutableFloatStateOf(exoPlayer.volume) }
     var showBrightnessOverlay by remember { mutableStateOf(false) }
     var showVolumeOverlay by remember { mutableStateOf(false) }
     var gestureOverlayTimeout by remember { mutableLongStateOf(0L) }
     var seekFeedbackDirection by remember { mutableIntStateOf(0) }
     var seekFeedbackSequence by remember { mutableIntStateOf(0) }
+    var seekStackSeconds by remember { mutableIntStateOf(0) }
+    var videoScale by rememberSaveable { mutableStateOf(VideoScale.FIT) }
+    var isLocked by remember { mutableStateOf(false) }
+    var showUnlockButton by remember { mutableStateOf(false) }
+    var unlockButtonSequence by remember { mutableIntStateOf(0) }
+    var isSpeedBoosted by remember { mutableStateOf(false) }
+    // Vertical swipes: which job this swipe does, decided where it starts, and how far it has gone.
+    var verticalMode by remember { mutableStateOf(VerticalSwipe.NONE) }
+    var verticalTravel by remember { mutableFloatStateOf(0f) }
+    // Follows the finger during a fullscreen/minimize swipe, then springs back.
+    val swipeOffset by animateFloatAsState(
+        targetValue = if (verticalMode == VerticalSwipe.FULLSCREEN) (verticalTravel * 0.25f).coerceIn(-120f, 120f) else 0f,
+        label = "swipeOffset"
+    )
+    val latestIsFullscreen by rememberUpdatedState(isFullscreen)
+    val latestFullscreenToggle by rememberUpdatedState(onFullscreenToggle)
+    val latestMinimize by rememberUpdatedState(onMinimize)
+    val hasEpisodes by rememberUpdatedState(episodes.isNotEmpty())
+    var playPauseFeedback by remember { mutableIntStateOf(0) }
+    var showPlayPauseFeedback by remember { mutableStateOf(false) }
+    LaunchedEffect(playPauseFeedback) {
+        if (playPauseFeedback > 0) {
+            showPlayPauseFeedback = true
+            delay(600)
+            showPlayPauseFeedback = false
+        }
+    }
+    // Horizontal swipe to scrub: where the swipe started and where it would seek to on release.
+    var isScrubbing by remember { mutableStateOf(false) }
+    var scrubStartMs by remember { mutableLongStateOf(0L) }
+    var scrubTargetMs by remember { mutableLongStateOf(0L) }
+    /** Positive delays sideloaded subtitles, negative shows them earlier. */
+    var subtitleOffsetMs by remember { mutableLongStateOf(0L) }
+    /** Set once this video's subtitle is settled, by the user or the remembered choice. */
+    var subtitleChoiceMade by remember { mutableStateOf(false) }
+    var scaleFeedbackSequence by remember { mutableIntStateOf(0) }
+    var showScaleFeedback by remember { mutableStateOf(false) }
 
+    fun changeVideoScale(scale: VideoScale) {
+        videoScale = scale
+        showScaleFeedback = true
+        scaleFeedbackSequence++
+    }
+
+    LaunchedEffect(scaleFeedbackSequence) {
+        if (scaleFeedbackSequence > 0) {
+            delay(900)
+            showScaleFeedback = false
+        }
+    }
+
+    // Read through State so the gesture handlers, created once, see a changed setting.
+    val currentSeekStep by rememberUpdatedState(seekStepSeconds)
+
+    // Seeks in the same direction while the feedback is still up add together (10s, 20s, 30s...).
     fun showSeekFeedback(direction: Int) {
+        seekStackSeconds = if (direction == seekFeedbackDirection) seekStackSeconds + currentSeekStep else currentSeekStep
         seekFeedbackDirection = direction
         seekFeedbackSequence++
     }
 
+    fun seekStep(direction: Int) {
+        exoPlayer.seekTo((exoPlayer.currentPosition + direction * currentSeekStep * 1_000L).coerceAtLeast(0L))
+        showSeekFeedback(direction)
+        currentTime = exoPlayer.currentPosition
+    }
+
+    fun revealUnlockButton() {
+        showUnlockButton = true
+        unlockButtonSequence++
+    }
+
+    LaunchedEffect(unlockButtonSequence) {
+        if (unlockButtonSequence > 0) {
+            delay(2500)
+            showUnlockButton = false
+        }
+    }
+
+    // While locked, back does nothing except show the unlock button.
+    BackHandler(enabled = isLocked) { revealUnlockButton() }
+
     LaunchedEffect(seekFeedbackSequence) {
         if (seekFeedbackSequence > 0) {
-            delay(700)
+            // Long enough for a follow-up tap to land after the double-tap timeout.
+            delay(1_000)
             seekFeedbackDirection = 0
         }
     }
@@ -201,11 +316,14 @@ fun ExoPlayerView(
     // Reset subtitle state when switching videos
     LaunchedEffect(videoUrl) {
         activeVideoHeight = 0
+        subtitleChoiceMade = false
         selectedSubtitle = null
         manualCues = emptyList()
         currentSubtitleText = ""
         subtitleLoadingState = SubtitleLoadingState.IDLE
     }
+
+    LaunchedEffect(selectedSubtitle) { subtitleOffsetMs = 0L }
 
     LaunchedEffect(selectedSubtitle, requestHeaders) {
         val urlStr = selectedSubtitle?.url
@@ -361,7 +479,8 @@ fun ExoPlayerView(
                                 trackIndex = trackIndex,
                                 groupIndex = groupIndex,
                                 url = remoteMatch?.url,
-                                subLabel = remoteMatch?.let { "${it.release ?: ""} (${it.source ?: ""})".trim() }.takeIf { it?.isNotEmpty() == true }
+                                subLabel = remoteMatch?.let { "${it.release ?: ""} (${it.source ?: ""})".trim() }.takeIf { it?.isNotEmpty() == true },
+                                language = remoteMatch?.language ?: format.language
                             )
                         )
                     }
@@ -378,7 +497,8 @@ fun ExoPlayerView(
                         trackIndex = -1, // No internal track
                         groupIndex = -1,
                         url = remote.url,
-                        subLabel = "${remote.release ?: ""} (${remote.source ?: "External"})".trim()
+                        subLabel = "${remote.release ?: ""} (${remote.source ?: "External"})".trim(),
+                        language = remote.language
                     )
                 )
             }
@@ -397,8 +517,8 @@ fun ExoPlayerView(
             selectedQuality = qualityOptions.firstOrNull()
         }
 
-        // Auto-select extracted subtitle if none selected
-        if (selectedSubtitle == null) {
+        // Auto-select extracted subtitle if none selected, unless the user has a remembered choice.
+        if (selectedSubtitle == null && preferredSubtitleLanguage == null) {
             val extracted = subtitles.find { it.label == "English (Extracted)" }
             if (extracted != null) {
                 Log.i("PlayerSubtitles", "Auto-selecting extracted subtitle: ${extracted.label}")
@@ -417,6 +537,63 @@ fun ExoPlayerView(
                     .build()
             }
         }
+    }
+
+    /** Shows [option] (null turns subtitles off), whether it is a stream track or a sideloaded file. */
+    fun applySubtitle(option: SubtitleOption?) {
+        selectedSubtitle = option
+        if (option == null) {
+            exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                .buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                .build()
+            currentSubtitleText = ""
+        } else if (option.trackIndex != -1) {
+            // Enable internal track
+            val tracks = exoPlayer.currentTracks
+            if (option.groupIndex < tracks.groups.size) {
+                val override = TrackSelectionOverride(
+                    tracks.groups[option.groupIndex].mediaTrackGroup,
+                    listOf(option.trackIndex)
+                )
+                exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                    .buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                    .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                    .addOverride(override)
+                    .build()
+            }
+        } else {
+            // Purely external - disable internal text tracks to avoid mixing
+            exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                .buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                .build()
+            currentSubtitleText = ""
+        }
+    }
+
+    // Sideloaded files can arrive after the tracks were read; list them as soon as they do.
+    LaunchedEffect(remoteSubtitles) { parseTracksFromPlayer(exoPlayer.currentTracks) }
+
+    // Apply the remembered subtitle choice once per video, as soon as a matching track or file shows up.
+    LaunchedEffect(subtitleOptions, preferredSubtitleLanguage) {
+        val preferred = preferredSubtitleLanguage ?: return@LaunchedEffect
+        if (subtitleChoiceMade) return@LaunchedEffect
+        if (preferred == SUBTITLES_OFF) {
+            subtitleChoiceMade = true
+            applySubtitle(null)
+            return@LaunchedEffect
+        }
+        val match = subtitleOptions
+            .filter { !it.isDisabled && sameLanguage(it.language, preferred) }
+            // Stream tracks first: they need no download and stay in sync.
+            .minByOrNull { if (it.trackIndex != -1) 0 else 1 }
+            ?: return@LaunchedEffect
+        subtitleChoiceMade = true
+        applySubtitle(match)
     }
 
     LaunchedEffect(videoUrl, remoteSubtitles) {
@@ -640,55 +817,168 @@ fun ExoPlayerView(
             .fillMaxSize()
             .pointerInput(Unit) {
                 detectTapGestures(
-                    onTap = { areControlsVisible = !areControlsVisible },
-                    onDoubleTap = { offset ->
-                        val isForward = offset.x > size.width / 2
-                        if (isForward) {
-                            exoPlayer.seekTo(exoPlayer.currentPosition + 10000)
-                            showSeekFeedback(1)
-                        } else {
-                            exoPlayer.seekTo(exoPlayer.currentPosition - 10000)
-                            showSeekFeedback(-1)
+                    onPress = {
+                        tryAwaitRelease()
+                        if (isSpeedBoosted) {
+                            isSpeedBoosted = false
+                            exoPlayer.setPlaybackParameters(exoPlayer.playbackParameters.withSpeed(playbackSpeed))
                         }
-                        currentTime = exoPlayer.currentPosition
-                        areControlsVisible = true
+                    },
+                    onTap = { offset ->
+                        val direction = tapZone(offset.x, size.width)
+                        when {
+                            isLocked -> revealUnlockButton()
+                            // With controls hidden, a tap on the same side while seek feedback shows keeps seeking.
+                            !areControlsVisible && direction != 0 && seekFeedbackDirection == direction -> seekStep(direction)
+                            else -> areControlsVisible = !areControlsVisible
+                        }
+                    },
+                    onDoubleTap = { offset ->
+                        val direction = tapZone(offset.x, size.width)
+                        when {
+                            isLocked -> revealUnlockButton()
+                            // The middle toggles playback; the sides seek.
+                            direction == 0 -> {
+                                if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
+                                playPauseFeedback++
+                            }
+                            else -> seekStep(direction)
+                        }
+                    },
+                    onLongPress = {
+                        if (!isLocked && exoPlayer.isPlaying) {
+                            isSpeedBoosted = true
+                            areControlsVisible = false
+                            exoPlayer.setPlaybackParameters(exoPlayer.playbackParameters.withSpeed(BOOST_SPEED))
+                        }
                     }
                 )
             }
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
-                    onDragStart = { },
+                    onDragStart = { offset ->
+                        verticalTravel = 0f
+                        verticalMode = when {
+                            isLocked -> VerticalSwipe.NONE
+                            // Inline, any vertical swipe is about the player itself: up for
+                            // fullscreen, down to shrink into the mini player.
+                            !latestIsFullscreen -> VerticalSwipe.FULLSCREEN
+                            // Fullscreen: brightness on the left third, volume on the right, and a
+                            // swipe down the middle exits.
+                            offset.x < size.width / 3f -> VerticalSwipe.BRIGHTNESS
+                            offset.x > size.width * 2f / 3f -> VerticalSwipe.VOLUME
+                            else -> VerticalSwipe.FULLSCREEN
+                        }
+                        // Start from the screen's real brightness so the first swipe doesn't jump.
+                        if (verticalMode == VerticalSwipe.BRIGHTNESS) brightness = currentBrightness(activity)
+                        if (isLocked) revealUnlockButton()
+                    },
                     onDragEnd = {
+                        if (verticalMode == VerticalSwipe.FULLSCREEN) {
+                            val threshold = size.height * SWIPE_ACTION_FRACTION
+                            when {
+                                !latestIsFullscreen && verticalTravel < -threshold -> latestFullscreenToggle()
+                                !latestIsFullscreen && verticalTravel > threshold -> latestMinimize()
+                                latestIsFullscreen && verticalTravel > threshold -> latestFullscreenToggle()
+                                latestIsFullscreen && verticalTravel < -threshold && hasEpisodes -> {
+                                    settingsInitialPage = PlayerSettingsPage.EPISODES
+                                    showSettingsDialog = true
+                                    areControlsVisible = false
+                                }
+                            }
+                        }
+                        verticalMode = VerticalSwipe.NONE
+                        verticalTravel = 0f
                         showBrightnessOverlay = false
                         showVolumeOverlay = false
                     },
                     onDragCancel = {
+                        verticalMode = VerticalSwipe.NONE
+                        verticalTravel = 0f
                         showBrightnessOverlay = false
                         showVolumeOverlay = false
                     },
                     onVerticalDrag = { change, dragAmount ->
                         change.consume()
-                        val isLeft = change.position.x < size.width / 2
                         val delta = -dragAmount / size.height // Swipe up to increase
-                        
-                        if (isLeft) {
-                            brightness = (brightness + delta).coerceIn(0f, 1f)
-                            showBrightnessOverlay = true
-                            showVolumeOverlay = false
-                            activity?.let { act ->
-                                val params = act.window.attributes
-                                params.screenBrightness = brightness
-                                act.window.setAttributes(params)
+                        when (verticalMode) {
+                            VerticalSwipe.NONE -> Unit
+                            VerticalSwipe.FULLSCREEN -> verticalTravel += dragAmount
+                            VerticalSwipe.BRIGHTNESS -> {
+                                brightness = (brightness + delta).coerceIn(0f, 1f)
+                                showBrightnessOverlay = true
+                                showVolumeOverlay = false
+                                activity?.let { act ->
+                                    val params = act.window.attributes
+                                    params.screenBrightness = brightness
+                                    act.window.setAttributes(params)
+                                }
+                                gestureOverlayTimeout = System.currentTimeMillis() + 2000
                             }
-                        } else {
-                            volume = (volume + delta).coerceIn(0f, 1f)
-                            exoPlayer.volume = volume
-                            showVolumeOverlay = true
-                            showBrightnessOverlay = false
+                            VerticalSwipe.VOLUME -> {
+                                volume = (volume + delta).coerceIn(0f, 1f)
+                                exoPlayer.volume = volume
+                                showVolumeOverlay = true
+                                showBrightnessOverlay = false
+                                gestureOverlayTimeout = System.currentTimeMillis() + 2000
+                            }
                         }
-                        gestureOverlayTimeout = System.currentTimeMillis() + 2000
                     }
                 )
+            }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = {
+                        if (isLocked) {
+                            revealUnlockButton()
+                        } else if (!isSpeedBoosted && exoPlayer.duration > 0) {
+                            scrubStartMs = exoPlayer.currentPosition
+                            scrubTargetMs = scrubStartMs
+                            isScrubbing = true
+                            areControlsVisible = false
+                        }
+                    },
+                    onDragEnd = {
+                        if (isScrubbing) {
+                            exoPlayer.seekTo(scrubTargetMs)
+                            currentTime = scrubTargetMs
+                            isScrubbing = false
+                        }
+                    },
+                    onDragCancel = { isScrubbing = false },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        if (isScrubbing) {
+                            val duration = exoPlayer.duration.coerceAtLeast(0L)
+                            // A full-width swipe covers up to three minutes, so short swipes stay precise.
+                            val msPerPx = duration.coerceAtMost(SCRUB_FULL_WIDTH_MS).toFloat() / size.width
+                            scrubTargetMs = (scrubTargetMs + (dragAmount * msPerPx).toLong()).coerceIn(0L, duration)
+                        }
+                    }
+                )
+            }
+            // Declared last so it sees events first: once a second finger lands it consumes the
+            // gesture, which cancels the tap and brightness/volume detectors above.
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    var zoom = 1f
+                    var pinching = false
+                    do {
+                        val event = awaitPointerEvent()
+                        if (event.changes.count { it.pressed } >= 2) {
+                            pinching = true
+                            zoom *= event.calculateZoom()
+                            event.changes.forEach { it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
+                    if (pinching && !isLocked) {
+                        when {
+                            zoom > 1.1f && videoScale != VideoScale.ZOOM -> changeVideoScale(VideoScale.ZOOM)
+                            zoom < 0.9f && videoScale != VideoScale.FIT -> changeVideoScale(VideoScale.FIT)
+                        }
+                    }
+                }
             }
     ) {
         AndroidView(
@@ -703,9 +993,17 @@ fun ExoPlayerView(
                     subtitleView?.visibility = android.view.View.GONE
                 }
             },
+            update = { view -> view.resizeMode = videoScale.resizeMode },
             // Hand the video surface back so the mini player can take it over.
             onRelease = { view -> view.player = null },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    translationY = swipeOffset
+                    val shrink = 1f - (kotlin.math.abs(swipeOffset) / 1200f)
+                    scaleX = shrink
+                    scaleY = shrink
+                }
         )
 
         // Gesture Overlays
@@ -735,6 +1033,32 @@ fun ExoPlayerView(
             )
         }
 
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showScaleFeedback,
+            enter = scaleIn() + fadeIn(),
+            exit = scaleOut() + fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Surface(
+                shape = ExpressiveShapes.extraLarge,
+                color = Color.Black.copy(alpha = 0.62f),
+                contentColor = Color.White
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(videoScale.icon, contentDescription = null, modifier = Modifier.size(24.dp))
+                    Text(
+                        videoScale.label,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
         // Auto-hide gesture overlays
         LaunchedEffect(gestureOverlayTimeout) {
             if (gestureOverlayTimeout > 0) {
@@ -746,19 +1070,30 @@ fun ExoPlayerView(
         }
 
         // Compose-rendered subtitles -- always on top of video, below controls
-        val displaySubtitleText = remember(currentTime, currentSubtitleText, manualCues) {
+        val displaySubtitleText = remember(currentTime, currentSubtitleText, manualCues, subtitleOffsetMs) {
             if (manualCues.isNotEmpty()) {
-                manualCues.find { currentTime in it.startMs..it.endMs }?.text ?: ""
+                val cueTime = currentTime - subtitleOffsetMs
+                manualCues.find { cueTime in it.startMs..it.endMs }?.text ?: ""
             } else {
                 currentSubtitleText
             }
         }
 
         if (displaySubtitleText.isNotEmpty()) {
+            // The PiP window is only a couple hundred dp tall: full-size captions with the
+            // controls' clearance would sit mid-frame, so hug the bottom edge and shrink them.
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = if (isFullscreen) 64.dp else 40.dp, start = 12.dp, end = 12.dp)
+                    .padding(
+                        bottom = when {
+                            isInPictureInPicture -> 4.dp
+                            isFullscreen -> 64.dp
+                            else -> 40.dp
+                        },
+                        start = if (isInPictureInPicture) 4.dp else 12.dp,
+                        end = if (isInPictureInPicture) 4.dp else 12.dp
+                    )
                     .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
@@ -766,7 +1101,11 @@ fun ExoPlayerView(
                     text = displaySubtitleText,
                     style = TextStyle(
                         color = Color.White,
-                        fontSize = captionSettings.textSizeSp.sp,
+                        fontSize = if (isInPictureInPicture) {
+                            (captionSettings.textSizeSp * PIP_CAPTION_SCALE).coerceAtLeast(9f).sp
+                        } else {
+                            captionSettings.textSizeSp.sp
+                        },
                         fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center,
                         shadow = Shadow(
@@ -779,13 +1118,16 @@ fun ExoPlayerView(
                             Color.Black.copy(alpha = captionSettings.backgroundOpacity),
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
                         )
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .padding(
+                            horizontal = if (isInPictureInPicture) 4.dp else 12.dp,
+                            vertical = if (isInPictureInPicture) 1.dp else 6.dp
+                        )
                 )
             }
         }
 
         PlayerControls(
-            isVisible = areControlsVisible && !isInPictureInPicture,
+            isVisible = areControlsVisible && !isInPictureInPicture && !isLocked,
             isPlaying = isPlaying,
             isBuffering = isBuffering,
             title = title,
@@ -810,15 +1152,11 @@ fun ExoPlayerView(
                 areControlsVisible = true
             },
             onForward = {
-                exoPlayer.seekTo(exoPlayer.currentPosition + 10000)
-                showSeekFeedback(1)
-                currentTime = exoPlayer.currentPosition
+                seekStep(1)
                 areControlsVisible = true
             },
             onRewind = {
-                exoPlayer.seekTo(exoPlayer.currentPosition - 10000)
-                showSeekFeedback(-1)
-                currentTime = exoPlayer.currentPosition
+                seekStep(-1)
                 areControlsVisible = true
             },
             onNextClick = onNextClick,
@@ -847,6 +1185,23 @@ fun ExoPlayerView(
                 onFullscreenToggle()
                 areControlsVisible = true
             },
+            onLockClick = {
+                isLocked = true
+                areControlsVisible = false
+                showSettingsDialog = false
+                revealUnlockButton()
+            },
+            isRotationLocked = isRotationLocked,
+            onRotationLockToggle = {
+                onRotationLockToggle()
+                areControlsVisible = true
+            },
+            seekStepSeconds = seekStepSeconds,
+            videoScale = videoScale,
+            onVideoScaleClick = {
+                changeVideoScale(videoScale.next())
+                areControlsVisible = true
+            },
             onBackClick = onBackClick
         )
 
@@ -872,16 +1227,133 @@ fun ExoPlayerView(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Icon(
-                        if (seekFeedbackDirection < 0) Icons.Default.Replay10 else Icons.Default.Forward10,
+                        if (seekFeedbackDirection < 0) Icons.Default.FastRewind else Icons.Default.FastForward,
                         contentDescription = null,
                         modifier = Modifier.size(28.dp)
                     )
                     Text(
-                        if (seekFeedbackDirection < 0) "10 sec back" else "10 sec ahead",
+                        if (seekFeedbackDirection < 0) "$seekStackSeconds sec back" else "$seekStackSeconds sec ahead",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold
                     )
                 }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = isSpeedBoosted,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 24.dp)
+        ) {
+            Surface(
+                shape = ExpressiveShapes.extraLarge,
+                color = Color.Black.copy(alpha = 0.62f),
+                contentColor = Color.White
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.FastForward, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Text("2× speed", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = isLocked && showUnlockButton,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 24.dp)
+        ) {
+            Surface(
+                onClick = {
+                    isLocked = false
+                    showUnlockButton = false
+                    areControlsVisible = true
+                },
+                shape = ExpressiveShapes.extraLarge,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.LockOpen, contentDescription = null)
+                    Text("Tap to unlock", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = showPlayPauseFeedback,
+            enter = scaleIn() + fadeIn(),
+            exit = scaleOut() + fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Surface(shape = CircleShape, color = Color.Black.copy(alpha = 0.55f), contentColor = Color.White) {
+                Icon(
+                    if (isPlaying) Icons.Default.PlayArrow else Icons.Default.Pause,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .padding(18.dp)
+                        .size(40.dp)
+                )
+            }
+        }
+
+        AnimatedVisibility(
+            visible = isScrubbing,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            ScrubPreview(
+                targetMs = scrubTargetMs,
+                deltaMs = scrubTargetMs - scrubStartMs,
+                durationMs = exoPlayer.duration.coerceAtLeast(0L)
+            )
+        }
+
+        // Skip intro / recap / credits. AniSkip segments show whenever playback is inside one; without
+        // them, a manual jump is offered early in the video while the controls are up.
+        var manualSkipUsed by remember(videoUrl) { mutableStateOf(false) }
+        val activeSegment = skipSegments.firstOrNull { currentTime >= it.startMs && currentTime < it.endMs - 1_000 }
+        val offerManualSkip = skipSegments.isEmpty() && !manualSkipUsed && areControlsVisible &&
+            totalTime > MANUAL_SKIP_MS * 4 && currentTime in 5_000L..MANUAL_SKIP_WINDOW_MS
+        val skipLabel = activeSegment?.type?.label ?: "Skip ${MANUAL_SKIP_MS / 1_000}s"
+        AnimatedVisibility(
+            visible = (activeSegment != null || offerManualSkip) && !isLocked && !isInPictureInPicture && !showSettingsDialog,
+            enter = slideInHorizontally { it / 2 } + fadeIn(),
+            exit = slideOutHorizontally { it / 2 } + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = if (isFullscreen) 24.dp else 12.dp, bottom = if (isFullscreen) 88.dp else 56.dp)
+        ) {
+            Button(
+                onClick = {
+                    val target = activeSegment?.endMs ?: (exoPlayer.currentPosition + MANUAL_SKIP_MS)
+                    exoPlayer.seekTo(target)
+                    currentTime = target
+                    if (activeSegment == null) manualSkipUsed = true
+                },
+                shape = ExpressiveShapes.medium,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            ) {
+                Icon(Icons.Default.SkipNext, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(skipLabel, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -942,7 +1414,12 @@ fun ExoPlayerView(
                 subtitleLoadingState = subtitleLoadingState,
                 captionSettings = captionSettings,
                 audioOptions = audioOptions,
-                originalLanguage = originalLanguage
+                originalLanguage = originalLanguage,
+                subtitleOffsetMs = subtitleOffsetMs,
+                sleepTimer = sleepTimer,
+                episodes = episodes,
+                currentEpisode = currentEpisodeNumber,
+                episodeProgress = episodeProgress
             ),
             actions = PlayerSettingsActions(
                 sources = sourceActions,
@@ -973,45 +1450,16 @@ fun ExoPlayerView(
                 )
                 },
                 onSubtitleSelected = { option ->
-                selectedSubtitle = option
-                if (option == null) {
-                    exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
-                        .buildUpon()
-                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-                        .clearOverridesOfType(C.TRACK_TYPE_TEXT)
-                        .build()
-                    currentSubtitleText = ""
-                } else {
-                    if (option.trackIndex != -1) {
-                        // Enable internal track
-                        val tracks = exoPlayer.currentTracks
-                        if (option.groupIndex < tracks.groups.size) {
-                            val group = tracks.groups[option.groupIndex]
-                            val override = TrackSelectionOverride(
-                                group.mediaTrackGroup,
-                                listOf(option.trackIndex)
-                            )
-                            
-                            exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
-                                .buildUpon()
-                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                                .clearOverridesOfType(C.TRACK_TYPE_TEXT)
-                                .addOverride(override)
-                                .build()
-                        }
-                    } else {
-                        // Purely external - disable internal text tracks to avoid mixing
-                        exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
-                            .buildUpon()
-                            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-                            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
-                            .build()
-                        currentSubtitleText = ""
-                    }
-                }
-                exoPlayer.play()
+                    subtitleChoiceMade = true
+                    applySubtitle(option)
+                    // Remembered for the next title: its language, or that subtitles are off.
+                    (if (option == null) SUBTITLES_OFF else option.language)?.let(onSubtitleLanguageChosen)
+                    exoPlayer.play()
                 },
                 onCaptionSettingsChange = onCaptionSettingsChange,
+                onSubtitleOffsetChange = { subtitleOffsetMs = it },
+                onSleepTimerChange = onSleepTimerChange,
+                onEpisodeSelected = onEpisodeSelected,
                 onAudioSelected = { option ->
                     val tracks = exoPlayer.currentTracks
                     if (option.groupIndex < tracks.groups.size) {
@@ -1141,6 +1589,82 @@ private fun GestureIndicator(
     }
 }
 
+private const val BOOST_SPEED = 2f
+/** A typical opening's length, for titles AniSkip has no times for. */
+private const val MANUAL_SKIP_MS = 85_000L
+/** The manual skip is only offered this early in a video. */
+private const val MANUAL_SKIP_WINDOW_MS = 10 * 60_000L
+
+private enum class VerticalSwipe { NONE, BRIGHTNESS, VOLUME, FULLSCREEN }
+
+/** How far (as a share of the player's height) a swipe must travel to go fullscreen, exit or minimize. */
+private const val SWIPE_ACTION_FRACTION = 0.12f
+
+/** -1 for the left 35% of the player, 1 for the right 35%, 0 for the middle. */
+private fun tapZone(x: Float, width: Int): Int = when {
+    x < width * 0.35f -> -1
+    x > width * 0.65f -> 1
+    else -> 0
+}
+
+/** A full-width horizontal swipe scrubs at most this far. */
+private const val SCRUB_FULL_WIDTH_MS = 180_000L
+
+@Composable
+private fun ScrubPreview(targetMs: Long, deltaMs: Long, durationMs: Long) {
+    Surface(
+        shape = ExpressiveShapes.extraLarge,
+        color = Color.Black.copy(alpha = 0.7f),
+        contentColor = Color.White
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .width(200.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "${formatTime(targetMs)} / ${formatTime(durationMs)}",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = (if (deltaMs < 0) "−" else "+") + formatTime(kotlin.math.abs(deltaMs)),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+            if (durationMs > 0) {
+                androidx.compose.material3.LinearProgressIndicator(
+                    progress = { (targetMs.toFloat() / durationMs).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth(),
+                    trackColor = Color.White.copy(alpha = 0.3f)
+                )
+            }
+        }
+    }
+}
+
+/** How the video fills the player: letterboxed, cropped to fill the screen, or stretched. */
+enum class VideoScale(val resizeMode: Int, val label: String, val icon: ImageVector) {
+    FIT(AspectRatioFrameLayout.RESIZE_MODE_FIT, "Fit", Icons.Default.FitScreen),
+    ZOOM(AspectRatioFrameLayout.RESIZE_MODE_ZOOM, "Zoom to fill", Icons.Default.ZoomOutMap),
+    STRETCH(AspectRatioFrameLayout.RESIZE_MODE_FILL, "Stretch", Icons.Default.AspectRatio);
+
+    fun next(): VideoScale = entries[(ordinal + 1) % entries.size]
+}
+
+/** The window's brightness override, or the system brightness when the window has none. */
+private fun currentBrightness(activity: Activity?): Float {
+    val window = activity?.window ?: return 0.5f
+    val override = window.attributes.screenBrightness
+    if (override >= 0f) return override
+    val system = runCatching {
+        Settings.System.getInt(activity.contentResolver, Settings.System.SCREEN_BRIGHTNESS)
+    }.getOrNull() ?: return 0.5f
+    return (system / 255f).coerceIn(0f, 1f)
+}
+
 private data class SubtitleCue(val startMs: Long, val endMs: Long, val text: String)
 
 private fun parseAssTimestamp(ts: String): Long {
@@ -1190,6 +1714,9 @@ private fun displayLanguageOrNull(code: String): String? {
 
 private fun SubtitleDto.isSideloadOnly(): Boolean =
     source == OpenSubtitlesRepository.SOURCE_NAME || url.substringBefore('?').endsWith(".gz", ignoreCase = true)
+
+/** Caption size in picture-in-picture relative to the user's chosen size. */
+private const val PIP_CAPTION_SCALE = 0.55f
 
 /** Community subtitle files often open with a promo line (a site address); drop those cues. */
 private val SUBTITLE_AD = Regex("""(?i)(www\.|https?://|\.(link|lt|com|net|org)\b|opensubtitles|osdb|subtitletools)""")

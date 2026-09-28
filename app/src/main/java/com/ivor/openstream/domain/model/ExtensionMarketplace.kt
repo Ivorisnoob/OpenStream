@@ -28,6 +28,10 @@ enum class ExtensionEngineType(val key: String) {
     VIDKING_WEBVIEW("vidking-webview"),
     /** Any embeddable web player, described by URL templates. */
     WEB_EMBED("web-embed"),
+    /** Anime sites; `endpoint` is the site's origin. Titles are matched through AniList. */
+    ANIKOTO("anikoto"),
+    REANIME("reanime"),
+    ANIMEPAHE("animepahe"),
     UNSUPPORTED("unsupported");
 
     companion object {
@@ -52,6 +56,9 @@ data class ExtensionEngine(
             ExtensionEngineType.VIDKING_WEBVIEW -> true
             ExtensionEngineType.WEB_EMBED ->
                 listOfNotNull(movieUrl, tvUrl).any { it.startsWith("https://") }
+            ExtensionEngineType.ANIKOTO,
+            ExtensionEngineType.REANIME,
+            ExtensionEngineType.ANIMEPAHE -> endpoint.startsWith("https://")
             ExtensionEngineType.UNSUPPORTED -> false
         }
 
