@@ -2,7 +2,6 @@ package com.ivor.openstream.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.Index
-import androidx.room.PrimaryKey
 
 /**
  * One row per episode (or movie) the user has started. Rows with `positionMs == 0` and
@@ -10,10 +9,10 @@ import androidx.room.PrimaryKey
  */
 @Entity(
     tableName = "watch_progress",
-    indices = [Index(value = ["mediaType", "tmdbId"])]
+    primaryKeys = ["profileId", "id"],
+    indices = [Index(value = ["profileId", "mediaType", "tmdbId"])]
 )
 data class WatchProgressEntity(
-    @PrimaryKey
     val id: String,
     val tmdbId: Int,
     val mediaType: String,
@@ -27,7 +26,8 @@ data class WatchProgressEntity(
     val positionMs: Long,
     val durationMs: Long,
     val completed: Boolean,
-    val updatedAt: Long
+    val updatedAt: Long,
+    val profileId: Long = ProfileEntity.DEFAULT_ID
 ) {
     companion object {
         fun idFor(mediaType: String, tmdbId: Int, season: Int, episode: Int): String =

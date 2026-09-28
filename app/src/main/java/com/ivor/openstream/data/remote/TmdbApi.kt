@@ -7,12 +7,22 @@ import com.ivor.openstream.data.remote.model.TmdbResponse
 import com.ivor.openstream.data.remote.model.KeywordDto
 import com.ivor.openstream.data.remote.model.ExternalIdsDto
 import com.ivor.openstream.data.remote.model.PersonDto
+import com.ivor.openstream.data.remote.model.ContentRatingsDto
+import com.ivor.openstream.data.remote.model.ReleaseDatesDto
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
 import retrofit2.http.QueryMap
 
 interface TmdbApi {
+    /** Per-country certifications (US "PG", "R"...) for a movie. */
+    @GET("movie/{id}/release_dates")
+    suspend fun getMovieReleaseDates(@Path("id") id: Int): ReleaseDatesDto
+
+    /** Per-country TV ratings (US "TV-Y7", "TV-MA"...) for a show. */
+    @GET("tv/{id}/content_ratings")
+    suspend fun getTvContentRatings(@Path("id") id: Int): ContentRatingsDto
+
     @GET("{media_type}/{id}/external_ids")
     suspend fun getExternalIds(
         @Path("media_type") mediaType: String,

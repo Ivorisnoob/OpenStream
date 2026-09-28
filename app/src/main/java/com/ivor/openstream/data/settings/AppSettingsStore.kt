@@ -57,6 +57,19 @@ class AppSettingsStore @Inject constructor(
 
     val current: AppSettings get() = _settings.value
 
+    private val _activeProfileId = MutableStateFlow(prefs.getLong(KEY_ACTIVE_PROFILE, DEFAULT_PROFILE_ID))
+
+    /**
+     * The profile whose library, progress and lists the app shows. Not part of [AppSettings]
+     * because backups and restores shouldn't switch who's watching.
+     */
+    val activeProfileId: StateFlow<Long> = _activeProfileId.asStateFlow()
+
+    fun setActiveProfile(id: Long) {
+        _activeProfileId.value = id
+        prefs.edit().putLong(KEY_ACTIVE_PROFILE, id).apply()
+    }
+
     fun update(transform: (AppSettings) -> AppSettings) {
         val updated = transform(_settings.value)
         _settings.value = updated
@@ -101,5 +114,8 @@ class AppSettingsStore @Inject constructor(
         const val KEY_DEFAULT_SPEED = "app_default_speed"
         const val KEY_AUTO_PLAY_NEXT = "app_auto_play_next"
         const val KEY_DOWNLOAD_HEIGHT = "app_download_max_height"
+        const val KEY_ACTIVE_PROFILE = "app_active_profile_id"
+        /** Matches ProfileEntity.DEFAULT_ID, the profile the Room migration seeds. */
+        const val DEFAULT_PROFILE_ID = 1L
     }
 }

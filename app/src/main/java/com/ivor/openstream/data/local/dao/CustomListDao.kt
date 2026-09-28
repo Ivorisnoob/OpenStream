@@ -31,26 +31,32 @@ interface CustomListDao {
                 ORDER BY i2.addedAt DESC LIMIT 4
             )) AS posters
         FROM custom_lists l
+        WHERE l.profileId = :profileId
         ORDER BY l.updatedAt DESC
         """
     )
-    fun observeSummaries(): Flow<List<CustomListSummary>>
+    fun observeSummaries(profileId: Long): Flow<List<CustomListSummary>>
 
     @Query("SELECT * FROM custom_lists WHERE id = :listId")
     fun observeList(listId: Long): Flow<CustomListEntity?>
 
-    @Query("SELECT * FROM custom_lists ORDER BY updatedAt DESC")
-    suspend fun allLists(): List<CustomListEntity>
+    @Query("SELECT * FROM custom_lists WHERE profileId = :profileId ORDER BY updatedAt DESC")
+    suspend fun allLists(profileId: Long): List<CustomListEntity>
 
     @Query("SELECT * FROM custom_list_items WHERE listId = :listId ORDER BY addedAt DESC")
     fun observeItems(listId: Long): Flow<List<CustomListItemEntity>>
 
-    @Query("SELECT * FROM custom_list_items")
-    suspend fun allItems(): List<CustomListItemEntity>
+    @Query(
+        "SELECT i.* FROM custom_list_items i JOIN custom_lists l ON l.id = i.listId WHERE l.profileId = :profileId"
+    )
+    suspend fun allItems(profileId: Long): List<CustomListItemEntity>
 
-    /** Ids of the lists that contain a title. */
-    @Query("SELECT listId FROM custom_list_items WHERE mediaType = :mediaType AND tmdbId = :tmdbId")
-    fun observeListIdsFor(mediaType: String, tmdbId: Int): Flow<List<Long>>
+    /** Ids of the profile's lists that contain a title. */
+    @Query(
+        "SELECT i.listId FROM custom_list_items i JOIN custom_lists l ON l.id = i.listId " +
+            "WHERE l.profileId = :profileId AND i.mediaType = :mediaType AND i.tmdbId = :tmdbId"
+    )
+    fun observeListIdsFor(profileId: Long, mediaType: String, tmdbId: Int): Flow<List<Long>>
 
     @Insert
     suspend fun insertList(list: CustomListEntity): Long
@@ -85,6 +91,6 @@ interface CustomListDao {
     @Query("DELETE FROM custom_list_items WHERE listId = :listId AND mediaType = :mediaType AND tmdbId = :tmdbId")
     suspend fun removeItem(listId: Long, mediaType: String, tmdbId: Int)
 
-    @Query("SELECT id FROM custom_lists WHERE name = :name COLLATE NOCASE LIMIT 1")
-    suspend fun findByName(name: String): Long?
+    @Query("SELECT id FROM custom_lists WHERE profileId = :profileId AND name = :name COLLATE NOCASE LIMIT 1")
+    suspend fun findByName(profileId: Long, name: String): Long?
 }

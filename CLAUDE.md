@@ -41,7 +41,7 @@ Single activity (`MainActivity`), Navigation Compose, Hilt everywhere.
 
 ```
 data/remote        TMDB (TmdbApi), GitHub releases, DTOs
-data/local         Room: watch later, custom lists, downloads, watch progress, id mappings
+data/local         Room: profiles, watch later, custom lists, downloads, watch progress, id mappings
 data/repository    Repository implementations (anime, downloads, progress, lists, OpenSubtitles)
 data/cast          Cast options, media item converter, LAN proxy the receiver streams through
 data/streaming     Source resolution, extension -> provider registry, id mapping
@@ -56,7 +56,7 @@ Rules:
 - Composables render state and forward intent. ViewModels own screen state as `StateFlow`.
   Networking and persistence stay in `data/`.
 - Routes and arguments live in `presentation/navigation/AppNavigation.kt`.
-- Room schema changes need a real `Migration` in `di/DatabaseModule.kt` (current version 7).
+- Room schema changes need a real `Migration` in `di/DatabaseModule.kt` (current version 8).
   `fallbackToDestructiveMigration` is only a safety net; users' downloads and progress live there.
 
 ## How the main features work
@@ -98,6 +98,13 @@ Rules:
   that entry (AniList title search only as a fallback), AniSkip v2 gives the intro/recap/credits
   times (anime only), and the player picks the submission timed on the closest file length. All
   keyless public APIs with no stability promise.
+- **Profiles.** `profiles` table (seeded with profile 1); the active id is in `AppSettingsStore`.
+  Watch Later, progress, hidden titles and custom lists carry `profileId`; their DAOs take it and
+  the repositories follow the active id with `flatMapLatest`. Downloads are device-wide.
+  Switching profile stops playback. Kids profiles: `KidsContentFilter` adds TMDB certification
+  filters to discover calls and checks everything else against the US rating (G/PG,
+  TV-Y..TV-PG; unrated is hidden); Home hides Settings and leaving takes a hold on the avatar.
+  `include_adult=false` is added to every TMDB request.
 - **Lists.** Watch Later plus user lists (`CustomListRepository`, `custom_lists` tables); Details has
   "Add to list" and "Mark all watched", the Saved tab shows the lists.
 - **Backup / diagnostics.** `LibraryBackup` (JSON, merge on restore) and `Diagnostics` (crash files

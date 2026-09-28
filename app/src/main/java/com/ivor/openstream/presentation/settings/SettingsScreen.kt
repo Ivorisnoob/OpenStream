@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Restore
@@ -90,6 +91,7 @@ import com.ivor.openstream.ui.theme.ExpressiveShapes
 fun SettingsScreen(
     onBackClick: () -> Unit,
     onOpenMarketplace: () -> Unit,
+    onOpenProfiles: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -299,6 +301,18 @@ fun SettingsScreen(
                 }
             }
 
+            item(key = "profiles") {
+                SettingsGroup(title = "Profiles") {
+                    NavigationRow(
+                        index = 0, count = 1,
+                        icon = Icons.Default.People,
+                        title = "Profiles",
+                        supporting = "Add, rename or delete profiles; kids profiles",
+                        onClick = onOpenProfiles
+                    )
+                }
+            }
+
             item(key = "library") {
                 val count = if (hiddenTitleCount > 0) 4 else 3
                 SettingsGroup(title = "Library", busy = isWorking) {
@@ -306,7 +320,7 @@ fun SettingsScreen(
                         index = 0, count = count,
                         icon = Icons.Default.Backup,
                         title = "Back up library",
-                        supporting = "Watch Later, history, progress, hidden titles and settings",
+                        supporting = "Every profile's Watch Later, lists, history and hidden titles, plus settings",
                         enabled = !isWorking,
                         onClick = { exportBackup.launch("openstream-backup-${fileDate()}.json") }
                     )
@@ -333,7 +347,7 @@ fun SettingsScreen(
                         index = count - 1, count = count,
                         icon = Icons.Default.History,
                         title = "Clear watch history",
-                        supporting = "History, Continue Watching and resume positions",
+                        supporting = "This profile's history, Continue Watching and resume positions",
                         onClick = { confirmClearHistory = true }
                     )
                 }

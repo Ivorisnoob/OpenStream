@@ -80,7 +80,8 @@ brightness back to the system.
 - [x] **Custom lists** beyond Watch Later: "Add to list" on Details, lists on the Saved tab, rename,
       delete, remove with undo; included in backups.
 - [ ] **New episode notifications** for followed shows (needs WorkManager, not in the app yet).
-- [ ] **Profiles** with separate history and progress.
+- [x] **Profiles** with separate Watch Later, lists, history and progress; "Who's watching?" on
+      launch, kids profiles (rated G/PG/TV-Y..TV-PG only, hold the avatar to leave). No PIN yet.
 
 ## Downloads
 
