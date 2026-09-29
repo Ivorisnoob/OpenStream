@@ -44,10 +44,18 @@ import androidx.media3.exoplayer.ExoPlayer
 import com.ivor.openstream.presentation.player.session.NowPlaying
 import com.ivor.openstream.presentation.player.session.PlaybackSession
 import com.ivor.openstream.data.settings.AppSettings
-import com.ivor.openstream.data.repository.SkipSegment
+import com.ivor.openstream.domain.model.SkipSegment
 import com.ivor.openstream.data.repository.SkipTimesRepository
 import com.ivor.openstream.data.settings.AppSettingsStore
+import com.ivor.openstream.data.subtitles.SubtitleFetcher
 import com.ivor.openstream.presentation.player.session.SleepTimer
+import com.ivor.openstream.presentation.player.session.CastError
+import com.ivor.openstream.presentation.player.session.CastStatus
+import com.ivor.openstream.presentation.player.session.CastSubtitleOption
+import com.ivor.openstream.presentation.player.session.CastSubtitles
+import com.ivor.openstream.presentation.player.components.SUBTITLES_OFF
+import androidx.media3.common.Player
+import androidx.mediarouter.media.MediaRouteSelector
 import javax.inject.Inject
 
 private const val KEY_CAPTION_STYLE = "caption_style"
@@ -97,8 +105,14 @@ class PlayerViewModel @Inject constructor(
     private val json: Json,
     private val playbackSession: PlaybackSession,
     appSettingsStore: AppSettingsStore,
-    private val skipTimesRepository: SkipTimesRepository
+    private val skipTimesRepository: SkipTimesRepository,
+    private val subtitleFetcher: SubtitleFetcher
 ) : ViewModel() {
+
+    /** A sideloaded subtitle's text, downloaded and unwrapped by the data layer. */
+    suspend fun loadSubtitleText(url: String, headers: Map<String, String>): String =
+        subtitleFetcher.fetchText(url, headers)
+
     /** Intro/recap/credits times for the current anime episode; empty when unknown. */
     private val _skipSegments = MutableStateFlow<List<SkipSegment>>(emptyList())
     val skipSegments: StateFlow<List<SkipSegment>> = _skipSegments.asStateFlow()
@@ -116,6 +130,33 @@ class PlayerViewModel @Inject constructor(
     fun setSleepTimer(timer: SleepTimer?) = playbackSession.setSleepTimer(timer)
 
     fun consumeEndedBySleepTimer(): Boolean = playbackSession.consumeEndedBySleepTimer()
+
+    val castStatus: StateFlow<CastStatus> = playbackSession.castStatus
+    val castError: StateFlow<CastError?> = playbackSession.castError
+    val castLoading: StateFlow<Boolean> = playbackSession.castLoading
+    val castSubtitles: StateFlow<CastSubtitles> = playbackSession.castSubtitles
+
+    /** Plays on the TV while casting. */
+    val castPlayer: Player? get() = playbackSession.castPlayer
+
+    val castRouteSelector: MediaRouteSelector? get() = playbackSession.castRouteSelector
+
+    fun stopCasting() = playbackSession.stopCasting()
+
+    fun retryCast() = playbackSession.retryCast()
+
+    /** Keeps the TV's subtitle list in step with what this screen found. */
+    fun setCastSubtitleCandidates(subtitles: List<SubtitleDto>, preferredLanguage: String?) =
+        playbackSession.setSubtitleCandidates(subtitles, preferredLanguage)
+
+    /** Subtitle picked on the casting screen: shown on the TV and remembered like in the player. */
+    fun selectCastSubtitle(option: CastSubtitleOption?) {
+        playbackSession.selectCastSubtitle(option?.id)
+        when {
+            option == null -> setPreferredSubtitleLanguage(SUBTITLES_OFF)
+            option.language != null -> setPreferredSubtitleLanguage(option.language)
+        }
+    }
 
     private val _mediaUri = MutableStateFlow<Pair<String, String?>?>(null)
 
@@ -330,7 +371,8 @@ class PlayerViewModel @Inject constructor(
                     backdropPath = details.backdropPath,
                     stillPath = episode?.stillPath,
                     next = next,
-                    server = server
+                    server = server,
+                    startPositionMs = _startPositionMs.value ?: 0L
                 )
             }.collect { nowPlaying -> nowPlaying?.let(playbackSession::update) }
         }
@@ -373,7 +415,7 @@ class PlayerViewModel @Inject constructor(
         loadJob = viewModelScope.launch {
             launch {
                 _startPositionMs.value = if (continuing != null) {
-                    playbackSession.player.currentPosition
+                    playbackSession.currentPositionMs()
                 } else {
                     watchProgressRepository.get(mediaType, tmdbId, seasonNumber, currentEpisodeNumber)
                         ?.resumePositionMs ?: 0L
@@ -449,7 +491,14 @@ class PlayerViewModel @Inject constructor(
         } else {
             details.seasons?.firstOrNull { it.seasonNumber == season }?.airDate?.take(4)?.toIntOrNull()
         }
-        _skipSegments.value = skipTimesRepository.segmentsFor(details.name, isMovie, seasonYear, episode)
+        val identity = MediaIdentity(
+            tmdbId = details.id,
+            tmdbType = mediaType,
+            title = details.name,
+            season = season,
+            episode = episode
+        )
+        _skipSegments.value = skipTimesRepository.segmentsFor(identity, seasonYear)
     }
 
     private suspend fun findNextEpisode(

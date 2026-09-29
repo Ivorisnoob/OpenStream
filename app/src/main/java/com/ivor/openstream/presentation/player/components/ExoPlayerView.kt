@@ -5,7 +5,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.activity.compose.BackHandler
 import com.ivor.openstream.presentation.player.session.SleepTimer
-import com.ivor.openstream.data.repository.SkipSegment
+import com.ivor.openstream.domain.model.SkipSegment
 import com.ivor.openstream.data.remote.model.EpisodeDto
 import com.ivor.openstream.domain.model.WatchProgress
 import androidx.compose.animation.slideInHorizontally
@@ -113,6 +113,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.mutableIntStateOf
 import com.ivor.openstream.data.streaming.BROWSER_USER_AGENT
+import com.ivor.openstream.domain.model.forDuration
+import com.ivor.openstream.data.subtitles.SubtitleCue
+import com.ivor.openstream.data.repository.SubSourceRepository
+import com.ivor.openstream.data.subtitles.isSubtitleAd
+import com.ivor.openstream.data.subtitles.parseSubtitles
 
 @OptIn(UnstableApi::class)
 @kotlin.OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -170,7 +175,15 @@ fun ExoPlayerView(
     episodes: List<EpisodeDto> = emptyList(),
     currentEpisodeNumber: Int = 0,
     episodeProgress: Map<Pair<Int, Int>, WatchProgress> = emptyMap(),
-    onEpisodeSelected: (EpisodeDto) -> Unit = {}
+    onEpisodeSelected: (EpisodeDto) -> Unit = {},
+    /** Opens the Cast device picker; null hides the Cast button. */
+    onCastClick: (() -> Unit)? = null,
+    /** Pops the video out into picture-in-picture; null hides the button. */
+    onPictureInPictureClick: (() -> Unit)? = null,
+    /** Downloads a sideloaded subtitle as text (gzip/zip handled); throws when it can't. */
+    loadSubtitleText: suspend (url: String, headers: Map<String, String>) -> String = { _, _ -> throw IllegalStateException("No subtitle loader") },
+    /** Container hint from the source (HLS for hosts whose URLs don't end in .m3u8). */
+    mimeType: String? = null
 ) {
     val context = LocalContext.current
     val activity = remember(context) {
@@ -329,55 +342,23 @@ fun ExoPlayerView(
         val urlStr = selectedSubtitle?.url
         if (urlStr != null) {
             subtitleLoadingState = SubtitleLoadingState.LOADING
-            withContext(Dispatchers.IO) {
-                try {
-                    val url = java.net.URL(urlStr)
-                    val connection = url.openConnection() as java.net.HttpURLConnection
-                    if (url.host.endsWith("opensubtitles.org")) {
-                        // OpenSubtitles only asks for a User-Agent; the stream's Referer would be wrong here.
-                        connection.setRequestProperty("User-Agent", OpenSubtitlesRepository.USER_AGENT)
-                    } else {
-                        connection.setRequestProperty("User-Agent", BROWSER_USER_AGENT)
-                        requestHeaders.forEach { (name, value) -> connection.setRequestProperty(name, value) }
-                    }
-                    connection.connectTimeout = 10000
-                    connection.readTimeout = 10000
-                    
-                    if (connection.responseCode != 200) {
-                        throw Exception("Server returned code ${connection.responseCode} (Subtitles might be restricted)")
-                    }
-
-                    val bytes = connection.inputStream.use { it.readBytes() }
-                    // OpenSubtitles serves gzip files; detect by magic bytes rather than trusting the URL.
-                    val isGzip = bytes.size > 2 && bytes[0] == 0x1f.toByte() && bytes[1] == 0x8b.toByte()
-                    val raw = if (isGzip) {
-                        java.util.zip.GZIPInputStream(bytes.inputStream()).bufferedReader().use { it.readText() }
-                    } else {
-                        bytes.toString(Charsets.UTF_8)
-                    }
-                    Log.d("PlayerSubtitles", "Downloaded raw data: ${raw.take(100)}...")
-                    
-                    if (raw.trim().isEmpty()) {
-                        throw Exception("Subtitle file is empty")
-                    }
-
-                    manualCues = parseSubtitles(raw).filterNot { it.text.isSubtitleAd() }
-                    subtitleLoadingState = if (manualCues.isNotEmpty()) SubtitleLoadingState.SUCCESS else SubtitleLoadingState.ERROR
-                    
-                    Log.i("PlayerSubtitles", "Parsed ${manualCues.size} cues for manual sync")
-                } catch (e: Exception) {
-                    Log.e("PlayerSubtitles", "Failed to parse sideloaded subtitles: ${e.message}")
-                    manualCues = emptyList()
-                    subtitleLoadingState = SubtitleLoadingState.ERROR
-                }
+            try {
+                val raw = loadSubtitleText(urlStr, requestHeaders)
+                manualCues = withContext(Dispatchers.Default) { parseSubtitles(raw).filterNot { it.text.isSubtitleAd() } }
+                subtitleLoadingState = if (manualCues.isNotEmpty()) SubtitleLoadingState.SUCCESS else SubtitleLoadingState.ERROR
+                Log.i("PlayerSubtitles", "Parsed ${manualCues.size} cues for manual sync")
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("PlayerSubtitles", "Failed to load sideloaded subtitles: ${e.message}")
+                manualCues = emptyList()
+                subtitleLoadingState = SubtitleLoadingState.ERROR
             }
         } else {
             manualCues = emptyList()
             subtitleLoadingState = SubtitleLoadingState.IDLE
         }
     }
-
-
 
     // Helper: parse available tracks from ExoPlayer
     fun parseTracksFromPlayer(tracks: Tracks) {
@@ -624,7 +605,7 @@ fun ExoPlayerView(
         // CASE 1: Video URL changed (Episode switch) -> Full Reset
         if (currentUri != newUri) {
             applyRequestHeaders(requestHeaders)
-            val mediaItemBuilder = MediaItem.Builder().setUri(videoUrl)
+            val mediaItemBuilder = MediaItem.Builder().setUri(videoUrl).setMimeType(mimeType)
             val configs = buildSubtitleConfigs(remoteSubtitles)
             if (configs.isNotEmpty()) {
                 mediaItemBuilder.setSubtitleConfigurations(configs)
@@ -643,7 +624,7 @@ fun ExoPlayerView(
             val currentPosition = exoPlayer.currentPosition
             val wasPlaying = exoPlayer.isPlaying
             
-            val mediaItemBuilder = MediaItem.Builder().setUri(videoUrl)
+            val mediaItemBuilder = MediaItem.Builder().setUri(videoUrl).setMimeType(mimeType)
             val configs = buildSubtitleConfigs(remoteSubtitles)
             mediaItemBuilder.setSubtitleConfigurations(configs)
             
@@ -1202,6 +1183,13 @@ fun ExoPlayerView(
                 changeVideoScale(videoScale.next())
                 areControlsVisible = true
             },
+            onCastClick = onCastClick,
+            onPictureInPictureClick = onPictureInPictureClick?.let { enter ->
+                {
+                    areControlsVisible = false
+                    enter()
+                }
+            },
             onBackClick = onBackClick
         )
 
@@ -1326,7 +1314,8 @@ fun ExoPlayerView(
         // Skip intro / recap / credits. AniSkip segments show whenever playback is inside one; without
         // them, a manual jump is offered early in the video while the controls are up.
         var manualSkipUsed by remember(videoUrl) { mutableStateOf(false) }
-        val activeSegment = skipSegments.firstOrNull { currentTime >= it.startMs && currentTime < it.endMs - 1_000 }
+        val fittingSegments = remember(skipSegments, totalTime / 10_000) { skipSegments.forDuration(totalTime) }
+        val activeSegment = fittingSegments.firstOrNull { currentTime >= it.startMs && currentTime < it.endMs - 1_000 }
         val offerManualSkip = skipSegments.isEmpty() && !manualSkipUsed && areControlsVisible &&
             totalTime > MANUAL_SKIP_MS * 4 && currentTime in 5_000L..MANUAL_SKIP_WINDOW_MS
         val skipLabel = activeSegment?.type?.label ?: "Skip ${MANUAL_SKIP_MS / 1_000}s"
@@ -1481,74 +1470,6 @@ fun ExoPlayerView(
     }
 }
 
-private fun parseSubtitles(content: String): List<SubtitleCue> {
-    val cues = mutableListOf<SubtitleCue>()
-    val cleanContent = content.replace("\ufeff", "").replace("\r\n", "\n").replace("\r", "\n")
-
-    if (cleanContent.contains("[Events]")) {
-        Log.i("PlayerSubtitles", "Detected ASS/SSA format")
-        val lines = cleanContent.lines()
-        val eventsIndex = lines.indexOfFirst { it.trim().contains("[Events]", ignoreCase = true) }
-        if (eventsIndex != -1) {
-            val dialogueLines = lines.drop(eventsIndex + 1).filter { it.trim().startsWith("Dialogue:", ignoreCase = true) }
-            Log.d("PlayerSubtitles", "Found ${dialogueLines.size} Dialogue lines")
-            for (line in dialogueLines) {
-                try {
-                    // Dialogue: 0,0:00:28.57,0:00:30.40,Default,,0,0,0,,Text
-                    // Limit is 10 because the text part can contain commas
-                    val parts = line.split(",", limit = 10)
-                    if (parts.size >= 10) {
-                        val start = parseAssTimestamp(parts[1])
-                        val end = parseAssTimestamp(parts[2])
-                        // Strip ASS override tags like {\fn...} and handle \N (newline)
-                        val text = parts[9].replace(Regex("\\{[^}]*\\}"), "")
-                                       .replace("\\N", "\n")
-                                       .replace("\\n", "\n")
-                                       .replace("\\h", " ")
-                                       .trim()
-                        if (text.isNotEmpty()) {
-                            cues.add(SubtitleCue(start, end, text))
-                        }
-                    }
-                } catch (e: Exception) {
-                    // Skip malformed lines
-                }
-            }
-        }
-    } else {
-        Log.i("PlayerSubtitles", "Detected SRT/VTT format")
-        val timestampRegex = Regex("(\\d{2}:\\d{2}:\\d{2}[,.]\\d{3})\\s*-->\\s*(\\d{2}:\\d{2}:\\d{2}[,.]\\d{3})")
-        val blocks = cleanContent.split(Regex("\\n\\s*\\n")).filter { it.isNotBlank() }
-        
-        for (block in blocks) {
-            val lines = block.lines().filter { it.isNotBlank() }
-            val match = timestampRegex.find(block)
-            
-            if (match != null) {
-                val start = parseTimestamp(match.groupValues[1])
-                val end = parseTimestamp(match.groupValues[2])
-                
-                val textLines = lines.dropWhile { !it.contains("-->") }.drop(1)
-                val textRaw = textLines.joinToString("\n").trim()
-                
-                if (textRaw.isNotEmpty()) {
-                    val cleanedText = textRaw.replace(Regex("<[^>]*>"), "").trim()
-                    if (cleanedText.isNotEmpty()) {
-                        cues.add(SubtitleCue(start, end, cleanedText))
-                    }
-                }
-            }
-        }
-    }
-    
-    if (cues.isNotEmpty()) {
-        Log.i("PlayerSubtitles", "Successfully parsed ${cues.size} cues. First: ${cues.first().text}")
-    } else {
-        Log.w("PlayerSubtitles", "Parsed 0 cues from content length: ${cleanContent.length}")
-    }
-    return cues
-}
-
 @Composable
 private fun GestureIndicator(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -1591,7 +1512,8 @@ private fun GestureIndicator(
 
 private const val BOOST_SPEED = 2f
 /** A typical opening's length, for titles AniSkip has no times for. */
-private const val MANUAL_SKIP_MS = 85_000L
+/** How far the manual skip (and PiP "Skip intro" without AniSkip times) jumps. */
+const val MANUAL_SKIP_MS = 85_000L
 /** The manual skip is only offered this early in a video. */
 private const val MANUAL_SKIP_WINDOW_MS = 10 * 60_000L
 
@@ -1665,44 +1587,6 @@ private fun currentBrightness(activity: Activity?): Float {
     return (system / 255f).coerceIn(0f, 1f)
 }
 
-private data class SubtitleCue(val startMs: Long, val endMs: Long, val text: String)
-
-private fun parseAssTimestamp(ts: String): Long {
-    try {
-        val parts = ts.trim().split(':')
-        if (parts.size < 3) return 0L
-        val h = parts[0].toLongOrNull() ?: 0L
-        val m = parts[1].toLongOrNull() ?: 0L
-        val sParts = parts[2].split('.')
-        val s = sParts[0].toLongOrNull() ?: 0L
-        val ms = if (sParts.size > 1) {
-            // ASS usually has 2 decimals, e.g. .57 -> 570ms
-            val msStr = sParts[1].padEnd(3, '0').take(3)
-            msStr.toLongOrNull() ?: 0L
-        } else 0L
-        return (h * 3600 + m * 60 + s) * 1000 + ms
-    } catch (e: Exception) {
-        return 0L
-    }
-}
-
-private fun parseTimestamp(ts: String): Long {
-    val clean = ts.replace(',', '.')
-    val parts = clean.split(':')
-    if (parts.size < 3) return 0L
-    
-    val secondsParts = parts[2].split('.')
-    
-    val h = parts[0].toLongOrNull() ?: 0L
-    val m = parts[1].toLongOrNull() ?: 0L
-    val s = secondsParts[0].toLongOrNull() ?: 0L
-    val ms = if (secondsParts.size > 1) {
-        secondsParts[1].padEnd(3, '0').take(3).toLongOrNull() ?: 0L
-    } else 0L
-    
-    return (h * 3600 + m * 60 + s) * 1000 + ms
-}
-
 /** English name for a real ISO 639 code (`ja`, `jpn`, `pt-BR`), or null for junk and `und`. */
 private fun displayLanguageOrNull(code: String): String? {
     val normalized = code.trim().replace('_', '-')
@@ -1712,13 +1596,10 @@ private fun displayLanguageOrNull(code: String): String? {
     return name.takeIf { it.isNotBlank() && !it.equals(normalized, ignoreCase = true) }
 }
 
+/** Files the player can't read itself (compressed, or behind a download token); loaded on demand. */
 private fun SubtitleDto.isSideloadOnly(): Boolean =
-    source == OpenSubtitlesRepository.SOURCE_NAME || url.substringBefore('?').endsWith(".gz", ignoreCase = true)
+    source == OpenSubtitlesRepository.SOURCE_NAME || source == SubSourceRepository.SOURCE_NAME ||
+        url.substringBefore('?').substringAfterLast('.').lowercase() in setOf("gz", "zip")
 
 /** Caption size in picture-in-picture relative to the user's chosen size. */
 private const val PIP_CAPTION_SCALE = 0.55f
-
-/** Community subtitle files often open with a promo line (a site address); drop those cues. */
-private val SUBTITLE_AD = Regex("""(?i)(www\.|https?://|\.(link|lt|com|net|org)\b|opensubtitles|osdb|subtitletools)""")
-
-private fun String.isSubtitleAd(): Boolean = SUBTITLE_AD.containsMatchIn(this)

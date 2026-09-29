@@ -42,6 +42,8 @@ import androidx.compose.material.icons.filled.Replay30
 import androidx.compose.material.icons.filled.Replay5
 import androidx.compose.material.icons.filled.ScreenLockRotation
 import androidx.compose.material.icons.filled.ScreenRotation
+import androidx.compose.material.icons.filled.Cast
+import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -146,6 +148,10 @@ fun PlayerControls(
     seekStepSeconds: Int = 10,
     videoScale: VideoScale = VideoScale.FIT,
     onVideoScaleClick: () -> Unit = {},
+    /** Opens the Cast device picker; null hides the button (no Google Play services). */
+    onCastClick: (() -> Unit)? = null,
+    /** Pops the video out into picture-in-picture; null hides the button. */
+    onPictureInPictureClick: (() -> Unit)? = null,
     onBackClick: () -> Unit
 ) {
     val metrics = if (isFullscreen) FullscreenMetrics else InlineMetrics
@@ -187,6 +193,8 @@ fun PlayerControls(
                 onLockClick = onLockClick,
                 isRotationLocked = isRotationLocked,
                 onRotationLockToggle = onRotationLockToggle,
+                onCastClick = onCastClick,
+                onPictureInPictureClick = onPictureInPictureClick,
                 modifier = Modifier.align(Alignment.TopCenter)
             )
 
@@ -235,6 +243,8 @@ private fun TopBar(
     onLockClick: () -> Unit,
     isRotationLocked: Boolean,
     onRotationLockToggle: () -> Unit,
+    onCastClick: (() -> Unit)?,
+    onPictureInPictureClick: (() -> Unit)?,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -283,7 +293,8 @@ private fun TopBar(
                 HudChip(icon = Icons.Default.Dns, label = label, onClick = onSourcesClick)
             }
             HudChip(label = qualityLabel, onClick = onQualityClick)
-        } else if (sourceLabel != null) {
+        } else if (sourceLabel != null && (onCastClick == null || onPictureInPictureClick == null)) {
+            // Inline space is tight: with Cast and PiP showing, sources stay under Settings.
             HudIconButton(Icons.Default.Dns, "Change source: $sourceLabel", onSourcesClick)
         }
         if (hasSubtitles) {
@@ -293,6 +304,8 @@ private fun TopBar(
                 onClick = onSubtitlesClick
             )
         }
+        onPictureInPictureClick?.let { HudIconButton(Icons.Default.PictureInPictureAlt, "Picture in picture", it) }
+        onCastClick?.let { HudIconButton(Icons.Default.Cast, "Cast to a TV", it) }
         HudIconButton(Icons.Default.Settings, "Playback settings", onSettingsClick)
     }
 }

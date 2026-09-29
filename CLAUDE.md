@@ -41,8 +41,9 @@ Single activity (`MainActivity`), Navigation Compose, Hilt everywhere.
 
 ```
 data/remote        TMDB (TmdbApi), GitHub releases, DTOs
-data/local         Room: watch later, downloads, watch progress, id mappings
-data/repository    Repository implementations (anime, downloads, progress, OpenSubtitles)
+data/local         Room: profiles, watch later, custom lists, downloads, watch progress, id mappings
+data/repository    Repository implementations (anime, downloads, progress, lists, OpenSubtitles)
+data/cast          Cast options, media item converter, LAN proxy the receiver streams through
 data/streaming     Source resolution, extension -> provider registry, id mapping
 data/extensions    Extension catalog: repos, cache, parser, ranking, bundled copy
 data/service       Media3 download service
@@ -55,7 +56,7 @@ Rules:
 - Composables render state and forward intent. ViewModels own screen state as `StateFlow`.
   Networking and persistence stay in `data/`.
 - Routes and arguments live in `presentation/navigation/AppNavigation.kt`.
-- Room schema changes need a real `Migration` in `di/DatabaseModule.kt` (current version 6).
+- Room schema changes need a real `Migration` in `di/DatabaseModule.kt` (current version 8).
   `fallbackToDestructiveMigration` is only a safety net; users' downloads and progress live there.
 
 ## How the main features work
@@ -64,9 +65,12 @@ Rules:
   `StreamingRepositoryImpl` resolves them in parallel, ranks with `ServerRanker`, and runs
   `fallback` providers only when direct ones return nothing (or on "Find more" / failover).
   Engines: `vidking-direct` (`VidkingDirectApi`, encrypted payload, prefers the master playlist so
-  quality switches in-player), `web-embed` and `vidking-webview` (`WebEmbedResolver`, hidden
-  WebView that records media requests).
-  Anime engines (`data/streaming/anime`): `anikoto`, `reanime`, `animepahe`. `AnimeEpisodeMapper`
+  quality switches in-player), `web-embed` and `vidking-webview` (`WebEmbedResolver`: first a native
+  pass through `HosterExtractors` (Filemoon, StreamWish/VidHide, Voe, Mp4Upload, Vidmoly, ok.ru) when
+  the embed is or frames a known hoster, else a hidden WebView that records media requests).
+  Anime engines (`data/streaming/anime`): `anikoto`, `reanime`, `animepahe`, `fouranimo`, `animegg`.
+  `VideoServer` can carry a MIME hint (HLS for URLs without `.m3u8`) and the source's own intro/outro
+  times, which the player prefers over AniSkip. `AnimeEpisodeMapper`
   maps TMDB season/episode to an AniList episode (ani.zip + AniList GraphQL, both keyless);
   megaplay embeds decrypt with a fixed AES key; `ImagePrefixStrippingDataSource` strips the fake
   PNG header some anime CDNs put before TS segments.
@@ -77,17 +81,37 @@ Rules:
   to it and never releases it; leaving the player keeps playback going in `MiniPlayer`. The session
   also records watch progress (`WatchProgressRepository`) and queues the next episode for
   Continue Watching. Debug builds log player events under `EventLogger`.
+- **Casting.** `PlaybackSession` also owns a Media3 `CastPlayer` (Default Media Receiver, options in
+  `CastOptionsProvider`, initialised from `MainActivity`). `activePlayer` is the TV while casting;
+  connecting moves the item there at the phone's position, disconnecting brings it back paused.
+  Everything the receiver loads goes through `CastMediaProxy`, a small HTTP server on the phone:
+  stateless URLs carry the target and headers, HLS playlists are rewritten, segments are read through
+  the download cache and `ImagePrefixStrippingDataSource`, subtitles are served as WebVTT. The
+  phone must stay on the TV's network. `PlayerScreen` swaps `ExoPlayerView` for `CastPlaybackView`.
 - **Player UI.** Controls in `PlayerControls`; settings and sources share `PlayerPanelHost`
   (bottom sheet inline, in-player side panel in fullscreen so immersive mode survives).
-- **Subtitles.** `OpenSubtitlesRepository` (keyless legacy REST API) plus any the stream carries.
-  Files are gzipped; the player decompresses and strips promo cues.
+- **Subtitles.** `CombinedSubtitleRepository`: `OpenSubtitlesRepository` (keyless legacy REST API)
+  and `SubSourceRepository` (keyless, mirrors subsource.net's own API: IMDb search -> list ->
+  download token -> zip), plus any the stream carries. `SubtitleFetcher` downloads and unwraps
+  them (gzip, zip, charset) for both the player and the cast proxy; promo cues are stripped.
 - **Network.** `AppDns` (DNS-over-HTTPS, default AdGuard, chosen in Settings) backs every OkHttp
   client and Coil's image loader (`OpenStreamApp`), because some ISPs block TMDB at the DNS level.
   Media3 playback/downloads and WebView sources still use the system resolver.
 - **Settings.** `AppSettingsStore` (SharedPreferences) holds theme, dynamic color, DNS and
   Wi-Fi-only downloads; `MainActivity` applies the theme.
-- **Skip intro.** `SkipTimesRepository`: AniList GraphQL finds the MAL id, AniSkip v2 gives the
-  intro/recap/credits times (anime only). Both are keyless public APIs with no stability promise.
+- **Skip intro.** `SkipTimesRepository`: `AnimeEpisodeMapper` gives the MAL id and the episode within
+  that entry (AniList title search only as a fallback), AniSkip v2 gives the intro/recap/credits
+  times (anime only), and the player picks the submission timed on the closest file length. All
+  keyless public APIs with no stability promise.
+- **Profiles.** `profiles` table (seeded with profile 1); the active id is in `AppSettingsStore`.
+  Watch Later, progress, hidden titles and custom lists carry `profileId`; their DAOs take it and
+  the repositories follow the active id with `flatMapLatest`. Downloads are device-wide.
+  Switching profile stops playback. Kids profiles: `KidsContentFilter` adds TMDB certification
+  filters to discover calls and checks everything else against the US rating (G/PG,
+  TV-Y..TV-PG; unrated is hidden); Home hides Settings and leaving takes a hold on the avatar.
+  `include_adult=false` is added to every TMDB request.
+- **Lists.** Watch Later plus user lists (`CustomListRepository`, `custom_lists` tables); Details has
+  "Add to list" and "Mark all watched", the Saved tab shows the lists.
 - **Backup / diagnostics.** `LibraryBackup` (JSON, merge on restore) and `Diagnostics` (crash files
   in `filesDir/crashes`, recorder installed in `OpenStreamApp`) back the Settings entries.
 - **Deep links.** `MainActivity` is `singleTask`; `DeepLinks` turns TMDB links (VIEW or shared text)
@@ -104,6 +128,8 @@ Rules:
 - Several Vidking routes currently 404/500 for most titles; Yoru (`cdn`) is the reliable one.
 - AniList (about 90 requests a minute) and AniSkip are unauthenticated and undocumented as a
   contract; skip buttons simply don't appear when they fail.
+- Casting relies on the receiver being allowed to load `http://` media from the phone's LAN address
+  (the Default Media Receiver page is HTTPS). Networks with client isolation block it.
 - Wyzie subtitles now require an API key and were removed. Don't add features that need users to
   supply API keys.
 

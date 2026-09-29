@@ -32,6 +32,8 @@ enum class ExtensionEngineType(val key: String) {
     ANIKOTO("anikoto"),
     REANIME("reanime"),
     ANIMEPAHE("animepahe"),
+    FOURANIMO("fouranimo"),
+    ANIMEGG("animegg"),
     UNSUPPORTED("unsupported");
 
     companion object {
@@ -58,7 +60,9 @@ data class ExtensionEngine(
                 listOfNotNull(movieUrl, tvUrl).any { it.startsWith("https://") }
             ExtensionEngineType.ANIKOTO,
             ExtensionEngineType.REANIME,
-            ExtensionEngineType.ANIMEPAHE -> endpoint.startsWith("https://")
+            ExtensionEngineType.ANIMEPAHE,
+            ExtensionEngineType.FOURANIMO,
+            ExtensionEngineType.ANIMEGG -> endpoint.startsWith("https://")
             ExtensionEngineType.UNSUPPORTED -> false
         }
 

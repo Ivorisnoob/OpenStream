@@ -36,6 +36,12 @@ import com.ivor.openstream.presentation.update.UpdateScreen
 import com.ivor.openstream.presentation.settings.SettingsScreen
 import com.ivor.openstream.presentation.marketplace.MarketplaceScreen
 import com.ivor.openstream.presentation.player.session.MiniPlayer
+import com.ivor.openstream.presentation.lists.CustomListScreen
+import com.ivor.openstream.presentation.profiles.ManageProfilesScreen
+import com.ivor.openstream.presentation.profiles.ProfilesViewModel
+import com.ivor.openstream.presentation.profiles.WhoIsWatchingScreen
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.ivor.openstream.presentation.welcome.WelcomeSheet
 import com.ivor.openstream.presentation.shortcuts.AppShortcut
 import com.ivor.openstream.presentation.shortcuts.ShortcutRequest
@@ -106,6 +112,12 @@ sealed class Screen(
         fun createRoute(personId: Int) = "person/$personId"
     }
 
+    data object Profiles : Screen("profiles")
+
+    data object CustomList : Screen("list/{listId}") {
+        fun createRoute(listId: Long) = "list/$listId"
+    }
+
     data object Details : Screen("details/{mediaType}/{animeId}") {
         fun createRoute(mediaType: String, animeId: Int) = "details/$mediaType/$animeId"
     }
@@ -144,6 +156,11 @@ fun AppNavigation(
     val miniPlayerViewModel: MiniPlayerViewModel = hiltViewModel()
     val nowPlaying by miniPlayerViewModel.session.nowPlaying.collectAsState()
     val appViewModel: AppViewModel = hiltViewModel()
+    val profilesViewModel: ProfilesViewModel = hiltViewModel()
+    val profiles by profilesViewModel.profiles.collectAsState()
+    val activeProfile by profilesViewModel.activeProfile.collectAsState()
+    val showLaunchPicker by profilesViewModel.showLaunchPicker.collectAsState()
+    var showProfilePicker by rememberSaveable { mutableStateOf(false) }
     val isOnline by appViewModel.isOnline.collectAsState()
 
     fun openTab(screen: Screen) {
@@ -251,7 +268,9 @@ fun AppNavigation(
                             navController.navigate(Screen.Details.createRoute(mediaType, id))
                         },
                         onSettingsClick = { navController.navigate(Screen.Settings.route) },
-                        onUpdateClick = { navController.navigate(Screen.Update.route) }
+                        onUpdateClick = { navController.navigate(Screen.Update.route) },
+                        profile = activeProfile,
+                        onSwitchProfile = { showProfilePicker = true }
                     )
                 }
 
@@ -272,6 +291,21 @@ fun AppNavigation(
                         onBackClick = { navController.popBackStack() },
                         onAnimeClick = { animeId, mediaType ->
                             navController.navigate(Screen.Details.createRoute(mediaType, animeId))
+                        },
+                        onOpenList = { listId ->
+                            navController.navigate(Screen.CustomList.createRoute(listId))
+                        }
+                    )
+                }
+
+                composable(
+                    route = Screen.CustomList.route,
+                    arguments = listOf(navArgument("listId") { type = NavType.LongType })
+                ) {
+                    CustomListScreen(
+                        onBackClick = { navController.popBackStack() },
+                        onOpenTitle = { id, type ->
+                            navController.navigate(Screen.Details.createRoute(type, id))
                         }
                     )
                 }
@@ -316,7 +350,15 @@ fun AppNavigation(
                 composable(Screen.Settings.route) {
                     SettingsScreen(
                         onBackClick = { navController.popBackStack() },
-                        onOpenMarketplace = { navController.navigate(Screen.Marketplace.route) }
+                        onOpenMarketplace = { navController.navigate(Screen.Marketplace.route) },
+                        onOpenProfiles = { navController.navigate(Screen.Profiles.route) }
+                    )
+                }
+
+                composable(Screen.Profiles.route) {
+                    ManageProfilesScreen(
+                        viewModel = profilesViewModel,
+                        onBackClick = { navController.popBackStack() }
                     )
                 }
 
@@ -532,6 +574,29 @@ fun AppNavigation(
                 )
             }
         }
+    }
+
+    // "Who's watching?": on launch with two or more profiles, or from the Home avatar.
+    androidx.compose.animation.AnimatedVisibility(
+        visible = showLaunchPicker || showProfilePicker,
+        enter = fadeIn(),
+        exit = fadeOut()
+    ) {
+        BackHandler(enabled = showProfilePicker && !showLaunchPicker) { showProfilePicker = false }
+        WhoIsWatchingScreen(
+            profiles = profiles,
+            activeId = activeProfile?.id,
+            onSelect = { profile ->
+                profilesViewModel.select(profile.id)
+                showProfilePicker = false
+                openTab(Screen.Home)
+            },
+            onManage = {
+                profilesViewModel.dismissLaunchPicker()
+                showProfilePicker = false
+                navController.navigate(Screen.Profiles.route) { launchSingleTop = true }
+            }
+        )
     }
 }
 

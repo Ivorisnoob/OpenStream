@@ -1,6 +1,8 @@
 package com.ivor.openstream.data.streaming.anime
 
 import com.ivor.openstream.data.streaming.StreamProvider
+import com.ivor.openstream.data.streaming.hosters.HosterExtractors
+import com.ivor.openstream.domain.model.HLS_MIME_TYPE
 import com.ivor.openstream.domain.model.MediaIdentity
 import com.ivor.openstream.domain.model.StreamAudio
 import com.ivor.openstream.domain.model.StreamQuality
@@ -72,7 +74,8 @@ class AnikotoProvider(
     mapper: AnimeEpisodeMapper,
     private val client: OkHttpClient,
     private val json: Json,
-    private val megaplay: MegaplayExtractor
+    private val megaplay: MegaplayExtractor,
+    private val hosters: HosterExtractors
 ) : AnimeSiteProvider(spec, mapper) {
     private val showPages = ConcurrentHashMap<Int, String>()
     private val episodeLists = ConcurrentHashMap<String, List<Map<String, String>>>()
@@ -101,11 +104,24 @@ class AnikotoProvider(
                             client.fetch("$base/ajax/server?get=$linkId", ajax)
                         ).jsonObject["result"]?.jsonObject
                         val url = result?.get("url")?.jsonPrimitive?.contentOrNull.orEmpty()
-                        // Only megaplay embeds have an extractor; other hosts are skipped.
-                        if ("megaplay" !in url) {
-                            emptyList()
-                        } else {
-                            megaplay.extract(url, "$base/", id, spec.name, label, audio)
+                        when {
+                            "megaplay" in url -> megaplay.extract(url, "$base/", id, spec.name, label, audio)
+                            // Common embed hosts (Filemoon, StreamWish, Voe...) have native extractors.
+                            hosters.supports(url) -> hosters.extract(url, "$base/").map { stream ->
+                                VideoServer(
+                                    id = "$id-${stream.url.hashCode()}",
+                                    providerId = id,
+                                    providerName = spec.name,
+                                    name = "$label · ${stream.host} · ${audio.label}",
+                                    url = stream.url,
+                                    quality = stream.quality,
+                                    audio = audio,
+                                    headers = stream.headers,
+                                    audioLanguage = if (audio == StreamAudio.DUB) "English" else "Japanese",
+                                    mimeType = if (stream.isHls) HLS_MIME_TYPE else null
+                                )
+                            }
+                            else -> emptyList()
                         }
                     }.getOrDefault(emptyList())
                 }

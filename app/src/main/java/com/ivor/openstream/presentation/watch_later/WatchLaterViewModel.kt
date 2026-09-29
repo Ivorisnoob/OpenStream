@@ -2,7 +2,9 @@ package com.ivor.openstream.presentation.watch_later
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ivor.openstream.data.local.dao.CustomListSummary
 import com.ivor.openstream.data.local.entity.WatchLaterEntity
+import com.ivor.openstream.data.repository.CustomListRepository
 import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.domain.repository.WatchLaterRepository
 import com.ivor.openstream.domain.repository.WatchProgressRepository
@@ -39,8 +41,19 @@ data class SavedUiState(
 @HiltViewModel
 class WatchLaterViewModel @Inject constructor(
     private val repository: WatchLaterRepository,
-    progressRepository: WatchProgressRepository
+    progressRepository: WatchProgressRepository,
+    private val listRepository: CustomListRepository
 ) : ViewModel() {
+
+    /** The user's own lists, most recently changed first. */
+    val lists: StateFlow<List<CustomListSummary>> = listRepository.summaries()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Creates a list and hands back its id (to open it). */
+    fun createList(name: String, onCreated: (Long) -> Unit) {
+        if (name.isBlank()) return
+        viewModelScope.launch { onCreated(listRepository.create(name)) }
+    }
 
     private val query = MutableStateFlow("")
     private val filter = MutableStateFlow(SavedFilter.ALL)

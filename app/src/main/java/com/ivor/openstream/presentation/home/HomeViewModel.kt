@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ivor.openstream.data.remote.model.AnimeDto
 import com.ivor.openstream.data.repository.HiddenTitlesRepository
+import com.ivor.openstream.data.repository.ProfileRepository
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import com.ivor.openstream.domain.model.AnimeCatalog
 import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.domain.repository.AnimeRepository
@@ -52,7 +55,8 @@ sealed interface HomeUiState {
 class HomeViewModel @Inject constructor(
     private val repository: AnimeRepository,
     private val watchProgressRepository: WatchProgressRepository,
-    private val hiddenTitlesRepository: HiddenTitlesRepository
+    private val hiddenTitlesRepository: HiddenTitlesRepository,
+    profileRepository: ProfileRepository
 ) : ViewModel() {
 
     /** The feed as loaded; [uiState] is this minus the titles the user hid. */
@@ -65,7 +69,13 @@ class HomeViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     init {
-        loadData()
+        // First load, and again whenever the feed has to change: switching to or from a kids profile.
+        viewModelScope.launch {
+            profileRepository.activeProfile
+                .map { it?.isKids }
+                .distinctUntilChanged()
+                .collect { kids -> if (kids != null) loadData() }
+        }
     }
 
     fun hideTitle(anime: AnimeDto) {

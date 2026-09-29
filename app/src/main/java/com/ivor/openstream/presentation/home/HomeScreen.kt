@@ -26,6 +26,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import com.ivor.openstream.domain.model.Profile
+import com.ivor.openstream.presentation.profiles.ProfileSwitchButton
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -88,6 +90,8 @@ fun HomeScreen(
     onOpenDetails: (mediaType: String, id: Int) -> Unit,
     onSettingsClick: () -> Unit,
     onUpdateClick: () -> Unit = {},
+    profile: Profile? = null,
+    onSwitchProfile: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -132,7 +136,12 @@ fun HomeScreen(
                             items = state.hero,
                             onOpen = open,
                             onSettingsClick = onSettingsClick,
-                            onUpdateClick = onUpdateClick
+                            onUpdateClick = onUpdateClick,
+                            profile = profile,
+                            onSwitchProfile = onSwitchProfile,
+                            onKidsTap = {
+                                scope.launch { snackbarHostState.showSnackbar("Hold the avatar to leave the kids profile") }
+                            }
                         )
                     }
 
@@ -180,7 +189,10 @@ private fun HeroSection(
     items: List<AnimeDto>,
     onOpen: (AnimeDto) -> Unit,
     onSettingsClick: () -> Unit,
-    onUpdateClick: () -> Unit
+    onUpdateClick: () -> Unit,
+    profile: Profile?,
+    onSwitchProfile: () -> Unit,
+    onKidsTap: () -> Unit
 ) {
     Column(modifier = Modifier.statusBarsPadding()) {
         Row(
@@ -196,12 +208,16 @@ private fun HeroSection(
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.weight(1f)
             )
-            IconButton(onClick = onUpdateClick) {
-                Icon(Icons.Default.SystemUpdate, contentDescription = "Check for updates")
+            // A kids profile keeps Settings and updates out of reach; leaving takes a hold on the avatar.
+            if (profile?.isKids != true) {
+                IconButton(onClick = onUpdateClick) {
+                    Icon(Icons.Default.SystemUpdate, contentDescription = "Check for updates")
+                }
+                IconButton(onClick = onSettingsClick) {
+                    Icon(Icons.Default.Settings, contentDescription = "Settings")
+                }
             }
-            IconButton(onClick = onSettingsClick) {
-                Icon(Icons.Default.Settings, contentDescription = "Settings")
-            }
+            ProfileSwitchButton(profile = profile, onSwitch = onSwitchProfile, onKidsTap = onKidsTap)
         }
 
         if (items.isNotEmpty()) {

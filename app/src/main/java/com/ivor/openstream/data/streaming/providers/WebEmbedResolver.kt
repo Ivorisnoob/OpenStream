@@ -31,6 +31,15 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import javax.inject.Inject
+import javax.inject.Named
+import com.ivor.openstream.data.streaming.hosters.HosterExtractors
+import com.ivor.openstream.domain.model.HLS_MIME_TYPE
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import javax.inject.Singleton
 import kotlin.coroutines.resume
 
@@ -98,11 +107,59 @@ class WebEmbedProvider(
 @Singleton
 class WebEmbedResolver @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val json: Json
+    private val json: Json,
+    private val hosters: HosterExtractors,
+    @Named("StreamingClient") private val client: OkHttpClient
 ) {
-    @SuppressLint("SetJavaScriptEnabled")
+    /**
+     * Native streams first: when the embed is (or directly frames) a hoster [HosterExtractors]
+     * knows, its stream is pulled out with plain requests. Only when that finds nothing does the
+     * hidden WebView load the page.
+     */
     suspend fun resolve(spec: WebEmbedSpec, identity: MediaIdentity): List<VideoServer> {
         val embedUrl = spec.embedUrl(identity) ?: return emptyList()
+        val native = runCatching { withTimeoutOrNull(NATIVE_TIMEOUT_MS) { nativeStreams(spec, embedUrl) } }
+            .getOrNull().orEmpty()
+        if (native.isNotEmpty()) return native
+        return sniff(spec, embedUrl)
+    }
+
+    private suspend fun nativeStreams(spec: WebEmbedSpec, embedUrl: String): List<VideoServer> {
+        val candidates = if (hosters.supports(embedUrl)) {
+            listOf(embedUrl)
+        } else {
+            val html = withContext(Dispatchers.IO) {
+                client.newCall(
+                    Request.Builder().url(embedUrl)
+                        .header("User-Agent", BROWSER_USER_AGENT)
+                        .header("Referer", originHeaders(embedUrl).getValue("Referer"))
+                        .build()
+                ).execute().use { if (it.isSuccessful) it.body?.string() else null }
+            } ?: return emptyList()
+            HOSTER_LINK.findAll(html).map { it.groupValues[1] }
+                .filter { hosters.supports(it) }
+                .distinct()
+                .take(MAX_NATIVE_CANDIDATES)
+                .toList()
+        }
+        return coroutineScope {
+            candidates.map { url -> async { hosters.extract(url, embedUrl) } }.awaitAll().flatten()
+        }.distinctBy { it.url }.map { stream ->
+            VideoServer(
+                id = "${spec.id}-${stream.url.hashCode()}",
+                providerId = spec.id,
+                providerName = spec.providerName,
+                name = "${spec.name} · ${stream.host}",
+                url = stream.url,
+                quality = stream.quality,
+                headers = stream.headers,
+                mimeType = if (stream.isHls) HLS_MIME_TYPE else null
+            )
+        }
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private suspend fun sniff(spec: WebEmbedSpec, embedUrl: String): List<VideoServer> {
         val embedHost = Uri.parse(embedUrl).host.orEmpty()
         val defaultHeaders = originHeaders(embedUrl)
 
@@ -342,6 +399,11 @@ class WebEmbedResolver @Inject constructor(
         const val BRIDGE_NAME = "OpenStreamSniffer"
         const val TIMEOUT_MS = 17_000L
         const val SETTLE_DELAY_MS = 1_500L
+        const val MAX_NATIVE_CANDIDATES = 4
+        /** The native pass must not hold up the WebView fallback for long. */
+        const val NATIVE_TIMEOUT_MS = 6_000L
+        /** iframe/data-src/link targets and quoted URLs in an embed page. */
+        val HOSTER_LINK = Regex("""["'](https?://[^"'\s<>]+)["']""")
         val PASSTHROUGH_HEADERS = listOf("Referer", "Origin", "User-Agent")
         val BLOCKED_HOST_MARKERS = listOf("googleads", "doubleclick", "telemetry", "/ads/", "vast")
 

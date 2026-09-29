@@ -18,7 +18,8 @@ import javax.inject.Inject
 class AnimeRepositoryImpl @Inject constructor(
     private val api: TmdbApi,
     private val sharedPreferences: SharedPreferences,
-    private val json: Json
+    private val json: Json,
+    private val kids: KidsContentFilter
 ) : AnimeRepository {
 
     private val HISTORY_KEY = "watch_history_list"
@@ -40,24 +41,27 @@ class AnimeRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getCatalog(catalog: AnimeCatalog, forceRefresh: Boolean): Result<List<AnimeDto>> {
-        val cached = catalogCache[catalog] ?: readCachedCatalog(catalog)?.also { catalogCache[catalog] = it }
+        // Kids profiles get their own filtered copy of each list.
+        val key = catalogKey(catalog)
+        val cached = catalogCache[key] ?: readCachedCatalog(key)?.also { catalogCache[key] = it }
         val isFresh = cached != null && System.currentTimeMillis() - cached.savedAt < CATALOG_TTL_MS
         if (!forceRefresh && isFresh) return Result.success(cached!!.items)
         return fetchCatalog(catalog)
             .onSuccess { items ->
                 val entry = CachedCatalog(System.currentTimeMillis(), items)
-                catalogCache[catalog] = entry
-                sharedPreferences.edit().putString(catalogKey(catalog), json.encodeToString(entry)).apply()
+                catalogCache[key] = entry
+                sharedPreferences.edit().putString(key, json.encodeToString(entry)).apply()
             }
             // Offline or rate limited: an older list beats an empty Home.
             .recoverCatching { error -> cached?.items ?: throw error }
     }
 
-    private fun readCachedCatalog(catalog: AnimeCatalog): CachedCatalog? = runCatching {
-        sharedPreferences.getString(catalogKey(catalog), null)?.let { json.decodeFromString<CachedCatalog>(it) }
+    private fun readCachedCatalog(key: String): CachedCatalog? = runCatching {
+        sharedPreferences.getString(key, null)?.let { json.decodeFromString<CachedCatalog>(it) }
     }.getOrNull()
 
-    private fun catalogKey(catalog: AnimeCatalog) = "catalog_cache_${catalog.name}"
+    private fun catalogKey(catalog: AnimeCatalog) =
+        if (kids.isActive) "catalog_cache_kids_${catalog.name}" else "catalog_cache_${catalog.name}"
 
     private suspend fun fetchCatalog(catalog: AnimeCatalog): Result<List<AnimeDto>> = runCatching {
         val anime = mapOf(
@@ -65,19 +69,21 @@ class AnimeRepositoryImpl @Inject constructor(
             "with_original_language" to "ja",
             "include_adult" to "false"
         )
+        val movieKids = kids.movieDiscoverParams()
+        val tvKids = kids.tvDiscoverParams()
         val results = when (catalog) {
             AnimeCatalog.TRENDING -> api.getTrendingAll("week").results
                 // The mixed feed also lists people.
                 .filter { it.mediaType == "movie" || it.mediaType == "tv" }
             AnimeCatalog.NEW_EPISODES -> api.getOnTheAir().results
             AnimeCatalog.POPULAR_MOVIES -> api.discoverMovieWith(
-                mapOf("sort_by" to "popularity.desc", "vote_count.gte" to "300", "include_adult" to "false")
+                mapOf("sort_by" to "popularity.desc", "vote_count.gte" to "300", "include_adult" to "false") + movieKids
             ).results.map { it.copy(mediaType = "movie") }
             AnimeCatalog.POPULAR_SERIES -> api.discoverTvWith(
-                mapOf("sort_by" to "popularity.desc", "vote_count.gte" to "200", "include_adult" to "false")
-            ).results
+                mapOf("sort_by" to "popularity.desc", "vote_count.gte" to "200", "include_adult" to "false") + tvKids
+            ).results.map { it.copy(mediaType = "tv") }
             AnimeCatalog.TOP_RATED_MOVIES -> api.discoverMovieWith(
-                mapOf("sort_by" to "vote_average.desc", "vote_count.gte" to "3000", "include_adult" to "false")
+                mapOf("sort_by" to "vote_average.desc", "vote_count.gte" to "3000", "include_adult" to "false") + movieKids
             ).results.map { it.copy(mediaType = "movie") }
             AnimeCatalog.TRENDING_ANIME -> coroutineScope {
                 // TMDB's trending feed cannot be filtered server-side, so read a few pages and keep anime.
@@ -85,12 +91,17 @@ class AnimeRepositoryImpl @Inject constructor(
                     .awaitAll()
                     .flatten()
                     .filter { it.originalLanguage == "ja" && it.genreIds.orEmpty().contains(ANIMATION_GENRE) }
-            }.ifEmpty { api.discoverTvWith(anime + ("sort_by" to "popularity.desc")).results }
+            }.ifEmpty { api.discoverTvWith(anime + ("sort_by" to "popularity.desc") + tvKids).results }
             AnimeCatalog.ANIME_MOVIES -> api.discoverMovieWith(
-                anime + mapOf("sort_by" to "popularity.desc", "vote_count.gte" to "100")
+                anime + mapOf("sort_by" to "popularity.desc", "vote_count.gte" to "100") + movieKids
             ).results.map { it.copy(mediaType = "movie") }
         }
-        results.filter { it.posterPath != null }.distinctBy { "${it.mediaType}:${it.id}" }
+        val moviesPreFiltered = catalog == AnimeCatalog.POPULAR_MOVIES || catalog == AnimeCatalog.TOP_RATED_MOVIES ||
+            catalog == AnimeCatalog.ANIME_MOVIES
+        kids.filter(
+            results.filter { it.posterPath != null }.distinctBy { "${it.mediaType}:${it.id}" },
+            moviesPreFiltered = moviesPreFiltered
+        )
     }
 
     override suspend fun discoverByGenre(genre: BrowseGenre, page: Int): Result<List<AnimeDto>> = runCatching {
@@ -99,19 +110,20 @@ class AnimeRepositoryImpl @Inject constructor(
                 if (genre.isAnime) mapOf("with_original_language" to "ja") else emptyMap()
             val movies = genre.movieGenreId?.let { id ->
                 async {
-                    api.discoverMovieWith(common + mapOf("with_genres" to "$id", "vote_count.gte" to "50"))
+                    api.discoverMovieWith(common + mapOf("with_genres" to "$id", "vote_count.gte" to "50") + kids.movieDiscoverParams())
                         .results.map { it.copy(mediaType = "movie") }
                 }
             }
             val series = genre.tvGenreId?.let { id ->
                 async {
-                    api.discoverTvWith(common + mapOf("with_genres" to "$id", "vote_count.gte" to "30"))
+                    api.discoverTvWith(common + mapOf("with_genres" to "$id", "vote_count.gte" to "30") + kids.tvDiscoverParams())
                         .results.map { it.copy(mediaType = "tv") }
                 }
             }
-            (movies?.await().orEmpty() + series?.await().orEmpty())
+            val combined = (movies?.await().orEmpty() + series?.await().orEmpty())
                 .filter { it.posterPath != null }
                 .sortedByDescending { it.popularity ?: 0.0 }
+            kids.filter(combined, moviesPreFiltered = true)
         }
     }
 
@@ -135,11 +147,13 @@ class AnimeRepositoryImpl @Inject constructor(
             }
         }
 
-        AnimeSearchResults.prepare(
-            tvShows = tvShows,
-            movies = movies,
-            sortBy = sortBy,
-            query = query
+        kids.filter(
+            AnimeSearchResults.prepare(
+                tvShows = tvShows,
+                movies = movies,
+                sortBy = sortBy,
+                query = query
+            )
         )
     }
 
@@ -186,7 +200,7 @@ class AnimeRepositoryImpl @Inject constructor(
         sharedPreferences.edit().remove(HISTORY_KEY).apply()
     }
 
-    private val catalogCache = java.util.concurrent.ConcurrentHashMap<AnimeCatalog, CachedCatalog>()
+    private val catalogCache = java.util.concurrent.ConcurrentHashMap<String, CachedCatalog>()
 
     @kotlinx.serialization.Serializable
     private data class CachedCatalog(val savedAt: Long, val items: List<AnimeDto>)

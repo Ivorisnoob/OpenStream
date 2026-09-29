@@ -9,6 +9,9 @@ import com.ivor.openstream.data.remote.model.SeasonDetailsDto
 import com.ivor.openstream.data.remote.model.EpisodeDto
 import com.ivor.openstream.data.remote.model.toAnimeDto
 import com.ivor.openstream.data.local.entity.DownloadEntity
+import com.ivor.openstream.data.local.dao.CustomListSummary
+import com.ivor.openstream.data.local.entity.CustomListItemEntity
+import com.ivor.openstream.data.repository.CustomListRepository
 import com.ivor.openstream.domain.model.DownloadTarget
 import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.domain.repository.AnimeRepository
@@ -24,6 +27,11 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import java.time.LocalDate
 import javax.inject.Inject
 
 @HiltViewModel
@@ -32,6 +40,7 @@ class DetailsViewModel @Inject constructor(
     private val watchLaterRepository: WatchLaterRepository,
     private val downloadRepository: DownloadRepository,
     private val watchProgressRepository: WatchProgressRepository,
+    private val listRepository: CustomListRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -169,6 +178,110 @@ class DetailsViewModel @Inject constructor(
         episodes.forEach { setWatched(it, watched) }
     }
 
+    /**
+     * True when the movie, or every aired episode of the show (specials aside), is finished.
+     * Counted from TMDB's season sizes, so it doesn't need every season's episode list.
+     */
+    val titleWatched: StateFlow<Boolean> = combine(titleProgress, _uiState) { rows, state ->
+        val details = (state as? DetailsUiState.Success)?.details ?: return@combine false
+        if (mediaType == "movie") return@combine rows.any { it.completed }
+        val aired = details.airedEpisodeCount()
+        aired > 0 && rows.count { it.completed && it.season > 0 } >= aired
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    private val _titleWatchedBusy = MutableStateFlow(false)
+    /** True while every season is being fetched to mark a show watched. */
+    val titleWatchedBusy: StateFlow<Boolean> = _titleWatchedBusy.asStateFlow()
+
+    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 2)
+    val messages: SharedFlow<String> = _messages.asSharedFlow()
+
+    /**
+     * Marks the whole title watched (every aired episode of every season, specials aside) or
+     * unwatched (forgets all its progress).
+     */
+    fun setTitleWatched(watched: Boolean) {
+        val details = (_uiState.value as? DetailsUiState.Success)?.details ?: return
+        if (_titleWatchedBusy.value) return
+        viewModelScope.launch {
+            if (!watched) {
+                watchProgressRepository.clearTitle(mediaType, animeId)
+                _messages.tryEmit("Marked ${details.name} unwatched")
+                return@launch
+            }
+            if (mediaType == "movie") {
+                setWatched(details.movieEpisode(), true)
+                return@launch
+            }
+            _titleWatchedBusy.value = true
+            try {
+                val done = titleProgress.first().filter { it.completed }.map { it.season to it.episode }.toSet()
+                var marked = 0
+                var failedSeasons = 0
+                details.seasons.orEmpty()
+                    .filter { it.seasonNumber > 0 && it.episodeCount > 0 && isReleased(it.airDate) }
+                    .sortedBy { it.seasonNumber }
+                    .forEach { season ->
+                        val episodes = repository.getSeasonDetails(animeId, season.seasonNumber).getOrNull()?.episodes
+                        if (episodes == null) {
+                            failedSeasons++
+                            return@forEach
+                        }
+                        episodes
+                            .filter { isReleased(it.airDate) && (it.seasonNumber to it.episodeNumber) !in done }
+                            .forEach { episode ->
+                                setWatched(episode, true)
+                                marked++
+                            }
+                    }
+                _messages.tryEmit(
+                    when {
+                        failedSeasons > 0 -> "Couldn't load $failedSeasons season(s). Check your connection and try again."
+                        marked == 0 -> "Everything aired is already watched"
+                        else -> "Marked $marked episode${if (marked == 1) "" else "s"} watched"
+                    }
+                )
+            } finally {
+                _titleWatchedBusy.value = false
+            }
+        }
+    }
+
+    /** The user's lists, for the "Add to list" sheet. */
+    val lists: StateFlow<List<CustomListSummary>> = listRepository.summaries()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Lists this title is in. */
+    val memberOf: StateFlow<Set<Long>> = listRepository.listIdsFor(mediaType, animeId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    fun setInList(listId: Long, add: Boolean) {
+        val details = (_uiState.value as? DetailsUiState.Success)?.details ?: return
+        viewModelScope.launch {
+            if (add) listRepository.add(details.asListItem(listId)) else listRepository.remove(listId, mediaType, animeId)
+        }
+    }
+
+    /** Makes a list (or finds one with that name) and puts this title in it. */
+    fun createListWithTitle(name: String) {
+        val details = (_uiState.value as? DetailsUiState.Success)?.details ?: return
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            val listId = listRepository.create(name)
+            listRepository.add(details.asListItem(listId))
+            _messages.tryEmit("Added to ${name.trim()}")
+        }
+    }
+
+    private fun AnimeDetailsDto.asListItem(listId: Long) = CustomListItemEntity(
+        listId = listId,
+        tmdbId = animeId,
+        mediaType = mediaType,
+        title = name,
+        posterPath = posterPath,
+        voteAverage = voteAverage
+    )
+
     /** Download state per episode of this title, keyed by (season, episode). */
     val episodeDownloads: StateFlow<Map<Pair<Int, Int>, DownloadEntity>> =
         downloadRepository.getDownloadsForTitle(animeId, mediaType)
@@ -197,6 +310,41 @@ class DetailsViewModel @Inject constructor(
 }
 
 private const val DEFAULT_RUNTIME_MIN = 24
+
+private fun isReleased(airDate: String?): Boolean {
+    val date = airDate?.takeIf { it.isNotBlank() } ?: return true
+    return runCatching { !LocalDate.parse(date.take(10)).isAfter(LocalDate.now()) }.getOrDefault(true)
+}
+
+/** Episodes aired so far across the regular seasons, from season sizes and the next air date. */
+private fun AnimeDetailsDto.airedEpisodeCount(): Int {
+    val next = nextEpisodeToAir?.takeIf { it.seasonNumber > 0 && !isReleased(it.airDate) }
+    return seasons.orEmpty()
+        .filter { it.seasonNumber > 0 && isReleased(it.airDate) }
+        .sumOf { season ->
+            when {
+                next == null || season.seasonNumber < next.seasonNumber -> season.episodeCount
+                season.seasonNumber == next.seasonNumber -> (next.episodeNumber - 1).coerceIn(0, season.episodeCount)
+                else -> 0
+            }
+        }
+}
+
+/** The movie as the single "episode" progress is stored under (season 1, episode 1). */
+private fun AnimeDetailsDto.movieEpisode() = EpisodeDto(
+    id = id,
+    name = name,
+    overview = overview,
+    voteAverage = voteAverage,
+    voteCount = voteCount ?: 0,
+    airDate = date,
+    episodeNumber = 1,
+    seasonNumber = 1,
+    stillPath = backdropPath,
+    productionCode = "",
+    runtime = runtime,
+    showId = id
+)
 
 sealed interface DetailsUiState {
     data object Loading : DetailsUiState

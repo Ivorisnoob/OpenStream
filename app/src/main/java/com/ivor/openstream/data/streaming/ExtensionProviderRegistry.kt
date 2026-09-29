@@ -3,6 +3,9 @@ package com.ivor.openstream.data.streaming
 import com.ivor.openstream.data.streaming.anime.AnikotoProvider
 import com.ivor.openstream.data.streaming.anime.AnimeEpisodeMapper
 import com.ivor.openstream.data.streaming.anime.AnimePaheProvider
+import com.ivor.openstream.data.streaming.hosters.HosterExtractors
+import com.ivor.openstream.data.streaming.anime.AnimeGGProvider
+import com.ivor.openstream.data.streaming.anime.FourAnimoProvider
 import com.ivor.openstream.data.streaming.anime.AnimeSiteSpec
 import com.ivor.openstream.data.streaming.anime.CloudflareClearance
 import com.ivor.openstream.data.streaming.anime.MegaplayExtractor
@@ -55,6 +58,7 @@ class ExtensionProviderRegistry @Inject constructor(
     private val animeEpisodeMapper: AnimeEpisodeMapper,
     private val megaplayExtractor: MegaplayExtractor,
     private val cloudflareClearance: CloudflareClearance,
+    private val hosterExtractors: HosterExtractors,
     @Named("StreamingClient") private val streamingClient: OkHttpClient,
     private val json: Json
 ) {
@@ -111,7 +115,8 @@ class ExtensionProviderRegistry @Inject constructor(
                 mapper = animeEpisodeMapper,
                 client = streamingClient,
                 json = json,
-                megaplay = megaplayExtractor
+                megaplay = megaplayExtractor,
+                hosters = hosterExtractors
             )
             ExtensionEngineType.REANIME -> ReAnimeProvider(
                 spec = animeSiteSpec(manifest),
@@ -124,6 +129,17 @@ class ExtensionProviderRegistry @Inject constructor(
                 client = streamingClient,
                 json = json,
                 clearance = cloudflareClearance
+            )
+            ExtensionEngineType.FOURANIMO -> FourAnimoProvider(
+                spec = animeSiteSpec(manifest),
+                mapper = animeEpisodeMapper,
+                client = streamingClient,
+                json = json
+            )
+            ExtensionEngineType.ANIMEGG -> AnimeGGProvider(
+                spec = animeSiteSpec(manifest),
+                mapper = animeEpisodeMapper,
+                client = streamingClient
             )
             ExtensionEngineType.UNSUPPORTED -> return null
         }

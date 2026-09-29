@@ -15,6 +15,7 @@ import com.ivor.openstream.data.repository.HiddenTitlesRepository
 import com.ivor.openstream.data.settings.AppSettings
 import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.settings.DnsProvider
+import com.ivor.openstream.data.settings.PipAction
 import com.ivor.openstream.data.settings.ThemeMode
 import com.ivor.openstream.di.downloadRequirements
 import com.ivor.openstream.domain.repository.ExtensionRepository
@@ -108,6 +109,7 @@ class SettingsViewModel @Inject constructor(
             if (summary.watchLater > 0) add("${summary.watchLater} saved")
             if (summary.progress > 0) add("${summary.progress} progress entries")
             if (summary.hidden > 0) add("${summary.hidden} hidden")
+            if (summary.lists > 0) add("${summary.lists} lists")
         }.let { parts ->
             if (parts.isEmpty()) "Restored settings; your library was already up to date"
             else "Restored " + parts.joinToString(", ")
@@ -163,6 +165,10 @@ class SettingsViewModel @Inject constructor(
     fun setAutoPlayNext(enabled: Boolean) = appSettingsStore.update { it.copy(autoPlayNext = enabled) }
 
     fun setDownloadMaxHeight(height: Int) = appSettingsStore.update { it.copy(downloadMaxHeight = height) }
+
+    fun setPipLeftAction(action: PipAction) = appSettingsStore.update { it.copy(pipLeftAction = action) }
+
+    fun setPipRightAction(action: PipAction) = appSettingsStore.update { it.copy(pipRightAction = action) }
 
     fun setWifiOnlyDownloads(wifiOnly: Boolean) {
         appSettingsStore.update { it.copy(wifiOnlyDownloads = wifiOnly) }

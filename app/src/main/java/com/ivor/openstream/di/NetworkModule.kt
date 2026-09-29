@@ -38,6 +38,10 @@ object NetworkModule {
         val originalHttpUrl = original.url
         val url = originalHttpUrl.newBuilder()
             .addQueryParameter("api_key", BuildConfig.TMDB_API_KEY)
+            .apply {
+                // No adult titles anywhere in the app, for every profile.
+                if (originalHttpUrl.host == "api.themoviedb.org" && originalHttpUrl.queryParameter("include_adult") == null) addQueryParameter("include_adult", "false")
+            }
             .build()
         
         val request = original.newBuilder()

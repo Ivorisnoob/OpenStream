@@ -19,3 +19,5 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+# Named only in the manifest (Cast framework options), so R8 can't see it's used.
+-keep class com.ivor.openstream.data.cast.CastOptionsProvider { *; }

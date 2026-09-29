@@ -1,6 +1,11 @@
 package com.ivor.openstream.data.repository
 
 import android.util.Log
+import com.ivor.openstream.data.streaming.BROWSER_USER_AGENT
+import com.ivor.openstream.data.streaming.anime.AnimeEpisodeMapper
+import com.ivor.openstream.domain.model.MediaIdentity
+import com.ivor.openstream.domain.model.SkipSegment
+import com.ivor.openstream.domain.model.SkipType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -17,37 +22,51 @@ import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
 
-enum class SkipType(val label: String) {
-    INTRO("Skip intro"),
-    RECAP("Skip recap"),
-    CREDITS("Skip credits")
-}
-
-/** A stretch of an episode the player offers to jump past. */
-data class SkipSegment(val type: SkipType, val startMs: Long, val endMs: Long)
-
 /**
  * Intro, recap and credits times for anime from AniSkip, a community database keyed by MyAnimeList
- * id. TMDB doesn't carry MAL ids, so the id comes from AniList's public search, matched on title and,
- * for later seasons, the year the season started airing.
+ * id and the episode number within that MAL entry.
  *
- * Both are keyless public APIs whose behaviour isn't formally documented or guaranteed: AniList
- * GraphQL (graphql.anilist.co, rate limited to about 90 requests a minute) and AniSkip v2
+ * TMDB doesn't carry MAL ids, and TMDB seasons often don't line up with MAL entries (split cours,
+ * arc-based seasons, absolute numbering). So the lookup goes through [AnimeEpisodeMapper] first,
+ * the same TMDB -> AniList mapping the anime sources use (ani.zip + AniList), which also gives the
+ * episode number inside the entry. Only titles it can't map fall back to AniList's title search,
+ * matched on format and the year the season started airing.
+ *
+ * All of these are keyless public APIs whose behaviour isn't formally documented or guaranteed:
+ * api.ani.zip, AniList GraphQL (graphql.anilist.co, about 90 requests a minute) and AniSkip v2
  * (api.aniskip.com). Any failure just means no skip button.
  */
 @Singleton
 class SkipTimesRepository @Inject constructor(
     @Named("StreamingClient") private val client: OkHttpClient,
-    private val json: Json
+    private val json: Json,
+    private val episodeMapper: AnimeEpisodeMapper
 ) {
     private val malIds = ConcurrentHashMap<String, Int>()
 
-    suspend fun segmentsFor(title: String, isMovie: Boolean, seasonYear: Int?, episode: Int): List<SkipSegment> =
+    /**
+     * @param identity the TMDB title, season and episode being played.
+     * @param seasonYear the year the TMDB season started airing, for the title-search fallback.
+     */
+    suspend fun segmentsFor(identity: MediaIdentity, seasonYear: Int?): List<SkipSegment> =
         withContext(Dispatchers.IO) {
+            val isMovie = identity.tmdbType == "movie"
+            val mapped = runCatching { episodeMapper.map(identity) }
+                .onFailure { Log.w(TAG, "Episode mapping failed for ${identity.title}: ${it.message}") }
+                .getOrNull()
+            val fromMapping = mapped?.malId?.let { malId ->
+                runCatching { skipTimes(malId, if (isMovie) 1 else mapped.episode) }
+                    .onFailure { Log.w(TAG, "AniSkip failed for MAL $malId: ${it.message}") }
+                    .getOrNull()
+            }
+            if (!fromMapping.isNullOrEmpty()) return@withContext fromMapping
+            // Mapped to a MAL entry that simply has no times: a title search would only guess worse.
+            if (mapped?.malId != null && fromMapping != null) return@withContext emptyList()
+
             runCatching {
-                val malId = malIdFor(title, isMovie, seasonYear) ?: return@runCatching emptyList()
-                skipTimes(malId, if (isMovie) 1 else episode)
-            }.onFailure { Log.w(TAG, "No skip times for $title: ${it.message}") }
+                val malId = malIdFor(identity.title, isMovie, seasonYear) ?: return@runCatching emptyList()
+                skipTimes(malId, if (isMovie) 1 else identity.episode)
+            }.onFailure { Log.w(TAG, "No skip times for ${identity.title}: ${it.message}") }
                 .getOrDefault(emptyList())
         }
 
@@ -63,13 +82,20 @@ class SkipTimesRepository @Inject constructor(
             .url("https://graphql.anilist.co")
             .post(body.toRequestBody("application/json".toMediaType()))
             .header("Accept", "application/json")
+            .header("User-Agent", BROWSER_USER_AGENT)
             .build()
         val text = client.newCall(request).execute().use { if (it.isSuccessful) it.body?.string() else null } ?: return null
         val media = json.decodeFromString(AniListResponse.serializer(), text).data?.page?.media.orEmpty()
             .filter { it.idMal != null }
 
-        val formats = if (isMovie) setOf("MOVIE") else setOf("TV", "TV_SHORT", "ONA")
-        val candidates = media.filter { it.format in formats }.ifEmpty { media }
+        // Full series first: ONA shorts and specials often rank above the show itself
+        // ("Sousou no Frieren: ●● no Mahou" comes before "Sousou no Frieren").
+        val formatGroups = if (isMovie) listOf(setOf("MOVIE")) else listOf(setOf("TV"), setOf("TV_SHORT", "ONA"))
+        val candidates = formatGroups.asSequence()
+            .map { formats -> media.filter { it.format in formats } }
+            .firstOrNull { group -> group.isNotEmpty() && (seasonYear == null || group.any { it.startDate?.year == seasonYear }) }
+            ?: formatGroups.asSequence().map { formats -> media.filter { it.format in formats } }.firstOrNull { it.isNotEmpty() }
+            ?: return null
         // Later seasons are separate AniList entries; the one that started the year the TMDB season did wins.
         val chosen = seasonYear?.let { year -> candidates.firstOrNull { it.startDate?.year == year } }
             ?: candidates.firstOrNull()
@@ -79,9 +105,16 @@ class SkipTimesRepository @Inject constructor(
 
     private fun skipTimes(malId: Int, episode: Int): List<SkipSegment> {
         val url = "https://api.aniskip.com/v2/skip-times/$malId/$episode" +
-            "?types[]=op&types[]=ed&types[]=recap&types[]=mixed-op&types[]=mixed-ed&episodeLength=0"
-        val text = client.newCall(Request.Builder().url(url).build()).execute()
-            .use { if (it.isSuccessful) it.body?.string() else null } ?: return emptyList()
+            "?types=op&types=ed&types=recap&types=mixed-op&types=mixed-ed&episodeLength=0"
+        val request = Request.Builder().url(url).header("User-Agent", BROWSER_USER_AGENT).build()
+        val text = client.newCall(request).execute().use { response ->
+            when {
+                response.isSuccessful -> response.body?.string()
+                // AniSkip answers 404 when an episode has no submissions.
+                response.code == 404 -> return emptyList()
+                else -> throw java.io.IOException("AniSkip returned HTTP ${response.code}")
+            }
+        } ?: return emptyList()
         val response = json.decodeFromString(AniSkipResponse.serializer(), text)
         if (!response.found) return emptyList()
         return response.results.mapNotNull { result ->
@@ -92,8 +125,12 @@ class SkipTimesRepository @Inject constructor(
                 else -> return@mapNotNull null
             }
             val interval = result.interval ?: return@mapNotNull null
-            SkipSegment(type, (interval.startTime * 1000).toLong(), (interval.endTime * 1000).toLong())
-                .takeIf { it.endMs > it.startMs }
+            SkipSegment(
+                type = type,
+                startMs = (interval.startTime * 1000).toLong(),
+                endMs = (interval.endTime * 1000).toLong(),
+                episodeLengthMs = (result.episodeLength * 1000).toLong()
+            ).takeIf { it.endMs > it.startMs }
         }.sortedBy { it.startMs }
     }
 
@@ -124,7 +161,11 @@ private data class AniListDate(val year: Int? = null)
 private data class AniSkipResponse(val found: Boolean = false, val results: List<AniSkipResult> = emptyList())
 
 @Serializable
-private data class AniSkipResult(val skipType: String? = null, val interval: AniSkipInterval? = null)
+private data class AniSkipResult(
+    val skipType: String? = null,
+    val interval: AniSkipInterval? = null,
+    val episodeLength: Double = 0.0
+)
 
 @Serializable
 private data class AniSkipInterval(val startTime: Double = 0.0, val endTime: Double = 0.0)

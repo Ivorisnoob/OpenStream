@@ -184,7 +184,7 @@ class DownloadRepositoryImpl @Inject constructor(
         headerStore.register(server.url, server.headers)
 
         val request = DownloadRequest.Builder(target.id, Uri.parse(streamUrl))
-            .setMimeType(if (streamUrl.isHls()) MimeTypes.APPLICATION_M3U8 else null)
+            .setMimeType(if (server.isHls || streamUrl.isHls()) MimeTypes.APPLICATION_M3U8 else null)
             .build()
 
         dao.insertDownload(
@@ -216,7 +216,7 @@ class DownloadRepositoryImpl @Inject constructor(
      * separate renditions (then keep the master).
      */
     private fun singleRenditionUrl(server: VideoServer): String {
-        if (!server.url.isHls()) return server.url
+        if (!server.isHls && !server.url.isHls()) return server.url
         val body = runCatching {
             client.newCall(
                 Request.Builder()
