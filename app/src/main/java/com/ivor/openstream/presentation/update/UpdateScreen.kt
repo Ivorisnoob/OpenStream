@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.update
 
+import com.ivor.openstream.presentation.components.CenteredListBox
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -80,177 +81,179 @@ fun UpdateScreen(
     val uriHandler = LocalUriHandler.current
     val release = state.release()
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 48.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item(key = "header") {
-            Column(modifier = Modifier.statusBarsPadding().padding(top = 16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    ExpressiveBackButton(onClick = onBackClick)
-                    Box(Modifier.weight(1f))
-                    if (state !is UpdateUiState.Checking && state !is UpdateUiState.Downloading) {
-                        IconButton(onClick = viewModel::checkForUpdate) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Check again")
+    CenteredListBox(Modifier.fillMaxSize(), minGutter = 16.dp, maxContentWidth = 720.dp) { gutter ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+            contentPadding = PaddingValues(start = gutter, end = gutter, bottom = 48.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item(key = "header") {
+                Column(modifier = Modifier.statusBarsPadding().padding(top = 16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ExpressiveBackButton(onClick = onBackClick)
+                        Box(Modifier.weight(1f))
+                        if (state !is UpdateUiState.Checking && state !is UpdateUiState.Downloading) {
+                            IconButton(onClick = viewModel::checkForUpdate) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Check again")
+                            }
                         }
                     }
+                    Text(
+                        text = "Updates",
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Black,
+                        modifier = Modifier
+                            .padding(top = 20.dp, start = 4.dp)
+                            .semantics { heading() }
+                    )
+                    Text(
+                        text = "You're on version ${viewModel.currentVersion}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                    )
                 }
-                Text(
-                    text = "Updates",
-                    style = MaterialTheme.typography.displaySmall,
-                    fontWeight = FontWeight.Black,
-                    modifier = Modifier
-                        .padding(top = 20.dp, start = 4.dp)
-                        .semantics { heading() }
-                )
-                Text(
-                    text = "You're on version ${viewModel.currentVersion}",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 4.dp, top = 4.dp)
-                )
             }
-        }
 
-        item(key = "status") {
-            AnimatedContent(
-                targetState = state,
-                contentKey = { it::class },
-                transitionSpec = { fadeIn() togetherWith fadeOut() },
-                label = "updateStatus"
-            ) { current ->
-                when (current) {
-                    UpdateUiState.Checking -> StatusCard(
-                        tone = Tone.Neutral,
-                        leading = { LoadingIndicator(modifier = Modifier.size(48.dp)) },
-                        title = "Checking for updates",
-                        body = "Looking at the latest release on GitHub."
-                    )
+            item(key = "status") {
+                AnimatedContent(
+                    targetState = state,
+                    contentKey = { it::class },
+                    transitionSpec = { fadeIn() togetherWith fadeOut() },
+                    label = "updateStatus"
+                ) { current ->
+                    when (current) {
+                        UpdateUiState.Checking -> StatusCard(
+                            tone = Tone.Neutral,
+                            leading = { LoadingIndicator(modifier = Modifier.size(48.dp)) },
+                            title = "Checking for updates",
+                            body = "Looking at the latest release on GitHub."
+                        )
 
-                    is UpdateUiState.UpToDate -> StatusCard(
-                        tone = Tone.Neutral,
-                        leading = { AppMark() },
-                        title = "You're up to date",
-                        body = "OpenStream ${viewModel.currentVersion} is the latest version."
-                    )
+                        is UpdateUiState.UpToDate -> StatusCard(
+                            tone = Tone.Neutral,
+                            leading = { AppMark() },
+                            title = "You're up to date",
+                            body = "OpenStream ${viewModel.currentVersion} is the latest version."
+                        )
 
-                    is UpdateUiState.Available -> StatusCard(
-                        tone = Tone.Highlight,
-                        leading = { StatusIcon(Icons.Default.NewReleases) },
-                        badge = "NEW VERSION",
-                        title = "OpenStream ${current.release.displayVersion()}",
-                        body = listOfNotNull(
-                            current.release.publishedDate()?.let { "Released $it" },
-                            current.asset?.let { formatSize(it.size) }
-                        ).joinToString("  ·  ")
-                    ) {
-                        if (current.asset != null) {
+                        is UpdateUiState.Available -> StatusCard(
+                            tone = Tone.Highlight,
+                            leading = { StatusIcon(Icons.Default.NewReleases) },
+                            badge = "NEW VERSION",
+                            title = "OpenStream ${current.release.displayVersion()}",
+                            body = listOfNotNull(
+                                current.release.publishedDate()?.let { "Released $it" },
+                                current.asset?.let { formatSize(it.size) }
+                            ).joinToString("  ·  ")
+                        ) {
+                            if (current.asset != null) {
+                                Button(
+                                    onClick = { viewModel.download(current.release, current.asset) },
+                                    shape = ExpressiveShapes.large,
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                                ) {
+                                    Icon(Icons.Default.Download, contentDescription = null)
+                                    Text("Download update", modifier = Modifier.padding(start = 10.dp), fontWeight = FontWeight.Bold)
+                                }
+                            } else {
+                                // The release has no APK attached yet; the page itself still has the notes.
+                                FilledTonalButton(
+                                    onClick = { uriHandler.openUri(current.release.htmlUrl) },
+                                    shape = ExpressiveShapes.large,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("Open the release on GitHub") }
+                            }
+                        }
+
+                        is UpdateUiState.Downloading -> StatusCard(
+                            tone = Tone.Highlight,
+                            leading = { StatusIcon(Icons.Default.Download) },
+                            title = "Downloading ${current.release.displayVersion()}",
+                            body = if (current.totalBytes > 0) {
+                                "${(current.progress * 100).toInt()}%  ·  ${formatSize(current.downloadedBytes)} of ${formatSize(current.totalBytes)}"
+                            } else {
+                                "Starting download…"
+                            }
+                        ) {
+                            LinearWavyProgressIndicator(progress = { current.progress }, modifier = Modifier.fillMaxWidth())
+                            TextButton(onClick = viewModel::cancelDownload, modifier = Modifier.align(Alignment.End)) { Text("Cancel") }
+                        }
+
+                        is UpdateUiState.ReadyToInstall -> StatusCard(
+                            tone = Tone.Highlight,
+                            leading = { StatusIcon(Icons.Default.InstallMobile) },
+                            title = "Ready to install",
+                            body = if (viewModel.canInstall()) {
+                                "Android will ask you to confirm the update. Your history, saved titles and downloads are kept."
+                            } else {
+                                "Allow OpenStream to install updates first, then come back and tap Install."
+                            }
+                        ) {
                             Button(
-                                onClick = { viewModel.download(current.release, current.asset) },
+                                onClick = {
+                                    if (viewModel.canInstall()) viewModel.install(current.apk)
+                                    else context.startActivity(viewModel.installPermissionIntent())
+                                },
                                 shape = ExpressiveShapes.large,
                                 modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
                             ) {
-                                Icon(Icons.Default.Download, contentDescription = null)
-                                Text("Download update", modifier = Modifier.padding(start = 10.dp), fontWeight = FontWeight.Bold)
+                                Text(if (viewModel.canInstall()) "Install" else "Allow installs", fontWeight = FontWeight.Bold)
                             }
-                        } else {
-                            // The release has no APK attached yet; the page itself still has the notes.
-                            FilledTonalButton(
-                                onClick = { uriHandler.openUri(current.release.htmlUrl) },
-                                shape = ExpressiveShapes.large,
-                                modifier = Modifier.fillMaxWidth()
-                            ) { Text("Open the release on GitHub") }
                         }
-                    }
 
-                    is UpdateUiState.Downloading -> StatusCard(
-                        tone = Tone.Highlight,
-                        leading = { StatusIcon(Icons.Default.Download) },
-                        title = "Downloading ${current.release.displayVersion()}",
-                        body = if (current.totalBytes > 0) {
-                            "${(current.progress * 100).toInt()}%  ·  ${formatSize(current.downloadedBytes)} of ${formatSize(current.totalBytes)}"
-                        } else {
-                            "Starting download…"
-                        }
-                    ) {
-                        LinearWavyProgressIndicator(progress = { current.progress }, modifier = Modifier.fillMaxWidth())
-                        TextButton(onClick = viewModel::cancelDownload, modifier = Modifier.align(Alignment.End)) { Text("Cancel") }
-                    }
-
-                    is UpdateUiState.ReadyToInstall -> StatusCard(
-                        tone = Tone.Highlight,
-                        leading = { StatusIcon(Icons.Default.InstallMobile) },
-                        title = "Ready to install",
-                        body = if (viewModel.canInstall()) {
-                            "Android will ask you to confirm the update. Your history, saved titles and downloads are kept."
-                        } else {
-                            "Allow OpenStream to install updates first, then come back and tap Install."
-                        }
-                    ) {
-                        Button(
-                            onClick = {
-                                if (viewModel.canInstall()) viewModel.install(current.apk)
-                                else context.startActivity(viewModel.installPermissionIntent())
-                            },
-                            shape = ExpressiveShapes.large,
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                        is UpdateUiState.Failed -> StatusCard(
+                            tone = Tone.Error,
+                            leading = { StatusIcon(Icons.Default.CloudOff) },
+                            title = "Something went wrong",
+                            body = current.message
                         ) {
-                            Text(if (viewModel.canInstall()) "Install" else "Allow installs", fontWeight = FontWeight.Bold)
+                            FilledTonalButton(onClick = viewModel::checkForUpdate, shape = ExpressiveShapes.large) { Text("Try again") }
                         }
                     }
+                }
+            }
 
-                    is UpdateUiState.Failed -> StatusCard(
-                        tone = Tone.Error,
-                        leading = { StatusIcon(Icons.Default.CloudOff) },
-                        title = "Something went wrong",
-                        body = current.message
+            val notes = release?.body?.trim().orEmpty()
+            if (notes.isNotEmpty()) {
+                item(key = "notes") {
+                    Surface(
+                        shape = ExpressiveShapes.large,
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        FilledTonalButton(onClick = viewModel::checkForUpdate, shape = ExpressiveShapes.large) { Text("Try again") }
+                        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = if (state is UpdateUiState.UpToDate) "What's in ${release?.displayVersion()}" else "What's new",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Black,
+                                modifier = Modifier.semantics { heading() }
+                            )
+                            ReleaseNotes(notes)
+                        }
                     }
                 }
             }
-        }
 
-        val notes = release?.body?.trim().orEmpty()
-        if (notes.isNotEmpty()) {
-            item(key = "notes") {
-                Surface(
-                    shape = ExpressiveShapes.large,
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = if (state is UpdateUiState.UpToDate) "What's in ${release?.displayVersion()}" else "What's new",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black,
-                            modifier = Modifier.semantics { heading() }
-                        )
-                        ReleaseNotes(notes)
-                    }
-                }
-            }
-        }
-
-        item(key = "links") {
-            val links = listOfNotNull(
-                release?.let { Triple(Icons.Default.NewReleases, "This release on GitHub", it.htmlUrl) },
-                Triple(Icons.AutoMirrored.Filled.OpenInNew, "All releases", "$REPO_URL/releases"),
-                Triple(Icons.Default.Code, "Source code", REPO_URL)
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
-                links.forEachIndexed { index, (icon, label, url) ->
-                    SegmentedListItem(
-                        onClick = { uriHandler.openUri(url) },
-                        shapes = ListItemDefaults.segmentedShapes(index = index, count = links.size),
-                        colors = ListItemDefaults.segmentedColors(),
-                        leadingContent = { Icon(icon, contentDescription = null) },
-                        trailingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) }
-                    ) {
-                        Text(label, fontWeight = FontWeight.SemiBold)
+            item(key = "links") {
+                val links = listOfNotNull(
+                    release?.let { Triple(Icons.Default.NewReleases, "This release on GitHub", it.htmlUrl) },
+                    Triple(Icons.AutoMirrored.Filled.OpenInNew, "All releases", "$REPO_URL/releases"),
+                    Triple(Icons.Default.Code, "Source code", REPO_URL)
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+                    links.forEachIndexed { index, (icon, label, url) ->
+                        SegmentedListItem(
+                            onClick = { uriHandler.openUri(url) },
+                            shapes = ListItemDefaults.segmentedShapes(index = index, count = links.size),
+                            colors = ListItemDefaults.segmentedColors(),
+                            leadingContent = { Icon(icon, contentDescription = null) },
+                            trailingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) }
+                        ) {
+                            Text(label, fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 }
             }

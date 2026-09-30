@@ -81,9 +81,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
-import androidx.compose.material3.NavigationRailItemDefaults
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.WideNavigationRail
+import androidx.compose.material3.WideNavigationRailDefaults
+import androidx.compose.material3.WideNavigationRailItem
+import androidx.compose.runtime.CompositionLocalProvider
+import com.ivor.openstream.presentation.components.LocalWindowWidthClass
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -196,20 +199,35 @@ fun AppNavigation(
         onDeepLinkHandled()
     }
 
+    // Last top-level tab the user was on, so the rail keeps showing where they came from on Details etc.
+    var lastTabRoute by rememberSaveable { mutableStateOf(Screen.Home.route) }
+    LaunchedEffect(currentDestination?.route) {
+        currentDestination?.route?.takeIf { route -> bottomNavItems.any { it.route == route } }?.let { lastTabRoute = it }
+    }
+    // Tablets keep the rail on every screen but the player; phones only show the toolbar on tabs.
+    val showRail = !isCompact && !isOnPlayer
+
+    CompositionLocalProvider(LocalWindowWidthClass provides windowSizeClass) {
     Row(modifier = Modifier.fillMaxSize()) {
         AnimatedVisibility(
-            visible = showBottomBar && !isCompact,
+            visible = showRail,
             enter = slideInHorizontally { -it } + fadeIn(),
             exit = slideOutHorizontally { -it } + fadeOut()
         ) {
-            NavigationRail(
+            // Compact rail (labels under icons) on the page's own background, centered on the
+            // edge: it reads as part of the screen rather than a separate drawer strip.
+            WideNavigationRail(
                 modifier = Modifier.fillMaxHeight(),
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
+                colors = WideNavigationRailDefaults.colors(
+                    containerColor = MaterialTheme.colorScheme.background
+                ),
+                arrangement = Arrangement.Center
             ) {
                 bottomNavItems.forEach { screen ->
-                    val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
-                    NavigationRailItem(
+                    val selected = screen.route == lastTabRoute
+                    WideNavigationRailItem(
                         selected = selected,
+                        railExpanded = false,
                         onClick = {
                             if (selected && screen.route == Screen.Search.route) {
                                 navController.currentBackStackEntry?.savedStateHandle?.set(
@@ -217,21 +235,10 @@ fun AppNavigation(
                                     System.currentTimeMillis()
                                 )
                             }
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
+                            openTab(screen)
                         },
-                        icon = { Icon(screen.icon!!, contentDescription = screen.label) },
-                        label = { Text(screen.label) },
-                        colors = NavigationRailItemDefaults.colors(
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        icon = { Icon(screen.icon!!, contentDescription = null) },
+                        label = { Text(screen.label) }
                     )
                 }
             }
@@ -485,6 +492,8 @@ fun AppNavigation(
                         end = 16.dp,
                         bottom = if (showBottomBar && isCompact) 96.dp else 16.dp
                     )
+                    // A phone-width bar on tablets instead of a strip across the whole window.
+                    .widthIn(max = 560.dp)
             ) {
                 MiniPlayer(
                     viewModel = miniPlayerViewModel,
@@ -574,6 +583,7 @@ fun AppNavigation(
                 )
             }
         }
+    }
     }
 
     // "Who's watching?": on launch with two or more profiles, or from the Home avatar.

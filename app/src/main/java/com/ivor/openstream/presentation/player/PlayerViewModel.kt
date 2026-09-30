@@ -1,5 +1,8 @@
 package com.ivor.openstream.presentation.player
 
+import com.ivor.openstream.data.local.entity.CustomListItemEntity
+import com.ivor.openstream.data.local.dao.CustomListSummary
+import com.ivor.openstream.data.repository.CustomListRepository
 import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -101,6 +104,7 @@ class PlayerViewModel @Inject constructor(
     private val downloadRepository: DownloadRepository,
     private val watchProgressRepository: WatchProgressRepository,
     private val watchLaterRepository: WatchLaterRepository,
+    private val listRepository: CustomListRepository,
     private val sharedPreferences: SharedPreferences,
     private val json: Json,
     private val playbackSession: PlaybackSession,
@@ -236,6 +240,42 @@ class PlayerViewModel @Inject constructor(
             }
         }
     }
+
+    /** The user's lists, for the "Save to" sheet. */
+    val lists: StateFlow<List<CustomListSummary>> = listRepository.summaries()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Lists the playing title is in. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val memberOf: StateFlow<Set<Long>> = _title
+        .flatMapLatest { title -> title?.let { (type, id) -> listRepository.listIdsFor(type, id) } ?: flowOf(emptySet()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    fun setInList(listId: Long, add: Boolean) {
+        val details = _mediaDetails.value ?: return
+        viewModelScope.launch {
+            if (add) listRepository.add(details.asListItem(listId)) else listRepository.remove(listId, _mediaType.value, details.id)
+        }
+    }
+
+    /** Makes a list (or finds one with that name) and puts the playing title in it. */
+    fun createListWithTitle(name: String) {
+        val details = _mediaDetails.value ?: return
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            val listId = listRepository.create(name)
+            listRepository.add(details.asListItem(listId))
+        }
+    }
+
+    private fun AnimeDetailsDto.asListItem(listId: Long) = CustomListItemEntity(
+        listId = listId,
+        tmdbId = id,
+        mediaType = _mediaType.value,
+        title = name,
+        posterPath = posterPath,
+        voteAverage = voteAverage
+    )
 
     private val _isLoadingEpisodes = MutableStateFlow(false)
     val isLoadingEpisodes = _isLoadingEpisodes.asStateFlow()

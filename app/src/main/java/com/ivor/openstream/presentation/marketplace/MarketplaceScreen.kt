@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.marketplace
 
+import com.ivor.openstream.presentation.components.CenteredListBox
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
@@ -203,115 +204,117 @@ private fun BrowseTab(
     viewModel: MarketplaceViewModel,
     onOpenDetails: (MarketplaceExtension) -> Unit
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 48.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        item {
-            OutlinedTextField(
-                value = state.query,
-                onValueChange = viewModel::setQuery,
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Search sources, languages, tags") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (state.query.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.setQuery("") }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear search")
-                        }
-                    }
-                },
-                singleLine = true,
-                shape = ExpressiveShapes.medium,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search)
-            )
-        }
-
-        if (!state.isFiltered && state.charts.isNotEmpty()) {
+    CenteredListBox(Modifier.fillMaxSize(), minGutter = 16.dp) { gutter ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = gutter, end = gutter, top = 16.dp, bottom = 48.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
             item {
-                SectionHeader(
-                    title = "Top charts",
-                    subtitle = "Most popular sources across your repositories"
+                OutlinedTextField(
+                    value = state.query,
+                    onValueChange = viewModel::setQuery,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Search sources, languages, tags") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (state.query.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.setQuery("") }) {
+                                Icon(Icons.Default.Close, contentDescription = "Clear search")
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = ExpressiveShapes.medium,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search)
                 )
             }
-            item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    itemsIndexed(state.charts, key = { _, item -> item.key }) { index, extension ->
-                        ChartTile(
-                            rank = index + 1,
-                            extension = extension,
-                            onClick = { onOpenDetails(extension) },
-                            onInstall = { viewModel.install(extension) }
-                        )
+
+            if (!state.isFiltered && state.charts.isNotEmpty()) {
+                item {
+                    SectionHeader(
+                        title = "Top charts",
+                        subtitle = "Most popular sources across your repositories"
+                    )
+                }
+                item {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        itemsIndexed(state.charts, key = { _, item -> item.key }) { index, extension ->
+                            ChartTile(
+                                rank = index + 1,
+                                extension = extension,
+                                onClick = { onOpenDetails(extension) },
+                                onInstall = { viewModel.install(extension) }
+                            )
+                        }
                     }
                 }
             }
-        }
 
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                MarketplaceSort.entries.forEach { sort ->
-                    FilterChip(
-                        selected = state.sort == sort,
-                        onClick = { viewModel.setSort(sort) },
-                        label = { Text(sort.label) }
-                    )
-                }
-            }
-        }
-
-        if (state.tags.isNotEmpty()) {
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    FilterChip(
-                        selected = state.tag == null,
-                        onClick = viewModel::clearTag,
-                        label = { Text("All") }
-                    )
-                    state.tags.forEach { tag ->
+                    MarketplaceSort.entries.forEach { sort ->
                         FilterChip(
-                            selected = state.tag == tag,
-                            onClick = { viewModel.toggleTag(tag) },
-                            label = { Text(tag.replaceFirstChar { it.uppercase() }) }
+                            selected = state.sort == sort,
+                            onClick = { viewModel.setSort(sort) },
+                            label = { Text(sort.label) }
                         )
                     }
                 }
             }
-        }
 
-        if (state.results.isEmpty()) {
-            item {
-                EmptyState(
-                    icon = Icons.Default.Storefront,
-                    title = if (state.catalog.extensions.isEmpty()) {
-                        "No catalog yet"
-                    } else {
-                        "Nothing matches"
-                    },
-                    body = if (state.catalog.extensions.isEmpty()) {
-                        "Pull a repository in the Repositories tab, or refresh to fetch the official catalog."
-                    } else {
-                        "Try another search term, or clear the category filter."
+            if (state.tags.isNotEmpty()) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = state.tag == null,
+                            onClick = viewModel::clearTag,
+                            label = { Text("All") }
+                        )
+                        state.tags.forEach { tag ->
+                            FilterChip(
+                                selected = state.tag == tag,
+                                onClick = { viewModel.toggleTag(tag) },
+                                label = { Text(tag.replaceFirstChar { it.uppercase() }) }
+                            )
+                        }
                     }
-                )
+                }
             }
-        } else {
-            items(state.results, key = { it.key }) { extension ->
-                ExtensionRow(
-                    extension = extension,
-                    onClick = { onOpenDetails(extension) },
-                    onInstall = { viewModel.install(extension) },
-                    onUninstall = { viewModel.uninstall(extension) },
-                    onUpdate = { viewModel.update(extension) },
-                    onEnabledChange = { viewModel.setEnabled(extension, it) }
-                )
+
+            if (state.results.isEmpty()) {
+                item {
+                    EmptyState(
+                        icon = Icons.Default.Storefront,
+                        title = if (state.catalog.extensions.isEmpty()) {
+                            "No catalog yet"
+                        } else {
+                            "Nothing matches"
+                        },
+                        body = if (state.catalog.extensions.isEmpty()) {
+                            "Pull a repository in the Repositories tab, or refresh to fetch the official catalog."
+                        } else {
+                            "Try another search term, or clear the category filter."
+                        }
+                    )
+                }
+            } else {
+                items(state.results, key = { it.key }) { extension ->
+                    ExtensionRow(
+                        extension = extension,
+                        onClick = { onOpenDetails(extension) },
+                        onInstall = { viewModel.install(extension) },
+                        onUninstall = { viewModel.uninstall(extension) },
+                        onUpdate = { viewModel.update(extension) },
+                        onEnabledChange = { viewModel.setEnabled(extension, it) }
+                    )
+                }
             }
         }
     }
@@ -324,77 +327,79 @@ private fun InstalledTab(
     onOpenDetails: (MarketplaceExtension) -> Unit,
     onBrowse: () -> Unit
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 48.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        item {
-            LineupSummary(
-                installed = state.installed.size,
-                enabled = state.catalog.enabled.size
-            )
-        }
-
-        if (state.updatable.isNotEmpty()) {
+    CenteredListBox(Modifier.fillMaxSize(), minGutter = 16.dp) { gutter ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = gutter, end = gutter, top = 16.dp, bottom = 48.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
             item {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = ExpressiveShapes.large,
-                    color = MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                ) {
-                    Row(
-                        modifier = Modifier.padding(18.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                LineupSummary(
+                    installed = state.installed.size,
+                    enabled = state.catalog.enabled.size
+                )
+            }
+
+            if (state.updatable.isNotEmpty()) {
+                item {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = ExpressiveShapes.large,
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
                     ) {
-                        Icon(Icons.Default.Update, contentDescription = null)
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "${state.updatable.size} updates available",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = state.updatable.joinToString { it.manifest.name },
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Button(onClick = viewModel::updateAll, shape = ExpressiveShapes.small) {
-                            Text("Update all")
+                        Row(
+                            modifier = Modifier.padding(18.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Update, contentDescription = null)
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "${state.updatable.size} updates available",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = state.updatable.joinToString { it.manifest.name },
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Button(onClick = viewModel::updateAll, shape = ExpressiveShapes.small) {
+                                Text("Update all")
+                            }
                         }
                     }
                 }
             }
-        }
 
-        if (state.installed.isEmpty()) {
-            item {
-                EmptyState(
-                    icon = Icons.Default.Extension,
-                    title = "No sources installed",
-                    body = "Install at least one source extension or playback will have nothing to resolve."
-                )
-            }
-            item {
-                Button(onClick = onBrowse, shape = ExpressiveShapes.small) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Browse the marketplace")
+            if (state.installed.isEmpty()) {
+                item {
+                    EmptyState(
+                        icon = Icons.Default.Extension,
+                        title = "No sources installed",
+                        body = "Install at least one source extension or playback will have nothing to resolve."
+                    )
                 }
-            }
-        } else {
-            items(state.installed, key = { it.key }) { extension ->
-                ExtensionRow(
-                    extension = extension,
-                    onClick = { onOpenDetails(extension) },
-                    onInstall = { viewModel.install(extension) },
-                    onUninstall = { viewModel.uninstall(extension) },
-                    onUpdate = { viewModel.update(extension) },
-                    onEnabledChange = { viewModel.setEnabled(extension, it) }
-                )
+                item {
+                    Button(onClick = onBrowse, shape = ExpressiveShapes.small) {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Browse the marketplace")
+                    }
+                }
+            } else {
+                items(state.installed, key = { it.key }) { extension ->
+                    ExtensionRow(
+                        extension = extension,
+                        onClick = { onOpenDetails(extension) },
+                        onInstall = { viewModel.install(extension) },
+                        onUninstall = { viewModel.uninstall(extension) },
+                        onUpdate = { viewModel.update(extension) },
+                        onEnabledChange = { viewModel.setEnabled(extension, it) }
+                    )
+                }
             }
         }
     }
@@ -407,93 +412,95 @@ private fun RepositoriesTab(
 ) {
     var repoUrl by rememberSaveable { mutableStateOf("") }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 48.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        item {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = ExpressiveShapes.large,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh
-            ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Text(
-                        text = "Add a repository",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = "Paste a link to an index.json. GitHub page links are converted automatically.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = repoUrl,
-                        onValueChange = { repoUrl = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("https://…/index.json") },
-                        leadingIcon = { Icon(Icons.Default.Public, contentDescription = null) },
-                        singleLine = true,
-                        shape = ExpressiveShapes.medium,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(
-                            onDone = {
-                                if (repoUrl.isNotBlank()) {
-                                    viewModel.addRepo(repoUrl)
-                                    repoUrl = ""
-                                }
-                            }
+    CenteredListBox(Modifier.fillMaxSize(), minGutter = 16.dp) { gutter ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = gutter, end = gutter, top = 16.dp, bottom = 48.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = ExpressiveShapes.large,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Text(
+                            text = "Add a repository",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
                         )
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Button(
-                        onClick = {
-                            viewModel.addRepo(repoUrl)
-                            repoUrl = ""
-                        },
-                        enabled = repoUrl.isNotBlank(),
-                        shape = ExpressiveShapes.small
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Add repository")
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "Paste a link to an index.json. GitHub page links are converted automatically.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = repoUrl,
+                            onValueChange = { repoUrl = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("https://…/index.json") },
+                            leadingIcon = { Icon(Icons.Default.Public, contentDescription = null) },
+                            singleLine = true,
+                            shape = ExpressiveShapes.medium,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(
+                                onDone = {
+                                    if (repoUrl.isNotBlank()) {
+                                        viewModel.addRepo(repoUrl)
+                                        repoUrl = ""
+                                    }
+                                }
+                            )
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                viewModel.addRepo(repoUrl)
+                                repoUrl = ""
+                            },
+                            enabled = repoUrl.isNotBlank(),
+                            shape = ExpressiveShapes.small
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Add repository")
+                        }
                     }
                 }
             }
-        }
 
-        items(state.catalog.repos, key = { it.id }) { repo ->
-            RepoCard(
-                repo = repo,
-                extensionCount = state.catalog.extensions.count { it.manifest.repoId == repo.id },
-                onRemove = { viewModel.removeRepo(repo.id) }
-            )
-        }
+            items(state.catalog.repos, key = { it.id }) { repo ->
+                RepoCard(
+                    repo = repo,
+                    extensionCount = state.catalog.extensions.count { it.manifest.repoId == repo.id },
+                    onRemove = { viewModel.removeRepo(repo.id) }
+                )
+            }
 
-        item {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = ExpressiveShapes.medium,
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-            ) {
-                Row(modifier = Modifier.padding(16.dp)) {
-                    Icon(Icons.Default.Shield, contentDescription = null)
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = "Repositories ship data, not code",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "An extension only picks and configures a resolver that already ships inside OpenStream, so a third-party list cannot run its own code on your device.",
-                            style = MaterialTheme.typography.bodySmall
-                        )
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = ExpressiveShapes.medium,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                ) {
+                    Row(modifier = Modifier.padding(16.dp)) {
+                        Icon(Icons.Default.Shield, contentDescription = null)
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Repositories ship data, not code",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "An extension only picks and configures a resolver that already ships inside OpenStream, so a third-party list cannot run its own code on your device.",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
                     }
                 }
             }

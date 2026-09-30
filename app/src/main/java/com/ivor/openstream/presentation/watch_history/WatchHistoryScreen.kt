@@ -1,5 +1,19 @@
 package com.ivor.openstream.presentation.watch_history
 
+import com.ivor.openstream.presentation.components.isCompactWidth
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.LazyGridItemSpanScope
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import com.ivor.openstream.presentation.components.bottomContentPadding
+import com.ivor.openstream.presentation.components.CenteredListBox
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -13,8 +27,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DeleteSweep
@@ -66,6 +78,8 @@ import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
 
+private val FullRow: LazyGridItemSpanScope.() -> GridItemSpan = { GridItemSpan(maxLineSpan) }
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun WatchHistoryScreen(
@@ -92,100 +106,120 @@ fun WatchHistoryScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 200.dp)
-        ) {
-            item(key = "header") {
-                LibraryHeader(
-                    title = "History",
-                    subtitle = if (state.watchedThisWeekMs > 0) {
-                        "${formatDuration(state.watchedThisWeekMs)} watched this week"
-                    } else if (state.totalCount > 0) {
-                        "${state.totalCount} watched"
-                    } else {
-                        null
-                    },
-                    onBackClick = onBackClick,
-                    trailing = {
-                        if (state.totalCount > 0) {
-                            IconButton(onClick = { confirmClear = true }) {
-                                Icon(Icons.Default.DeleteSweep, contentDescription = "Clear history")
+        // Tablets show history as a grid of landscape cards, like a video app's watch history;
+        // phones keep the compact list.
+        val cards = !isCompactWidth
+        CenteredListBox(
+            Modifier.fillMaxSize(),
+            minGutter = if (cards) 8.dp else 0.dp,
+            maxContentWidth = if (cards) 1240.dp else 840.dp
+        ) { gutter ->
+            LazyVerticalGrid(
+                columns = if (cards) GridCells.Adaptive(minSize = 280.dp) else GridCells.Fixed(1),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = gutter, end = gutter, bottom = bottomContentPadding)
+            ) {
+                item(key = "header", span = FullRow) {
+                    LibraryHeader(
+                        title = "History",
+                        subtitle = if (state.watchedThisWeekMs > 0) {
+                            "${formatDuration(state.watchedThisWeekMs)} watched this week"
+                        } else if (state.totalCount > 0) {
+                            "${state.totalCount} watched"
+                        } else {
+                            null
+                        },
+                        onBackClick = onBackClick,
+                        trailing = {
+                            if (state.totalCount > 0) {
+                                IconButton(onClick = { confirmClear = true }) {
+                                    Icon(Icons.Default.DeleteSweep, contentDescription = "Clear history")
+                                }
                             }
                         }
+                    )
+                }
+
+                if (state.totalCount > 0) {
+                    item(key = "search", span = FullRow) {
+                        LocalSearchField(
+                            value = state.query,
+                            onValueChange = viewModel::onQueryChange,
+                            placeholder = "Search your history"
+                        )
                     }
-                )
-            }
+                    item(key = "filters", span = FullRow) {
+                        ChoiceChips(
+                            options = HistoryFilter.entries,
+                            selected = state.filter,
+                            label = { it.label },
+                            onSelect = viewModel::onFilterChange,
+                            modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+                        )
+                    }
+                }
 
-            if (state.totalCount > 0) {
-                item(key = "search") {
-                    LocalSearchField(
-                        value = state.query,
-                        onValueChange = viewModel::onQueryChange,
-                        placeholder = "Search your history"
-                    )
+                when {
+                    state.isLoading -> item(key = "loading", span = FullRow) {
+                        Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) { LoadingIndicator() }
+                    }
+                    state.totalCount == 0 -> item(key = "empty", span = FullRow) {
+                        LibraryEmptyState(
+                            icon = Icons.Default.History,
+                            title = "Nothing watched yet",
+                            body = "Episodes and movies you watch show up here, so you can jump back in any time."
+                        )
+                    }
+                    !state.hasResults -> item(key = "no-matches", span = FullRow) {
+                        LibraryEmptyState(
+                            icon = Icons.Default.SearchOff,
+                            title = "No matches",
+                            body = "Nothing in your history matches this search and filter.",
+                            action = {
+                                TextButton(onClick = {
+                                    viewModel.onQueryChange("")
+                                    viewModel.onFilterChange(HistoryFilter.ALL)
+                                }) { Text("Clear search and filters") }
+                            }
+                        )
+                    }
                 }
-                item(key = "filters") {
-                    ChoiceChips(
-                        options = HistoryFilter.entries,
-                        selected = state.filter,
-                        label = { it.label },
-                        onSelect = viewModel::onFilterChange,
-                        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
-                    )
-                }
-            }
 
-            when {
-                state.isLoading -> item(key = "loading") {
-                    Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) { LoadingIndicator() }
-                }
-                state.totalCount == 0 -> item(key = "empty") {
-                    LibraryEmptyState(
-                        icon = Icons.Default.History,
-                        title = "Nothing watched yet",
-                        body = "Episodes and movies you watch show up here, so you can jump back in any time."
-                    )
-                }
-                !state.hasResults -> item(key = "no-matches") {
-                    LibraryEmptyState(
-                        icon = Icons.Default.SearchOff,
-                        title = "No matches",
-                        body = "Nothing in your history matches this search and filter.",
-                        action = {
-                            TextButton(onClick = {
-                                viewModel.onQueryChange("")
-                                viewModel.onFilterChange(HistoryFilter.ALL)
-                            }) { Text("Clear search and filters") }
+                state.groups.forEach { group ->
+                    stickyHeader(key = "group:${group.label}") {
+                        Text(
+                            text = group.label,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.background)
+                                .padding(start = 24.dp, top = 20.dp, bottom = 8.dp)
+                                .semantics { heading() }
+                        )
+                    }
+                    itemsIndexed(group.items, key = { _, entry -> "entry:${entry.mediaType}:${entry.tmdbId}:${entry.season}:${entry.episode}" }) { index, entry ->
+                        if (cards) {
+                            HistoryCard(
+                                entry = entry,
+                                onResume = { onResume(entry) },
+                                onOpenDetails = { onOpenDetails(entry.mediaType, entry.tmdbId) },
+                                onRemove = { remove(entry) },
+                                modifier = Modifier.animateItem()
+                            )
+                        } else {
+                            HistoryRow(
+                                entry = entry,
+                                index = index,
+                                count = group.items.size,
+                                onResume = { onResume(entry) },
+                                onOpenDetails = { onOpenDetails(entry.mediaType, entry.tmdbId) },
+                                onRemove = { remove(entry) },
+                                modifier = Modifier.animateItem()
+                            )
                         }
-                    )
-                }
-            }
-
-            state.groups.forEach { group ->
-                stickyHeader(key = "group:${group.label}") {
-                    Text(
-                        text = group.label,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.background)
-                            .padding(start = 24.dp, top = 20.dp, bottom = 8.dp)
-                            .semantics { heading() }
-                    )
-                }
-                itemsIndexed(group.items, key = { _, entry -> "entry:${entry.mediaType}:${entry.tmdbId}:${entry.season}:${entry.episode}" }) { index, entry ->
-                    HistoryRow(
-                        entry = entry,
-                        index = index,
-                        count = group.items.size,
-                        onResume = { onResume(entry) },
-                        onOpenDetails = { onOpenDetails(entry.mediaType, entry.tmdbId) },
-                        onRemove = { remove(entry) },
-                        modifier = Modifier.animateItem()
-                    )
+                    }
                 }
             }
         }
@@ -259,6 +293,118 @@ private fun HistoryRow(
             }
         ) {
             Text(entry.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(text = { Text(if (entry.completed) "Watch again" else "Resume") }, onClick = { menuOpen = false; onResume() })
+            DropdownMenuItem(text = { Text("Go to details") }, onClick = { menuOpen = false; onOpenDetails() })
+            DropdownMenuItem(text = { Text("Remove from history") }, onClick = { menuOpen = false; onRemove() })
+        }
+    }
+}
+
+/** A history entry as a landscape card: artwork with its progress, then title and episode. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun HistoryCard(
+    entry: WatchProgress,
+    onResume: () -> Unit,
+    onOpenDetails: () -> Unit,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val haptics = LocalHapticFeedback.current
+    val time = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(entry.updatedAt))
+    val minutesLeft = ((entry.durationMs - entry.positionMs) / 60_000L).coerceAtLeast(1)
+
+    Box(modifier = modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
+        Column(
+            modifier = Modifier
+                .clip(ExpressiveShapes.large)
+                .combinedClickable(
+                    onClick = onResume,
+                    onClickLabel = if (entry.completed) "Watch again" else "Resume",
+                    onLongClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        menuOpen = true
+                    },
+                    onLongClickLabel = "More options"
+                )
+                .padding(bottom = 10.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(16f / 9f)
+                    .clip(ExpressiveShapes.large)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+            ) {
+                AsyncImage(
+                    model = (entry.stillPath ?: entry.backdropPath ?: entry.posterPath)?.let { "https://image.tmdb.org/t/p/w500$it" },
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.7f)))
+                )
+                // Status chip: done, or how much is left.
+                Surface(
+                    shape = ExpressiveShapes.small,
+                    color = if (entry.completed) MaterialTheme.colorScheme.primary else Color.Black.copy(alpha = 0.65f),
+                    contentColor = if (entry.completed) MaterialTheme.colorScheme.onPrimary else Color.White,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (entry.completed) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Text(" Watched", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        } else if (entry.durationMs > 0) {
+                            Text("${minutesLeft}m left", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        } else {
+                            Text(time, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                if (!entry.completed && entry.fraction > 0f) {
+                    LinearProgressIndicator(
+                        progress = { entry.fraction },
+                        gapSize = 0.dp,
+                        drawStopIndicator = {},
+                        trackColor = Color.White.copy(alpha = 0.25f),
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .height(4.dp)
+                    )
+                }
+            }
+            Text(
+                text = entry.title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 6.dp, end = 6.dp, top = 10.dp)
+            )
+            Text(
+                text = listOfNotNull(
+                    if (entry.isMovie) "Movie" else "S${entry.season} E${entry.episode}" + (entry.episodeTitle?.let { " · $it" } ?: ""),
+                    time
+                ).joinToString("  ·  "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 6.dp)
+            )
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             DropdownMenuItem(text = { Text(if (entry.completed) "Watch again" else "Resume") }, onClick = { menuOpen = false; onResume() })

@@ -1,5 +1,7 @@
 package com.ivor.openstream.presentation.watch_later
 
+import com.ivor.openstream.presentation.components.bottomContentPadding
+import com.ivor.openstream.presentation.components.byWidth
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -106,9 +108,9 @@ fun WatchLaterScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 120.dp),
+            columns = GridCells.Adaptive(minSize = byWidth(compact = 120.dp, medium = 128.dp, expanded = 140.dp)),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 200.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = bottomContentPadding),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
@@ -272,16 +274,20 @@ private fun SavedCard(
     val latest = item.latest
 
     Box(modifier = modifier) {
+        // Clipped to the artwork's shape so the press ripple follows the card; the text is inset from its corners.
         Column(
-            modifier = Modifier.combinedClickable(
-                onClick = onOpen,
-                onLongClick = {
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                menuOpen = true
-            },
-                onClickLabel = "Open ${entry.title}",
-                onLongClickLabel = "More options"
-            )
+            modifier = Modifier
+                .clip(ExpressiveShapes.medium)
+                .combinedClickable(
+                    onClick = onOpen,
+                    onLongClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        menuOpen = true
+                    },
+                    onClickLabel = "Open ${entry.title}",
+                    onLongClickLabel = "More options"
+                )
+                .padding(bottom = 10.dp)
         ) {
             Box(
                 modifier = Modifier
@@ -331,7 +337,7 @@ private fun SavedCard(
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier.padding(top = 8.dp, start = 6.dp, end = 6.dp)
             )
             latest?.let {
                 Text(
@@ -341,7 +347,8 @@ private fun SavedCard(
                         else -> "S${it.season} E${it.episode}" + if (it.completed) " · watched" else ""
                     },
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 6.dp)
                 )
             }
         }

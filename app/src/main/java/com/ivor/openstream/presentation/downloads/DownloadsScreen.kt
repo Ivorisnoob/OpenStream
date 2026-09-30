@@ -1,5 +1,18 @@
 package com.ivor.openstream.presentation.downloads
 
+import com.ivor.openstream.presentation.components.bottomContentPadding
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.runtime.key
+import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.BoxWithConstraints
+import com.ivor.openstream.presentation.components.CenteredListBox
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
@@ -99,79 +112,179 @@ fun DownloadsScreen(
         )
     }
 
-    LazyColumn(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        // Leaves room for the floating navigation toolbar.
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 136.dp),
-        verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        item(key = "header") {
-            Column(modifier = Modifier.statusBarsPadding().padding(top = 16.dp, bottom = 20.dp)) {
-                ExpressiveBackButton(onClick = onBackClick)
-                Spacer(Modifier.height(24.dp))
-                Text(
-                    text = "Downloads",
-                    style = MaterialTheme.typography.displaySmall,
-                    fontWeight = FontWeight.Black
-                )
-                if (state.completedCount > 0) {
-                    Text(
-                        text = pluralize(state.completedCount, "video") + " on this device",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
+        if (maxWidth >= WIDE_DOWNLOADS_MIN_WIDTH && !state.isLoading && !state.isEmpty) {
+            WideDownloads(
+                state = state,
+                viewModel = viewModel,
+                onBackClick = onBackClick,
+                onDownloadClick = onDownloadClick,
+                onDeleteAll = { confirmDeleteAll = true }
+            )
+        } else {
+        CenteredListBox(Modifier.fillMaxSize(), minGutter = 16.dp) { gutter ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background),
+                // Leaves room for the floating navigation toolbar.
+                contentPadding = PaddingValues(start = gutter, end = gutter, bottom = 136.dp),
+                verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)
+            ) {
+                item(key = "header") { DownloadsHeader(state.completedCount, onBackClick) }
+
+                if (!state.isLoading && !state.isEmpty) {
+                    item(key = "storage") {
+                        StorageCard(
+                            usedBytes = state.storedBytes,
+                            freeBytes = state.freeBytes,
+                            onDeleteAll = { confirmDeleteAll = true },
+                            modifier = Modifier.padding(bottom = 16.dp)
+                        )
+                    }
+                }
+
+                when {
+                    state.isLoading -> item(key = "loading") {
+                        Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) { LoadingIndicator() }
+                    }
+                    state.isEmpty -> item(key = "empty") { EmptyDownloads() }
+                }
+
+                if (state.inProgress.isNotEmpty()) {
+                    item(key = "in-progress-title") { SectionTitle("In progress") }
+                    itemsIndexed(state.inProgress, key = { _, item -> "active:${item.downloadId}" }) { index, item ->
+                        InProgressRow(
+                            download = item,
+                            index = index,
+                            count = state.inProgress.size,
+                            onPause = { viewModel.pause(item) },
+                            onResume = { viewModel.resume(item) },
+                            onRetry = { viewModel.retry(item) },
+                            onCancel = { viewModel.remove(item) },
+                            modifier = Modifier.animateItem()
+                        )
+                    }
+                }
+
+                if (state.library.isNotEmpty()) {
+                    item(key = "library-title") { SectionTitle("On this device") }
+                    items(state.library, key = { "group:${it.key}" }) { group ->
+                        LibraryGroup(
+                            group = group,
+                            onPlay = onDownloadClick,
+                            onDelete = viewModel::remove,
+                            onDeleteAll = { viewModel.removeGroup(group) },
+                            modifier = Modifier
+                                .animateItem()
+                                .padding(bottom = 12.dp)
+                        )
+                    }
                 }
             }
         }
+        }
+    }
+}
 
-        if (!state.isLoading && !state.isEmpty) {
-            item(key = "storage") {
-                StorageCard(
-                    usedBytes = state.storedBytes,
-                    freeBytes = state.freeBytes,
-                    onDeleteAll = { confirmDeleteAll = true },
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
+/** From here Downloads splits into a fixed side column and a library grid. */
+private val WIDE_DOWNLOADS_MIN_WIDTH = 900.dp
+
+@Composable
+private fun DownloadsHeader(completedCount: Int, onBackClick: () -> Unit) {
+    Column(modifier = Modifier.statusBarsPadding().padding(top = 16.dp, bottom = 20.dp)) {
+        ExpressiveBackButton(onClick = onBackClick)
+        Spacer(Modifier.height(24.dp))
+        Text(
+            text = "Downloads",
+            style = MaterialTheme.typography.displaySmall,
+            fontWeight = FontWeight.Black,
+            modifier = Modifier.semantics { heading() }
+        )
+        if (completedCount > 0) {
+            Text(
+                text = pluralize(completedCount, "video") + " on this device",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Tablets: storage and anything still downloading stay in view on the left while the library
+ * fills the rest of the screen as a grid of title cards.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun WideDownloads(
+    state: DownloadsUiState,
+    viewModel: DownloadViewModel,
+    onBackClick: () -> Unit,
+    onDownloadClick: (DownloadEntity) -> Unit,
+    onDeleteAll: () -> Unit
+) {
+    Row(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .width(380.dp)
+                .fillMaxHeight()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 24.dp, end = 8.dp, bottom = 32.dp)
+        ) {
+            DownloadsHeader(state.completedCount, onBackClick)
+            StorageCard(
+                usedBytes = state.storedBytes,
+                freeBytes = state.freeBytes,
+                onDeleteAll = onDeleteAll,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+            if (state.inProgress.isNotEmpty()) {
+                SectionTitle("In progress")
+                Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+                    state.inProgress.forEachIndexed { index, item ->
+                        key(item.downloadId) {
+                            InProgressRow(
+                                download = item,
+                                index = index,
+                                count = state.inProgress.size,
+                                onPause = { viewModel.pause(item) },
+                                onResume = { viewModel.resume(item) },
+                                onRetry = { viewModel.retry(item) },
+                                onCancel = { viewModel.remove(item) }
+                            )
+                        }
+                    }
+                }
             }
         }
-
-        when {
-            state.isLoading -> item(key = "loading") {
-                Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) { LoadingIndicator() }
+        LazyVerticalStaggeredGrid(
+            columns = StaggeredGridCells.Adaptive(minSize = 340.dp),
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+            contentPadding = PaddingValues(start = 16.dp, end = 24.dp, bottom = bottomContentPadding),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalItemSpacing = 12.dp
+        ) {
+            item(key = "library-title", span = StaggeredGridItemSpan.FullLine) {
+                // Lines the title up with "Downloads" in the side column.
+                Box(Modifier.statusBarsPadding().padding(top = 96.dp)) {
+                    SectionTitle(if (state.library.isEmpty()) "Nothing finished yet" else "On this device")
+                }
             }
-            state.isEmpty -> item(key = "empty") { EmptyDownloads() }
-        }
-
-        if (state.inProgress.isNotEmpty()) {
-            item(key = "in-progress-title") { SectionTitle("In progress") }
-            itemsIndexed(state.inProgress, key = { _, item -> "active:${item.downloadId}" }) { index, item ->
-                InProgressRow(
-                    download = item,
-                    index = index,
-                    count = state.inProgress.size,
-                    onPause = { viewModel.pause(item) },
-                    onResume = { viewModel.resume(item) },
-                    onRetry = { viewModel.retry(item) },
-                    onCancel = { viewModel.remove(item) },
-                    modifier = Modifier.animateItem()
-                )
-            }
-        }
-
-        if (state.library.isNotEmpty()) {
-            item(key = "library-title") { SectionTitle("On this device") }
             items(state.library, key = { "group:${it.key}" }) { group ->
                 LibraryGroup(
                     group = group,
                     onPlay = onDownloadClick,
                     onDelete = viewModel::remove,
                     onDeleteAll = { viewModel.removeGroup(group) },
-                    modifier = Modifier
-                        .animateItem()
-                        .padding(bottom = 12.dp)
+                    modifier = Modifier.animateItem()
                 )
             }
         }

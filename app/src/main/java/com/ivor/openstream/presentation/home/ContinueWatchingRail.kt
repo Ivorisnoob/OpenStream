@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.home
 
+import com.ivor.openstream.presentation.components.byWidth
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -82,7 +83,7 @@ private fun ContinueWatchingCard(
     val haptics = LocalHapticFeedback.current
     val image = item.stillPath ?: item.backdropPath ?: item.posterPath
 
-    Column(modifier = modifier.width(264.dp)) {
+    Column(modifier = modifier.width(byWidth(compact = 264.dp, medium = 300.dp, expanded = 320.dp))) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()

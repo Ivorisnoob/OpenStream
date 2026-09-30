@@ -1,5 +1,7 @@
 package com.ivor.openstream.presentation.lists
 
+import com.ivor.openstream.presentation.components.bottomContentPadding
+import com.ivor.openstream.presentation.components.byWidth
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -92,9 +94,9 @@ fun CustomListScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 120.dp),
+            columns = GridCells.Adaptive(minSize = byWidth(compact = 120.dp, medium = 128.dp, expanded = 140.dp)),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 200.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = bottomContentPadding),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
@@ -186,15 +188,18 @@ private fun ListTitleCard(
     val haptics = LocalHapticFeedback.current
     Box(modifier = modifier) {
         Column(
-            modifier = Modifier.combinedClickable(
-                onClick = onOpen,
-                onLongClick = {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    menuOpen = true
-                },
-                onClickLabel = "Open ${item.title}",
-                onLongClickLabel = "More options"
-            )
+            modifier = Modifier
+                .clip(ExpressiveShapes.medium)
+                .combinedClickable(
+                    onClick = onOpen,
+                    onLongClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        menuOpen = true
+                    },
+                    onClickLabel = "Open ${item.title}",
+                    onLongClickLabel = "More options"
+                )
+                .padding(bottom = 10.dp)
         ) {
             AsyncImage(
                 model = item.posterPath?.let { "https://image.tmdb.org/t/p/w342$it" },
@@ -212,10 +217,15 @@ private fun ListTitleCard(
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier.padding(top = 8.dp, start = 6.dp, end = 6.dp)
             )
             if (item.mediaType == "movie") {
-                Text("Movie", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Movie",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 6.dp)
+                )
             }
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {

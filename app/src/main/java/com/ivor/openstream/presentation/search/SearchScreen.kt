@@ -1,5 +1,10 @@
 package com.ivor.openstream.presentation.search
 
+import com.ivor.openstream.presentation.components.bottomContentPadding
+import com.ivor.openstream.presentation.components.isCompactWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
+import com.ivor.openstream.presentation.components.byWidth
 import com.ivor.openstream.presentation.components.SkeletonBox
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -155,11 +160,11 @@ fun SearchScreen(
 
     LazyVerticalGrid(
         state = gridState,
-        columns = GridCells.Adaptive(minSize = 112.dp),
+        columns = GridCells.Adaptive(minSize = byWidth(compact = 112.dp, medium = 128.dp, expanded = 140.dp)),
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 200.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = bottomContentPadding),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
@@ -200,6 +205,8 @@ fun SearchScreen(
                         unfocusedIndicatorColor = Color.Transparent
                     ),
                     modifier = Modifier
+                        // A phone-like field on tablets instead of a bar across the whole window.
+                        .widthIn(max = 720.dp)
                         .fillMaxWidth()
                         .heightIn(min = 64.dp)
                         .focusRequester(focusRequester)
@@ -362,36 +369,19 @@ private fun androidx.compose.foundation.lazy.grid.LazyGridScope.browseContent(
 
     if (state.trending.isNotEmpty()) {
         item(key = "trending", span = FullWidth) {
-            Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+            Column {
                 SectionLabel("Trending now")
-                state.trending.forEachIndexed { index, item ->
-                    SegmentedListItem(
-                        onClick = { onOpen(item) },
-                        shapes = ListItemDefaults.segmentedShapes(index = index, count = state.trending.size),
-                        colors = ListItemDefaults.segmentedColors(),
-                        leadingContent = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "${index + 1}",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    fontWeight = FontWeight.Black,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.width(32.dp)
-                                )
-                                AsyncImage(
-                                    model = "https://image.tmdb.org/t/p/w154${item.posterPath}",
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .size(width = 40.dp, height = 58.dp)
-                                        .clip(ExpressiveShapes.extraSmall)
-                                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                                )
-                            }
-                        },
-                        supportingContent = { Text(metaLine(item)) }
-                    ) {
-                        Text(item.name, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // Tablets split the chart into two columns instead of one long, stretched list.
+                val columns = byWidth(compact = 1, medium = 2)
+                val perColumn = (state.trending.size + columns - 1) / columns
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    state.trending.chunked(perColumn).forEachIndexed { column, chunk ->
+                        TrendingList(
+                            items = chunk,
+                            firstRank = column * perColumn + 1,
+                            onOpen = onOpen,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
@@ -406,13 +396,14 @@ private fun androidx.compose.foundation.lazy.grid.LazyGridScope.browseContent(
                 MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer,
                 MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
             )
-            BrowseGenre.entries.chunked(2).forEachIndexed { row, pair ->
+            val perRow = byWidth(compact = 2, medium = 3, expanded = 4)
+            BrowseGenre.entries.chunked(perRow).forEachIndexed { row, pair ->
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.padding(bottom = 10.dp)
                 ) {
                     pair.forEachIndexed { column, genre ->
-                        val (container, content) = palette[(row * 2 + column) % palette.size]
+                        val (container, content) = palette[(row * perRow + column) % palette.size]
                         Surface(
                             onClick = { onGenre(genre) },
                             // Alternating corner sizes keep the grid from reading as a spreadsheet.
@@ -438,8 +429,53 @@ private fun androidx.compose.foundation.lazy.grid.LazyGridScope.browseContent(
                             }
                         }
                     }
-                    if (pair.size == 1) Box(Modifier.weight(1f))
+                    repeat(perRow - pair.size) { Box(Modifier.weight(1f)) }
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun TrendingList(
+    items: List<AnimeDto>,
+    firstRank: Int,
+    onOpen: (AnimeDto) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)
+    ) {
+        items.forEachIndexed { index, item ->
+            SegmentedListItem(
+                onClick = { onOpen(item) },
+                shapes = ListItemDefaults.segmentedShapes(index = index, count = items.size),
+                colors = ListItemDefaults.segmentedColors(),
+                leadingContent = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "${firstRank + index}",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.width(32.dp)
+                        )
+                        AsyncImage(
+                            model = "https://image.tmdb.org/t/p/w154${item.posterPath}",
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(width = 40.dp, height = 58.dp)
+                                .clip(ExpressiveShapes.extraSmall)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                        )
+                    }
+                },
+                supportingContent = { Text(metaLine(item)) }
+            ) {
+                Text(item.name, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -637,16 +673,18 @@ private fun SortMenu(selected: SortOption, onSelect: (SortOption) -> Unit) {
 
 @Composable
 private fun TopResultCard(item: AnimeDto, onClick: () -> Unit) {
+    val compact = isCompactWidth
     Surface(
         onClick = onClick,
         shape = ExpressiveShapes.extraLarge,
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(16f / 9f)
+            // At 16:9 a tablet-wide card would fill the screen and push the results below it.
+            .then(if (compact) Modifier.aspectRatio(16f / 9f) else Modifier.height(280.dp))
     ) {
         Box {
             AsyncImage(
-                model = "https://image.tmdb.org/t/p/w780${item.backdropPath}",
+                model = "https://image.tmdb.org/t/p/${if (compact) "w780" else "w1280"}${item.backdropPath}",
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -654,12 +692,20 @@ private fun TopResultCard(item: AnimeDto, onClick: () -> Unit) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Brush.verticalGradient(0.35f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.85f)))
+                    .background(
+                        if (compact) {
+                            Brush.verticalGradient(0.35f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.85f))
+                        } else {
+                            // The text sits on the left of a wide banner, so the scrim runs sideways.
+                            Brush.horizontalGradient(0f to Color.Black.copy(alpha = 0.85f), 0.6f to Color.Transparent)
+                        }
+                    )
             )
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(18.dp)
+                    .padding(if (compact) 18.dp else 28.dp)
+                    .widthIn(max = 520.dp)
             ) {
                 Surface(shape = ExpressiveShapes.small, color = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) {
                     Text(
@@ -679,6 +725,16 @@ private fun TopResultCard(item: AnimeDto, onClick: () -> Unit) {
                     modifier = Modifier.padding(top = 8.dp)
                 )
                 Text(metaLine(item), style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.85f))
+                if (!compact && !item.overview.isNullOrBlank()) {
+                    Text(
+                        text = item.overview,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.8f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
             }
         }
     }
@@ -686,7 +742,13 @@ private fun TopResultCard(item: AnimeDto, onClick: () -> Unit) {
 
 @Composable
 private fun ResultCard(item: AnimeDto, onClick: () -> Unit) {
-    Column(modifier = Modifier.clickable(onClickLabel = "Open ${item.name}", onClick = onClick)) {
+    // Clipped to the artwork's shape so the press ripple follows the card; the text is inset from its corners.
+    Column(
+        modifier = Modifier
+            .clip(ExpressiveShapes.medium)
+            .clickable(onClickLabel = "Open ${item.name}", onClick = onClick)
+            .padding(bottom = 10.dp)
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -719,9 +781,9 @@ private fun ResultCard(item: AnimeDto, onClick: () -> Unit) {
             fontWeight = FontWeight.SemiBold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 8.dp)
+            modifier = Modifier.padding(top = 8.dp, start = 6.dp, end = 6.dp)
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 6.dp)) {
             item.date.take(4).takeIf { it.length == 4 }?.let {
                 Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

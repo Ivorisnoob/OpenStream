@@ -1,5 +1,10 @@
 package com.ivor.openstream.presentation.player
 
+import com.ivor.openstream.presentation.lists.AddToListSheet
+import com.ivor.openstream.presentation.player.components.PlayerInfoSections
+import androidx.compose.ui.unit.min
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.BoxWithConstraints
 import android.app.Activity
 import android.content.pm.ActivityInfo
 import android.view.WindowManager
@@ -155,6 +160,9 @@ fun PlayerScreen(
     val seasonEpisodes by viewModel.seasonEpisodes.collectAsState()
     val episodeProgress by viewModel.episodeProgress.collectAsState()
     val isSaved by viewModel.isSaved.collectAsState()
+    val saveLists by viewModel.lists.collectAsState()
+    val memberOf by viewModel.memberOf.collectAsState()
+    var showListSheet by remember { mutableStateOf(false) }
     val sleepTimer by viewModel.sleepTimer.collectAsState()
     val appSettings by viewModel.appSettings.collectAsState()
     val preferredSubtitleLanguage by viewModel.preferredSubtitleLanguage.collectAsState()
@@ -377,19 +385,38 @@ fun PlayerScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        Column(
+        // One Box for every layout, so switching between them (rotation, fullscreen) only changes
+        // sizes and never recreates the video view.
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(if (isImmersive) PaddingValues(0.dp) else WindowInsets.statusBars.asPaddingValues())
         ) {
+            // Wide windows (tablets in landscape, desktop) use YouTube's desktop layout: the video in
+            // the top-left corner with what's playing under it, and the queue in a column on the right.
+            // Narrower ones stack everything under a full-width 16:9 video.
+            val wide = maxWidth >= 840.dp
+            val sideBySide = !isImmersive && wide
+            val gutter = if (wide) 16.dp else 0.dp
+            val queueWidth = if (wide) (maxWidth * 0.32f).coerceIn(340.dp, 420.dp) else 0.dp
+            val columnWidth = maxWidth - queueWidth - gutter
+            val videoHeight = if (wide) {
+                // Leaves room under the video for the title and actions.
+                min((columnWidth - gutter) * 9f / 16f, maxHeight * 0.66f)
+            } else {
+                // Tall tablets in portrait would otherwise give the video half the screen.
+                min(maxWidth * 9f / 16f, maxHeight * 0.45f)
+            }
+            val videoWidth = if (wide) videoHeight * 16f / 9f else maxWidth
+
             // 1. Video Player Area - Always present, size depends on isFullscreen
             val videoModifier = if (isImmersive) {
                 Modifier.fillMaxSize()
             } else {
                 Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 400.dp) // Keeps it from becoming too large on tablets
-                    .aspectRatio(16f / 9f)
+                    .align(if (sideBySide) Alignment.TopStart else Alignment.TopCenter)
+                    .padding(start = gutter, top = gutter)
+                    .size(width = videoWidth, height = videoHeight)
             }
 
             Box(
@@ -663,35 +690,79 @@ fun PlayerScreen(
             )
         }
 
-            // Under the video in portrait: what's playing, what's next, and the rest of the season.
-            AnimatedVisibility(
-                visible = !isImmersive,
-                enter = fadeIn(tween(DurationEffectsDefault, easing = ExpressiveDefaultEffects)) +
-                    slideInVertically(tween(DurationSpatialDefault, easing = ExpressiveDefaultSpatial)) { it / 4 },
-                exit = fadeOut(tween(DurationEffectsDefault, easing = ExpressiveDefaultEffects)) +
-                    slideOutVertically(tween(DurationSpatialDefault, easing = ExpressiveDefaultSpatial)) { it / 4 }
-            ) {
-                PlayerInfoPanel(
-                    mediaType = mediaType,
-                    season = season,
-                    episode = episode,
-                    details = mediaDetails,
-                    currentEpisode = currentEpisode,
-                    seasonEpisodes = seasonEpisodes,
-                    isLoadingEpisodes = isLoadingEpisodes,
-                    episodeProgress = episodeProgress,
-                    nextEpisode = nextEpisode,
-                    download = currentDownload,
-                    canDownload = downloadId == null && activeServer?.isDownloadable == true,
-                    isSaved = isSaved,
-                    onPlayEpisode = onEpisodeClick,
-                    onDownload = { activeServer?.let(viewModel::downloadVideo) },
-                    onRemoveDownload = { currentDownload?.let { viewModel.removeDownload(it.downloadId) } },
-                    onToggleSaved = viewModel::toggleSaved,
-                    onOpenDetails = { onOpenDetails(mediaType, tmdbId) },
-                    onOpenTitle = onOpenTitle
+            // Under the video: what's playing, what's next, and the rest of the season. Wide windows
+            // split it: the "about" part under the video, the queue in the right-hand column.
+            val infoPanel: @Composable (Modifier, PlayerInfoSections) -> Unit = { panelModifier, sections ->
+                AnimatedVisibility(
+                    visible = !isImmersive,
+                    modifier = panelModifier,
+                    enter = fadeIn(tween(DurationEffectsDefault, easing = ExpressiveDefaultEffects)) +
+                        slideInVertically(tween(DurationSpatialDefault, easing = ExpressiveDefaultSpatial)) { it / 4 },
+                    exit = fadeOut(tween(DurationEffectsDefault, easing = ExpressiveDefaultEffects)) +
+                        slideOutVertically(tween(DurationSpatialDefault, easing = ExpressiveDefaultSpatial)) { it / 4 }
+                ) {
+                    PlayerInfoPanel(
+                        mediaType = mediaType,
+                        season = season,
+                        episode = episode,
+                        details = mediaDetails,
+                        currentEpisode = currentEpisode,
+                        seasonEpisodes = seasonEpisodes,
+                        isLoadingEpisodes = isLoadingEpisodes,
+                        episodeProgress = episodeProgress,
+                        nextEpisode = nextEpisode,
+                        download = currentDownload,
+                        canDownload = downloadId == null && activeServer?.isDownloadable == true,
+                        isSaved = isSaved || memberOf.isNotEmpty(),
+                        onPlayEpisode = onEpisodeClick,
+                        onDownload = { activeServer?.let(viewModel::downloadVideo) },
+                        onRemoveDownload = { currentDownload?.let { viewModel.removeDownload(it.downloadId) } },
+                        onSave = { showListSheet = true },
+                        onOpenDetails = { onOpenDetails(mediaType, tmdbId) },
+                        onOpenTitle = onOpenTitle,
+                        sections = sections
+                    )
+                }
+            }
+            if (wide) {
+                infoPanel(
+                    Modifier
+                        .align(Alignment.TopStart)
+                        .padding(top = gutter + videoHeight)
+                        .width(columnWidth)
+                        .fillMaxHeight(),
+                    PlayerInfoSections.About
+                )
+                infoPanel(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = gutter)
+                        .width(queueWidth)
+                        .fillMaxHeight(),
+                    PlayerInfoSections.Queue
+                )
+            } else {
+                infoPanel(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(top = videoHeight),
+                    PlayerInfoSections.All
                 )
             }
+        }
+
+        val listTitle = mediaDetails?.name
+        if (showListSheet && listTitle != null) {
+            AddToListSheet(
+                titleName = listTitle,
+                lists = saveLists,
+                memberOf = memberOf,
+                isInWatchLater = isSaved,
+                onToggleWatchLater = viewModel::toggleSaved,
+                onToggleList = viewModel::setInList,
+                onCreateList = viewModel::createListWithTitle,
+                onDismiss = { showListSheet = false }
+            )
         }
 
         if (showCastSheet) {

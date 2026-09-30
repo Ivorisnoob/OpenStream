@@ -77,6 +77,18 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+/** Which parts of [PlayerInfoPanel] to show; wide layouts split them between two columns. */
+enum class PlayerInfoSections {
+    /** Everything, for the panel under the video on phones and portrait tablets. */
+    All,
+
+    /** What's playing, the actions and the overview: under the video on wide windows. */
+    About,
+
+    /** The season's episodes, or titles like this movie: the column beside the video. */
+    Queue
+}
+
 /**
  * Everything under the video in portrait: what is playing, what to do next, and the rest of the
  * season. Playback stays the hero; this panel only answers "where am I and what's next".
@@ -99,19 +111,25 @@ fun PlayerInfoPanel(
     onPlayEpisode: (season: Int, episode: Int) -> Unit,
     onDownload: () -> Unit,
     onRemoveDownload: () -> Unit,
-    onToggleSaved: () -> Unit,
+    /** Opens the "Save to" sheet: Watch later, the user's lists, or a new list. */
+    onSave: () -> Unit,
     onOpenDetails: () -> Unit,
     onOpenTitle: (id: Int, mediaType: String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    sections: PlayerInfoSections = PlayerInfoSections.All
 ) {
     val isMovie = mediaType == "movie"
+    val showAbout = sections != PlayerInfoSections.Queue
+    val showQueue = sections != PlayerInfoSections.About
+    // In its own column the queue starts at the top instead of after the overview.
+    val queueTopPadding = if (sections == PlayerInfoSections.Queue) 8.dp else 28.dp
     val context = LocalContext.current
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 40.dp)
     ) {
-        item(key = "header") {
+        if (showAbout) item(key = "header") {
             Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp)) {
                 if (!isMovie && details != null) {
                     Row(
@@ -162,7 +180,7 @@ fun PlayerInfoPanel(
             }
         }
 
-        item(key = "actions") {
+        if (showAbout) item(key = "actions") {
             Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp)) {
                 if (nextEpisode != null) {
                     Button(
@@ -205,9 +223,9 @@ fun PlayerInfoPanel(
                     )
                     PanelTile(
                         icon = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                        label = if (isSaved) "Saved" else "My list",
+                        label = if (isSaved) "Saved" else "Save",
                         highlighted = isSaved,
-                        onClick = onToggleSaved,
+                        onClick = onSave,
                         modifier = Modifier.weight(1f)
                     )
                     PanelTile(
@@ -237,14 +255,16 @@ fun PlayerInfoPanel(
         }
 
         val overview = if (isMovie) details?.overview else currentEpisode?.overview?.ifBlank { details?.overview }
-        if (!overview.isNullOrBlank()) {
+        if (showAbout && !overview.isNullOrBlank()) {
             item(key = "overview") { ExpandableText(overview) }
         }
+
+        if (!showQueue) return@LazyColumn
 
         if (!isMovie) {
             item(key = "episodes-title") {
                 Row(
-                    modifier = Modifier.padding(start = 20.dp, end = 8.dp, top = 28.dp, bottom = 12.dp),
+                    modifier = Modifier.padding(start = 20.dp, end = 8.dp, top = queueTopPadding, bottom = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -306,10 +326,16 @@ fun PlayerInfoPanel(
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Black,
                         modifier = Modifier
-                            .padding(start = 20.dp, top = 28.dp, bottom = 12.dp)
+                            .padding(start = 20.dp, top = queueTopPadding, bottom = 12.dp)
                             .semantics { heading() }
                     )
-                    RecommendationRow(recommendations, onOpenTitle)
+                    if (sections != PlayerInfoSections.Queue) RecommendationRow(recommendations, onOpenTitle)
+                }
+                // A column of its own lists them vertically, like an up-next queue.
+                if (sections == PlayerInfoSections.Queue) {
+                    items(recommendations, key = { "rec:${it.id}" }) { anime ->
+                        RecommendationListItem(anime, onOpenTitle)
+                    }
                 }
             }
         }
@@ -452,9 +478,11 @@ private fun RecommendationRow(items: List<AnimeDto>, onOpen: (Int, String) -> Un
             Column(
                 modifier = Modifier
                     .width(116.dp)
+                    .clip(ExpressiveShapes.medium)
                     .clickable(onClickLabel = "Open ${anime.name}") {
                         onOpen(anime.id, if (anime.mediaType == "tv") "tv" else "movie")
                     }
+                    .padding(bottom = 10.dp)
             ) {
                 AsyncImage(
                     model = "https://image.tmdb.org/t/p/w342${anime.posterPath}",
@@ -471,7 +499,53 @@ private fun RecommendationRow(items: List<AnimeDto>, onOpen: (Int, String) -> Un
                     style = MaterialTheme.typography.labelLarge,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 6.dp)
+                    modifier = Modifier.padding(top = 6.dp, start = 6.dp, end = 6.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecommendationListItem(anime: AnimeDto, onOpen: (Int, String) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 2.dp)
+            .clip(ExpressiveShapes.medium)
+            .clickable(onClickLabel = "Open ${anime.name}") {
+                onOpen(anime.id, if (anime.mediaType == "tv") "tv" else "movie")
+            }
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AsyncImage(
+            model = "https://image.tmdb.org/t/p/w185${anime.posterPath}",
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .width(64.dp)
+                .aspectRatio(0.68f)
+                .clip(ExpressiveShapes.small)
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+        )
+        Column(modifier = Modifier.padding(start = 14.dp)) {
+            Text(
+                text = anime.name,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            val meta = listOfNotNull(
+                anime.date.take(4).takeIf { it.length == 4 },
+                anime.voteAverage?.takeIf { it > 0 }?.let { String.format(Locale.US, "★ %.1f", it) }
+            ).joinToString("  ·  ")
+            if (meta.isNotEmpty()) {
+                Text(
+                    text = meta,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

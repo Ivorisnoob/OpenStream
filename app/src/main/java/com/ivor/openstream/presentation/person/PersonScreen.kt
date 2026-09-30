@@ -1,5 +1,9 @@
 package com.ivor.openstream.presentation.person
 
+import com.ivor.openstream.presentation.components.isCompactWidth
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.Row
+import com.ivor.openstream.presentation.components.byWidth
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -77,7 +81,7 @@ fun PersonScreen(
             }
 
             is PersonUiState.Success -> LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 108.dp),
+                columns = GridCells.Adaptive(minSize = byWidth(compact = 108.dp, medium = 128.dp, expanded = 140.dp)),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 136.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -118,58 +122,94 @@ fun PersonScreen(
 
 @Composable
 private fun PersonHeader(person: PersonDto) {
-    var bioExpanded by rememberSaveable { mutableStateOf(false) }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(top = 72.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        AsyncImage(
-            model = person.profilePath?.let { "https://image.tmdb.org/t/p/h632$it" },
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
+    if (isCompactWidth) {
+        Column(
             modifier = Modifier
-                .size(160.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-        )
-        Spacer(Modifier.height(16.dp))
-        Text(
-            text = person.name,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Black,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.semantics { heading() }
-        )
-        personFacts(person)?.let {
-            Text(
-                text = it,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 4.dp)
-            )
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(top = 72.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            PersonPhoto(person, size = 160.dp)
+            Spacer(Modifier.height(16.dp))
+            PersonText(person, centered = true)
         }
-        person.biography?.takeIf { it.isNotBlank() }?.let { bio ->
-            Text(
-                text = bio,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = if (bioExpanded) Int.MAX_VALUE else 5,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 16.dp)
-            )
-            TextButton(onClick = { bioExpanded = !bioExpanded }) {
-                Text(if (bioExpanded) "Show less" else "Read more")
+    } else {
+        // Tablets: photo beside the text, so the bio keeps a readable line length.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(top = 72.dp, start = 8.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            PersonPhoto(person, size = 200.dp)
+            Column(
+                modifier = Modifier
+                    .padding(start = 28.dp, top = 8.dp)
+                    .widthIn(max = 640.dp)
+            ) {
+                PersonText(person, centered = false)
             }
         }
     }
 }
 
 @Composable
+private fun PersonPhoto(person: PersonDto, size: androidx.compose.ui.unit.Dp) {
+    AsyncImage(
+        model = person.profilePath?.let { "https://image.tmdb.org/t/p/h632$it" },
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+    )
+}
+
+@Composable
+private fun PersonText(person: PersonDto, centered: Boolean) {
+    var bioExpanded by rememberSaveable { mutableStateOf(false) }
+    val align = if (centered) TextAlign.Center else TextAlign.Start
+    Text(
+        text = person.name,
+        style = MaterialTheme.typography.headlineMedium,
+        fontWeight = FontWeight.Black,
+        textAlign = align,
+        modifier = Modifier.semantics { heading() }
+    )
+    personFacts(person)?.let {
+        Text(
+            text = it,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = align,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+    }
+    person.biography?.takeIf { it.isNotBlank() }?.let { bio ->
+        Text(
+            text = bio,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = if (bioExpanded) Int.MAX_VALUE else 5,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 16.dp)
+        )
+        TextButton(onClick = { bioExpanded = !bioExpanded }) {
+            Text(if (bioExpanded) "Show less" else "Read more")
+        }
+    }
+}
+
+@Composable
 private fun CreditCard(title: AnimeDto, onClick: () -> Unit) {
-    Column(modifier = Modifier.clickable(onClickLabel = "Open ${title.name}", onClick = onClick)) {
+    Column(
+        modifier = Modifier
+            .clip(ExpressiveShapes.medium)
+            .clickable(onClickLabel = "Open ${title.name}", onClick = onClick)
+            .padding(bottom = 10.dp)
+    ) {
         AsyncImage(
             model = "https://image.tmdb.org/t/p/w342${title.posterPath}",
             contentDescription = title.name,
@@ -186,14 +226,14 @@ private fun CreditCard(title: AnimeDto, onClick: () -> Unit) {
             fontWeight = FontWeight.SemiBold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 6.dp, start = 2.dp, end = 2.dp)
+            modifier = Modifier.padding(top = 6.dp, start = 6.dp, end = 6.dp)
         )
         title.date.take(4).takeIf { it.isNotBlank() }?.let {
             Text(
                 text = it,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 2.dp)
+                modifier = Modifier.padding(horizontal = 6.dp)
             )
         }
     }

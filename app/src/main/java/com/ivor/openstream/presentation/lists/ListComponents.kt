@@ -244,6 +244,8 @@ fun ListCard(list: CustomListSummary, onClick: () -> Unit, modifier: Modifier = 
             .width(128.dp)
             .clip(ExpressiveShapes.medium)
             .clickable(onClickLabel = "Open ${list.name}", onClick = onClick)
+            // Keeps the text clear of the rounded bottom corners the clip above cuts.
+            .padding(bottom = 10.dp)
     ) {
         ListCover(list, Modifier.fillMaxWidth())
         Text(
@@ -252,12 +254,13 @@ fun ListCard(list: CustomListSummary, onClick: () -> Unit, modifier: Modifier = 
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 8.dp)
+            modifier = Modifier.padding(top = 8.dp, start = 6.dp, end = 6.dp)
         )
         Text(
             text = itemCountLabel(list.itemCount),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 6.dp)
         )
     }
 }
@@ -270,6 +273,7 @@ fun NewListCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
             .width(128.dp)
             .clip(ExpressiveShapes.medium)
             .clickable(onClickLabel = "Create a list", onClick = onClick)
+            .padding(bottom = 10.dp)
     ) {
         Surface(
             shape = ExpressiveShapes.medium,
@@ -286,7 +290,7 @@ fun NewListCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
             text = "New list",
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(top = 8.dp)
+            modifier = Modifier.padding(top = 8.dp, start = 6.dp, end = 6.dp)
         )
     }
 }

@@ -1,6 +1,9 @@
 package com.ivor.openstream.presentation.home
 
 import com.ivor.openstream.presentation.components.SkeletonBox
+import com.ivor.openstream.presentation.components.bottomContentPadding
+import com.ivor.openstream.presentation.components.byWidth
+import com.ivor.openstream.presentation.components.isCompactWidth
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -129,7 +132,7 @@ fun HomeScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     // Clears the floating toolbar and the mini player.
-                    contentPadding = PaddingValues(bottom = 200.dp)
+                    contentPadding = PaddingValues(bottom = bottomContentPadding)
                 ) {
                     item(key = "hero") {
                         HeroSection(
@@ -176,7 +179,7 @@ fun HomeScreen(
             // Above the floating toolbar and the mini player.
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 180.dp)
+                .padding(bottom = if (isCompactWidth) 180.dp else 100.dp)
         )
     }
 }
@@ -222,22 +225,30 @@ private fun HeroSection(
 
         if (items.isNotEmpty()) {
             BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                // Wide screens (tablets, landscape) get landscape artwork at a calmer height.
-                val wide = maxWidth >= 600.dp
-                HorizontalCenteredHeroCarousel(
-                    state = rememberCarouselState { items.size },
-                    itemSpacing = 8.dp,
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(if (wide) 400.dp else 480.dp)
-                ) { index ->
-                    HeroCard(
-                        anime = items[index],
-                        rank = index + 1,
-                        wide = wide,
-                        onClick = { onOpen(items[index]) }
-                    )
+                if (maxWidth < 600.dp) {
+                    HorizontalCenteredHeroCarousel(
+                        state = rememberCarouselState { items.size },
+                        itemSpacing = 8.dp,
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(480.dp)
+                    ) { index ->
+                        HeroCard(anime = items[index], rank = index + 1, onClick = { onOpen(items[index]) })
+                    }
+                } else {
+                    // Tablets: several phone-sized poster cards side by side, not one huge banner.
+                    HorizontalMultiBrowseCarousel(
+                        state = rememberCarouselState { items.size },
+                        preferredItemWidth = 320.dp,
+                        itemSpacing = 8.dp,
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(440.dp)
+                    ) { index ->
+                        HeroCard(anime = items[index], rank = index + 1, onClick = { onOpen(items[index]) })
+                    }
                 }
             }
         }
@@ -261,7 +272,6 @@ private val CarouselItemScope.focus: Float
 private fun CarouselItemScope.HeroCard(
     anime: AnimeDto,
     rank: Int,
-    wide: Boolean,
     onClick: () -> Unit
 ) {
     Box(
@@ -271,11 +281,7 @@ private fun CarouselItemScope.HeroCard(
             .clickable(onClick = onClick)
     ) {
         AsyncImage(
-            model = if (wide && anime.backdropPath != null) {
-                "https://image.tmdb.org/t/p/w1280${anime.backdropPath}"
-            } else {
-                "https://image.tmdb.org/t/p/w780${anime.posterPath}"
-            },
+            model = "https://image.tmdb.org/t/p/w780${anime.posterPath}",
             contentDescription = anime.name,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
@@ -360,8 +366,9 @@ private fun MetaLine(anime: AnimeDto) {
 
 @Composable
 private fun RankedRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit, onHide: (AnimeDto) -> Unit) {
+    val posterWidth = byWidth(compact = 136.dp, medium = 156.dp, expanded = 168.dp)
     val numeralStyle = TextStyle(
-        fontSize = 132.sp,
+        fontSize = (posterWidth.value * 0.97f).sp,
         fontWeight = FontWeight.Black,
         drawStyle = Stroke(width = 6f)
     )
@@ -371,7 +378,7 @@ private fun RankedRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit, onHide
     ) {
         itemsIndexed(items, key = { _, anime -> anime.id }) { index, anime ->
             var menuOpen by remember { mutableStateOf(false) }
-            Box(modifier = Modifier.size(width = 184.dp, height = 214.dp)) {
+            Box(modifier = Modifier.size(width = posterWidth + 48.dp, height = posterWidth / 0.68f + 14.dp)) {
                 Text(
                     text = "${index + 1}",
                     style = numeralStyle,
@@ -386,7 +393,7 @@ private fun RankedRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit, onHide
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .width(136.dp)
+                        .width(posterWidth)
                         .aspectRatio(0.68f)
                         .clip(ExpressiveShapes.medium)
                         .background(MaterialTheme.colorScheme.surfaceContainerHighest)
@@ -403,12 +410,12 @@ private fun RankedRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit, onHide
 private fun LandscapeRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit, onHide: (AnimeDto) -> Unit) {
     HorizontalMultiBrowseCarousel(
         state = rememberCarouselState { items.size },
-        preferredItemWidth = 300.dp,
+        preferredItemWidth = byWidth(compact = 300.dp, medium = 380.dp, expanded = 420.dp),
         itemSpacing = 8.dp,
         contentPadding = PaddingValues(horizontal = 16.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .height(188.dp)
+            .height(byWidth(compact = 188.dp, medium = 220.dp, expanded = 240.dp))
     ) { index ->
         val anime = items[index]
         var menuOpen by remember { mutableStateOf(false) }
@@ -448,17 +455,21 @@ private fun LandscapeRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit, onH
 
 @Composable
 private fun PosterRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit, onHide: (AnimeDto) -> Unit) {
+    val posterWidth = byWidth(compact = 132.dp, medium = 152.dp, expanded = 164.dp)
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         itemsIndexed(items, key = { _, anime -> anime.id }) { _, anime ->
             var menuOpen by remember { mutableStateOf(false) }
-            // Only the artwork is rounded; clipping the whole card would cut into the title below it.
+            // Clipped to the artwork's shape so the press ripple follows the card; the title is
+            // inset from the rounded bottom corners so they never cut into it.
             Column(
                 modifier = Modifier
-                    .width(132.dp)
+                    .width(posterWidth)
+                    .clip(ExpressiveShapes.medium)
                     .titleClickable(anime, onOpen) { menuOpen = true }
+                    .padding(bottom = 10.dp)
             ) {
                 NotInterestedMenu(menuOpen, onDismiss = { menuOpen = false }, onHide = { onHide(anime) })
                 AsyncImage(
@@ -477,7 +488,7 @@ private fun PosterRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit, onHide
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 8.dp, start = 2.dp, end = 2.dp)
+                    modifier = Modifier.padding(top = 8.dp, start = 6.dp, end = 6.dp)
                 )
             }
         }

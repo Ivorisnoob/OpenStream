@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.launch
+import android.view.LayoutInflater
 import android.widget.FrameLayout
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedContent
@@ -57,7 +58,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.ui.AspectRatioFrameLayout
+import com.ivor.openstream.R
 import androidx.media3.ui.PlayerView
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -180,9 +181,8 @@ fun MiniPlayer(
                         )
                     } else AndroidView(
                         factory = { context ->
-                            PlayerView(context).apply {
-                                useController = false
-                                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                            // Inflated for its texture_view surface (only settable from XML).
+                            (LayoutInflater.from(context).inflate(R.layout.mini_player_view, null) as PlayerView).apply {
                                 layoutParams = FrameLayout.LayoutParams(
                                     FrameLayout.LayoutParams.MATCH_PARENT,
                                     FrameLayout.LayoutParams.MATCH_PARENT

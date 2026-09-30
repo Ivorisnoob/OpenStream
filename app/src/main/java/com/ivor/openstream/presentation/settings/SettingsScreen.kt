@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.settings
 
+import com.ivor.openstream.presentation.components.CenteredListBox
 import android.os.Build
 import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -160,270 +161,272 @@ fun SettingsScreen(
             )
         }
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = 16.dp,
-                end = 16.dp,
-                top = innerPadding.calculateTopPadding(),
-                bottom = innerPadding.calculateBottomPadding() + 32.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-            item(key = "sources") {
-                val sourceRows = if (state.updateCount > 0) 3 else 2
-                SettingsGroup(
-                    title = "Sources",
-                    footer = "Extensions are data only: they configure resolvers that ship with the app and can't run code."
-                ) {
-                    NavigationRow(
-                        index = 0, count = sourceRows,
-                        icon = Icons.Default.Storefront,
-                        title = "Extension marketplace",
-                        supporting = "${state.enabledCount} active · ${state.installedCount} installed · ${state.availableCount} available",
-                        onClick = onOpenMarketplace
-                    )
-                    NavigationRow(
-                        index = 1, count = sourceRows,
-                        icon = Icons.Default.Public,
-                        title = "Repositories",
-                        supporting = if (state.repoCount == 1) "1 connected" else "${state.repoCount} connected",
-                        onClick = onOpenMarketplace
-                    )
-                    if (state.updateCount > 0) {
+        CenteredListBox(Modifier.fillMaxSize(), minGutter = 16.dp, maxContentWidth = 720.dp) { gutter ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = gutter,
+                    end = gutter,
+                    top = innerPadding.calculateTopPadding(),
+                    bottom = innerPadding.calculateBottomPadding() + 32.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                item(key = "sources") {
+                    val sourceRows = if (state.updateCount > 0) 3 else 2
+                    SettingsGroup(
+                        title = "Sources",
+                        footer = "Extensions are data only: they configure resolvers that ship with the app and can't run code."
+                    ) {
                         NavigationRow(
-                            index = 2, count = sourceRows,
-                            icon = Icons.Default.Update,
-                            title = "Extension updates",
-                            supporting = "Ready to install",
-                            badge = state.updateCount.toString(),
+                            index = 0, count = sourceRows,
+                            icon = Icons.Default.Storefront,
+                            title = "Extension marketplace",
+                            supporting = "${state.enabledCount} active · ${state.installedCount} installed · ${state.availableCount} available",
                             onClick = onOpenMarketplace
                         )
-                    }
-                }
-            }
-
-            item(key = "appearance") {
-                val dynamicAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                val count = if (dynamicAvailable) 2 else 1
-                SettingsGroup(title = "Appearance") {
-                    ChoiceRow(
-                        index = 0, count = count,
-                        icon = Icons.Default.DarkMode,
-                        title = "Theme",
-                        options = ThemeMode.entries,
-                        selected = appSettings.themeMode,
-                        label = { it.label },
-                        onSelect = viewModel::setThemeMode
-                    )
-                    if (dynamicAvailable) {
-                        SwitchRow(
-                            index = 1, count = count,
-                            icon = Icons.Default.AutoAwesome,
-                            title = "Dynamic color",
-                            supporting = "Match colors to your wallpaper",
-                            checked = appSettings.dynamicColor,
-                            onCheckedChange = viewModel::setDynamicColor
+                        NavigationRow(
+                            index = 1, count = sourceRows,
+                            icon = Icons.Default.Public,
+                            title = "Repositories",
+                            supporting = if (state.repoCount == 1) "1 connected" else "${state.repoCount} connected",
+                            onClick = onOpenMarketplace
                         )
-                    }
-                }
-            }
-
-            item(key = "playback") {
-                SettingsGroup(title = "Playback") {
-                    ChoiceRow(
-                        index = 0, count = 3,
-                        icon = Icons.Default.Forward10,
-                        title = "Seek step",
-                        supporting = "Double-tap and the skip buttons",
-                        options = AppSettings.SEEK_STEPS,
-                        selected = appSettings.seekStepSeconds,
-                        label = { "${it}s" },
-                        onSelect = viewModel::setSeekStep
-                    )
-                    ChoiceRow(
-                        index = 1, count = 3,
-                        icon = Icons.Default.Speed,
-                        title = "Default speed",
-                        options = AppSettings.DEFAULT_SPEEDS,
-                        selected = appSettings.defaultSpeed,
-                        label = { "${formatSpeed(it)}×" },
-                        onSelect = viewModel::setDefaultSpeed
-                    )
-                    SwitchRow(
-                        index = 2, count = 3,
-                        icon = Icons.Default.SkipNext,
-                        title = "Auto-play next episode",
-                        supporting = "Count down into the next episode",
-                        checked = appSettings.autoPlayNext,
-                        onCheckedChange = viewModel::setAutoPlayNext
-                    )
-                }
-            }
-
-            item(key = "pip") {
-                SettingsGroup(
-                    title = "Picture-in-picture",
-                    footer = "Play/pause always sits in the middle. Android shows three buttons at most."
-                ) {
-                    ChoiceRow(
-                        index = 0, count = 2,
-                        icon = Icons.Default.PictureInPictureAlt,
-                        title = "Left button",
-                        options = PipAction.entries,
-                        selected = appSettings.pipLeftAction,
-                        label = { it.label },
-                        onSelect = viewModel::setPipLeftAction
-                    )
-                    ChoiceRow(
-                        index = 1, count = 2,
-                        icon = Icons.Default.PictureInPictureAlt,
-                        title = "Right button",
-                        options = PipAction.entries,
-                        selected = appSettings.pipRightAction,
-                        label = { it.label },
-                        onSelect = viewModel::setPipRightAction
-                    )
-                }
-            }
-
-            item(key = "downloads") {
-                SettingsGroup(title = "Downloads") {
-                    ChoiceRow(
-                        index = 0, count = 2,
-                        icon = Icons.Default.HighQuality,
-                        title = "Quality",
-                        supporting = "Highest quality a download picks",
-                        options = AppSettings.DOWNLOAD_HEIGHTS,
-                        selected = appSettings.downloadMaxHeight,
-                        label = { "${it}p" },
-                        onSelect = viewModel::setDownloadMaxHeight
-                    )
-                    SwitchRow(
-                        index = 1, count = 2,
-                        icon = Icons.Default.Wifi,
-                        title = "Wi-Fi only",
-                        supporting = "Wait for an unmetered network",
-                        checked = appSettings.wifiOnlyDownloads,
-                        onCheckedChange = viewModel::setWifiOnlyDownloads
-                    )
-                }
-            }
-
-            item(key = "network") {
-                val providers = DnsProvider.entries
-                SettingsGroup(
-                    title = "DNS",
-                    footer = "A private resolver gets past ISP DNS blocks on TMDB and artwork. If it can't be reached, your network's DNS is used."
-                ) {
-                    providers.forEachIndexed { index, provider ->
-                        RadioRow(
-                            index = index, count = providers.size,
-                            icon = if (provider == DnsProvider.SYSTEM) Icons.Default.Dns else Icons.Default.Shield,
-                            title = provider.label,
-                            supporting = dnsSummary(provider),
-                            selected = appSettings.dnsProvider == provider,
-                            onClick = { viewModel.setDnsProvider(provider) }
-                        )
-                    }
-                }
-            }
-
-            item(key = "profiles") {
-                SettingsGroup(title = "Profiles") {
-                    NavigationRow(
-                        index = 0, count = 1,
-                        icon = Icons.Default.People,
-                        title = "Profiles",
-                        supporting = "Add, rename or delete profiles; kids profiles",
-                        onClick = onOpenProfiles
-                    )
-                }
-            }
-
-            item(key = "library") {
-                val count = if (hiddenTitleCount > 0) 4 else 3
-                SettingsGroup(title = "Library", busy = isWorking) {
-                    NavigationRow(
-                        index = 0, count = count,
-                        icon = Icons.Default.Backup,
-                        title = "Back up library",
-                        supporting = "Every profile's Watch Later, lists, history and hidden titles, plus settings",
-                        enabled = !isWorking,
-                        onClick = { exportBackup.launch("openstream-backup-${fileDate()}.json") }
-                    )
-                    NavigationRow(
-                        index = 1, count = count,
-                        icon = Icons.Default.Restore,
-                        title = "Restore from backup",
-                        supporting = "Merges in; nothing on this device is deleted",
-                        enabled = !isWorking,
-                        onClick = {
-                            restoreBackup.launch(arrayOf(LibraryBackup.MIME_TYPE, "text/plain", "application/octet-stream"))
+                        if (state.updateCount > 0) {
+                            NavigationRow(
+                                index = 2, count = sourceRows,
+                                icon = Icons.Default.Update,
+                                title = "Extension updates",
+                                supporting = "Ready to install",
+                                badge = state.updateCount.toString(),
+                                onClick = onOpenMarketplace
+                            )
                         }
-                    )
-                    if (hiddenTitleCount > 0) {
-                        NavigationRow(
-                            index = 2, count = count,
-                            icon = Icons.Default.VisibilityOff,
-                            title = "Show hidden titles",
-                            supporting = "$hiddenTitleCount hidden from Home",
-                            onClick = viewModel::unhideAllTitles
-                        )
-                    }
-                    NavigationRow(
-                        index = count - 1, count = count,
-                        icon = Icons.Default.History,
-                        title = "Clear watch history",
-                        supporting = "This profile's history, Continue Watching and resume positions",
-                        onClick = { confirmClearHistory = true }
-                    )
-                }
-            }
-
-            item(key = "storage-help") {
-                val count = if (crashCount > 0) 3 else 2
-                SettingsGroup(title = "Storage and help") {
-                    NavigationRow(
-                        index = 0, count = count,
-                        icon = Icons.Default.Image,
-                        title = "Clear image cache",
-                        supporting = imageCacheBytes?.let { "${Formatter.formatShortFileSize(context, it)} of artwork" }
-                            ?: "Posters and backdrops kept for faster loading",
-                        onClick = viewModel::clearImageCache
-                    )
-                    NavigationRow(
-                        index = 1, count = count,
-                        icon = Icons.Default.BugReport,
-                        title = "Export diagnostics",
-                        supporting = when (crashCount) {
-                            0 -> "Device details and the recent log, for bug reports"
-                            1 -> "Includes 1 crash report"
-                            else -> "Includes $crashCount crash reports"
-                        },
-                        enabled = !isWorking,
-                        onClick = { exportDiagnostics.launch("openstream-diagnostics-${fileDate(withTime = true)}.txt") }
-                    )
-                    if (crashCount > 0) {
-                        NavigationRow(
-                            index = 2, count = count,
-                            icon = Icons.Default.DeleteSweep,
-                            title = "Clear crash reports",
-                            supporting = "Stored only on this device",
-                            onClick = viewModel::clearCrashReports
-                        )
                     }
                 }
-            }
 
-            item(key = "version") {
-                Text(
-                    text = "OpenStream ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                item(key = "appearance") {
+                    val dynamicAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                    val count = if (dynamicAvailable) 2 else 1
+                    SettingsGroup(title = "Appearance") {
+                        ChoiceRow(
+                            index = 0, count = count,
+                            icon = Icons.Default.DarkMode,
+                            title = "Theme",
+                            options = ThemeMode.entries,
+                            selected = appSettings.themeMode,
+                            label = { it.label },
+                            onSelect = viewModel::setThemeMode
+                        )
+                        if (dynamicAvailable) {
+                            SwitchRow(
+                                index = 1, count = count,
+                                icon = Icons.Default.AutoAwesome,
+                                title = "Dynamic color",
+                                supporting = "Match colors to your wallpaper",
+                                checked = appSettings.dynamicColor,
+                                onCheckedChange = viewModel::setDynamicColor
+                            )
+                        }
+                    }
+                }
+
+                item(key = "playback") {
+                    SettingsGroup(title = "Playback") {
+                        ChoiceRow(
+                            index = 0, count = 3,
+                            icon = Icons.Default.Forward10,
+                            title = "Seek step",
+                            supporting = "Double-tap and the skip buttons",
+                            options = AppSettings.SEEK_STEPS,
+                            selected = appSettings.seekStepSeconds,
+                            label = { "${it}s" },
+                            onSelect = viewModel::setSeekStep
+                        )
+                        ChoiceRow(
+                            index = 1, count = 3,
+                            icon = Icons.Default.Speed,
+                            title = "Default speed",
+                            options = AppSettings.DEFAULT_SPEEDS,
+                            selected = appSettings.defaultSpeed,
+                            label = { "${formatSpeed(it)}×" },
+                            onSelect = viewModel::setDefaultSpeed
+                        )
+                        SwitchRow(
+                            index = 2, count = 3,
+                            icon = Icons.Default.SkipNext,
+                            title = "Auto-play next episode",
+                            supporting = "Count down into the next episode",
+                            checked = appSettings.autoPlayNext,
+                            onCheckedChange = viewModel::setAutoPlayNext
+                        )
+                    }
+                }
+
+                item(key = "pip") {
+                    SettingsGroup(
+                        title = "Picture-in-picture",
+                        footer = "Play/pause always sits in the middle. Android shows three buttons at most."
+                    ) {
+                        ChoiceRow(
+                            index = 0, count = 2,
+                            icon = Icons.Default.PictureInPictureAlt,
+                            title = "Left button",
+                            options = PipAction.entries,
+                            selected = appSettings.pipLeftAction,
+                            label = { it.label },
+                            onSelect = viewModel::setPipLeftAction
+                        )
+                        ChoiceRow(
+                            index = 1, count = 2,
+                            icon = Icons.Default.PictureInPictureAlt,
+                            title = "Right button",
+                            options = PipAction.entries,
+                            selected = appSettings.pipRightAction,
+                            label = { it.label },
+                            onSelect = viewModel::setPipRightAction
+                        )
+                    }
+                }
+
+                item(key = "downloads") {
+                    SettingsGroup(title = "Downloads") {
+                        ChoiceRow(
+                            index = 0, count = 2,
+                            icon = Icons.Default.HighQuality,
+                            title = "Quality",
+                            supporting = "Highest quality a download picks",
+                            options = AppSettings.DOWNLOAD_HEIGHTS,
+                            selected = appSettings.downloadMaxHeight,
+                            label = { "${it}p" },
+                            onSelect = viewModel::setDownloadMaxHeight
+                        )
+                        SwitchRow(
+                            index = 1, count = 2,
+                            icon = Icons.Default.Wifi,
+                            title = "Wi-Fi only",
+                            supporting = "Wait for an unmetered network",
+                            checked = appSettings.wifiOnlyDownloads,
+                            onCheckedChange = viewModel::setWifiOnlyDownloads
+                        )
+                    }
+                }
+
+                item(key = "network") {
+                    val providers = DnsProvider.entries
+                    SettingsGroup(
+                        title = "DNS",
+                        footer = "A private resolver gets past ISP DNS blocks on TMDB and artwork. If it can't be reached, your network's DNS is used."
+                    ) {
+                        providers.forEachIndexed { index, provider ->
+                            RadioRow(
+                                index = index, count = providers.size,
+                                icon = if (provider == DnsProvider.SYSTEM) Icons.Default.Dns else Icons.Default.Shield,
+                                title = provider.label,
+                                supporting = dnsSummary(provider),
+                                selected = appSettings.dnsProvider == provider,
+                                onClick = { viewModel.setDnsProvider(provider) }
+                            )
+                        }
+                    }
+                }
+
+                item(key = "profiles") {
+                    SettingsGroup(title = "Profiles") {
+                        NavigationRow(
+                            index = 0, count = 1,
+                            icon = Icons.Default.People,
+                            title = "Profiles",
+                            supporting = "Add, rename or delete profiles; kids profiles",
+                            onClick = onOpenProfiles
+                        )
+                    }
+                }
+
+                item(key = "library") {
+                    val count = if (hiddenTitleCount > 0) 4 else 3
+                    SettingsGroup(title = "Library", busy = isWorking) {
+                        NavigationRow(
+                            index = 0, count = count,
+                            icon = Icons.Default.Backup,
+                            title = "Back up library",
+                            supporting = "Every profile's Watch Later, lists, history and hidden titles, plus settings",
+                            enabled = !isWorking,
+                            onClick = { exportBackup.launch("openstream-backup-${fileDate()}.json") }
+                        )
+                        NavigationRow(
+                            index = 1, count = count,
+                            icon = Icons.Default.Restore,
+                            title = "Restore from backup",
+                            supporting = "Merges in; nothing on this device is deleted",
+                            enabled = !isWorking,
+                            onClick = {
+                                restoreBackup.launch(arrayOf(LibraryBackup.MIME_TYPE, "text/plain", "application/octet-stream"))
+                            }
+                        )
+                        if (hiddenTitleCount > 0) {
+                            NavigationRow(
+                                index = 2, count = count,
+                                icon = Icons.Default.VisibilityOff,
+                                title = "Show hidden titles",
+                                supporting = "$hiddenTitleCount hidden from Home",
+                                onClick = viewModel::unhideAllTitles
+                            )
+                        }
+                        NavigationRow(
+                            index = count - 1, count = count,
+                            icon = Icons.Default.History,
+                            title = "Clear watch history",
+                            supporting = "This profile's history, Continue Watching and resume positions",
+                            onClick = { confirmClearHistory = true }
+                        )
+                    }
+                }
+
+                item(key = "storage-help") {
+                    val count = if (crashCount > 0) 3 else 2
+                    SettingsGroup(title = "Storage and help") {
+                        NavigationRow(
+                            index = 0, count = count,
+                            icon = Icons.Default.Image,
+                            title = "Clear image cache",
+                            supporting = imageCacheBytes?.let { "${Formatter.formatShortFileSize(context, it)} of artwork" }
+                                ?: "Posters and backdrops kept for faster loading",
+                            onClick = viewModel::clearImageCache
+                        )
+                        NavigationRow(
+                            index = 1, count = count,
+                            icon = Icons.Default.BugReport,
+                            title = "Export diagnostics",
+                            supporting = when (crashCount) {
+                                0 -> "Device details and the recent log, for bug reports"
+                                1 -> "Includes 1 crash report"
+                                else -> "Includes $crashCount crash reports"
+                            },
+                            enabled = !isWorking,
+                            onClick = { exportDiagnostics.launch("openstream-diagnostics-${fileDate(withTime = true)}.txt") }
+                        )
+                        if (crashCount > 0) {
+                            NavigationRow(
+                                index = 2, count = count,
+                                icon = Icons.Default.DeleteSweep,
+                                title = "Clear crash reports",
+                                supporting = "Stored only on this device",
+                                onClick = viewModel::clearCrashReports
+                            )
+                        }
+                    }
+                }
+
+                item(key = "version") {
+                    Text(
+                        text = "OpenStream ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         }
     }

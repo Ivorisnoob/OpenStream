@@ -1,5 +1,7 @@
 package com.ivor.openstream.presentation.details
 
+import com.ivor.openstream.presentation.components.bottomContentPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.animation.core.animate
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -165,6 +167,15 @@ fun DetailsScreen(
     val listState = rememberLazyListState()
     val collapsed by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
     val pullToClose = rememberPullToClose(onClose = onBackClick)
+    val context = LocalContext.current
+    val share: () -> Unit = {
+        (uiState as? DetailsUiState.Success)?.details?.let { details ->
+            val send = Intent(Intent.ACTION_SEND)
+                .setType("text/plain")
+                .putExtra(Intent.EXTRA_TEXT, "${details.name} — https://www.themoviedb.org/$mediaType/${details.id}")
+            context.startActivity(Intent.createChooser(send, "Share ${details.name}"))
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -193,7 +204,59 @@ fun DetailsScreen(
                 val trailers = details.videos?.results.orEmpty()
                     .filter { it.site == "YouTube" && (it.type == "Trailer" || it.type == "Teaser") }
 
-                // The page is built from four groups so wide screens can split them into two columns.
+                val actions: @Composable (Modifier) -> Unit = { actionsModifier ->
+                    PrimaryActions(
+                        details = details,
+                        isMovie = isMovie,
+                        resume = resumeTarget,
+                        isSaved = isSaved,
+                        activeDownloads = activeDownloads,
+                        movieDownload = episodeDownloads[1 to 1].takeIf { isMovie },
+                        hasTrailer = trailers.isNotEmpty(),
+                        onPlay = {
+                            val resume = resumeTarget
+                            if (resume != null) {
+                                onPlayClick(resume.season, resume.episode)
+                            } else {
+                                onPlayClick(details.firstPlayableSeason(), 1)
+                            }
+                        },
+                        isWatched = titleWatched,
+                        watchedBusy = titleWatchedBusy,
+                        onToggleWatched = {
+                            if (titleWatched) confirmUnwatched = true else viewModel.setTitleWatched(true)
+                        },
+                        inListCount = memberOf.size,
+                        onSave = { showListSheet = true },
+                        onShare = share,
+                        onDownload = {
+                            if (activeDownloads > 0) {
+                                onOpenDownloads()
+                            } else if (isMovie) {
+                                viewModel.downloadEpisodes(listOf(details.asMovieEpisode()))
+                            } else {
+                                state.selectedSeasonDetails?.episodes?.filter { it.isReleased() }
+                                    ?.takeIf { it.isNotEmpty() }
+                                    ?.let(viewModel::downloadEpisodes)
+                            }
+                        },
+                        trailer = trailers.firstOrNull(),
+                        modifier = actionsModifier
+                    )
+                }
+                val nextAiringItem: LazyListScope.() -> Unit = {
+                    details.nextEpisodeToAir?.let { next ->
+                        if (!isMovie && next.airDate != null) {
+                            item(key = "next-airing") {
+                                NextAiringBanner(
+                                    text = "S${next.seasonNumber} E${next.episodeNumber} arrives ${formatDate(next.airDate, "EEE, MMM d")}"
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Phones: artwork on top, then everything in one column.
                 val summaryItems: LazyListScope.() -> Unit = {
                     item(key = "hero") {
                         Hero(
@@ -204,55 +267,9 @@ fun DetailsScreen(
                         )
                     }
 
-                    item(key = "actions") {
-                        PrimaryActions(
-                            details = details,
-                            isMovie = isMovie,
-                            resume = resumeTarget,
-                            isSaved = isSaved,
-                            activeDownloads = activeDownloads,
-                            movieDownload = episodeDownloads[1 to 1].takeIf { isMovie },
-                            hasTrailer = trailers.isNotEmpty(),
-                            onPlay = {
-                                val resume = resumeTarget
-                                if (resume != null) {
-                                    onPlayClick(resume.season, resume.episode)
-                                } else {
-                                    onPlayClick(details.firstPlayableSeason(), 1)
-                                }
-                            },
-                            onToggleSaved = viewModel::toggleWatchLater,
-                            isWatched = titleWatched,
-                            watchedBusy = titleWatchedBusy,
-                            onToggleWatched = {
-                                if (titleWatched) confirmUnwatched = true else viewModel.setTitleWatched(true)
-                            },
-                            inListCount = memberOf.size,
-                            onAddToList = { showListSheet = true },
-                            onDownload = {
-                                if (activeDownloads > 0) {
-                                    onOpenDownloads()
-                                } else if (isMovie) {
-                                    viewModel.downloadEpisodes(listOf(details.asMovieEpisode()))
-                                } else {
-                                    state.selectedSeasonDetails?.episodes?.filter { it.isReleased() }
-                                        ?.takeIf { it.isNotEmpty() }
-                                        ?.let(viewModel::downloadEpisodes)
-                                }
-                            },
-                            trailer = trailers.firstOrNull()
-                        )
-                    }
+                    item(key = "actions") { actions(Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp)) }
 
-                    details.nextEpisodeToAir?.let { next ->
-                        if (!isMovie && next.airDate != null) {
-                            item(key = "next-airing") {
-                                NextAiringBanner(
-                                    text = "S${next.seasonNumber} E${next.episodeNumber} arrives ${formatDate(next.airDate, "EEE, MMM d")}"
-                                )
-                            }
-                        }
-                    }
+                    nextAiringItem()
 
                     if (details.overview.isNotBlank()) {
                         item(key = "overview") { Overview(details.overview) }
@@ -271,7 +288,17 @@ fun DetailsScreen(
                         if (index in 0 until orderedSeasons.lastIndex) viewModel.loadSeason(orderedSeasons[index + 1])
                     }
                 )
-                val episodeItems: LazyListScope.() -> Unit = {
+                val episodeCard: @Composable (EpisodeDto) -> Unit = { episode ->
+                    EpisodeCard(
+                        episode = episode,
+                        progress = episodeProgress[episode.seasonNumber to episode.episodeNumber],
+                        download = episodeDownloads[episode.seasonNumber to episode.episodeNumber],
+                        onPlay = { onPlayClick(episode.seasonNumber, episode.episodeNumber) },
+                        onDownload = { viewModel.downloadEpisodes(listOf(episode)) },
+                        onSetWatched = { watched -> viewModel.setWatched(episode, watched) }
+                    )
+                }
+                val episodeItems: LazyListScope.(columns: Int) -> Unit = { columns ->
                     if (!isMovie && !details.seasons.isNullOrEmpty()) {
                         item(key = "episodes-header") {
                             SectionTitle("Episodes")
@@ -301,16 +328,19 @@ fun DetailsScreen(
                                     )
                                 }
                             }
-                            items(episodes, key = { "episode:${it.id}" }) { episode ->
-                                Box(modifier = seasonSwipe) {
-                                    EpisodeCard(
-                                        episode = episode,
-                                        progress = episodeProgress[episode.seasonNumber to episode.episodeNumber],
-                                        download = episodeDownloads[episode.seasonNumber to episode.episodeNumber],
-                                        onPlay = { onPlayClick(episode.seasonNumber, episode.episodeNumber) },
-                                        onDownload = { viewModel.downloadEpisodes(listOf(episode)) },
-                                        onSetWatched = { watched -> viewModel.setWatched(episode, watched) }
-                                    )
+                            if (columns <= 1) {
+                                items(episodes, key = { "episode:${it.id}" }) { episode ->
+                                    Box(modifier = seasonSwipe) { episodeCard(episode) }
+                                }
+                            } else {
+                                // Wide screens: episode cards side by side instead of stretched rows.
+                                items(episodes.chunked(columns), key = { "episodes:${it.first().id}" }) { row ->
+                                    Row(modifier = Modifier.padding(horizontal = 8.dp).then(seasonSwipe)) {
+                                        row.forEach { episode ->
+                                            Box(modifier = Modifier.weight(1f)) { episodeCard(episode) }
+                                        }
+                                        repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+                                    }
                                 }
                             }
                         }
@@ -346,44 +376,40 @@ fun DetailsScreen(
                 val infoItems: LazyListScope.() -> Unit = {
                     item(key = "info") {
                         SectionTitle("Details")
-                        InfoList(details, isMovie)
+                        // A readable row length on tablets instead of label and value a screen apart.
+                        Box(Modifier.widthIn(max = 720.dp)) { InfoList(details, isMovie) }
                     }
                 }
 
                 BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                    if (maxWidth >= TWO_PANE_MIN_WIDTH) {
-                        // Tablets, foldables and landscape: overview on the left, episodes on the right.
-                        Row(modifier = Modifier.fillMaxSize()) {
-                            LazyColumn(
-                                state = listState,
-                                modifier = Modifier.weight(0.42f).fillMaxHeight(),
-                                contentPadding = PaddingValues(bottom = 120.dp)
-                            ) {
-                                summaryItems()
-                                infoItems()
+                    // Tablets and landscape: a full-width backdrop hero with the title and actions
+                    // over it, then episodes in columns and full-width rails. Phones keep the
+                    // poster-first single column.
+                    val wide = maxWidth >= WIDE_MIN_WIDTH
+                    val episodeColumns = if (maxWidth >= TWO_COLUMN_EPISODES_MIN_WIDTH) 2 else 1
+                    val heroMinHeight = (maxHeight * 0.72f).coerceIn(420.dp, 640.dp)
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = bottomContentPadding)
+                    ) {
+                        if (wide) {
+                            item(key = "hero") {
+                                WideHero(
+                                    details = details,
+                                    isMovie = isMovie,
+                                    minHeight = heroMinHeight,
+                                    parallax = { if (listState.firstVisibleItemIndex == 0) listState.firstVisibleItemScrollOffset / 2f else 0f },
+                                    actions = { actions(Modifier.padding(top = 20.dp)) }
+                                )
                             }
-                            LazyColumn(
-                                modifier = Modifier
-                                    .weight(0.58f)
-                                    .fillMaxHeight()
-                                    .statusBarsPadding(),
-                                contentPadding = PaddingValues(top = 56.dp, bottom = 200.dp)
-                            ) {
-                                episodeItems()
-                                extraItems()
-                            }
-                        }
-                    } else {
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(bottom = 200.dp)
-                        ) {
+                            nextAiringItem()
+                        } else {
                             summaryItems()
-                            episodeItems()
-                            extraItems()
-                            infoItems()
                         }
+                        episodeItems(if (wide) episodeColumns else 1)
+                        extraItems()
+                        infoItems()
                     }
                 }
             }
@@ -595,6 +621,136 @@ private fun Hero(
     }
 }
 
+/**
+ * The hero on tablets: landscape artwork across the whole width, with poster, title, overview and
+ * actions on its left side. Its height follows the content, never less than [minHeight].
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WideHero(
+    details: AnimeDetailsDto,
+    isMovie: Boolean,
+    minHeight: androidx.compose.ui.unit.Dp,
+    parallax: () -> Float,
+    actions: @Composable () -> Unit
+) {
+    val background = MaterialTheme.colorScheme.background
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = minHeight)
+            .clipToBounds()
+    ) {
+        AsyncImage(
+            model = "https://image.tmdb.org/t/p/w1280${details.backdropPath ?: details.posterPath}",
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            alignment = Alignment.TopCenter,
+            modifier = Modifier
+                .matchParentSize()
+                .graphicsLayer { translationY = parallax() }
+        )
+        // Scrims: the left side carries the text, the bottom melts into the page.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.horizontalGradient(
+                        0f to background.copy(alpha = 0.94f),
+                        0.38f to background.copy(alpha = 0.72f),
+                        0.72f to Color.Transparent
+                    )
+                )
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.verticalGradient(
+                        0f to background.copy(alpha = 0.45f),
+                        0.22f to Color.Transparent,
+                        0.62f to Color.Transparent,
+                        1f to background
+                    )
+                )
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 20.dp, end = 20.dp, top = 96.dp)
+                .widthIn(max = 560.dp)
+        ) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Surface(
+                    shape = ExpressiveShapes.large,
+                    shadowElevation = 12.dp,
+                    modifier = Modifier.size(width = 120.dp, height = 178.dp)
+                ) {
+                    AsyncImage(
+                        model = "https://image.tmdb.org/t/p/w342${details.posterPath}",
+                        contentDescription = "${details.name} poster",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 20.dp)
+                ) {
+                    StatusPill(details.status)
+                    Text(
+                        text = details.name,
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Black,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .semantics { heading() }
+                    )
+                    details.nativeTitle?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    MetaLine(details, isMovie, modifier = Modifier.padding(top = 8.dp))
+                }
+            }
+            val genres = details.genres.orEmpty().filter { it.name != "Animation" }
+            if (genres.isNotEmpty()) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(top = 16.dp)
+                ) {
+                    genres.take(4).forEach { genre ->
+                        Surface(
+                            shape = ExpressiveShapes.small,
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        ) {
+                            Text(
+                                text = genre.name,
+                                style = MaterialTheme.typography.labelLarge,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+            }
+            if (details.overview.isNotBlank()) {
+                Overview(details.overview, modifier = Modifier.padding(top = 16.dp), collapsedLines = 3)
+            }
+            actions()
+        }
+    }
+}
+
 @Composable
 private fun StatusPill(status: String?) {
     val label = when (status) {
@@ -674,16 +830,17 @@ private fun PrimaryActions(
     hasTrailer: Boolean,
     trailer: VideoDto?,
     onPlay: () -> Unit,
-    onToggleSaved: () -> Unit,
     isWatched: Boolean,
     watchedBusy: Boolean,
     onToggleWatched: () -> Unit,
     inListCount: Int,
-    onAddToList: () -> Unit,
-    onDownload: () -> Unit
+    onSave: () -> Unit,
+    onShare: () -> Unit,
+    onDownload: () -> Unit,
+    modifier: Modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp)
 ) {
     val uriHandler = LocalUriHandler.current
-    Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp)) {
+    Column(modifier = modifier) {
         Button(
             onClick = onPlay,
             shape = ExpressiveShapes.large,
@@ -726,11 +883,14 @@ private fun PrimaryActions(
                 .padding(top = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            // Save opens the list picker (Watch later, the user's lists, a new list), so custom
+            // lists are reachable from the same button as Watch later.
+            val saved = isSaved || inListCount > 0
             ActionTile(
-                icon = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                label = if (isSaved) "Saved" else "My list",
-                highlighted = isSaved,
-                onClick = onToggleSaved,
+                icon = if (saved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                label = if (saved) "Saved" else "Save",
+                highlighted = saved,
+                onClick = onSave,
                 modifier = Modifier.weight(1f)
             )
             val downloadLabel = when {
@@ -775,10 +935,9 @@ private fun PrimaryActions(
                 modifier = Modifier.weight(1f)
             )
             ActionTile(
-                icon = Icons.AutoMirrored.Filled.PlaylistAdd,
-                label = if (inListCount > 0) "In $inListCount list${if (inListCount == 1) "" else "s"}" else "Add to list",
-                highlighted = inListCount > 0,
-                onClick = onAddToList,
+                icon = Icons.Default.Share,
+                label = "Share",
+                onClick = onShare,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -847,18 +1006,20 @@ private fun NextAiringBanner(text: String) {
 }
 
 @Composable
-private fun Overview(text: String) {
+private fun Overview(
+    text: String,
+    modifier: Modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp),
+    collapsedLines: Int = 4
+) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     Column(
-        modifier = Modifier
-            .padding(start = 20.dp, end = 20.dp, top = 20.dp)
-            .animateContentSize()
+        modifier = modifier.animateContentSize()
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface,
-            maxLines = if (expanded) Int.MAX_VALUE else 4,
+            maxLines = if (expanded) Int.MAX_VALUE else collapsedLines,
             overflow = TextOverflow.Ellipsis
         )
         if (text.length > 220) {
@@ -1227,7 +1388,9 @@ private fun CastRail(cast: List<CastDto>, onOpenPerson: (Int) -> Unit) {
                     .width(88.dp)
                     .clip(ExpressiveShapes.medium)
                     .clickable(onClickLabel = "Open ${person.name}") { onOpenPerson(person.id) }
-                    .semantics(mergeDescendants = true) {},
+                    .semantics(mergeDescendants = true) {}
+                    // The role line used to sit on the clipped bottom corners.
+                    .padding(start = 4.dp, end = 4.dp, bottom = 10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 AsyncImage(
@@ -1274,9 +1437,11 @@ private fun TrailerRail(trailers: List<VideoDto>) {
             Column(
                 modifier = Modifier
                     .width(240.dp)
+                    .clip(ExpressiveShapes.medium)
                     .clickable(onClickLabel = "Play ${video.name} on YouTube") {
                         uriHandler.openUri("https://www.youtube.com/watch?v=${video.key}")
                     }
+                    .padding(bottom = 10.dp)
             ) {
                 Box(
                     modifier = Modifier
@@ -1308,7 +1473,7 @@ private fun TrailerRail(trailers: List<VideoDto>) {
                     style = MaterialTheme.typography.labelLarge,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 8.dp)
+                    modifier = Modifier.padding(top = 8.dp, start = 6.dp, end = 6.dp)
                 )
             }
         }
@@ -1329,9 +1494,11 @@ private fun RecommendationRail(
             Column(
                 modifier = Modifier
                     .width(124.dp)
+                    .clip(ExpressiveShapes.medium)
                     .clickable(onClickLabel = "Open ${anime.name}") {
                         onOpen(anime.id, anime.mediaType?.takeIf { it == "movie" || it == "tv" } ?: defaultMediaType)
                     }
+                    .padding(bottom = 10.dp)
             ) {
                 AsyncImage(
                     model = "https://image.tmdb.org/t/p/w342${anime.posterPath}",
@@ -1349,7 +1516,7 @@ private fun RecommendationRail(
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 8.dp)
+                    modifier = Modifier.padding(top = 8.dp, start = 6.dp, end = 6.dp)
                 )
             }
         }
@@ -1508,4 +1675,8 @@ private fun DetailsSkeleton() {
     }
 }
 
-private val TWO_PANE_MIN_WIDTH = 840.dp
+/** From here Details uses the backdrop hero; below it, the phone layout. */
+private val WIDE_MIN_WIDTH = 600.dp
+
+/** Episode cards go two to a row from here. */
+private val TWO_COLUMN_EPISODES_MIN_WIDTH = 900.dp

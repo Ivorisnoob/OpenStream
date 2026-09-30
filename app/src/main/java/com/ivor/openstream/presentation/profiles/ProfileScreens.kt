@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.profiles
 
+import com.ivor.openstream.presentation.components.CenteredListBox
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -136,7 +137,7 @@ private fun ProfileTile(profile: Profile, selected: Boolean, onClick: () -> Unit
         modifier = Modifier
             .clip(ExpressiveShapes.large)
             .clickable(role = Role.Button, onClickLabel = "Watch as ${profile.name}", onClick = onClick)
-            .padding(8.dp)
+            .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 14.dp)
     ) {
         ProfileAvatarBadge(profile.avatar, size = 120.dp * scale)
         Text(
@@ -183,7 +184,7 @@ fun ProfileSwitchButton(
     val isKids = profile?.isKids == true
     val label = when {
         profile == null -> "Profiles"
-        isKids -> "Kids profile ${profile.name}. Hold to exit."
+        isKids -> "Kids profile ${profile.name}. Hold to exit child protection."
         else -> "Profile ${profile.name}. Switch profile."
     }
     Box(
@@ -248,46 +249,48 @@ fun ManageProfilesScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        LazyColumn(contentPadding = PaddingValues(bottom = 120.dp)) {
-            item(key = "header") {
-                LibraryHeader(
-                    title = "Profiles",
-                    subtitle = "Each profile has its own Watch Later, lists, history and Continue Watching. Downloads are shared.",
-                    onBackClick = onBackClick
-                )
-            }
-            items(profiles, key = { it.id }) { profile ->
-                ListItem(
-                    headlineContent = { Text(profile.name, fontWeight = FontWeight.SemiBold) },
-                    supportingContent = {
-                        Text(
-                            listOfNotNull(
-                                "Watching now".takeIf { profile.id == active?.id },
-                                "Kids: rated G, PG, TV-Y to TV-PG only".takeIf { profile.isKids }
-                            ).joinToString(" · ").ifEmpty { "Tap to edit" }
-                        )
-                    },
-                    leadingContent = { ProfileAvatarBadge(profile.avatar, size = 48.dp) },
-                    trailingContent = {
-                        if (profiles.size > 1) {
-                            IconButton(onClick = { deleting = profile }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete ${profile.name}")
+        CenteredListBox(Modifier.fillMaxSize(), minGutter = 0.dp, maxContentWidth = 720.dp) { gutter ->
+            LazyColumn(contentPadding = PaddingValues(start = gutter, end = gutter, bottom = 120.dp)) {
+                item(key = "header") {
+                    LibraryHeader(
+                        title = "Profiles",
+                        subtitle = "Each profile has its own Watch Later, lists, history and Continue Watching. Downloads are shared.",
+                        onBackClick = onBackClick
+                    )
+                }
+                items(profiles, key = { it.id }) { profile ->
+                    ListItem(
+                        headlineContent = { Text(profile.name, fontWeight = FontWeight.SemiBold) },
+                        supportingContent = {
+                            Text(
+                                listOfNotNull(
+                                    "Watching now".takeIf { profile.id == active?.id },
+                                    "Kids: rated G, PG, TV-Y to TV-PG only".takeIf { profile.isKids }
+                                ).joinToString(" · ").ifEmpty { "Tap to edit" }
+                            )
+                        },
+                        leadingContent = { ProfileAvatarBadge(profile.avatar, size = 48.dp) },
+                        trailingContent = {
+                            if (profiles.size > 1) {
+                                IconButton(onClick = { deleting = profile }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete ${profile.name}")
+                                }
                             }
-                        }
-                    },
-                    colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-                    modifier = Modifier.clickable(onClickLabel = "Edit ${profile.name}") { editing = profile }
-                )
-            }
-            item(key = "add") {
-                Button(
-                    onClick = { adding = true },
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Add profile")
+                        },
+                        colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+                        modifier = Modifier.clickable(onClickLabel = "Edit ${profile.name}") { editing = profile }
+                    )
+                }
+                item(key = "add") {
+                    Button(
+                        onClick = { adding = true },
+                        shape = ExpressiveShapes.medium,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Add profile")
+                    }
                 }
             }
         }
