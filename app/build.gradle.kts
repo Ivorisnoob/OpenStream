@@ -27,8 +27,8 @@ android {
         applicationId = "com.ivor.openstream"
         minSdk = 26
         targetSdk = 36
-        versionCode = 5
-        versionName = "2.0"
+        versionCode = 6
+        versionName = "2.1"
 
         val localProperties = Properties()
         val localPropertiesFile = rootProject.file("local.properties")

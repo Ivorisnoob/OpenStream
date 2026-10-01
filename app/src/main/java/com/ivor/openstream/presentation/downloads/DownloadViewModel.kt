@@ -65,12 +65,12 @@ class DownloadViewModel @Inject constructor(
                             posterPath = sorted.first().posterPath,
                             isMovie = sorted.first().mediaType == "movie",
                             items = sorted,
-                            totalBytes = sorted.sumOf { it.totalBytes }
+                            totalBytes = sorted.sumOf { it.sizeBytes }
                         )
                     }
                     .sortedByDescending { group -> group.items.maxOf { it.dateAdded } },
                 completedCount = completed.size,
-                storedBytes = completed.sumOf { it.totalBytes },
+                storedBytes = completed.sumOf { it.sizeBytes },
                 freeBytes = (context.getExternalFilesDir(null) ?: context.filesDir).usableSpace
             )
         }

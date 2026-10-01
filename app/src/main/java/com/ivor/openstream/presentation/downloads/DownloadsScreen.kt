@@ -524,7 +524,7 @@ private fun LibraryGroup(
                             shapes = ListItemDefaults.segmentedShapes(index = index, count = group.items.size),
                             colors = ListItemDefaults.segmentedColors(),
                             leadingContent = { Thumbnail(item.stillPath ?: item.posterPath) },
-                            supportingContent = { Text(formatBytes(item.totalBytes)) },
+                            supportingContent = { Text(formatBytes(item.sizeBytes)) },
                             trailingContent = {
                                 IconButton(onClick = { onDelete(item) }) {
                                     Icon(Icons.Default.Delete, contentDescription = "Delete episode")

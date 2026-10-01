@@ -21,15 +21,19 @@ import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.domain.repository.DownloadRepository
 import com.ivor.openstream.domain.repository.StreamingRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -43,6 +47,7 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
+import kotlin.coroutines.resume
 import android.app.DownloadManager as SystemDownloadManager
 
 /**
@@ -80,7 +85,10 @@ class DownloadRepositoryImpl @Inject constructor(
             }
         })
         scope.launch(Dispatchers.Main) { trackProgress() }
-        scope.launch { recoverInterruptedResolutions() }
+        scope.launch {
+            runCatching { reconcileWithMedia3() }.onFailure { Log.w(TAG, "Could not reconcile downloads", it) }
+            recoverInterruptedResolutions()
+        }
     }
 
     override fun getAllDownloads(): Flow<List<DownloadEntity>> = dao.getAllDownloads()
@@ -94,7 +102,12 @@ class DownloadRepositoryImpl @Inject constructor(
     override suspend fun download(server: VideoServer, target: DownloadTarget) {
         check(server.isDownloadable) { "${server.name} does not support downloads" }
         resolutionJobs.remove(target.id)?.cancel()
-        start(server, target)
+        // The app scope, not the caller's: leaving the player halfway must not leave a row that
+        // says "Queued" with nothing behind it.
+        val job = scope.async { start(server, target) }
+        resolutionJobs[target.id] = job
+        job.invokeOnCompletion { resolutionJobs.remove(target.id, job) }
+        job.await()
     }
 
     override fun enqueue(targets: List<DownloadTarget>) {
@@ -152,19 +165,26 @@ class DownloadRepositoryImpl @Inject constructor(
 
     private fun resolveAndStart(target: DownloadTarget) {
         resolutionJobs.remove(target.id)?.cancel()
-        resolutionJobs[target.id] = scope.launch {
+        val job = scope.launch(start = CoroutineStart.LAZY) {
             resolutionSlots.withPermit {
                 val server = findDownloadableServer(target)
                 if (server == null) {
                     dao.updateProgress(target.id, DownloadStatus.FAILED, 0, 0, 0, "No downloadable source found")
                 } else {
-                    runCatching { start(server, target) }.onFailure { error ->
+                    try {
+                        start(server, target)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
                         dao.updateProgress(target.id, DownloadStatus.FAILED, 0, 0, 0, error.message ?: "Could not start")
                     }
                 }
             }
-            resolutionJobs.remove(target.id)
         }
+        resolutionJobs[target.id] = job
+        // Only drop this job's entry; a retry may already have registered a newer one.
+        job.invokeOnCompletion { resolutionJobs.remove(target.id, job) }
+        job.start()
     }
 
     private suspend fun findDownloadableServer(target: DownloadTarget): VideoServer? {
@@ -285,7 +305,12 @@ class DownloadRepositoryImpl @Inject constructor(
             status = status,
             progress = progress,
             downloadedBytes = download.bytesDownloaded,
-            totalBytes = download.contentLength.coerceAtLeast(0L),
+            // HLS has no length up front (C.LENGTH_UNSET); once finished, what was fetched is the size.
+            totalBytes = when {
+                download.contentLength > 0 -> download.contentLength
+                status == DownloadStatus.COMPLETED -> download.bytesDownloaded
+                else -> 0L
+            },
             errorMessage = error
         )
     }
@@ -305,6 +330,56 @@ class DownloadRepositoryImpl @Inject constructor(
                     dao.updateProgress(id, status, progress, done, total, null)
                 }
             }
+        }
+    }
+
+    /**
+     * Room rows and Media3's download index can drift apart: the process dies between writing a
+     * row and handing the request to Media3, or a row is deleted while Media3 still holds the
+     * download. Left alone, those show as "Queued" forever, or keep downloading and using storage
+     * with nothing in the list. Runs once per launch, before anything new is queued against it.
+     */
+    private suspend fun reconcileWithMedia3() {
+        awaitMedia3Initialized()
+        val startedAt = System.currentTimeMillis()
+        // Read the index before the rows: a download added in between then has its row too.
+        val indexed = HashMap<String, Download>()
+        media3.downloadIndex.getDownloads().use { cursor ->
+            while (cursor.moveToNext()) cursor.download.let { indexed[it.request.id] = it }
+        }
+        val rows = dao.getAllDownloads().first().filter { isMedia3(it.downloadId) }
+        val rowIds = rows.mapTo(HashSet()) { it.downloadId }
+
+        indexed.values
+            .filter { it.request.id !in rowIds && it.startTimeMs < startedAt }
+            .forEach { orphan ->
+                Log.i(TAG, "Removing download ${orphan.request.id} that has no entry in the list")
+                removeFromMedia3(orphan.request.id)
+            }
+
+        rows.filter { it.status != DownloadStatus.RESOLVING && it.dateAdded < startedAt && !resolutionJobs.containsKey(it.downloadId) }
+            .forEach { row ->
+                val download = indexed[row.downloadId]
+                when {
+                    download != null -> writeProgress(download, null)
+                    row.status == DownloadStatus.FAILED -> Unit
+                    else -> dao.updateProgress(
+                        row.downloadId, DownloadStatus.FAILED, 0, 0, 0,
+                        if (row.status == DownloadStatus.COMPLETED) "Downloaded files are missing" else "Download was interrupted"
+                    )
+                }
+            }
+    }
+
+    private suspend fun awaitMedia3Initialized() = withContext(Dispatchers.Main) {
+        if (media3.isInitialized) return@withContext
+        suspendCancellableCoroutine { continuation ->
+            media3.addListener(object : DownloadManager.Listener {
+                override fun onInitialized(downloadManager: DownloadManager) {
+                    downloadManager.removeListener(this)
+                    if (continuation.isActive) continuation.resume(Unit)
+                }
+            })
         }
     }
 

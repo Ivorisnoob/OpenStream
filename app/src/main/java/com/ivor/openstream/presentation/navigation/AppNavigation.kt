@@ -2,6 +2,8 @@ package com.ivor.openstream.presentation.navigation
 
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -165,6 +167,7 @@ fun AppNavigation(
     val showLaunchPicker by profilesViewModel.showLaunchPicker.collectAsState()
     var showProfilePicker by rememberSaveable { mutableStateOf(false) }
     val isOnline by appViewModel.isOnline.collectAsState()
+    var toolbarHeightPx by remember { mutableIntStateOf(0) }
 
     fun openTab(screen: Screen) {
         navController.navigate(screen.route) {
@@ -479,19 +482,24 @@ fun AppNavigation(
                 )
             }
 
-            // Keeps the stream going while browsing; sits just above the floating toolbar.
+            // Keeps the stream going while browsing; sits just above the floating toolbar. The
+            // toolbar is placed from the window edge, so stack on its measured height rather than
+            // on the navigation bar inset (which shrinks in dp at higher display densities).
+            val showToolbar = showBottomBar && isCompact
+            val toolbarTop = with(LocalDensity.current) {
+                ToolbarBottomOffset + if (toolbarHeightPx > 0) toolbarHeightPx.toDp() else 66.dp
+            }
             androidx.compose.animation.AnimatedVisibility(
                 visible = !isOnPlayer && nowPlaying != null,
                 enter = slideInVertically { it } + fadeIn(),
                 exit = slideOutVertically { it } + fadeOut(),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(
-                        start = 16.dp,
-                        end = 16.dp,
-                        bottom = if (showBottomBar && isCompact) 96.dp else 16.dp
+                    .then(
+                        if (showToolbar) Modifier.padding(bottom = toolbarTop + 12.dp)
+                        else Modifier.navigationBarsPadding().padding(bottom = 16.dp)
                     )
+                    .padding(horizontal = 16.dp)
                     // A phone-width bar on tablets instead of a strip across the whole window.
                     .widthIn(max = 560.dp)
             ) {
@@ -531,7 +539,8 @@ fun AppNavigation(
                 HorizontalFloatingToolbar(
                     expanded = true,
                     modifier = Modifier
-                        .padding(bottom = 50.dp)
+                        .padding(bottom = ToolbarBottomOffset)
+                        .onSizeChanged { toolbarHeightPx = it.height }
                         .pointerInput(Unit) {
                             detectHorizontalDragGestures(
                                 onDragStart = {
@@ -609,6 +618,9 @@ fun AppNavigation(
         )
     }
 }
+
+/** Gap between the floating toolbar and the bottom edge of the window. */
+private val ToolbarBottomOffset = 50.dp
 
 @Composable
 private fun OfflineBanner(showDownloadsAction: Boolean, onOpenDownloads: () -> Unit) {

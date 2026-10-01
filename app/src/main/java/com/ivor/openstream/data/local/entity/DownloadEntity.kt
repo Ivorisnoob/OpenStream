@@ -32,4 +32,7 @@ data class DownloadEntity(
     val errorMessage: String? = null
 ) {
     val displayTitle: String get() = showTitle ?: title
+
+    /** Size on disk; rows written before HLS sizes were recorded only have [downloadedBytes]. */
+    val sizeBytes: Long get() = if (totalBytes > 0) totalBytes else downloadedBytes
 }

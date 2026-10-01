@@ -147,6 +147,7 @@ guides, component list) live in `docs/design/`.
 - Don't write tests for their own sake, or temporary test files for probing. Probe with one-off
   scripts outside the repo; add tests when behavior needs guarding.
 - Don't drive the app on the emulator unless asked; the maintainer tests. `installDebug` when asked.
+- Never use emojis: not in code, comments, commits, PRs, changelogs or messages sent anywhere.
 - Commit and push only when asked. End commit messages with the attribution trailer in use.
 - Compile before calling work done, and say plainly what was and wasn't verified.
 - Treat playback and source changes as high risk; name any undocumented third-party behavior they
