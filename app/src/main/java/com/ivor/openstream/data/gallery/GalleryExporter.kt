@@ -16,7 +16,9 @@ import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.Clock
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSourceBitmapLoader
+import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -68,17 +70,34 @@ sealed interface GalleryExport {
  * Media3 Transformer reading from the same cache the offline player uses. Nothing is re-encoded
  * when the codecs fit MP4 (H.264/H.265 with AAC), so it is fast and keeps the quality.
  *
- * The download stays in the app; the gallery copy is a separate file that survives deleting it.
- * Exports run one at a time while the app process is alive.
+ * The download is never touched: the cache is opened read-only (no write sink, no eviction), the
+ * MP4 is built in a temp file under `cacheDir`, and only that temp file and an unfinished gallery
+ * entry are deleted when an export fails or is cancelled. The gallery copy is a separate file that
+ * survives deleting the download. Exports run one at a time while the app process is alive.
  */
 @OptIn(UnstableApi::class)
 @Singleton
 class GalleryExporter @Inject constructor(
     @ApplicationContext private val context: Context,
     private val media3: DownloadManager,
-    private val cacheDataSourceFactory: CacheDataSource.Factory,
+    private val cache: Cache,
+    /** Network with the download's headers; only used for a piece the cache is missing. */
+    private val upstreamFactory: DataSource.Factory,
     private val preferences: SharedPreferences
 ) {
+    /**
+     * Reads the download cache without ever writing to it. Built here rather than reusing a shared
+     * factory so a change elsewhere can never make an export modify or evict a download.
+     */
+    private val readOnlyCache: DataSource.Factory by lazy {
+        ImagePrefixStrippingDataSource.Factory(
+            CacheDataSource.Factory()
+                .setCache(cache)
+                .setUpstreamDataSourceFactory(upstreamFactory)
+                .setCacheWriteDataSinkFactory(null)
+        )
+    }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val queue = Channel<DownloadEntity>(Channel.UNLIMITED)
     private val _exports = MutableStateFlow<Map<String, GalleryExport>>(emptyMap())
@@ -147,8 +166,7 @@ class GalleryExporter @Inject constructor(
     /** Runs on the main thread: Transformer must be started, polled and cancelled from its looper. */
     private suspend fun repackage(mediaItem: MediaItem, output: File, id: String) = coroutineScope {
         val result = CompletableDeferred<Unit>()
-        val mediaSourceFactory = DefaultMediaSourceFactory(context)
-            .setDataSourceFactory(ImagePrefixStrippingDataSource.Factory(cacheDataSourceFactory))
+        val mediaSourceFactory = DefaultMediaSourceFactory(context).setDataSourceFactory(readOnlyCache)
         val transformer = Transformer.Builder(context)
             .setAssetLoaderFactory(
                 DefaultAssetLoaderFactory(
