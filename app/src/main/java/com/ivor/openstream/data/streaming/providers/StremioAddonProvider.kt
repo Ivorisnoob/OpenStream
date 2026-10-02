@@ -10,7 +10,13 @@ import com.ivor.openstream.domain.model.StreamSubtitle
 import com.ivor.openstream.domain.model.VideoServer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -21,6 +27,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReferenceArray
 
 /**
  * A Stremio add-on, spoken over its public HTTP protocol
@@ -80,7 +88,7 @@ class StremioAddonProvider(
         }
     }
 
-    private fun fetchStreams(type: String, videoId: String): List<VideoServer> {
+    private suspend fun fetchStreams(type: String, videoId: String): List<VideoServer> {
         val url = baseUrl.toHttpUrlOrNull()?.newBuilder()
             ?.addPathSegment("stream")
             ?.addPathSegment(type)
@@ -90,32 +98,92 @@ class StremioAddonProvider(
         val body = get(url.toString()) ?: return emptyList()
         val streams = (json.parseToJsonElement(body) as? JsonObject)?.get("streams") as? JsonArray ?: return emptyList()
 
+        // Add-ons often list one release several times, once per file host; keep one entry each.
+        val releases = LinkedHashMap<String, MutableList<VideoServer>>()
+        streams.forEach { element ->
+            val candidate = (element as? JsonObject)?.let { toCandidate(it) } ?: return@forEach
+            releases.getOrPut(candidate.releaseKey) { mutableListOf() } += candidate.server
+        }
         val seenIds = HashSet<String>()
-        return streams.mapNotNull { element ->
-            val stream = element as? JsonObject ?: return@mapNotNull null
-            toServer(stream)?.let { server ->
-                // Two streams with the same label still need different ids.
-                var serverId = server.id
-                var suffix = 2
-                while (!seenIds.add(serverId)) serverId = "${server.id}-${suffix++}"
-                server.copy(id = serverId)
-            }
-        }.take(MAX_STREAMS)
+        return firstPlayableMirrors(releases.values.take(MAX_STREAMS)).map { server ->
+            // Two releases with the same label still need different ids.
+            var serverId = server.id
+            var suffix = 2
+            while (!seenIds.add(serverId)) serverId = "${server.id}-${suffix++}"
+            server.copy(id = serverId)
+        }
     }
 
-    private fun toServer(stream: JsonObject): VideoServer? {
+    /**
+     * For each release, the first mirror that answers like a video. Add-ons hand out links that are
+     * already dead (expired signed URLs, hosts asking for a captcha, redirects to a 404); listing
+     * those made the player fail over through them one by one. Releases are checked in parallel
+     * within [VERIFY_BUDGET_MS]; whatever hasn't answered by then is left out.
+     */
+    private suspend fun firstPlayableMirrors(releases: List<List<VideoServer>>): List<VideoServer> = coroutineScope {
+        val playable = AtomicReferenceArray<VideoServer?>(releases.size)
+        val gate = Semaphore(VERIFY_PARALLELISM)
+        withTimeoutOrNull(VERIFY_BUDGET_MS) {
+            releases.mapIndexed { index, mirrors ->
+                launch(Dispatchers.IO) {
+                    gate.withPermit {
+                        playable.set(index, mirrors.firstOrNull { looksPlayable(it) })
+                    }
+                }
+            }.joinAll()
+        }
+        List(releases.size) { playable.get(it) }.filterNotNull()
+    }
+
+    /** A 16-byte range request: video bytes (or an HLS playlist) rather than an error page. */
+    private fun looksPlayable(server: VideoServer): Boolean = runCatching {
+        val request = Request.Builder()
+            .url(server.url)
+            .apply { server.headers.forEach { (name, value) -> header(name, value) } }
+            .header("Range", "bytes=0-15")
+            .build()
+        probeClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return@use false
+            val head = ByteArray(16)
+            val read = response.body?.byteStream()?.read(head) ?: -1
+            if (read <= 0) return@use false
+            val start = String(head, 0, read, Charsets.ISO_8859_1).trimStart()
+            when {
+                server.isHls -> start.startsWith("#EXTM3U")
+                // HTML/XML error pages and JSON error bodies.
+                start.startsWith("<") || start.startsWith("{") -> false
+                else -> true
+            }
+        }
+    }.getOrDefault(false)
+
+    private val probeClient: OkHttpClient by lazy {
+        client.newBuilder()
+            .callTimeout(PROBE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .build()
+    }
+
+    /** A stream as a server, plus the key that groups its mirrors on other hosts. */
+    private class Candidate(val server: VideoServer, val releaseKey: String)
+
+    private fun toCandidate(stream: JsonObject): Candidate? {
         val url = stream.text("url")?.trim()
         if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) return null
 
         val hints = stream["behaviorHints"] as? JsonObject
         val filename = hints?.text("filename")
-        val nameLines = stream.text("name").nonBlankLines()
-        val detailLines = (stream.text("title") ?: stream.text("description")).nonBlankLines()
-        val label = (nameLines.take(2) + detailLines.take(1))
+        // Some add-ons split their name over lines ("HdHub" / "VM 1080p").
+        val nameLine = stream.text("name").nonBlankLines().take(2).joinToString(" ").ifEmpty { null }
+        val detail = (stream.text("title") ?: stream.text("description")).nonBlankLines().firstOrNull().orEmpty()
+        val size = SIZE.find(detail)?.value?.replace(Regex("\\s+"), " ")
+        // "[PixelDrain] [6.3 GB] The Matrix (1999) 1080p … | host | add-on" -> "The Matrix (1999) 1080p …"
+        val release = detail.replace(LEADING_TAGS, "").substringBefore(" | ").trim()
+        val label = listOfNotNull(nameLine, size, release.ifEmpty { null })
             .joinToString(" · ")
             .ifBlank { displayName }
             .take(MAX_LABEL_LENGTH)
-
+        val releaseKey = (filename ?: release).lowercase().filter { it.isLetterOrDigit() }
+            .ifEmpty { url } + "|" + size.orEmpty()
         val requestHeaders = ((hints?.get("proxyHeaders") as? JsonObject)?.get("request") as? JsonObject)
             ?.mapNotNull { (name, value) -> (value as? JsonPrimitive)?.contentOrNull?.let { name to it } }
             ?.toMap()
@@ -135,8 +203,8 @@ class StremioAddonProvider(
 
         val searchable = listOfNotNull(stream.text("name"), stream.text("title"), stream.text("description"), filename)
             .joinToString(" ")
-        return VideoServer(
-            id = "$id-" + Integer.toHexString((label + filename.orEmpty()).hashCode()),
+        val server = VideoServer(
+            id = "$id-" + Integer.toHexString(releaseKey.hashCode()),
             providerId = id,
             providerName = displayName,
             name = label,
@@ -145,6 +213,7 @@ class StremioAddonProvider(
             headers = mapOf("User-Agent" to BROWSER_USER_AGENT) + requestHeaders,
             subtitles = subtitles
         )
+        return Candidate(server, releaseKey)
     }
 
     /**
@@ -209,6 +278,13 @@ class StremioAddonProvider(
     private companion object {
         const val TAG = "StremioAddon"
         const val MAX_STREAMS = 30
-        const val MAX_LABEL_LENGTH = 90
+        const val MAX_LABEL_LENGTH = 110
+        const val VERIFY_PARALLELISM = 8
+        const val VERIFY_BUDGET_MS = 8_000L
+        const val PROBE_TIMEOUT_MS = 4_000L
+        /** "6.3 GB", "764.92 MB"; not "10Gbps". */
+        val SIZE = Regex("\\d+(?:[.,]\\d+)?\\s*[GM]B\\b", RegexOption.IGNORE_CASE)
+        /** Bracketed host and size tags add-ons put before the release name. */
+        val LEADING_TAGS = Regex("^(\\s*\\[[^\\]]*]\\s*)+")
     }
 }

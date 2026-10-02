@@ -139,6 +139,12 @@ the add-on's `behaviorHints.proxyHeaders.request` headers and any `subtitles`. T
 YouTube and external-link streams are skipped: there is no torrent engine, and debrid services need
 user API keys, which the app doesn't ask for.
 
+Add-ons often list one release several times, once per file host, and some of those links are dead
+when they are handed out (expired signed URLs, hosts asking for a captcha, redirects to a 404). The
+engine groups mirrors by release name and size, then keeps the first mirror per release that answers
+a 16-byte range request with video bytes (or `#EXTM3U` for HLS), checking releases in parallel within
+8 s. Without this the player fails over through dead links one by one.
+
 A Stremio `manifest.json` link (or a `stremio://` link, or an add-on's `/configure` page link) pasted
 into **Add repository** becomes a one-entry repository: `ExtensionIndexParser` maps the manifest to
 an entry, installed right away when it serves streams and doesn't require configuring first. Its

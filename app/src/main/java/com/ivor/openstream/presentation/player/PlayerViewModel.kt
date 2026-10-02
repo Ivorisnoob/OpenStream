@@ -623,13 +623,13 @@ class PlayerViewModel @Inject constructor(
             automaticFailovers++
             _activeServer.value = next
             setActiveId(next.id)
-            _playerEvents.tryEmit("${failed.name} stopped responding. Switched to ${next.name}.")
+            _playerEvents.tryEmit("${failed.name} didn't play. Trying ${next.name}.")
         } else if (!backupSourcesSearched && currentIdentity != null) {
             // Every direct link failed to play: widen the search to the backup sources once.
             backupSourcesSearched = true
             automaticFailovers = 0
             _activeServer.value = null
-            _playerEvents.tryEmit("${failed.name} stopped responding. Searching backup sources…")
+            _playerEvents.tryEmit("${failed.name} didn't play. Searching backup sources…")
             startResolution(currentIdentity!!, includeFallbacks = true)
         } else {
             _activeServer.value = null
