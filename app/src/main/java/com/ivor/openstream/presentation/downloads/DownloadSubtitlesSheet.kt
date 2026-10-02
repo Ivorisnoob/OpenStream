@@ -393,6 +393,7 @@ private fun FilterRow(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun LanguageHeader(name: String, count: Int, isSearching: Boolean, onSearchMore: (() -> Unit)?) {
     Row(
