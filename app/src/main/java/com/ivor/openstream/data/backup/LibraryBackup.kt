@@ -266,7 +266,9 @@ private data class BackupSettings(
     val autoPlayNext: Boolean? = null,
     val downloadMaxHeight: Int? = null,
     val pipLeftAction: String? = null,
-    val pipRightAction: String? = null
+    val pipRightAction: String? = null,
+    val subtitleDownloadLanguages: List<String>? = null,
+    val subtitleDownloadFromSites: Boolean? = null
 ) {
     fun applyTo(current: AppSettings) = current.copy(
         themeMode = ThemeMode.entries.firstOrNull { it.name == themeMode } ?: current.themeMode,
@@ -278,7 +280,9 @@ private data class BackupSettings(
         autoPlayNext = autoPlayNext ?: current.autoPlayNext,
         downloadMaxHeight = downloadMaxHeight?.takeIf { it in AppSettings.DOWNLOAD_HEIGHTS } ?: current.downloadMaxHeight,
         pipLeftAction = PipAction.entries.firstOrNull { it.name == pipLeftAction } ?: current.pipLeftAction,
-        pipRightAction = PipAction.entries.firstOrNull { it.name == pipRightAction } ?: current.pipRightAction
+        pipRightAction = PipAction.entries.firstOrNull { it.name == pipRightAction } ?: current.pipRightAction,
+        subtitleDownloadLanguages = subtitleDownloadLanguages?.filter { it.isNotBlank() }?.distinct() ?: current.subtitleDownloadLanguages,
+        subtitleDownloadFromSites = subtitleDownloadFromSites ?: current.subtitleDownloadFromSites
     )
 }
 
@@ -292,5 +296,7 @@ private fun AppSettings.toBackup() = BackupSettings(
     autoPlayNext = autoPlayNext,
     downloadMaxHeight = downloadMaxHeight,
     pipLeftAction = pipLeftAction.name,
-    pipRightAction = pipRightAction.name
+    pipRightAction = pipRightAction.name,
+    subtitleDownloadLanguages = subtitleDownloadLanguages,
+    subtitleDownloadFromSites = subtitleDownloadFromSites
 )

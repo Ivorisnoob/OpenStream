@@ -97,15 +97,18 @@ Rules:
   `SavedSubtitleRepository` keeps subtitles on the device (`filesDir/subtitles/<download id>/`, files
   plus `index.json`), saved from Downloads (any language, or an imported file). Downloads also
   record the stream's own subtitles there (`stream.json`) so the sheet can offer them; older
-  downloads re-resolve the stream sources to find them. The player lists
+  downloads re-resolve the stream sources to find them. `DownloadSubtitleSaver` saves every
+  subtitle in the languages chosen in Settings (default English) when a download starts: the
+  stream's own, plus OpenSubtitles/SubSource unless turned off. The player lists
   them first for that title/episode, online or offline; `SubtitleFetcher` reads `file:` URLs only
   from that folder because the cast proxy fetches whatever URL it is given. Deleting a download
   deletes its saved subtitles.
 - **Network.** `AppDns` (DNS-over-HTTPS, default AdGuard, chosen in Settings) backs every OkHttp
   client and Coil's image loader (`OpenStreamApp`), because some ISPs block TMDB at the DNS level.
   Media3 playback/downloads and WebView sources still use the system resolver.
-- **Settings.** `AppSettingsStore` (SharedPreferences) holds theme, dynamic color, DNS and
-  Wi-Fi-only downloads; `MainActivity` applies the theme.
+- **Settings.** `AppSettingsStore` (SharedPreferences) holds theme, dynamic color, DNS,
+  Wi-Fi-only downloads and the subtitle languages saved with downloads; `MainActivity` applies the
+  theme.
 - **Skip intro.** `SkipTimesRepository`: `AnimeEpisodeMapper` gives the MAL id and the episode within
   that entry (AniList title search only as a fallback), AniSkip v2 gives the intro/recap/credits
   times (anime only), and the player picks the submission timed on the closest file length. All

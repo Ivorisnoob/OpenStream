@@ -15,6 +15,7 @@ import com.ivor.openstream.data.local.entity.DownloadEntity
 import com.ivor.openstream.data.service.HlsDownloadService
 import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.streaming.DownloadRequestHeaderStore
+import com.ivor.openstream.data.subtitles.DownloadSubtitleSaver
 import com.ivor.openstream.data.subtitles.SavedSubtitleRepository
 import com.ivor.openstream.domain.model.DownloadStatus
 import com.ivor.openstream.domain.model.DownloadTarget
@@ -69,7 +70,8 @@ class DownloadRepositoryImpl @Inject constructor(
     @Named("StreamingClient") private val client: OkHttpClient,
     private val json: Json,
     private val appSettings: AppSettingsStore,
-    private val savedSubtitles: SavedSubtitleRepository
+    private val savedSubtitles: SavedSubtitleRepository,
+    private val subtitleSaver: DownloadSubtitleSaver
 ) : DownloadRepository {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -149,6 +151,7 @@ class DownloadRepositoryImpl @Inject constructor(
     /** Also deletes the subtitles saved for it; they were saved to go with this download. */
     override suspend fun removeDownload(downloadId: String) {
         val entity = dao.getDownloadById(downloadId)
+        subtitleSaver.cancel(downloadId)
         removeEntry(downloadId)
         if (entity != null) {
             runCatching { savedSubtitles.deleteAll(entity.mediaType, entity.tmdbId, entity.season, entity.episode) }
@@ -230,13 +233,13 @@ class DownloadRepositoryImpl @Inject constructor(
                 resolvedAt = server.resolvedAt
             )
         )
-        // The stream's own subtitles, so Downloads can offer them for saving later.
+        // The stream's own subtitles, so Downloads can offer them for saving later, and the ones in
+        // the languages chosen in Settings saved right away.
+        val streamSubtitles = SavedSubtitleRepository.streamCandidates(server.providerName, server.subtitles, server.headers)
         runCatching {
-            savedSubtitles.rememberStreamSubtitles(
-                target.mediaType, target.tmdbId, target.season, target.episode,
-                SavedSubtitleRepository.streamCandidates(server.providerName, server.subtitles, server.headers)
-            )
+            savedSubtitles.rememberStreamSubtitles(target.mediaType, target.tmdbId, target.season, target.episode, streamSubtitles)
         }.onFailure { Log.w(TAG, "Could not record stream subtitles for ${target.id}", it) }
+        subtitleSaver.saveFor(target, streamSubtitles)
         withContext(Dispatchers.Main) {
             // Replace any older copy so segments from two different links never mix.
             if (media3.downloadIndex.getDownload(target.id) != null) media3.removeDownload(target.id)

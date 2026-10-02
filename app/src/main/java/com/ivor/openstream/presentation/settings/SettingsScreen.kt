@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.People
@@ -107,6 +108,17 @@ fun SettingsScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val snackbarHostState = remember { SnackbarHostState() }
     var confirmClearHistory by rememberSaveable { mutableStateOf(false) }
+    var pickingSubtitleLanguages by rememberSaveable { mutableStateOf(false) }
+
+    if (pickingSubtitleLanguages) {
+        SubtitleLanguagesSheet(
+            selected = appSettings.subtitleDownloadLanguages,
+            fromSites = appSettings.subtitleDownloadFromSites,
+            onLanguagesChange = viewModel::setSubtitleDownloadLanguages,
+            onFromSitesChange = viewModel::setSubtitleDownloadFromSites,
+            onDismiss = { pickingSubtitleLanguages = false }
+        )
+    }
 
     val exportBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(LibraryBackup.MIME_TYPE)) { uri ->
         uri?.let(viewModel::exportBackup)
@@ -292,7 +304,7 @@ fun SettingsScreen(
                 item(key = "downloads") {
                     SettingsGroup(title = "Downloads") {
                         ChoiceRow(
-                            index = 0, count = 2,
+                            index = 0, count = 3,
                             icon = Icons.Default.HighQuality,
                             title = "Quality",
                             supporting = "Highest quality a download picks",
@@ -301,8 +313,16 @@ fun SettingsScreen(
                             label = { "${it}p" },
                             onSelect = viewModel::setDownloadMaxHeight
                         )
+                        NavigationRow(
+                            index = 1, count = 3,
+                            icon = Icons.Default.ClosedCaption,
+                            title = "Subtitles",
+                            supporting = subtitleLanguagesSummary(appSettings.subtitleDownloadLanguages) +
+                                " · saved with every download",
+                            onClick = { pickingSubtitleLanguages = true }
+                        )
                         SwitchRow(
-                            index = 1, count = 2,
+                            index = 2, count = 3,
                             icon = Icons.Default.Wifi,
                             title = "Wi-Fi only",
                             supporting = "Wait for an unmetered network",

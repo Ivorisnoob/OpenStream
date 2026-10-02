@@ -277,6 +277,14 @@ class SavedSubtitleRepository @Inject constructor(
         private const val INDEX_FILE = "index.json"
         private const val STREAM_FILE = "stream.json"
 
+        /** Languages offered by name (ISO 639-1, plus OpenSubtitles' "pb" for Brazilian Portuguese). */
+        val COMMON_LANGUAGES = listOf(
+            "en", "es", "fr", "de", "it", "pt", "pb", "nl", "sv", "no", "da", "fi", "is", "pl", "cs", "sk",
+            "sl", "hr", "sr", "bs", "bg", "mk", "ro", "hu", "el", "tr", "ru", "uk", "et", "lv", "lt", "sq",
+            "ar", "he", "fa", "ur", "hi", "bn", "ta", "te", "ml", "kn", "mr", "si", "ne", "zh", "ja", "ko",
+            "th", "vi", "id", "ms", "tl", "my", "km", "ka", "hy", "eu", "ca", "gl"
+        )
+
         /** File types [SubtitleFetcher] may read back from the folder; never the JSON files. */
         val FILE_EXTENSIONS = setOf("srt", "vtt", "ass")
 

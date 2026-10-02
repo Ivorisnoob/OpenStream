@@ -533,7 +533,7 @@ private fun SelectionBar(count: Int, onClear: () -> Unit, onSave: () -> Unit) {
 @Composable
 private fun LanguagePickerDialog(onPick: (String) -> Unit, onDismiss: () -> Unit) {
     val languages = remember {
-        PICKER_LANGUAGES.map { it to SavedSubtitleRepository.languageName(it) }.sortedBy { it.second }
+        SavedSubtitleRepository.COMMON_LANGUAGES.map { it to SavedSubtitleRepository.languageName(it) }.sortedBy { it.second }
     }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -560,11 +560,3 @@ private fun DownloadEntity.sheetTitle(): String =
     } else {
         "$displayTitle · S$season E$episode" + (episodeTitle?.let { " · $it" } ?: "")
     }
-
-/** ISO 639-1, plus OpenSubtitles' "pb" for Brazilian Portuguese. */
-private val PICKER_LANGUAGES = listOf(
-    "en", "es", "fr", "de", "it", "pt", "pb", "nl", "sv", "no", "da", "fi", "is", "pl", "cs", "sk",
-    "sl", "hr", "sr", "bs", "bg", "mk", "ro", "hu", "el", "tr", "ru", "uk", "et", "lv", "lt", "sq",
-    "ar", "he", "fa", "ur", "hi", "bn", "ta", "te", "ml", "kn", "mr", "si", "ne", "zh", "ja", "ko",
-    "th", "vi", "id", "ms", "tl", "my", "km", "ka", "hy", "eu", "ca", "gl"
-)
