@@ -63,7 +63,10 @@ Rules:
 
 - **Sources.** `ExtensionProviderRegistry` turns installed catalog entries into providers.
   `StreamingRepositoryImpl` resolves them in parallel, ranks with `ServerRanker`, and runs
-  `fallback` providers only when direct ones return nothing (or on "Find more" / failover).
+  `fallback` providers only when direct ones return nothing, or have found nothing after 8 s (or on
+  "Find more" / failover). Each provider gets 25 s, enforced by awaiting rather than by cancelling
+  (OkHttp's blocking `execute()` ignores coroutine cancellation); the IMDb id lookup gets 8 s.
+  Cancelled resolutions record nothing; five failures in a row skip a provider for two minutes.
   Engines: `vidking-direct` (`VidkingDirectApi`, encrypted payload, prefers the master playlist so
   quality switches in-player), `web-embed` and `vidking-webview` (`WebEmbedResolver`: first a native
   pass through `HosterExtractors` (Filemoon, StreamWish/VidHide, Voe, Mp4Upload, Vidmoly, ok.ru) when

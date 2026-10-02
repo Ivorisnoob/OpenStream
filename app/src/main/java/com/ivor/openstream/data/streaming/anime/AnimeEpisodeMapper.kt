@@ -55,14 +55,18 @@ class AnimeEpisodeMapper @Inject constructor(
     private val tmdbApi: TmdbApi,
     private val json: Json
 ) {
-    private val lock = Mutex()
+    /**
+     * One lock per episode: the anime providers resolving it together share one lookup, while a
+     * lookup still stuck on the episode the user just left doesn't hold up the next one.
+     */
+    private val locks = ConcurrentHashMap<String, Mutex>()
     private val refs = ConcurrentHashMap<String, Optional>()
     private val entries = ConcurrentHashMap<Int, Entry>()
     private val roots = ConcurrentHashMap<String, Optional>()
 
     suspend fun map(identity: MediaIdentity): AnimeEpisodeRef? = withContext(Dispatchers.IO) {
         refs[identity.cacheKey]?.let { return@withContext it.ref }
-        lock.withLock {
+        locks.getOrPut(identity.cacheKey) { Mutex() }.withLock {
             refs[identity.cacheKey]?.let { return@withLock it.ref }
             val ref = runCatching { lookup(identity) }.getOrElse { error ->
                 // Network trouble (or cancellation) is not an answer: don't cache it.
