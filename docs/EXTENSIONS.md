@@ -145,6 +145,11 @@ engine groups mirrors by release name and size, then keeps the first mirror per 
 a 16-byte range request with video bytes (or `#EXTM3U` for HLS), checking releases in parallel within
 8 s. Without this the player fails over through dead links one by one.
 
+Add-ons name streams however they like (host tags, emoji, scene file names), so
+`StremioStreamLabels` rebuilds each name from what it says, in a fixed order:
+`1080p · BluRay · HEVC 10-bit · Hindi + English · 1.98 GB`. Streams that say too little get a
+cleaned-up remainder of their own text first (`kisskh`, `Source 2 · Dubbed`).
+
 A Stremio `manifest.json` link (or a `stremio://` link, or an add-on's `/configure` page link) pasted
 into **Add repository** becomes a one-entry repository: `ExtensionIndexParser` maps the manifest to
 an entry, installed right away when it serves streams and doesn't require configuring first. Its

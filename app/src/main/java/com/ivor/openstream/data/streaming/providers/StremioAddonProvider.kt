@@ -64,7 +64,7 @@ class StremioAddonProvider(
 
             // The add-on's preferred id scheme first; the next only when the first finds nothing.
             for (videoId in candidateIds(identity, info)) {
-                val servers = fetchStreams(type, videoId)
+                val servers = fetchStreams(type, videoId, identity.title)
                 if (servers.isNotEmpty()) return@withContext Result.success(servers)
             }
             Result.success(emptyList())
@@ -88,7 +88,7 @@ class StremioAddonProvider(
         }
     }
 
-    private suspend fun fetchStreams(type: String, videoId: String): List<VideoServer> {
+    private suspend fun fetchStreams(type: String, videoId: String, title: String): List<VideoServer> {
         val url = baseUrl.toHttpUrlOrNull()?.newBuilder()
             ?.addPathSegment("stream")
             ?.addPathSegment(type)
@@ -101,16 +101,18 @@ class StremioAddonProvider(
         // Add-ons often list one release several times, once per file host; keep one entry each.
         val releases = LinkedHashMap<String, MutableList<VideoServer>>()
         streams.forEach { element ->
-            val candidate = (element as? JsonObject)?.let { toCandidate(it) } ?: return@forEach
+            val candidate = (element as? JsonObject)?.let { toCandidate(it, title) } ?: return@forEach
             releases.getOrPut(candidate.releaseKey) { mutableListOf() } += candidate.server
         }
         val seenIds = HashSet<String>()
+        val labelCounts = HashMap<String, Int>()
         return firstPlayableMirrors(releases.values.take(MAX_STREAMS)).map { server ->
-            // Two releases with the same label still need different ids.
+            // Two releases with the same label still need different ids, and names to tell them apart.
             var serverId = server.id
             var suffix = 2
             while (!seenIds.add(serverId)) serverId = "${server.id}-${suffix++}"
-            server.copy(id = serverId)
+            val repeat = labelCounts.merge(server.name, 1) { old, added -> old + added } ?: 1
+            server.copy(id = serverId, name = if (repeat > 1) "${server.name} ($repeat)" else server.name)
         }
     }
 
@@ -166,24 +168,19 @@ class StremioAddonProvider(
     /** A stream as a server, plus the key that groups its mirrors on other hosts. */
     private class Candidate(val server: VideoServer, val releaseKey: String)
 
-    private fun toCandidate(stream: JsonObject): Candidate? {
+    private fun toCandidate(stream: JsonObject, title: String): Candidate? {
         val url = stream.text("url")?.trim()
         if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) return null
 
         val hints = stream["behaviorHints"] as? JsonObject
         val filename = hints?.text("filename")
-        // Some add-ons split their name over lines ("HdHub" / "VM 1080p").
-        val nameLine = stream.text("name").nonBlankLines().take(2).joinToString(" ").ifEmpty { null }
-        val detail = (stream.text("title") ?: stream.text("description")).nonBlankLines().firstOrNull().orEmpty()
-        val size = SIZE.find(detail)?.value?.replace(Regex("\\s+"), " ")
-        // "[PixelDrain] [6.3 GB] The Matrix (1999) 1080p … | host | add-on" -> "The Matrix (1999) 1080p …"
-        val release = detail.replace(LEADING_TAGS, "").substringBefore(" | ").trim()
-        val label = listOfNotNull(nameLine, size, release.ifEmpty { null })
-            .joinToString(" · ")
-            .ifBlank { displayName }
-            .take(MAX_LABEL_LENGTH)
-        val releaseKey = (filename ?: release).lowercase().filter { it.isLetterOrDigit() }
-            .ifEmpty { url } + "|" + size.orEmpty()
+        val parts = StremioStreamLabels.Parts(
+            nameLines = stream.text("name").nonBlankLines(),
+            detailLines = (stream.text("title") ?: stream.text("description")).nonBlankLines(),
+            filename = filename
+        )
+        val label = StremioStreamLabels.label(parts, title, fallback = displayName).take(MAX_LABEL_LENGTH)
+        val releaseKey = parts.releaseKey.takeIf { it.length > 1 } ?: url
         val requestHeaders = ((hints?.get("proxyHeaders") as? JsonObject)?.get("request") as? JsonObject)
             ?.mapNotNull { (name, value) -> (value as? JsonPrimitive)?.contentOrNull?.let { name to it } }
             ?.toMap()
@@ -282,9 +279,5 @@ class StremioAddonProvider(
         const val VERIFY_PARALLELISM = 8
         const val VERIFY_BUDGET_MS = 8_000L
         const val PROBE_TIMEOUT_MS = 4_000L
-        /** "6.3 GB", "764.92 MB"; not "10Gbps". */
-        val SIZE = Regex("\\d+(?:[.,]\\d+)?\\s*[GM]B\\b", RegexOption.IGNORE_CASE)
-        /** Bracketed host and size tags add-ons put before the release name. */
-        val LEADING_TAGS = Regex("^(\\s*\\[[^\\]]*]\\s*)+")
     }
 }
