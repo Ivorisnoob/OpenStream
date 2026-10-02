@@ -72,6 +72,9 @@ Rules:
   pass through `HosterExtractors` (Filemoon, StreamWish/VidHide, Voe, Mp4Upload, Vidmoly, ok.ru) when
   the embed is or frames a known hoster, else a hidden WebView that records media requests).
   Anime engines (`data/streaming/anime`): `anikoto`, `reanime`, `animepahe`, `fouranimo`, `animegg`.
+  `stremio` (`StremioAddonProvider`): any Stremio add-on by base URL; direct-`url` streams only
+  (no torrents/debrid). A pasted Stremio `manifest.json` becomes a one-add-on repository
+  (`ExtensionIndexParser`), installed right away when it can play.
   `VideoServer` can carry a MIME hint (HLS for URLs without `.m3u8`) and the source's own intro/outro
   times, which the player prefers over AniSkip. `AnimeEpisodeMapper`
   maps TMDB season/episode to an AniList episode (ani.zip + AniList GraphQL, both keyless);

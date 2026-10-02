@@ -115,6 +115,8 @@ class ExtensionRepositoryImpl @Inject constructor(
                     rebuildManifests()
                     toRepo(repoId, snapshot)
                 }
+                // A pasted Stremio add-on is ready to use without a separate install step.
+                seedDefaultInstalls()
                 publish(isSyncing = false)
                 repo
             }

@@ -267,6 +267,111 @@
       }
     },
     {
+      "id": "hdhub",
+      "name": "HdHub",
+      "description": "Stremio add-on with many direct releases per title, up to 4K, including Hindi and dual-audio files. Large files: best on a fast connection.",
+      "version": "1.0.7",
+      "versionCode": 1,
+      "apiVersion": 1,
+      "authors": ["Stremio add-on"],
+      "language": "Multi",
+      "iconUrl": "https://hdhub.thevolecitor.qzz.io/logo.png",
+      "tags": ["movies", "series", "stremio", "4k"],
+      "status": 3,
+      "updatedAt": "2026-10-02",
+      "homepage": "https://hdhub.thevolecitor.qzz.io",
+      "installedByDefault": false,
+      "engine": {
+        "type": "stremio",
+        "endpoint": "https://hdhub.thevolecitor.qzz.io/eyJ0b3Jib3giOiJ1bnNldCIsInF1YWxpdGllcyI6IjIxNjBwLDEwODBwLDcyMHAiLCJzb3J0IjoiZGVzYyJ9",
+        "priority": 14
+      }
+    },
+    {
+      "id": "yastream",
+      "name": "yastream",
+      "description": "Stremio add-on for Asian dramas, series and movies from several providers.",
+      "version": "0.11.1",
+      "versionCode": 1,
+      "apiVersion": 1,
+      "authors": ["Stremio add-on"],
+      "language": "Multi",
+      "iconUrl": "https://yastream.tamthai.de/img/yas.png",
+      "tags": ["series", "movies", "stremio", "asian-drama"],
+      "status": 3,
+      "updatedAt": "2026-10-02",
+      "homepage": "https://yastream.tamthai.de",
+      "installedByDefault": false,
+      "engine": {
+        "type": "stremio",
+        "endpoint": "https://yastream.tamthai.de",
+        "priority": 15
+      }
+    },
+    {
+      "id": "zeus",
+      "name": "Zeus",
+      "description": "Stremio add-on with Portuguese (Brazil) dubbed and subtitled movies, series and anime.",
+      "version": "0.39.4",
+      "versionCode": 1,
+      "apiVersion": 1,
+      "authors": ["Stremio add-on"],
+      "language": "Portuguese",
+      "iconUrl": "https://i.imgur.com/7Jr9ng6.jpg",
+      "tags": ["movies", "series", "stremio", "portuguese"],
+      "status": 3,
+      "updatedAt": "2026-10-02",
+      "homepage": "https://398fe185fed6-zeus.baby-beamup.club",
+      "installedByDefault": false,
+      "engine": {
+        "type": "stremio",
+        "endpoint": "https://398fe185fed6-zeus.baby-beamup.club/v1-p1kv-q3j",
+        "priority": 16
+      }
+    },
+    {
+      "id": "froststream",
+      "name": "FrostStream",
+      "description": "Stremio add-on with Portuguese (Brazil) dubbed and subtitled movies and series.",
+      "version": "2.2.7",
+      "versionCode": 1,
+      "apiVersion": 1,
+      "authors": ["Stremio add-on"],
+      "language": "Portuguese",
+      "iconUrl": "https://i.imgur.com/yuG0ZIU.jpeg",
+      "tags": ["movies", "series", "stremio", "portuguese"],
+      "status": 3,
+      "updatedAt": "2026-10-02",
+      "homepage": "https://froststream.cloutteam.com",
+      "installedByDefault": false,
+      "engine": {
+        "type": "stremio",
+        "endpoint": "https://froststream.cloutteam.com",
+        "priority": 17
+      }
+    },
+    {
+      "id": "fenixflix",
+      "name": "FenixFlix",
+      "description": "Stremio add-on with Portuguese (Brazil) dubbed and subtitled series, novelas and movies.",
+      "version": "1.1.9",
+      "versionCode": 1,
+      "apiVersion": 1,
+      "authors": ["Stremio add-on"],
+      "language": "Portuguese",
+      "iconUrl": "https://fenixflix.fenixhub.online/logo.png",
+      "tags": ["series", "movies", "stremio", "portuguese"],
+      "status": 3,
+      "updatedAt": "2026-10-02",
+      "homepage": "https://fenixflix.fenixhub.online",
+      "installedByDefault": false,
+      "engine": {
+        "type": "stremio",
+        "endpoint": "https://fenixflix.fenixhub.online",
+        "priority": 18
+      }
+    },
+    {
       "id": "jett",
       "name": "Jett",
       "description": "Fast web player route with adaptive quality. Backs up the main routes when they fail.",

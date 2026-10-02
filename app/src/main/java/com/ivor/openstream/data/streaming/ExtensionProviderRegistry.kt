@@ -11,6 +11,7 @@ import com.ivor.openstream.data.streaming.anime.CloudflareClearance
 import com.ivor.openstream.data.streaming.anime.MegaplayExtractor
 import com.ivor.openstream.data.streaming.anime.ReAnimeProvider
 import com.ivor.openstream.data.streaming.providers.VidkingDirectApi
+import com.ivor.openstream.data.streaming.providers.StremioAddonProvider
 import com.ivor.openstream.data.streaming.providers.VidkingDirectProvider
 import com.ivor.openstream.data.streaming.providers.VidkingServerSpec
 import com.ivor.openstream.data.streaming.providers.WebEmbedProvider
@@ -140,6 +141,15 @@ class ExtensionProviderRegistry @Inject constructor(
                 spec = animeSiteSpec(manifest),
                 mapper = animeEpisodeMapper,
                 client = streamingClient
+            )
+            ExtensionEngineType.STREMIO -> StremioAddonProvider(
+                id = "stremio-${manifest.id}",
+                displayName = manifest.name,
+                priority = engine.priority,
+                isFallback = manifest.isFallback,
+                baseUrl = engine.endpoint.removeSuffix("/manifest.json").trimEnd('/'),
+                client = streamingClient,
+                json = json
             )
             ExtensionEngineType.UNSUPPORTED -> return null
         }

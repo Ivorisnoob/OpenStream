@@ -426,13 +426,15 @@ private fun RepositoriesTab(
                 ) {
                     Column(modifier = Modifier.padding(18.dp)) {
                         Text(
-                            text = "Add a repository",
+                            text = "Add a repository or Stremio add-on",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            text = "Paste a link to an index.json. GitHub page links are converted automatically.",
+                            text = "Paste a link to an index.json, or a Stremio add-on's manifest.json (stremio:// links " +
+                                "and configured add-on links work too). Add-ons that stream direct links are installed " +
+                                "right away; torrent-only and debrid add-ons can't play here.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -441,7 +443,7 @@ private fun RepositoriesTab(
                             value = repoUrl,
                             onValueChange = { repoUrl = it },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("https://…/index.json") },
+                            placeholder = { Text("https://…/index.json or …/manifest.json") },
                             leadingIcon = { Icon(Icons.Default.Public, contentDescription = null) },
                             singleLine = true,
                             shape = ExpressiveShapes.medium,

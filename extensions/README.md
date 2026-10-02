@@ -31,6 +31,7 @@ as "Needs a newer app version".
 | `web-embed` | Any web player page the app can load in a hidden browser and record the video requests of | `movieUrl` and/or `tvUrl` |
 | `vidking-webview` | The built-in Vidking page fallback; there is already one, don't add another | none |
 | `anikoto` / `reanime` / `animepahe` | Anime sites with a built-in scraper; point `endpoint` at the site's current domain when it moves | `endpoint` (e.g. `https://anikototv.to`) |
+| `stremio` | A Stremio add-on that returns direct (non-torrent) stream links without an account or debrid key | `endpoint`: the manifest URL without `/manifest.json` |
 
 `web-embed` URL templates must be `https://` and can use these placeholders:
 
@@ -77,6 +78,7 @@ Rules the catalog follows:
 - **`id`** is permanent and unique. Installs, stats and saved preferences hang off it, so never
   rename it; to replace a source, add a new id and retire the old one.
 - **`name`**: official routes are named after Valorant agents. Keep to that for official entries.
+  Stremio add-ons keep the add-on's own name, so people recognise them.
 - **`description`**: one short sentence on what the source is good for. No hostnames or ads.
 - **`language`**: `Multi`, or the language of the audio when the route is a dub (`English`,
   `Hindi`…). The Audio page uses this to offer the route as a language choice.

@@ -100,6 +100,7 @@ falls back to `main/extensions/index.json`.
 | `anikoto` | `AnikotoProvider` (site search, MAL-id check, megaplay embeds via `MegaplayExtractor`) | `endpoint`: the site origin (`https://…`) |
 | `reanime` | `ReAnimeProvider` (megaplay by AniList id; the site is the Referer) | `endpoint`: the site origin |
 | `animepahe` | `AnimePaheProvider` (Cloudflare cleared in a hidden WebView by `CloudflareClearance`, kwik packed-script unpacking) | `endpoint`: the site origin |
+| `stremio` | `StremioAddonProvider` (the Stremio add-on protocol over HTTPS) | `endpoint`: the add-on's base URL, i.e. its manifest URL without `/manifest.json` (a configured add-on's URL includes its settings) |
 
 The three anime engines resolve only titles that `AnimeEpisodeMapper` can map to an AniList
 episode (ani.zip by TMDB id, then AniList sequels, matched by TVDB season/episode or air date);
@@ -126,6 +127,26 @@ catalog stays forward-compatible: publishing an entry for a future engine does n
   resolve and decayed so recent behaviour dominates.
 
 Trending additionally weights `installsLast7Days` and how recently the entry was updated.
+
+### Stremio add-ons
+
+The `stremio` engine speaks the public
+[Stremio add-on protocol](https://github.com/Stremio/stremio-addon-sdk/blob/master/docs/protocol.md):
+it reads `{base}/manifest.json` once for the content types and id prefixes, then asks
+`{base}/stream/movie/{imdbId}.json` or `{base}/stream/series/{imdbId}:{season}:{episode}.json`
+(or `tmdb:` ids when the add-on lists that prefix). Only streams with a direct `url` are used, with
+the add-on's `behaviorHints.proxyHeaders.request` headers and any `subtitles`. Torrent (`infoHash`),
+YouTube and external-link streams are skipped: there is no torrent engine, and debrid services need
+user API keys, which the app doesn't ask for.
+
+A Stremio `manifest.json` link (or a `stremio://` link, or an add-on's `/configure` page link) pasted
+into **Add repository** becomes a one-entry repository: `ExtensionIndexParser` maps the manifest to
+an entry, installed right away when it serves streams and doesn't require configuring first. Its
+`versionCode` comes from the add-on's semver, so a new add-on version shows as an update.
+
+Add-ons listed in the official catalog were checked to return direct streams without an account
+or key for a movie and an episode when they were added (status `3`, Beta). Public add-on hosts move
+often; when one stops answering, mark it `0` (Down) or retire the entry.
 
 ## Runtime
 
