@@ -114,6 +114,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.mutableIntStateOf
 import com.ivor.openstream.data.streaming.BROWSER_USER_AGENT
 import com.ivor.openstream.domain.model.forDuration
+import com.ivor.openstream.data.subtitles.SavedSubtitleRepository
 import com.ivor.openstream.data.subtitles.SubtitleCue
 import com.ivor.openstream.data.repository.SubSourceRepository
 import com.ivor.openstream.data.subtitles.isSubtitleAd
@@ -1599,6 +1600,7 @@ private fun displayLanguageOrNull(code: String): String? {
 /** Files the player can't read itself (compressed, or behind a download token); loaded on demand. */
 private fun SubtitleDto.isSideloadOnly(): Boolean =
     source == OpenSubtitlesRepository.SOURCE_NAME || source == SubSourceRepository.SOURCE_NAME ||
+        source == SavedSubtitleRepository.SOURCE_NAME ||
         url.substringBefore('?').substringAfterLast('.').lowercase() in setOf("gz", "zip")
 
 /** Caption size in picture-in-picture relative to the user's chosen size. */

@@ -153,6 +153,8 @@ dependencies {
     implementation(libs.androidx.media3.exoplayer.dash)
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.media3.cast)
+    // Repackages downloads as MP4 for the gallery (no re-encoding).
+    implementation(libs.androidx.media3.transformer)
 
     // Graphics Shapes
     implementation(libs.androidx.graphics.shapes)

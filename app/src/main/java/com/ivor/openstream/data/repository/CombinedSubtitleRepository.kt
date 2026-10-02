@@ -26,4 +26,12 @@ class CombinedSubtitleRepository @Inject constructor(
             .distinctBy { listOf(it.language, it.release?.lowercase()?.trim(), it.isHearingImpaired).takeIf { _ -> it.release != null } ?: it.url }
             .sortedBy { if (it.language == "en") 0 else 1 }
     }
+
+    override suspend fun searchLanguage(identity: MediaIdentity, language: String): List<SubtitleDto> = coroutineScope {
+        val fromOpenSubtitles = async {
+            runCatching { openSubtitles.searchLanguage(identity, language) }.getOrDefault(emptyList())
+        }
+        val fromSubSource = async { subSource.searchLanguage(identity, language) }
+        (fromOpenSubtitles.await() + fromSubSource.await()).distinctBy { it.url }
+    }
 }

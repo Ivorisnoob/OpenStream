@@ -15,6 +15,7 @@ import com.ivor.openstream.data.local.entity.DownloadEntity
 import com.ivor.openstream.data.service.HlsDownloadService
 import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.streaming.DownloadRequestHeaderStore
+import com.ivor.openstream.data.subtitles.SavedSubtitleRepository
 import com.ivor.openstream.domain.model.DownloadStatus
 import com.ivor.openstream.domain.model.DownloadTarget
 import com.ivor.openstream.domain.model.VideoServer
@@ -67,7 +68,8 @@ class DownloadRepositoryImpl @Inject constructor(
     private val streamingRepository: StreamingRepository,
     @Named("StreamingClient") private val client: OkHttpClient,
     private val json: Json,
-    private val appSettings: AppSettingsStore
+    private val appSettings: AppSettingsStore,
+    private val savedSubtitles: SavedSubtitleRepository
 ) : DownloadRepository {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -137,14 +139,24 @@ class DownloadRepositoryImpl @Inject constructor(
         scope.launch {
             val entity = dao.getDownloadById(downloadId) ?: return@launch
             val target = entity.toTarget()
-            if (downloadId != target.id) removeDownload(downloadId)
+            if (downloadId != target.id) removeEntry(downloadId)
             removeFromMedia3(target.id)
             dao.insertDownload(placeholder(target))
             resolveAndStart(target)
         }
     }
 
+    /** Also deletes the subtitles saved for it; they were saved to go with this download. */
     override suspend fun removeDownload(downloadId: String) {
+        val entity = dao.getDownloadById(downloadId)
+        removeEntry(downloadId)
+        if (entity != null) {
+            runCatching { savedSubtitles.deleteAll(entity.mediaType, entity.tmdbId, entity.season, entity.episode) }
+                .onFailure { Log.w(TAG, "Could not delete saved subtitles for $downloadId", it) }
+        }
+    }
+
+    private suspend fun removeEntry(downloadId: String) {
         resolutionJobs.remove(downloadId)?.cancel()
         if (isMedia3(downloadId)) {
             removeFromMedia3(downloadId)

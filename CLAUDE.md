@@ -30,7 +30,7 @@ Versions live only in `gradle/libs.versions.toml`; never hard-code them in Gradl
   only to pin its version (2.3.21).
 - compileSdk 37, targetSdk 36, minSdk 26.
 - Compose BOM 2026.09.00 with **Material 3 `1.5.0-alpha29`** (Expressive). KSP, Hilt, Room 2.8,
-  kotlinx-serialization, Retrofit/OkHttp, Coil 3, Media3 1.3.
+  kotlinx-serialization, Retrofit/OkHttp, Coil 3, Media3 1.3 (including Transformer).
 - Alpha APIs change between releases. Before using a Material 3 API, confirm it exists in alpha29
   (for example, `javap` on the cached AAR under `~/.gradle/caches/modules-2`). Known change: `Slider`
   with custom `thumb`/`track` is now state-based (`rememberSliderState`).
@@ -94,6 +94,11 @@ Rules:
   and `SubSourceRepository` (keyless, mirrors subsource.net's own API: IMDb search -> list ->
   download token -> zip), plus any the stream carries. `SubtitleFetcher` downloads and unwraps
   them (gzip, zip, charset) for both the player and the cast proxy; promo cues are stripped.
+  `SavedSubtitleRepository` keeps subtitles on the device (`filesDir/subtitles/<download id>/`, files
+  plus `index.json`), saved from Downloads (any language, or an imported file). The player lists
+  them first for that title/episode, online or offline; `SubtitleFetcher` reads `file:` URLs only
+  from that folder because the cast proxy fetches whatever URL it is given. Deleting a download
+  deletes its saved subtitles.
 - **Network.** `AppDns` (DNS-over-HTTPS, default AdGuard, chosen in Settings) backs every OkHttp
   client and Coil's image loader (`OpenStreamApp`), because some ISPs block TMDB at the DNS level.
   Media3 playback/downloads and WebView sources still use the system resolver.
@@ -119,6 +124,10 @@ Rules:
 - **Downloads.** Everything goes through Media3's `DownloadManager` (`DownloadRepositoryImpl`):
   queue resolves sources in the app scope, live progress from the manager, pause/resume/retry,
   one rendition up to 1080p from master playlists. Offline playback reads the same cache.
+  "Save to gallery" (`GalleryExporter`) repackages a finished download into an MP4 in
+  `Movies/OpenStream` with Media3 Transformer, reading the cache through
+  `ImagePrefixStrippingDataSource` like the player; no re-encoding when the codecs fit MP4. The
+  copy is independent of the download (about twice the size is needed while it is written).
 
 ## Known external constraints
 

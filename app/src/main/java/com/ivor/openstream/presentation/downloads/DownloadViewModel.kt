@@ -3,7 +3,10 @@ package com.ivor.openstream.presentation.downloads
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ivor.openstream.data.gallery.GalleryExport
+import com.ivor.openstream.data.gallery.GalleryExporter
 import com.ivor.openstream.data.local.entity.DownloadEntity
+import com.ivor.openstream.data.subtitles.SavedSubtitleRepository
 import com.ivor.openstream.domain.model.DownloadStatus
 import com.ivor.openstream.domain.repository.DownloadRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -13,6 +16,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -36,19 +40,33 @@ data class DownloadsUiState(
     val completedCount: Int = 0,
     val storedBytes: Long = 0L,
     /** Free space on the volume downloads are written to. */
-    val freeBytes: Long = 0L
+    val freeBytes: Long = 0L,
+    /** Saved subtitles per movie or episode, by [SavedSubtitleRepository.keyFor]. */
+    val subtitleCounts: Map<String, Int> = emptyMap(),
+    /** Gallery copies by download id. */
+    val galleryExports: Map<String, GalleryExport> = emptyMap()
 ) {
+    fun subtitleCount(download: DownloadEntity): Int = subtitleCounts[
+        SavedSubtitleRepository.keyFor(download.mediaType, download.tmdbId, download.season, download.episode)
+    ] ?: 0
+
     val isEmpty: Boolean get() = !isLoading && inProgress.isEmpty() && library.isEmpty()
 }
 
 @HiltViewModel
 class DownloadViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val repository: DownloadRepository
+    private val repository: DownloadRepository,
+    savedSubtitles: SavedSubtitleRepository,
+    private val galleryExporter: GalleryExporter
 ) : ViewModel() {
 
-    val uiState: StateFlow<DownloadsUiState> = repository.getAllDownloads()
-        .map { downloads ->
+    val uiState: StateFlow<DownloadsUiState> = combine(
+        repository.getAllDownloads(),
+        savedSubtitles.observeCounts(),
+        galleryExporter.exports
+    ) { downloads, subtitleCounts, galleryExports -> Triple(downloads, subtitleCounts, galleryExports) }
+        .map { (downloads, subtitleCounts, galleryExports) ->
             val completed = downloads.filter { it.status == DownloadStatus.COMPLETED }
             DownloadsUiState(
                 isLoading = false,
@@ -71,11 +89,19 @@ class DownloadViewModel @Inject constructor(
                     .sortedByDescending { group -> group.items.maxOf { it.dateAdded } },
                 completedCount = completed.size,
                 storedBytes = completed.sumOf { it.sizeBytes },
-                freeBytes = (context.getExternalFilesDir(null) ?: context.filesDir).usableSpace
+                freeBytes = (context.getExternalFilesDir(null) ?: context.filesDir).usableSpace,
+                subtitleCounts = subtitleCounts,
+                galleryExports = galleryExports
             )
         }
         .flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DownloadsUiState())
+
+    /** True on Android 9 and older until the storage permission is granted. */
+    val needsStoragePermission: Boolean get() = galleryExporter.needsStoragePermission
+
+    /** Copies a finished download into the gallery as an MP4; the download itself stays. */
+    fun saveToGallery(download: DownloadEntity) = galleryExporter.export(download)
 
     fun pause(download: DownloadEntity) = repository.pause(download.downloadId)
 
