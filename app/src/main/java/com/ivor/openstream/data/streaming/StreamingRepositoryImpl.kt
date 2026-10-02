@@ -6,6 +6,8 @@ import com.ivor.openstream.domain.model.ServerResolution
 import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.domain.repository.StreamingRepository
 import android.util.Log
+import com.ivor.openstream.data.settings.AppSettingsStore
+import com.ivor.openstream.data.settings.SourceSearchMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -35,7 +37,8 @@ class StreamingRepositoryImpl @Inject constructor(
     private val providerRegistry: ExtensionProviderRegistry,
     private val idMappingService: IdMappingService,
     @Named("StreamingClient") private val client: OkHttpClient,
-    private val preferences: SharedPreferences
+    private val preferences: SharedPreferences,
+    private val appSettings: AppSettingsStore
 ) : StreamingRepository {
     private val consecutiveFailures = ConcurrentHashMap<String, Int>()
 
@@ -49,9 +52,11 @@ class StreamingRepositoryImpl @Inject constructor(
     private val providerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
-     * Every installed provider runs at once and servers are sent as each one answers, so playback
-     * can start on the first. Fallback providers join when direct ones have found nothing, either
-     * once all of them are done or after [FALLBACK_HEAD_START_MS], whichever comes first.
+     * By default every installed provider runs at once and servers are sent as each one answers,
+     * so playback can start on the first. Fallback providers join when direct ones have found
+     * nothing, either once all of them are done or after [FALLBACK_HEAD_START_MS], whichever comes
+     * first. With [SourceSearchMode.IN_ORDER] providers run one at a time in the user's order and
+     * the search stops at the first that finds something ("Find more" then searches the rest).
      */
     override fun resolveServers(
         identity: MediaIdentity,
@@ -72,10 +77,11 @@ class StreamingRepositoryImpl @Inject constructor(
         } else {
             enabledProviders.filter(ExtensionStreamProvider::isFallback)
         }
+        val inOrder = appSettings.current.sourceSearchMode == SourceSearchMode.IN_ORDER
         val firstStageProviders = directProviders.ifEmpty { fallbackProviders }
         val deferredFallbackProviders = fallbackProviders.takeIf { directProviders.isNotEmpty() }.orEmpty()
         // Shown straight away, before the id lookup, so the screen says sources are being searched.
-        send(ServerResolution(totalProviders = firstStageProviders.size))
+        send(ServerResolution(totalProviders = if (inOrder) enabledProviders.size else firstStageProviders.size))
         if (firstStageProviders.isEmpty()) {
             send(ServerResolution(isComplete = true))
             return@channelFlow
@@ -85,12 +91,51 @@ class StreamingRepositoryImpl @Inject constructor(
         val enrichedIdentity = withTimeoutOrNull(ID_LOOKUP_TIMEOUT_MS) { idMappingService.enrich(identity) } ?: identity
         val preferredServerId = preferences.getString(preferenceKey(identity), null)
 
+        var servers = emptyList<VideoServer>()
+        val failedProviders = mutableListOf<String>()
+
+        fun absorb(outcome: ResolutionEvent.Outcome) {
+            outcome.result.fold(
+                onSuccess = { incoming ->
+                    consecutiveFailures.remove(outcome.provider.id)
+                    breakerOpenedAt.remove(outcome.provider.id)
+                    providerRegistry.recordOutcome(outcome.provider, incoming.isNotEmpty())
+                    if (incoming.isEmpty()) {
+                        failedProviders += outcome.provider.displayName
+                    } else {
+                        servers = ServerRanker.mergeAndRank(
+                            existing = servers,
+                            incoming = incoming,
+                            providerPriorities = providerPriorities,
+                            preferredServerId = preferredServerId,
+                            providerFirst = inOrder
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    Log.w(TAG, "${outcome.provider.displayName} failed: ${error.message}")
+                    recordFailure(outcome.provider.id)
+                    providerRegistry.recordOutcome(outcome.provider, false)
+                    failedProviders += outcome.provider.displayName
+                }
+            )
+        }
+
+        if (inOrder && !includeFallbacks) {
+            // The user's order exactly, fallbacks included wherever they were placed.
+            enabledProviders.forEachIndexed { index, provider ->
+                absorb(runProvider(provider, enrichedIdentity))
+                val found = servers.isNotEmpty()
+                send(progress(servers, index + 1, enabledProviders.size, failedProviders, isComplete = found || index == enabledProviders.lastIndex))
+                if (found) return@channelFlow
+            }
+            return@channelFlow
+        }
+
         val events = Channel<ResolutionEvent>(Channel.UNLIMITED)
         var pending = 0
         var total = 0
         var fallbacksStarted = false
-        var servers = emptyList<VideoServer>()
-        val failedProviders = mutableListOf<String>()
 
         fun start(providers: List<ExtensionStreamProvider>) {
             pending += providers.size
@@ -122,29 +167,7 @@ class StreamingRepositoryImpl @Inject constructor(
                 }
                 is ResolutionEvent.Outcome -> {
                     pending--
-                    event.result.fold(
-                        onSuccess = { incoming ->
-                            consecutiveFailures.remove(event.provider.id)
-                            breakerOpenedAt.remove(event.provider.id)
-                            providerRegistry.recordOutcome(event.provider, incoming.isNotEmpty())
-                            if (incoming.isEmpty()) {
-                                failedProviders += event.provider.displayName
-                            } else {
-                                servers = ServerRanker.mergeAndRank(
-                                    existing = servers,
-                                    incoming = incoming,
-                                    providerPriorities = providerPriorities,
-                                    preferredServerId = preferredServerId
-                                )
-                            }
-                        },
-                        onFailure = { error ->
-                            Log.w(TAG, "${event.provider.displayName} failed: ${error.message}")
-                            recordFailure(event.provider.id)
-                            providerRegistry.recordOutcome(event.provider, false)
-                            failedProviders += event.provider.displayName
-                        }
-                    )
+                    absorb(event)
                     // Direct providers are all done and found nothing: fallbacks are the last hope.
                     if (pending == 0 && servers.isEmpty()) startFallbacks()
                     send(progress(servers, total - pending, total, failedProviders, isComplete = pending == 0))

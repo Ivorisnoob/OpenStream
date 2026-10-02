@@ -17,6 +17,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
@@ -121,7 +124,11 @@ fun ExtensionRow(
     onUninstall: () -> Unit,
     onUpdate: () -> Unit,
     onEnabledChange: (Boolean) -> Unit,
-    rank: Int? = null
+    rank: Int? = null,
+    /** Installed tab only: move this source up or down the search order (null at either end). */
+    onMoveUp: (() -> Unit)? = null,
+    onMoveDown: (() -> Unit)? = null,
+    showReorder: Boolean = false
 ) {
     val manifest = extension.manifest
     Surface(
@@ -220,12 +227,22 @@ fun ExtensionRow(
                             },
                             modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.labelLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             color = if (extension.isEnabled) {
                                 MaterialTheme.colorScheme.primary
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             }
                         )
+                        if (showReorder) {
+                            IconButton(onClick = { onMoveUp?.invoke() }, enabled = onMoveUp != null) {
+                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move ${manifest.name} up")
+                            }
+                            IconButton(onClick = { onMoveDown?.invoke() }, enabled = onMoveDown != null) {
+                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Move ${manifest.name} down")
+                            }
+                        }
                         Switch(
                             checked = extension.isEnabled,
                             onCheckedChange = onEnabledChange,

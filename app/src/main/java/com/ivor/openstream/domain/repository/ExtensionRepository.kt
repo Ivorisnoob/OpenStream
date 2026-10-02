@@ -30,8 +30,11 @@ interface ExtensionRepository {
     /** Updates every installed extension that has a newer version and returns how many changed. */
     fun updateAll(): Int
 
-    /** Installed + enabled + runnable on this build, ordered by engine priority. */
+    /** Installed + enabled + runnable on this build, in source order (the user's ranking first). */
     fun activeExtensions(): List<MarketplaceExtension>
+
+    /** Ranks installed sources: [keys] first, in this order. */
+    fun setSourceOrder(keys: List<String>)
 
     /** Records whether an extension produced a usable stream, feeding the reliability signal. */
     fun recordOutcome(key: String, success: Boolean)

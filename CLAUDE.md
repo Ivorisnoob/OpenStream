@@ -67,6 +67,10 @@ Rules:
   "Find more" / failover). Each provider gets 25 s, enforced by awaiting rather than by cancelling
   (OkHttp's blocking `execute()` ignores coroutine cancellation); the IMDb id lookup gets 8 s.
   Cancelled resolutions record nothing; five failures in a row skip a provider for two minutes.
+  Users rank installed sources (Marketplace > Installed, `ExtensionStateStore.sourceOrder`); a
+  provider's priority is its position. Search mode (`SourceSearchMode` in `AppSettings`): all at
+  once (rank by quality, order breaks ties) or in order (one at a time, stop at the first with
+  streams; ranking puts the order before quality; "Find more" searches everything).
   Engines: `vidking-direct` (`VidkingDirectApi`, encrypted payload, prefers the master playlist so
   quality switches in-player), `web-embed` and `vidking-webview` (`WebEmbedResolver`: first a native
   pass through `HosterExtractors` (Filemoon, StreamWish/VidHide, Voe, Mp4Upload, Vidmoly, ok.ru) when

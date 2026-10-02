@@ -156,6 +156,12 @@ often; when one stops answering, mark it `0` (Down) or retire the entry.
 
 ## Runtime
 
+Installed sources are ranked by the user (Marketplace > Installed, arrows on each source), falling
+back to `engine.priority` for anything not ranked yet; a provider's priority at resolve time is its
+position in that order. In the default "All at once" search mode every source runs together and
+streams are sorted by quality with the order breaking ties; in "In my order" sources run one at a
+time from the top and the search stops at the first that finds streams.
+
 `ExtensionProviderRegistry` turns installed + enabled manifests into `StreamProvider`s at resolve
 time, so adding a source is a data change in an index — no Dagger module edit, no app release.
 Provider ids are unchanged (`vidking-<extension id>`), so saved server preferences and existing

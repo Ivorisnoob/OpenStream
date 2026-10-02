@@ -14,6 +14,7 @@ import com.ivor.openstream.data.settings.AppSettings
 import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.settings.DnsProvider
 import com.ivor.openstream.data.settings.PipAction
+import com.ivor.openstream.data.settings.SourceSearchMode
 import com.ivor.openstream.data.settings.ThemeMode
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
@@ -268,7 +269,8 @@ private data class BackupSettings(
     val pipLeftAction: String? = null,
     val pipRightAction: String? = null,
     val subtitleDownloadLanguages: List<String>? = null,
-    val subtitleDownloadFromSites: Boolean? = null
+    val subtitleDownloadFromSites: Boolean? = null,
+    val sourceSearchMode: String? = null
 ) {
     fun applyTo(current: AppSettings) = current.copy(
         themeMode = ThemeMode.entries.firstOrNull { it.name == themeMode } ?: current.themeMode,
@@ -282,7 +284,8 @@ private data class BackupSettings(
         pipLeftAction = PipAction.entries.firstOrNull { it.name == pipLeftAction } ?: current.pipLeftAction,
         pipRightAction = PipAction.entries.firstOrNull { it.name == pipRightAction } ?: current.pipRightAction,
         subtitleDownloadLanguages = subtitleDownloadLanguages?.filter { it.isNotBlank() }?.distinct() ?: current.subtitleDownloadLanguages,
-        subtitleDownloadFromSites = subtitleDownloadFromSites ?: current.subtitleDownloadFromSites
+        subtitleDownloadFromSites = subtitleDownloadFromSites ?: current.subtitleDownloadFromSites,
+        sourceSearchMode = SourceSearchMode.entries.firstOrNull { it.name == sourceSearchMode } ?: current.sourceSearchMode
     )
 }
 
@@ -298,5 +301,6 @@ private fun AppSettings.toBackup() = BackupSettings(
     pipLeftAction = pipLeftAction.name,
     pipRightAction = pipRightAction.name,
     subtitleDownloadLanguages = subtitleDownloadLanguages,
-    subtitleDownloadFromSites = subtitleDownloadFromSites
+    subtitleDownloadFromSites = subtitleDownloadFromSites,
+    sourceSearchMode = sourceSearchMode.name
 )
