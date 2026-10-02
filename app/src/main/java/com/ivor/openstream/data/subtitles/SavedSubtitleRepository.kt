@@ -133,7 +133,15 @@ class SavedSubtitleRepository @Inject constructor(
         val dir = directory(mediaType, tmdbId, season, episode)
         readIndex(dir).firstOrNull { it.originId == subtitle.id }?.let { return@withContext it }
         val text = fetcher.fetchText(subtitle.url, headers)
-        if (parseSubtitles(text).isEmpty()) throw IOException("That file has no readable subtitles")
+        if (parseSubtitles(text).isEmpty()) {
+            throw IOException(
+                if (text.trimStart().startsWith("<")) {
+                    "the source sent a web page instead of subtitles (the link may have expired)"
+                } else {
+                    "that file has no readable subtitles"
+                }
+            )
+        }
         add(
             dir,
             text,

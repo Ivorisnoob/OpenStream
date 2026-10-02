@@ -6,6 +6,9 @@ import com.ivor.openstream.data.repository.SubSourceRepository
 import com.ivor.openstream.data.streaming.BROWSER_USER_AGENT
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
@@ -44,13 +47,54 @@ class SubtitleFetcher @Inject constructor(
                 download(url, mapOf("User-Agent" to OpenSubtitlesRepository.USER_AGENT))
             else -> download(url, mapOf("User-Agent" to BROWSER_USER_AGENT) + headers)
         }
-        textOf(bytes)
+        val text = textOf(bytes)
+        if (text.isPlaylist()) joinPlaylist(url, text, headers) else text
     }
+
+    /**
+     * Streams often list subtitles as an HLS playlist of WebVTT segments. ExoPlayer reads those
+     * itself, but a saved copy (and the cast proxy) needs one file: the segments, in order, joined.
+     * A master playlist is followed to its first media playlist.
+     */
+    private suspend fun joinPlaylist(
+        playlistUrl: String,
+        playlist: String,
+        headers: Map<String, String>,
+        depth: Int = 0
+    ): String = coroutineScope {
+        val base = playlistUrl.toHttpUrlOrNull() ?: throw IOException("Bad subtitle playlist address")
+        val entries = playlist.lines().map(String::trim)
+            .filter { it.isNotEmpty() && !it.startsWith("#") }
+            .mapNotNull { base.resolve(it)?.toString() }
+        if (entries.isEmpty()) throw IOException("The subtitle playlist is empty")
+        val requestHeaders = mapOf("User-Agent" to BROWSER_USER_AGENT) + headers
+
+        if (depth == 0 && Regex("#EXT-X-STREAM-INF|#EXT-X-MEDIA").containsMatchIn(playlist)) {
+            val media = entries.first()
+            val text = textOf(download(media, requestHeaders))
+            if (!text.isPlaylist()) return@coroutineScope text
+            return@coroutineScope joinPlaylist(media, text, headers, depth + 1)
+        }
+
+        val parts = entries.take(MAX_PLAYLIST_SEGMENTS).chunked(PLAYLIST_PARALLELISM).flatMap { batch ->
+            batch.map { segmentUrl ->
+                async(Dispatchers.IO) {
+                    // An empty segment (no cues in that stretch) is normal; skip it.
+                    runCatching { textOf(download(segmentUrl, requestHeaders)) }
+                        .getOrElse { error -> if (error is IOException && error.message == EMPTY_FILE) null else throw error }
+                }
+            }.awaitAll()
+        }.filterNotNull()
+        if (parts.isEmpty()) throw IOException("The subtitle playlist has no cues")
+        parts.joinToString("\n\n")
+    }
+
+    private fun String.isPlaylist() = trimStart().startsWith("#EXTM3U")
 
     /** Subtitle text from raw file bytes: unzips or gunzips when needed, then guesses the charset. */
     fun textOf(bytes: ByteArray): String {
         val text = decode(unwrap(bytes))
-        if (text.isBlank()) throw IOException("Subtitle file is empty")
+        if (text.isBlank()) throw IOException(EMPTY_FILE)
         return text
     }
 
@@ -115,5 +159,8 @@ class SubtitleFetcher @Inject constructor(
 
     private companion object {
         val SUBTITLE_EXTENSIONS = listOf(".srt", ".vtt", ".ass", ".ssa")
+        const val EMPTY_FILE = "Subtitle file is empty"
+        const val MAX_PLAYLIST_SEGMENTS = 3_000
+        const val PLAYLIST_PARALLELISM = 6
     }
 }
