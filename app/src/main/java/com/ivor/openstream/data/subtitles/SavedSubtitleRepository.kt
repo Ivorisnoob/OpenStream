@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.domain.model.DownloadTarget
+import com.ivor.openstream.domain.model.StreamSubtitle
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -43,6 +44,13 @@ data class SavedSubtitle(
     val savedAt: Long = System.currentTimeMillis()
 )
 
+/** A subtitle the video's own stream offered, with the headers its host wants. */
+@Serializable
+data class StreamSubtitleCandidate(
+    val subtitle: SubtitleDto,
+    val headers: Map<String, String> = emptyMap()
+)
+
 /**
  * Subtitles saved for offline viewing, one folder per movie or episode under `filesDir/subtitles`
  * holding the files (already unzipped and decoded to UTF-8) and an `index.json`.
@@ -59,6 +67,7 @@ class SavedSubtitleRepository @Inject constructor(
     private val changes = MutableStateFlow(0L)
     private val writeLock = Mutex()
     private val indexSerializer = ListSerializer(SavedSubtitle.serializer())
+    private val streamSerializer = ListSerializer(StreamSubtitleCandidate.serializer())
 
     fun observe(mediaType: String, tmdbId: Int, season: Int, episode: Int): Flow<List<SavedSubtitle>> {
         val dir = directory(mediaType, tmdbId, season, episode)
@@ -75,6 +84,31 @@ class SavedSubtitleRepository @Inject constructor(
         }
         .distinctUntilChanged()
         .flowOn(Dispatchers.IO)
+
+    /**
+     * Keeps the subtitles a download's stream carried (the ones the player shows under the source's
+     * name), so the Downloads sheet can offer them later without looking the stream up again.
+     */
+    suspend fun rememberStreamSubtitles(
+        mediaType: String,
+        tmdbId: Int,
+        season: Int,
+        episode: Int,
+        candidates: List<StreamSubtitleCandidate>
+    ) = withContext(Dispatchers.IO) {
+        if (candidates.isEmpty()) return@withContext
+        val dir = directory(mediaType, tmdbId, season, episode)
+        writeLock.withLock {
+            dir.mkdirs()
+            val merged = (candidates + readStream(dir)).distinctBy { it.subtitle.url }
+            val temp = File(dir, "$STREAM_FILE.tmp")
+            temp.writeText(json.encodeToString(streamSerializer, merged))
+            if (!temp.renameTo(File(dir, STREAM_FILE))) throw IOException("Could not record stream subtitles")
+        }
+    }
+
+    suspend fun streamSubtitles(mediaType: String, tmdbId: Int, season: Int, episode: Int): List<StreamSubtitleCandidate> =
+        withContext(Dispatchers.IO) { readStream(directory(mediaType, tmdbId, season, episode)) }
 
     /** The player's entry for [saved]: a local file read back through [SubtitleFetcher]. */
     fun toSubtitleDto(mediaType: String, tmdbId: Int, season: Int, episode: Int, saved: SavedSubtitle) = SubtitleDto(
@@ -185,9 +219,17 @@ class SavedSubtitleRepository @Inject constructor(
             .filter { File(dir, it.fileName).exists() }
     }
 
+    private fun readStream(dir: File): List<StreamSubtitleCandidate> {
+        val file = File(dir, STREAM_FILE)
+        if (!file.exists()) return emptyList()
+        return runCatching { json.decodeFromString(streamSerializer, file.readText()) }.getOrDefault(emptyList())
+    }
+
     private fun writeIndex(dir: File, entries: List<SavedSubtitle>) {
         if (entries.isEmpty()) {
-            dir.deleteRecursively()
+            // The stream's subtitle list stays; the folder goes only once nothing is left in it.
+            File(dir, INDEX_FILE).delete()
+            if (dir.listFiles().isNullOrEmpty()) dir.delete()
             return
         }
         val temp = File(dir, "$INDEX_FILE.tmp")
@@ -225,6 +267,48 @@ class SavedSubtitleRepository @Inject constructor(
         const val SOURCE_NAME = "Saved"
         const val IMPORTED = "Imported"
         private const val INDEX_FILE = "index.json"
+        private const val STREAM_FILE = "stream.json"
+
+        /** File types [SubtitleFetcher] may read back from the folder; never the JSON files. */
+        val FILE_EXTENSIONS = setOf("srt", "vtt", "ass")
+
+        /** The player-style list entries for a server's own subtitles. */
+        fun streamCandidates(
+            providerName: String?,
+            subtitles: List<StreamSubtitle>,
+            serverHeaders: Map<String, String>
+        ): List<StreamSubtitleCandidate> = subtitles.map { subtitle ->
+            val language = normalizeLanguage(subtitle.language) ?: normalizeLanguage(subtitle.label)
+            StreamSubtitleCandidate(
+                subtitle = SubtitleDto(
+                    // Stable across lookups, so a saved one is recognised the next time.
+                    id = "stream_" + Integer.toHexString(subtitle.url.hashCode()),
+                    url = subtitle.url,
+                    display = subtitle.label.ifBlank { language?.let { languageName(it) } ?: "Subtitles" },
+                    language = language,
+                    isHearingImpaired = Regex("\\b(sdh|cc|hi)\\b", RegexOption.IGNORE_CASE).containsMatchIn(subtitle.label),
+                    source = providerName,
+                    release = providerName?.let { "From $it" }
+                ),
+                headers = serverHeaders + subtitle.headers
+            )
+        }
+
+        /** ISO 639-1 from a code ("en", "eng") or an English name ("English", "Spanish (Latin)"). */
+        fun normalizeLanguage(raw: String?): String? {
+            val value = raw?.trim()?.lowercase(Locale.ROOT)?.takeIf { it.isNotEmpty() } ?: return null
+            val iso2 = Locale.getISOLanguages().toSet()
+            val code = value.substringBefore('-').substringBefore('_')
+            if (code.length == 2 && code in iso2) return code
+            if (code.length == 3) {
+                BIBLIOGRAPHIC_TO_ISO2[code]?.let { return it }
+                Locale.getISOLanguages().firstOrNull { Locale.forLanguageTag(it).isO3Language == code }?.let { return it }
+            }
+            val firstWord = value.split(Regex("[^\\p{L}]+")).firstOrNull { it.isNotEmpty() } ?: return null
+            return Locale.getISOLanguages().firstOrNull {
+                Locale.forLanguageTag(it).getDisplayLanguage(Locale.ENGLISH).equals(firstWord, ignoreCase = true)
+            }
+        }
         private const val MAX_IMPORT_BYTES = 5 * 1024 * 1024
         private val HEARING_IMPAIRED_TAGS = setOf("sdh", "hi", "cc")
 

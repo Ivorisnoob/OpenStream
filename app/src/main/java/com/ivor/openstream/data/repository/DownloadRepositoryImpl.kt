@@ -230,6 +230,13 @@ class DownloadRepositoryImpl @Inject constructor(
                 resolvedAt = server.resolvedAt
             )
         )
+        // The stream's own subtitles, so Downloads can offer them for saving later.
+        runCatching {
+            savedSubtitles.rememberStreamSubtitles(
+                target.mediaType, target.tmdbId, target.season, target.episode,
+                SavedSubtitleRepository.streamCandidates(server.providerName, server.subtitles, server.headers)
+            )
+        }.onFailure { Log.w(TAG, "Could not record stream subtitles for ${target.id}", it) }
         withContext(Dispatchers.Main) {
             // Replace any older copy so segments from two different links never mix.
             if (media3.downloadIndex.getDownload(target.id) != null) media3.removeDownload(target.id)

@@ -61,7 +61,9 @@ class SubtitleFetcher @Inject constructor(
     private fun readSaved(url: String): String {
         val file = File(URI(url)).canonicalFile
         val root = SavedSubtitleRepository.rootDirectory(context).canonicalPath + File.separator
-        if (!file.path.startsWith(root)) throw IOException("Not a saved subtitle")
+        if (!file.path.startsWith(root) || file.extension.lowercase() !in SavedSubtitleRepository.FILE_EXTENSIONS) {
+            throw IOException("Not a saved subtitle")
+        }
         return file.readText()
     }
 

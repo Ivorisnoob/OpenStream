@@ -37,16 +37,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import android.Manifest
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.filled.ClosedCaption
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.runtime.remember
-import com.ivor.openstream.data.gallery.GalleryExport
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DownloadForOffline
@@ -108,22 +99,6 @@ fun DownloadsScreen(
     val subtitlesViewModel: DownloadSubtitlesViewModel = hiltViewModel()
     val subtitlesFor = subtitlesForId?.let { id -> state.library.flatMap { it.items }.firstOrNull { it.downloadId == id } }
 
-    // Android 9 and older need the storage permission before writing to the shared Movies folder.
-    var pendingGalleryId by rememberSaveable { mutableStateOf<String?>(null) }
-    val storagePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        val pending = pendingGalleryId?.let { id -> state.library.flatMap { it.items }.firstOrNull { it.downloadId == id } }
-        if (granted && pending != null) viewModel.saveToGallery(pending)
-        pendingGalleryId = null
-    }
-    val saveToGallery: (DownloadEntity) -> Unit = { download ->
-        if (viewModel.needsStoragePermission) {
-            pendingGalleryId = download.downloadId
-            storagePermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-        } else {
-            viewModel.saveToGallery(download)
-        }
-    }
-
     if (subtitlesFor != null) {
         DownloadSubtitlesSheet(
             download = subtitlesFor,
@@ -161,8 +136,7 @@ fun DownloadsScreen(
                 onBackClick = onBackClick,
                 onDownloadClick = onDownloadClick,
                 onDeleteAll = { confirmDeleteAll = true },
-                onSubtitles = { subtitlesForId = it.downloadId },
-                onSaveToGallery = saveToGallery
+                onSubtitles = { subtitlesForId = it.downloadId }
             )
         } else {
         CenteredListBox(Modifier.fillMaxSize(), minGutter = 16.dp) { gutter ->
@@ -216,10 +190,8 @@ fun DownloadsScreen(
                         LibraryGroup(
                             group = group,
                             subtitleCount = state::subtitleCount,
-                            galleryExport = { state.galleryExports[it.downloadId] },
                             onPlay = onDownloadClick,
                             onSubtitles = { subtitlesForId = it.downloadId },
-                            onSaveToGallery = saveToGallery,
                             onDelete = viewModel::remove,
                             onDeleteAll = { viewModel.removeGroup(group) },
                             modifier = Modifier
@@ -271,8 +243,7 @@ private fun WideDownloads(
     onBackClick: () -> Unit,
     onDownloadClick: (DownloadEntity) -> Unit,
     onDeleteAll: () -> Unit,
-    onSubtitles: (DownloadEntity) -> Unit,
-    onSaveToGallery: (DownloadEntity) -> Unit
+    onSubtitles: (DownloadEntity) -> Unit
 ) {
     Row(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -327,10 +298,8 @@ private fun WideDownloads(
                 LibraryGroup(
                     group = group,
                     subtitleCount = state::subtitleCount,
-                    galleryExport = { state.galleryExports[it.downloadId] },
                     onPlay = onDownloadClick,
                     onSubtitles = onSubtitles,
-                    onSaveToGallery = onSaveToGallery,
                     onDelete = viewModel::remove,
                     onDeleteAll = { viewModel.removeGroup(group) },
                     modifier = Modifier.animateItem()
@@ -488,10 +457,8 @@ private fun InProgressRow(
 private fun LibraryGroup(
     group: DownloadGroup,
     subtitleCount: (DownloadEntity) -> Int,
-    galleryExport: (DownloadEntity) -> GalleryExport?,
     onPlay: (DownloadEntity) -> Unit,
     onSubtitles: (DownloadEntity) -> Unit,
-    onSaveToGallery: (DownloadEntity) -> Unit,
     onDelete: (DownloadEntity) -> Unit,
     onDeleteAll: () -> Unit,
     modifier: Modifier = Modifier
@@ -544,21 +511,18 @@ private fun LibraryGroup(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        if (group.isMovie) GalleryStatus(galleryExport(group.items.first()))
                     }
                     if (group.isMovie) {
                         val movie = group.items.first()
                         FilledTonalIconButton(onClick = { onPlay(movie) }) {
                             Icon(Icons.Default.PlayArrow, contentDescription = "Play")
                         }
-                        ItemActions(
-                            itemName = group.title,
-                            galleryExport = galleryExport(movie),
-                            onSubtitles = { onSubtitles(movie) },
-                            onSaveToGallery = { onSaveToGallery(movie) },
-                            onDelete = onDeleteAll,
-                            deleteLabel = "Delete download"
-                        )
+                        IconButton(onClick = { onSubtitles(movie) }) {
+                            Icon(Icons.Default.ClosedCaption, contentDescription = "Subtitles for ${group.title}")
+                        }
+                        IconButton(onClick = onDeleteAll) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete download")
+                        }
                     } else {
                         Icon(
                             Icons.Default.ExpandMore,
@@ -584,21 +548,16 @@ private fun LibraryGroup(
                             shapes = ListItemDefaults.segmentedShapes(index = index, count = group.items.size),
                             colors = ListItemDefaults.segmentedColors(),
                             leadingContent = { Thumbnail(item.stillPath ?: item.posterPath) },
-                            supportingContent = {
-                                Column {
-                                    Text(formatBytes(item.sizeBytes) + subtitleSuffix(subtitleCount(item)))
-                                    GalleryStatus(galleryExport(item))
-                                }
-                            },
+                            supportingContent = { Text(formatBytes(item.sizeBytes) + subtitleSuffix(subtitleCount(item))) },
                             trailingContent = {
-                                ItemActions(
-                                    itemName = "episode ${item.episode}",
-                                    galleryExport = galleryExport(item),
-                                    onSubtitles = { onSubtitles(item) },
-                                    onSaveToGallery = { onSaveToGallery(item) },
-                                    onDelete = { onDelete(item) },
-                                    deleteLabel = "Delete episode"
-                                )
+                                Row {
+                                    IconButton(onClick = { onSubtitles(item) }) {
+                                        Icon(Icons.Default.ClosedCaption, contentDescription = "Subtitles for episode ${item.episode}")
+                                    }
+                                    IconButton(onClick = { onDelete(item) }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete episode")
+                                    }
+                                }
                             }
                         ) {
                             Text(
@@ -615,103 +574,6 @@ private fun LibraryGroup(
                         }
                     }
                 }
-            }
-        }
-    }
-}
-
-/** Subtitles stay one tap away; gallery and delete sit in the overflow menu. */
-@Composable
-private fun ItemActions(
-    itemName: String,
-    galleryExport: GalleryExport?,
-    onSubtitles: () -> Unit,
-    onSaveToGallery: () -> Unit,
-    onDelete: () -> Unit,
-    deleteLabel: String
-) {
-    var menuOpen by remember { mutableStateOf(false) }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onSubtitles) {
-            Icon(Icons.Default.ClosedCaption, contentDescription = "Subtitles for $itemName")
-        }
-        Box {
-            IconButton(onClick = { menuOpen = true }) {
-                Icon(Icons.Default.MoreVert, contentDescription = "More options for $itemName")
-            }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                val busy = galleryExport is GalleryExport.Queued || galleryExport is GalleryExport.Running
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            when {
-                                busy -> "Saving to gallery…"
-                                galleryExport is GalleryExport.Done -> "Save to gallery again"
-                                else -> "Save to gallery"
-                            }
-                        )
-                    },
-                    leadingIcon = { Icon(Icons.Default.PhotoLibrary, contentDescription = null) },
-                    enabled = !busy,
-                    onClick = {
-                        menuOpen = false
-                        onSaveToGallery()
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text(deleteLabel, color = MaterialTheme.colorScheme.error) },
-                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                    onClick = {
-                        menuOpen = false
-                        onDelete()
-                    }
-                )
-            }
-        }
-    }
-}
-
-/** One line about the gallery copy, with progress while it is being written. */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun GalleryStatus(export: GalleryExport?) {
-    if (export == null) return
-    val (text, isError) = when (export) {
-        GalleryExport.Queued -> "Waiting to save to gallery" to false
-        is GalleryExport.Running -> ("Saving to gallery" + (export.percent?.let { " · $it%" } ?: "…")) to false
-        is GalleryExport.Done -> "In your gallery" to false
-        is GalleryExport.Failed -> "Gallery: ${export.message}" to true
-    }
-    Column(Modifier.padding(top = 2.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (export is GalleryExport.Done) {
-                Icon(
-                    Icons.Default.PhotoLibrary,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(Modifier.width(4.dp))
-            }
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodySmall,
-                color = when {
-                    isError -> MaterialTheme.colorScheme.error
-                    export is GalleryExport.Done -> MaterialTheme.colorScheme.primary
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        if (export is GalleryExport.Running) {
-            val percent = export.percent
-            if (percent != null) {
-                val progress by animateFloatAsState(percent / 100f, label = "galleryProgress")
-                LinearWavyProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
-            } else {
-                LinearWavyProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
             }
         }
     }

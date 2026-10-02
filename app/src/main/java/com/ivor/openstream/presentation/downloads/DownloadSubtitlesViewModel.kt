@@ -7,7 +7,9 @@ import com.ivor.openstream.data.local.entity.DownloadEntity
 import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.data.subtitles.SavedSubtitle
 import com.ivor.openstream.data.subtitles.SavedSubtitleRepository
+import com.ivor.openstream.data.subtitles.StreamSubtitleCandidate
 import com.ivor.openstream.domain.model.MediaIdentity
+import com.ivor.openstream.domain.repository.StreamingRepository
 import com.ivor.openstream.domain.repository.SubtitleRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -16,8 +18,12 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
 data class DownloadSubtitlesUiState(
@@ -25,6 +31,8 @@ data class DownloadSubtitlesUiState(
     val saved: List<SavedSubtitle> = emptyList(),
     val online: List<SubtitleDto> = emptyList(),
     val isSearching: Boolean = false,
+    /** Looking the title up in the stream sources for the subtitles the video itself carries. */
+    val isCheckingSource: Boolean = false,
     /** Languages the user asked for by name, still being searched. */
     val searchingLanguages: Set<String> = emptySet(),
     /** Null shows every language. */
@@ -60,11 +68,15 @@ data class DownloadSubtitlesUiState(
         }
 }
 
-/** Saving subtitles for a finished download, from the subtitle sites or from a file on the device. */
+/**
+ * Saving subtitles for a finished download: the ones the video's own stream carries (what the
+ * player lists under the source's name), the subtitle sites, or a file on the device.
+ */
 @HiltViewModel
 class DownloadSubtitlesViewModel @Inject constructor(
     private val subtitleRepository: SubtitleRepository,
-    private val savedSubtitles: SavedSubtitleRepository
+    private val savedSubtitles: SavedSubtitleRepository,
+    private val streamingRepository: StreamingRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DownloadSubtitlesUiState())
@@ -72,16 +84,69 @@ class DownloadSubtitlesViewModel @Inject constructor(
 
     private var sessionJob: Job? = null
 
+    /** Request headers (Referer...) the stream's hosts want, by subtitle id. */
+    private val streamHeaders = ConcurrentHashMap<String, Map<String, String>>()
+
     fun open(download: DownloadEntity) {
         if (_uiState.value.download?.downloadId == download.downloadId && sessionJob?.isActive == true) return
         sessionJob?.cancel()
+        streamHeaders.clear()
         _uiState.value = DownloadSubtitlesUiState(download = download, isSearching = true)
         sessionJob = viewModelScope.launch {
             launch {
                 savedSubtitles.observe(download.mediaType, download.tmdbId, download.season, download.episode)
                     .collect { saved -> _uiState.update { it.copy(saved = saved) } }
             }
+            launch { loadStreamSubtitles(download, lookUpIfMissing = true) }
             launch { search(download) }
+        }
+    }
+
+    /**
+     * Subtitles recorded when the download started. Downloads made before that was recorded (or
+     * whose source had none then) look the title up in the stream sources again.
+     */
+    private suspend fun loadStreamSubtitles(download: DownloadEntity, lookUpIfMissing: Boolean) {
+        val recorded = savedSubtitles.streamSubtitles(download.mediaType, download.tmdbId, download.season, download.episode)
+        addStreamSubtitles(download, recorded)
+        if (recorded.isNotEmpty() || !lookUpIfMissing) return
+
+        _uiState.update { if (it.download?.downloadId == download.downloadId) it.copy(isCheckingSource = true) else it }
+        val found = mutableListOf<StreamSubtitleCandidate>()
+        try {
+            withTimeoutOrNull(SOURCE_LOOKUP_TIMEOUT_MS) {
+                streamingRepository.resolveServers(download.identity())
+                    .onEach { resolution ->
+                        val candidates = resolution.servers.flatMap { server ->
+                            SavedSubtitleRepository.streamCandidates(server.providerName, server.subtitles, server.headers)
+                        }
+                        found += candidates
+                        addStreamSubtitles(download, candidates)
+                    }
+                    .first { it.isComplete }
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // The sites' results still show; the source lookup is a bonus.
+        } finally {
+            _uiState.update { if (it.download?.downloadId == download.downloadId) it.copy(isCheckingSource = false) else it }
+        }
+        runCatching {
+            savedSubtitles.rememberStreamSubtitles(
+                download.mediaType, download.tmdbId, download.season, download.episode,
+                found.distinctBy { it.subtitle.url }
+            )
+        }
+    }
+
+    private fun addStreamSubtitles(download: DownloadEntity, candidates: List<StreamSubtitleCandidate>) {
+        if (candidates.isEmpty()) return
+        candidates.forEach { streamHeaders[it.subtitle.id] = it.headers }
+        _uiState.update { state ->
+            if (state.download?.downloadId != download.downloadId) return@update state
+            // The video's own subtitles go first: they are timed for this exact file.
+            state.copy(online = (candidates.map { it.subtitle } + state.online).distinctBy { it.url })
         }
     }
 
@@ -95,6 +160,9 @@ class DownloadSubtitlesViewModel @Inject constructor(
         val download = _uiState.value.download ?: return
         _uiState.update { it.copy(isSearching = true, message = null) }
         viewModelScope.launch { search(download) }
+        if (!_uiState.value.isCheckingSource && _uiState.value.online.none { it.id.startsWith("stream_") }) {
+            viewModelScope.launch { loadStreamSubtitles(download, lookUpIfMissing = true) }
+        }
     }
 
     fun setLanguageFilter(language: String?) = _uiState.update { it.copy(languageFilter = language) }
@@ -149,7 +217,10 @@ class DownloadSubtitlesViewModel @Inject constructor(
 
     private suspend fun saveNow(download: DownloadEntity, subtitle: SubtitleDto) {
         val result = runCatching {
-            savedSubtitles.save(download.mediaType, download.tmdbId, download.season, download.episode, subtitle)
+            savedSubtitles.save(
+                download.mediaType, download.tmdbId, download.season, download.episode, subtitle,
+                headers = streamHeaders[subtitle.id].orEmpty()
+            )
         }
         if (result.exceptionOrNull() is CancellationException) return
         _uiState.update { state ->
@@ -205,4 +276,8 @@ class DownloadSubtitlesViewModel @Inject constructor(
         episode = episode,
         year = year
     )
+
+    private companion object {
+        const val SOURCE_LOOKUP_TIMEOUT_MS = 30_000L
+    }
 }

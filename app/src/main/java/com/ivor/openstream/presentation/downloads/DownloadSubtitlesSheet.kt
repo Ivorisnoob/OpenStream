@@ -164,7 +164,11 @@ fun DownloadSubtitlesSheet(
             item(key = "online-title") {
                 SectionHeader(
                     title = "Find online",
-                    detail = "OpenSubtitles and SubSource",
+                    detail = if (state.isCheckingSource) {
+                        "Checking the video's source, OpenSubtitles and SubSource…"
+                    } else {
+                        "The video's source, OpenSubtitles and SubSource"
+                    },
                     modifier = Modifier.padding(top = 12.dp)
                 )
             }
@@ -180,7 +184,7 @@ fun DownloadSubtitlesSheet(
             }
 
             val groups = state.groupedOnline
-            val searching = state.isSearching ||
+            val searching = state.isSearching || state.isCheckingSource ||
                 (state.languageFilter != null && state.languageFilter in state.searchingLanguages)
             when {
                 searching && groups.isEmpty() -> item(key = "searching") {
