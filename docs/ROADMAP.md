@@ -125,7 +125,11 @@ brightness back to the system.
 - [ ] **Android TV** (leanback launcher entry, D-pad focus).
 - [x] **Predictive back** (`android:enableOnBackInvokedCallback`).
 - [x] **App shortcuts** (Continue Watching, Search, Downloads).
-- [ ] **Continue Watching widget.**
+- [x] **Continue Watching widget.** A 4x3 home-screen card showing the newest unfinished title:
+      still, badge, progress bar and episode name. Tapping opens Details through the same TMDB
+      deep link the app already handles, so there is no new navigation. RemoteViews rather than
+      Glance, so no new dependency; read straight from Room in `goAsync()` with a flow subscription
+      from the Application scope, so no WorkManager either.
 - [ ] **Shared element transitions** from cards to Details artwork.
 - [x] **Crash and log export** (local file) for bug reports.
 - [ ] **Media3 upgrade.** The project is on 1.3.1; newer releases bring session, HLS and

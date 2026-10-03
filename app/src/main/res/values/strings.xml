@@ -1,4 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">OpenStream</string>
     <string name="download_channel_name">Downloads</string>
+
+    <!-- Continue Watching widget. A RemoteViews layout cannot hold a literal string (HardcodedText
+         is an error-severity lint check), so this is where the widget's own copy lives. -->
+    <string name="widget_continue_watching_label">Continue watching</string>
+    <string name="widget_continue_watching_description">Pick up the title you were last watching.</string>
+    <string name="widget_continue_empty_title">Continue watching</string>
+    <string name="widget_continue_empty_body">Start something and it shows up here.</string>
 </resources>
