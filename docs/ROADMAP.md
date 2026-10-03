@@ -4,15 +4,17 @@ Features OpenStream is missing compared with other streaming apps, grouped by ar
 ordered roughly by priority. Tick items off as they land; if the code already does something listed
 here, trust the code and fix this file.
 
-Last reviewed: 2026-09-28.
+Last reviewed: 2026-10-03 (after `v2.1` plus PR #15: Stremio add-ons, offline subtitles for
+downloads, faster source search).
 
 ## Already in place
 
 For reference, so these don't get re-added: double-tap to seek 10s, swipe for brightness (left) and
 volume (right), playback speed, picture-in-picture, auto-play next episode with countdown
 (`UpNextOverlay`), recent searches and genre browsing in Search, Continue Watching, watch later,
-history, downloads with pause/resume/retry, share a title, OpenSubtitles plus embedded subtitles, caption styling,
-source failover, in-app updates with release notes, dynamic color.
+history, downloads with pause/resume/retry, share a title, OpenSubtitles plus SubSource plus
+embedded subtitles, caption styling, source failover, in-app updates with release notes, dynamic
+color, Chromecast, PiP, profiles with kids filters, per-source ranking, DNS-over-HTTPS.
 
 ## Priority
 
@@ -66,7 +68,8 @@ brightness back to the system.
 
 - [x] **Person pages.** Cast on Details opens a page with photo, bio and filmography.
 - [x] **Filters and sorting** in search beyond genre: type, year, rating, original language.
-- [ ] **In-app trailers.** Trailers currently open YouTube externally.
+- [ ] **In-app trailers.** Trailers currently open YouTube externally
+      (`DetailsScreen.kt:913` and the `TrailerRail`).
 - [ ] **Upcoming episodes calendar** for followed shows.
 - [x] **"Not interested" / hide title** from Home rows (long-press; undo in Settings).
 
@@ -75,12 +78,15 @@ brightness back to the system.
 - [x] **Backup and restore.** Watch Later, history/progress, hidden titles and settings as a JSON
       file; restoring merges.
 - [ ] **Trakt / AniList / MAL sync** for history, progress and ratings (optional sign-in, OAuth; no
-      user-supplied keys).
+      user-supplied keys). Blocked on a decision: Trakt requires a registered client id/secret,
+      which sits against the "no user-supplied API keys" rule in `CLAUDE.md`. AniList is keyless
+      and would be the cheapest first target. Needs the maintainer's call.
 - [x] **Mark watched / unwatched** by season (and per episode from its long-press menu).
 - [x] **Mark a whole title watched / unwatched** (every aired episode, specials aside; unwatched asks first).
 - [x] **Custom lists** beyond Watch Later: "Add to list" on Details, lists on the Saved tab, rename,
       delete, remove with undo; included in backups.
-- [ ] **New episode notifications** for followed shows (needs WorkManager, not in the app yet).
+- [ ] **New episode notifications** for followed shows (needs WorkManager; `androidx.work` is not a
+      dependency yet, and there is no "follow" concept in the app either).
 - [x] **Profiles** with separate Watch Later, lists, history and progress; "Who's watching?" on
       launch, kids profiles (rated G/PG/TV-Y..TV-PG only, hold the avatar to leave). No PIN yet.
 
@@ -90,7 +96,11 @@ brightness back to the system.
 - [x] **Download a whole season** in one action ("Download season" on Details).
 - [x] **Default download quality** setting (480p, 720p or 1080p).
 - [x] **Storage view**: space used, free space, delete all.
-- [ ] **Download subtitles** alongside the video for offline playback.
+- [x] **Download subtitles** alongside the video for offline playback. Every download can get a
+      subtitle sheet (the stream's own, OpenSubtitles, SubSource; filterable by language, SDH and
+      "More releases"), and the languages picked in Settings are saved automatically with each new
+      download. Files live in `filesDir/subtitles/<download id>/` and the player lists them first,
+      online or offline.
 
 ## Settings
 
@@ -106,8 +116,12 @@ brightness back to the system.
 - [x] **Offline state.** Offline banner with a shortcut to Downloads.
 - [x] **Deep links.** TMDB links and text shared to the app open Details (Android 12+ needs the user
       to allow the links under "Open by default").
-- [ ] **Localization.** Almost all UI text is hard-coded in Compose; move it to `strings.xml`.
-- [ ] **Tablet and foldable layouts** (list-detail, nav rail on wide screens).
+- [ ] **Localization.** `strings.xml` still holds only 2 entries (the app name and one other);
+      essentially all UI text is hard-coded in Compose. Large sweep across every screen.
+- [x] **Tablet and foldable layouts.** `Adaptive.kt` provides the width class (`byWidth`,
+      `isCompactWidth`, `isExpandedWidth`, `CenteredListBox`); `AppNavigation` swaps the floating
+      toolbar for a `WideNavigationRail` on non-compact widths, and every list screen sizes itself
+      from the width class.
 - [ ] **Android TV** (leanback launcher entry, D-pad focus).
 - [x] **Predictive back** (`android:enableOnBackInvokedCallback`).
 - [x] **App shortcuts** (Continue Watching, Search, Downloads).
