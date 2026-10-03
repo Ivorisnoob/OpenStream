@@ -11,6 +11,7 @@ import com.ivor.openstream.data.streaming.anime.CloudflareClearance
 import com.ivor.openstream.data.streaming.anime.MegaplayExtractor
 import com.ivor.openstream.data.streaming.anime.ReAnimeProvider
 import com.ivor.openstream.data.streaming.providers.VidkingDirectApi
+import com.ivor.openstream.data.streaming.providers.StremioAddonProvider
 import com.ivor.openstream.data.streaming.providers.VidkingDirectProvider
 import com.ivor.openstream.data.streaming.providers.VidkingServerSpec
 import com.ivor.openstream.data.streaming.providers.WebEmbedProvider
@@ -62,19 +63,28 @@ class ExtensionProviderRegistry @Inject constructor(
     @Named("StreamingClient") private val streamingClient: OkHttpClient,
     private val json: Json
 ) {
-    private val cache = ConcurrentHashMap<String, ExtensionStreamProvider>()
+    private val cache = ConcurrentHashMap<String, StreamProvider>()
 
+    /**
+     * In source order. A provider's priority is its position in that order (the user's ranking
+     * first, then the catalog's), which is what ranking and "search in my order" go by.
+     */
     fun activeProviders(): List<ExtensionStreamProvider> =
         extensionRepository.activeExtensions()
-            .mapNotNull(::providerFor)
-            .distinctBy { it.id }
-            .sortedBy { it.priority }
+            .mapNotNull { extension ->
+                val delegate = delegateFor(extension) ?: return@mapNotNull null
+                extension to delegate
+            }
+            .distinctBy { (_, delegate) -> delegate.id }
+            .mapIndexed { position, (extension, delegate) ->
+                ExtensionStreamProvider(extensionKey = extension.key, delegate = delegate, priority = position)
+            }
 
     fun recordOutcome(provider: ExtensionStreamProvider, success: Boolean) {
         extensionRepository.recordOutcome(provider.extensionKey, success)
     }
 
-    private fun providerFor(extension: MarketplaceExtension): ExtensionStreamProvider? {
+    private fun delegateFor(extension: MarketplaceExtension): StreamProvider? {
         val manifest = extension.manifest
         val engine = manifest.engine
         if (!engine.isRunnable) return null
@@ -141,16 +151,20 @@ class ExtensionProviderRegistry @Inject constructor(
                 mapper = animeEpisodeMapper,
                 client = streamingClient
             )
+            ExtensionEngineType.STREMIO -> StremioAddonProvider(
+                id = "stremio-${manifest.id}",
+                displayName = manifest.name,
+                priority = engine.priority,
+                isFallback = manifest.isFallback,
+                baseUrl = engine.endpoint.removeSuffix("/manifest.json").trimEnd('/'),
+                client = streamingClient,
+                json = json
+            )
             ExtensionEngineType.UNSUPPORTED -> return null
         }
 
-        val provider = ExtensionStreamProvider(
-            extensionKey = manifest.key,
-            delegate = delegate,
-            priority = engine.priority
-        )
-        cache[cacheKey] = provider
-        return provider
+        cache[cacheKey] = delegate
+        return delegate
     }
 
     private fun animeSiteSpec(manifest: ExtensionManifest) = AnimeSiteSpec(

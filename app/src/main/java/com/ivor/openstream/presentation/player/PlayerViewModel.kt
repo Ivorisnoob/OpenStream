@@ -50,6 +50,7 @@ import com.ivor.openstream.data.settings.AppSettings
 import com.ivor.openstream.domain.model.SkipSegment
 import com.ivor.openstream.data.repository.SkipTimesRepository
 import com.ivor.openstream.data.settings.AppSettingsStore
+import com.ivor.openstream.data.subtitles.SavedSubtitleRepository
 import com.ivor.openstream.data.subtitles.SubtitleFetcher
 import com.ivor.openstream.presentation.player.session.SleepTimer
 import com.ivor.openstream.presentation.player.session.CastError
@@ -110,7 +111,8 @@ class PlayerViewModel @Inject constructor(
     private val playbackSession: PlaybackSession,
     appSettingsStore: AppSettingsStore,
     private val skipTimesRepository: SkipTimesRepository,
-    private val subtitleFetcher: SubtitleFetcher
+    private val subtitleFetcher: SubtitleFetcher,
+    private val savedSubtitleRepository: SavedSubtitleRepository
 ) : ViewModel() {
 
     /** A sideloaded subtitle's text, downloaded and unwrapped by the data layer. */
@@ -280,8 +282,15 @@ class PlayerViewModel @Inject constructor(
     private val _isLoadingEpisodes = MutableStateFlow(false)
     val isLoadingEpisodes = _isLoadingEpisodes.asStateFlow()
 
-    private val _remoteSubtitles = MutableStateFlow<List<SubtitleDto>>(emptyList())
-    val remoteSubtitles = _remoteSubtitles.asStateFlow()
+    private val _onlineSubtitles = MutableStateFlow<List<SubtitleDto>>(emptyList())
+
+    /** Saved on the device for this episode, and the ids of the online entries they were saved from. */
+    private val _savedSubtitles = MutableStateFlow<Pair<List<SubtitleDto>, Set<String>>>(emptyList<SubtitleDto>() to emptySet())
+
+    /** Saved subtitles first (they work offline), then what the subtitle sites have. */
+    val remoteSubtitles: StateFlow<List<SubtitleDto>> = combine(_savedSubtitles, _onlineSubtitles) { (saved, savedFrom), online ->
+        saved + online.filterNot { it.id in savedFrom }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _mediaDetails = MutableStateFlow<AnimeDetailsDto?>(null)
     val mediaDetails = _mediaDetails.asStateFlow()
@@ -435,7 +444,8 @@ class PlayerViewModel @Inject constructor(
         _nextEpisode.value = null
         _mediaDetails.value = null
         _currentEpisode.value = null
-        _remoteSubtitles.value = emptyList()
+        _onlineSubtitles.value = emptyList()
+        _savedSubtitles.value = emptyList<SubtitleDto>() to emptySet()
         _skipSegments.value = emptyList()
         _nextEpisodes.value = emptyList()
         _seasonEpisodes.value = emptyList()
@@ -510,7 +520,15 @@ class PlayerViewModel @Inject constructor(
             }
 
             launch {
-                _remoteSubtitles.value = subtitleRepository.search(
+                savedSubtitleRepository.observe(mediaType, tmdbId, seasonNumber, currentEpisodeNumber).collect { saved ->
+                    _savedSubtitles.value = saved.map {
+                        savedSubtitleRepository.toSubtitleDto(mediaType, tmdbId, seasonNumber, currentEpisodeNumber, it)
+                    } to saved.mapNotNullTo(HashSet()) { it.originId }
+                }
+            }
+
+            launch {
+                _onlineSubtitles.value = subtitleRepository.search(
                     MediaIdentity(
                         tmdbId = tmdbId,
                         tmdbType = mediaType,
@@ -605,13 +623,13 @@ class PlayerViewModel @Inject constructor(
             automaticFailovers++
             _activeServer.value = next
             setActiveId(next.id)
-            _playerEvents.tryEmit("${failed.name} stopped responding. Switched to ${next.name}.")
+            _playerEvents.tryEmit("${failed.name} didn't play. Trying ${next.name}.")
         } else if (!backupSourcesSearched && currentIdentity != null) {
             // Every direct link failed to play: widen the search to the backup sources once.
             backupSourcesSearched = true
             automaticFailovers = 0
             _activeServer.value = null
-            _playerEvents.tryEmit("${failed.name} stopped responding. Searching backup sources…")
+            _playerEvents.tryEmit("${failed.name} didn't play. Searching backup sources…")
             startResolution(currentIdentity!!, includeFallbacks = true)
         } else {
             _activeServer.value = null

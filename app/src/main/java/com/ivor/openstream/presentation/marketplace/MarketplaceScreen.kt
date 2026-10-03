@@ -59,6 +59,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import com.ivor.openstream.presentation.components.ConnectedChoiceGroup
+import com.ivor.openstream.data.settings.SourceSearchMode
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -327,6 +331,7 @@ private fun InstalledTab(
     onOpenDetails: (MarketplaceExtension) -> Unit,
     onBrowse: () -> Unit
 ) {
+    val searchMode by viewModel.searchMode.collectAsState()
     CenteredListBox(Modifier.fillMaxSize(), minGutter = 16.dp) { gutter ->
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -338,6 +343,12 @@ private fun InstalledTab(
                     installed = state.installed.size,
                     enabled = state.catalog.enabled.size
                 )
+            }
+
+            if (state.installed.size > 1) {
+                item(key = "search-order") {
+                    SearchOrderCard(mode = searchMode, onModeChange = viewModel::setSearchMode)
+                }
             }
 
             if (state.updatable.isNotEmpty()) {
@@ -390,17 +401,66 @@ private fun InstalledTab(
                     }
                 }
             } else {
-                items(state.installed, key = { it.key }) { extension ->
+                itemsIndexed(state.installed, key = { _, extension -> extension.key }) { index, extension ->
                     ExtensionRow(
                         extension = extension,
                         onClick = { onOpenDetails(extension) },
                         onInstall = { viewModel.install(extension) },
                         onUninstall = { viewModel.uninstall(extension) },
                         onUpdate = { viewModel.update(extension) },
-                        onEnabledChange = { viewModel.setEnabled(extension, it) }
+                        onEnabledChange = { viewModel.setEnabled(extension, it) },
+                        rank = index + 1,
+                        onMoveUp = { viewModel.moveSource(extension, -1) }.takeIf { index > 0 },
+                        onMoveDown = { viewModel.moveSource(extension, 1) }.takeIf { index < state.installed.lastIndex },
+                        showReorder = state.installed.size > 1
                     )
                 }
             }
+        }
+    }
+}
+
+/** How the player searches: everything at once, or one source at a time down the list below. */
+@Composable
+private fun SearchOrderCard(mode: SourceSearchMode, onModeChange: (SourceSearchMode) -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ExpressiveShapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Text(
+                text = "Search order",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { heading() }
+            )
+            Spacer(Modifier.height(10.dp))
+            ConnectedChoiceGroup(
+                options = SourceSearchMode.entries,
+                selected = mode,
+                label = { it.label },
+                onSelect = onModeChange
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = when (mode) {
+                    SourceSearchMode.ALL_AT_ONCE ->
+                        "Every source is searched together, fastest overall. Streams are sorted by quality; " +
+                            "the order below breaks ties."
+                    SourceSearchMode.IN_ORDER ->
+                        "Sources are searched one at a time from the top, and the first one that finds " +
+                            "something plays. The rest are searched only if its streams fail or you tap Find more."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Use the arrows on each source to change the order.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
     }
 }
@@ -426,13 +486,15 @@ private fun RepositoriesTab(
                 ) {
                     Column(modifier = Modifier.padding(18.dp)) {
                         Text(
-                            text = "Add a repository",
+                            text = "Add a repository or Stremio add-on",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            text = "Paste a link to an index.json. GitHub page links are converted automatically.",
+                            text = "Paste a link to an index.json, or a Stremio add-on's manifest.json (stremio:// links " +
+                                "and configured add-on links work too). Add-ons that stream direct links are installed " +
+                                "right away; torrent-only and debrid add-ons can't play here.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -441,7 +503,7 @@ private fun RepositoriesTab(
                             value = repoUrl,
                             onValueChange = { repoUrl = it },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("https://…/index.json") },
+                            placeholder = { Text("https://…/index.json or …/manifest.json") },
                             leadingIcon = { Icon(Icons.Default.Public, contentDescription = null) },
                             singleLine = true,
                             shape = ExpressiveShapes.medium,

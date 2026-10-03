@@ -37,6 +37,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DownloadForOffline
@@ -94,6 +95,17 @@ fun DownloadsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     var confirmDeleteAll by rememberSaveable { mutableStateOf(false) }
+    var subtitlesForId by rememberSaveable { mutableStateOf<String?>(null) }
+    val subtitlesViewModel: DownloadSubtitlesViewModel = hiltViewModel()
+    val subtitlesFor = subtitlesForId?.let { id -> state.library.flatMap { it.items }.firstOrNull { it.downloadId == id } }
+
+    if (subtitlesFor != null) {
+        DownloadSubtitlesSheet(
+            download = subtitlesFor,
+            viewModel = subtitlesViewModel,
+            onDismiss = { subtitlesForId = null }
+        )
+    }
 
     if (confirmDeleteAll) {
         AlertDialog(
@@ -123,7 +135,8 @@ fun DownloadsScreen(
                 viewModel = viewModel,
                 onBackClick = onBackClick,
                 onDownloadClick = onDownloadClick,
-                onDeleteAll = { confirmDeleteAll = true }
+                onDeleteAll = { confirmDeleteAll = true },
+                onSubtitles = { subtitlesForId = it.downloadId }
             )
         } else {
         CenteredListBox(Modifier.fillMaxSize(), minGutter = 16.dp) { gutter ->
@@ -176,7 +189,9 @@ fun DownloadsScreen(
                     items(state.library, key = { "group:${it.key}" }) { group ->
                         LibraryGroup(
                             group = group,
+                            subtitleCount = state::subtitleCount,
                             onPlay = onDownloadClick,
+                            onSubtitles = { subtitlesForId = it.downloadId },
                             onDelete = viewModel::remove,
                             onDeleteAll = { viewModel.removeGroup(group) },
                             modifier = Modifier
@@ -227,7 +242,8 @@ private fun WideDownloads(
     viewModel: DownloadViewModel,
     onBackClick: () -> Unit,
     onDownloadClick: (DownloadEntity) -> Unit,
-    onDeleteAll: () -> Unit
+    onDeleteAll: () -> Unit,
+    onSubtitles: (DownloadEntity) -> Unit
 ) {
     Row(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -281,7 +297,9 @@ private fun WideDownloads(
             items(state.library, key = { "group:${it.key}" }) { group ->
                 LibraryGroup(
                     group = group,
+                    subtitleCount = state::subtitleCount,
                     onPlay = onDownloadClick,
+                    onSubtitles = onSubtitles,
                     onDelete = viewModel::remove,
                     onDeleteAll = { viewModel.removeGroup(group) },
                     modifier = Modifier.animateItem()
@@ -438,7 +456,9 @@ private fun InProgressRow(
 @Composable
 private fun LibraryGroup(
     group: DownloadGroup,
+    subtitleCount: (DownloadEntity) -> Int,
     onPlay: (DownloadEntity) -> Unit,
+    onSubtitles: (DownloadEntity) -> Unit,
     onDelete: (DownloadEntity) -> Unit,
     onDeleteAll: () -> Unit,
     modifier: Modifier = Modifier
@@ -484,7 +504,7 @@ private fun LibraryGroup(
                         )
                         Text(
                             text = if (group.isMovie) {
-                                "Movie · ${formatBytes(group.totalBytes)}"
+                                "Movie · ${formatBytes(group.totalBytes)}" + subtitleSuffix(subtitleCount(group.items.first()))
                             } else {
                                 "${pluralize(group.items.size, "episode")} · ${formatBytes(group.totalBytes)}"
                             },
@@ -493,8 +513,12 @@ private fun LibraryGroup(
                         )
                     }
                     if (group.isMovie) {
-                        FilledTonalIconButton(onClick = { onPlay(group.items.first()) }) {
+                        val movie = group.items.first()
+                        FilledTonalIconButton(onClick = { onPlay(movie) }) {
                             Icon(Icons.Default.PlayArrow, contentDescription = "Play")
+                        }
+                        IconButton(onClick = { onSubtitles(movie) }) {
+                            Icon(Icons.Default.ClosedCaption, contentDescription = "Subtitles for ${group.title}")
                         }
                         IconButton(onClick = onDeleteAll) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete download")
@@ -524,10 +548,15 @@ private fun LibraryGroup(
                             shapes = ListItemDefaults.segmentedShapes(index = index, count = group.items.size),
                             colors = ListItemDefaults.segmentedColors(),
                             leadingContent = { Thumbnail(item.stillPath ?: item.posterPath) },
-                            supportingContent = { Text(formatBytes(item.sizeBytes)) },
+                            supportingContent = { Text(formatBytes(item.sizeBytes) + subtitleSuffix(subtitleCount(item))) },
                             trailingContent = {
-                                IconButton(onClick = { onDelete(item) }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete episode")
+                                Row {
+                                    IconButton(onClick = { onSubtitles(item) }) {
+                                        Icon(Icons.Default.ClosedCaption, contentDescription = "Subtitles for episode ${item.episode}")
+                                    }
+                                    IconButton(onClick = { onDelete(item) }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete episode")
+                                    }
                                 }
                             }
                         ) {
@@ -540,7 +569,7 @@ private fun LibraryGroup(
                         }
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        androidx.compose.material3.TextButton(onClick = onDeleteAll) {
+                        TextButton(onClick = onDeleteAll) {
                             Text("Delete all", color = MaterialTheme.colorScheme.error)
                         }
                     }
@@ -618,6 +647,8 @@ private fun statusLine(download: DownloadEntity): String = when (download.status
     }
     else -> download.episodeTitle.orEmpty()
 }
+
+private fun subtitleSuffix(count: Int) = if (count > 0) " · ${pluralize(count, "subtitle")}" else ""
 
 private fun pluralize(count: Int, noun: String) = if (count == 1) "1 $noun" else "$count ${noun}s"
 

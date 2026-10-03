@@ -16,8 +16,13 @@ object RepoUrlNormalizer {
     )
 
     fun normalize(input: String): String? {
-        val trimmed = input.trim().trim('"', '\'')
-        if (trimmed.isEmpty()) return null
+        val pasted = input.trim().trim('"', '\'')
+        if (pasted.isEmpty()) return null
+        // Stremio's install links (stremio://host/manifest.json) are plain HTTPS underneath, and an
+        // add-on's settings page (…/configure) sits next to its manifest.
+        val trimmed = pasted
+            .replaceFirst(Regex("^stremio://", RegexOption.IGNORE_CASE), "https://")
+            .replace(Regex("/configure/?$", RegexOption.IGNORE_CASE), "/manifest.json")
 
         val withScheme = when {
             trimmed.startsWith("http://", ignoreCase = true) -> "https://" + trimmed.removePrefix("http://")

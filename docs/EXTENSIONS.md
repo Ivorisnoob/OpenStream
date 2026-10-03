@@ -100,6 +100,7 @@ falls back to `main/extensions/index.json`.
 | `anikoto` | `AnikotoProvider` (site search, MAL-id check, megaplay embeds via `MegaplayExtractor`) | `endpoint`: the site origin (`https://…`) |
 | `reanime` | `ReAnimeProvider` (megaplay by AniList id; the site is the Referer) | `endpoint`: the site origin |
 | `animepahe` | `AnimePaheProvider` (Cloudflare cleared in a hidden WebView by `CloudflareClearance`, kwik packed-script unpacking) | `endpoint`: the site origin |
+| `stremio` | `StremioAddonProvider` (the Stremio add-on protocol over HTTPS) | `endpoint`: the add-on's base URL, i.e. its manifest URL without `/manifest.json` (a configured add-on's URL includes its settings) |
 
 The three anime engines resolve only titles that `AnimeEpisodeMapper` can map to an AniList
 episode (ani.zip by TMDB id, then AniList sequels, matched by TVDB season/episode or air date);
@@ -127,7 +128,44 @@ catalog stays forward-compatible: publishing an entry for a future engine does n
 
 Trending additionally weights `installsLast7Days` and how recently the entry was updated.
 
+### Stremio add-ons
+
+The `stremio` engine speaks the public
+[Stremio add-on protocol](https://github.com/Stremio/stremio-addon-sdk/blob/master/docs/protocol.md):
+it reads `{base}/manifest.json` once for the content types and id prefixes, then asks
+`{base}/stream/movie/{imdbId}.json` or `{base}/stream/series/{imdbId}:{season}:{episode}.json`
+(or `tmdb:` ids when the add-on lists that prefix). Only streams with a direct `url` are used, with
+the add-on's `behaviorHints.proxyHeaders.request` headers and any `subtitles`. Torrent (`infoHash`),
+YouTube and external-link streams are skipped: there is no torrent engine, and debrid services need
+user API keys, which the app doesn't ask for.
+
+Add-ons often list one release several times, once per file host, and some of those links are dead
+when they are handed out (expired signed URLs, hosts asking for a captcha, redirects to a 404). The
+engine groups mirrors by release name and size, then keeps the first mirror per release that answers
+a 16-byte range request with video bytes (or `#EXTM3U` for HLS), checking releases in parallel within
+8 s. Without this the player fails over through dead links one by one.
+
+Add-ons name streams however they like (host tags, emoji, scene file names), so
+`StremioStreamLabels` rebuilds each name from what it says, in a fixed order:
+`1080p · BluRay · HEVC 10-bit · Hindi + English · 1.98 GB`. Streams that say too little get a
+cleaned-up remainder of their own text first (`kisskh`, `Source 2 · Dubbed`).
+
+A Stremio `manifest.json` link (or a `stremio://` link, or an add-on's `/configure` page link) pasted
+into **Add repository** becomes a one-entry repository: `ExtensionIndexParser` maps the manifest to
+an entry, installed right away when it serves streams and doesn't require configuring first. Its
+`versionCode` comes from the add-on's semver, so a new add-on version shows as an update.
+
+Add-ons listed in the official catalog were checked to return direct streams without an account
+or key for a movie and an episode when they were added (status `3`, Beta). Public add-on hosts move
+often; when one stops answering, mark it `0` (Down) or retire the entry.
+
 ## Runtime
+
+Installed sources are ranked by the user (Marketplace > Installed, arrows on each source), falling
+back to `engine.priority` for anything not ranked yet; a provider's priority at resolve time is its
+position in that order. In the default "All at once" search mode every source runs together and
+streams are sorted by quality with the order breaking ties; in "In my order" sources run one at a
+time from the top and the search stops at the first that finds streams.
 
 `ExtensionProviderRegistry` turns installed + enabled manifests into `StreamProvider`s at resolve
 time, so adding a source is a data change in an index — no Dagger module edit, no app release.

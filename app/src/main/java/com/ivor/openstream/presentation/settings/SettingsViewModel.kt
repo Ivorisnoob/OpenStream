@@ -170,6 +170,12 @@ class SettingsViewModel @Inject constructor(
 
     fun setPipRightAction(action: PipAction) = appSettingsStore.update { it.copy(pipRightAction = action) }
 
+    fun setSubtitleDownloadLanguages(languages: List<String>) =
+        appSettingsStore.update { it.copy(subtitleDownloadLanguages = languages.distinct()) }
+
+    fun setSubtitleDownloadFromSites(enabled: Boolean) =
+        appSettingsStore.update { it.copy(subtitleDownloadFromSites = enabled) }
+
     fun setWifiOnlyDownloads(wifiOnly: Boolean) {
         appSettingsStore.update { it.copy(wifiOnlyDownloads = wifiOnly) }
         downloadManager.requirements = downloadRequirements(wifiOnly)

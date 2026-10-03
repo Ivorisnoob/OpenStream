@@ -44,13 +44,30 @@ class SubSourceRepository @Inject constructor(
     @Named("StreamingClient") private val client: OkHttpClient,
     private val json: Json
 ) {
-    suspend fun search(identity: MediaIdentity): List<SubtitleDto> = withContext(Dispatchers.IO) {
-        runCatching { searchOrThrow(identity) }
+    suspend fun search(identity: MediaIdentity): List<SubtitleDto> = search(identity, languages())
+
+    /** One language by ISO 639-1 code; SubSource names languages in English ("spanish"). */
+    suspend fun searchLanguage(identity: MediaIdentity, language: String): List<SubtitleDto> {
+        val name = Locale.forLanguageTag(language).getDisplayLanguage(Locale.ENGLISH).lowercase(Locale.ROOT)
+        if (name.isBlank() || name == language) return emptyList()
+        return search(identity, listOf(name to language), MAX_PER_LANGUAGE_ASKED)
+    }
+
+    private suspend fun search(
+        identity: MediaIdentity,
+        languages: List<Pair<String, String>>,
+        maxPerLanguage: Int = MAX_PER_LANGUAGE
+    ): List<SubtitleDto> = withContext(Dispatchers.IO) {
+        runCatching { searchOrThrow(identity, languages, maxPerLanguage) }
             .onFailure { Log.w(TAG, "SubSource search failed: ${it.message}") }
             .getOrDefault(emptyList())
     }
 
-    private suspend fun searchOrThrow(identity: MediaIdentity): List<SubtitleDto> {
+    private suspend fun searchOrThrow(
+        identity: MediaIdentity,
+        languages: List<Pair<String, String>>,
+        maxPerLanguage: Int
+    ): List<SubtitleDto> {
         val imdbId = idMappingService.enrich(identity).imdbId?.takeIf { it.startsWith("tt") } ?: return emptyList()
         val isMovie = identity.tmdbType == "movie"
         val link = findLink(imdbId) ?: return emptyList()
@@ -62,7 +79,7 @@ class SubSourceRepository @Inject constructor(
         val episodePattern = if (isMovie) null else episodeRegex(identity.season, identity.episode)
 
         return coroutineScope {
-            languages().map { (name, code) ->
+            languages.map { (name, code) ->
                 async { list(listPath, name).map { it to code } }
             }.awaitAll().flatten()
         }
@@ -72,7 +89,7 @@ class SubSourceRepository @Inject constructor(
             .filter { (row, _) -> episodePattern == null || !EPISODE_RANGE.containsMatchIn(row.releaseInfo) }
             .distinctBy { (row, _) -> row.id }
             .groupBy { (row, _) -> row.language }
-            .flatMap { (_, sameLanguage) -> sameLanguage.take(MAX_PER_LANGUAGE) }
+            .flatMap { (_, sameLanguage) -> sameLanguage.take(maxPerLanguage) }
             .map { (row, code) ->
                 SubtitleDto(
                     id = "ss_${row.id}",
@@ -150,6 +167,7 @@ class SubSourceRepository @Inject constructor(
         private const val TAG = "SubSource"
         private const val API = "https://api.subsource.net/v1"
         private const val MAX_PER_LANGUAGE = 4
+        private const val MAX_PER_LANGUAGE_ASKED = 12
         private val EPISODE_RANGE = Regex("(?i)e\\d+\\s*-\\s*e?\\d+")
 
         /** `S01E05`, `s1.e5`, `1x05` or a bare `E05`, not followed by another digit. */

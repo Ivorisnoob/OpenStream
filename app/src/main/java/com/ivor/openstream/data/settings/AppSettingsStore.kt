@@ -34,6 +34,15 @@ enum class PipAction(val label: String) {
     SKIP_INTRO("Skip intro")
 }
 
+/** How the player searches installed sources. */
+enum class SourceSearchMode(val label: String) {
+    /** Every source at once; the list is sorted by quality, the user's order breaking ties. */
+    ALL_AT_ONCE("All at once"),
+
+    /** One source at a time, top of the user's order first, stopping at the first with streams. */
+    IN_ORDER("In my order")
+}
+
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,
@@ -49,7 +58,12 @@ data class AppSettings(
     val downloadMaxHeight: Int = 1080,
     /** Picture-in-picture buttons left and right of play/pause (Android shows three at most). */
     val pipLeftAction: PipAction = PipAction.REWIND,
-    val pipRightAction: PipAction = PipAction.FORWARD
+    val pipRightAction: PipAction = PipAction.FORWARD,
+    /** ISO 639-1 codes whose subtitles are saved with every download; empty saves none. */
+    val subtitleDownloadLanguages: List<String> = listOf("en"),
+    /** Besides the video's own subtitles, also save OpenSubtitles and SubSource ones. */
+    val subtitleDownloadFromSites: Boolean = true,
+    val sourceSearchMode: SourceSearchMode = SourceSearchMode.ALL_AT_ONCE
 ) {
     companion object {
         val SEEK_STEPS = listOf(5, 10, 15, 30)
@@ -95,6 +109,9 @@ class AppSettingsStore @Inject constructor(
             .putInt(KEY_DOWNLOAD_HEIGHT, updated.downloadMaxHeight)
             .putString(KEY_PIP_LEFT, updated.pipLeftAction.name)
             .putString(KEY_PIP_RIGHT, updated.pipRightAction.name)
+            .putString(KEY_SUBTITLE_LANGUAGES, updated.subtitleDownloadLanguages.joinToString(","))
+            .putBoolean(KEY_SUBTITLE_FROM_SITES, updated.subtitleDownloadFromSites)
+            .putString(KEY_SOURCE_SEARCH_MODE, updated.sourceSearchMode.name)
             .apply()
     }
 
@@ -113,7 +130,12 @@ class AppSettingsStore @Inject constructor(
             downloadMaxHeight = prefs.getInt(KEY_DOWNLOAD_HEIGHT, defaults.downloadMaxHeight)
                 .takeIf { it in AppSettings.DOWNLOAD_HEIGHTS } ?: defaults.downloadMaxHeight,
             pipLeftAction = enumOrDefault(prefs.getString(KEY_PIP_LEFT, null), defaults.pipLeftAction),
-            pipRightAction = enumOrDefault(prefs.getString(KEY_PIP_RIGHT, null), defaults.pipRightAction)
+            pipRightAction = enumOrDefault(prefs.getString(KEY_PIP_RIGHT, null), defaults.pipRightAction),
+            subtitleDownloadLanguages = prefs.getString(KEY_SUBTITLE_LANGUAGES, null)
+                ?.let { parseLanguages(it) }
+                ?: defaults.subtitleDownloadLanguages,
+            subtitleDownloadFromSites = prefs.getBoolean(KEY_SUBTITLE_FROM_SITES, defaults.subtitleDownloadFromSites),
+            sourceSearchMode = enumOrDefault(prefs.getString(KEY_SOURCE_SEARCH_MODE, null), defaults.sourceSearchMode)
         )
     }
 
@@ -121,6 +143,13 @@ class AppSettingsStore @Inject constructor(
         name?.let { value -> enumValues<T>().firstOrNull { it.name == value } } ?: default
 
     private companion object {
+        /** "en,es" as stored; an empty string means none. */
+        fun parseLanguages(stored: String): List<String> =
+            stored.split(',').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+
+        const val KEY_SUBTITLE_LANGUAGES = "app_subtitle_download_languages"
+        const val KEY_SUBTITLE_FROM_SITES = "app_subtitle_download_from_sites"
+        const val KEY_SOURCE_SEARCH_MODE = "app_source_search_mode"
         const val KEY_THEME = "app_theme_mode"
         const val KEY_DYNAMIC_COLOR = "app_dynamic_color"
         const val KEY_DNS = "app_dns_provider"

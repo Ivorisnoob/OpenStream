@@ -3,6 +3,8 @@ package com.ivor.openstream.presentation.marketplace
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ivor.openstream.data.extensions.MarketplaceRanker
+import com.ivor.openstream.data.settings.AppSettingsStore
+import com.ivor.openstream.data.settings.SourceSearchMode
 import com.ivor.openstream.domain.model.ExtensionCatalog
 import com.ivor.openstream.domain.model.MarketplaceExtension
 import com.ivor.openstream.domain.model.MarketplaceSort
@@ -12,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -33,8 +36,26 @@ data class MarketplaceUiState(
 
 @HiltViewModel
 class MarketplaceViewModel @Inject constructor(
-    private val repository: ExtensionRepository
+    private val repository: ExtensionRepository,
+    private val appSettings: AppSettingsStore
 ) : ViewModel() {
+
+    /** How the player searches the installed sources; set on the Installed tab. */
+    val searchMode: StateFlow<SourceSearchMode> = appSettings.settings
+        .map { it.sourceSearchMode }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), appSettings.current.sourceSearchMode)
+
+    fun setSearchMode(mode: SourceSearchMode) = appSettings.update { it.copy(sourceSearchMode = mode) }
+
+    /** Moves an installed source [offset] places up (negative) or down in the search order. */
+    fun moveSource(extension: MarketplaceExtension, offset: Int) {
+        val keys = state.value.installed.map { it.key }.toMutableList()
+        val from = keys.indexOf(extension.key)
+        val to = (from + offset).coerceIn(0, keys.lastIndex)
+        if (from < 0 || from == to) return
+        keys.add(to, keys.removeAt(from))
+        repository.setSourceOrder(keys)
+    }
 
     private val query = MutableStateFlow("")
     private val sort = MutableStateFlow(MarketplaceSort.POPULAR)

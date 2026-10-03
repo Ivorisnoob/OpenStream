@@ -63,12 +63,22 @@ Rules:
 
 - **Sources.** `ExtensionProviderRegistry` turns installed catalog entries into providers.
   `StreamingRepositoryImpl` resolves them in parallel, ranks with `ServerRanker`, and runs
-  `fallback` providers only when direct ones return nothing (or on "Find more" / failover).
+  `fallback` providers only when direct ones return nothing, or have found nothing after 8 s (or on
+  "Find more" / failover). Each provider gets 25 s, enforced by awaiting rather than by cancelling
+  (OkHttp's blocking `execute()` ignores coroutine cancellation); the IMDb id lookup gets 8 s.
+  Cancelled resolutions record nothing; five failures in a row skip a provider for two minutes.
+  Users rank installed sources (Marketplace > Installed, `ExtensionStateStore.sourceOrder`); a
+  provider's priority is its position. Search mode (`SourceSearchMode` in `AppSettings`): all at
+  once (rank by quality, order breaks ties) or in order (one at a time, stop at the first with
+  streams; ranking puts the order before quality; "Find more" searches everything).
   Engines: `vidking-direct` (`VidkingDirectApi`, encrypted payload, prefers the master playlist so
   quality switches in-player), `web-embed` and `vidking-webview` (`WebEmbedResolver`: first a native
   pass through `HosterExtractors` (Filemoon, StreamWish/VidHide, Voe, Mp4Upload, Vidmoly, ok.ru) when
   the embed is or frames a known hoster, else a hidden WebView that records media requests).
   Anime engines (`data/streaming/anime`): `anikoto`, `reanime`, `animepahe`, `fouranimo`, `animegg`.
+  `stremio` (`StremioAddonProvider`): any Stremio add-on by base URL; direct-`url` streams only
+  (no torrents/debrid). A pasted Stremio `manifest.json` becomes a one-add-on repository
+  (`ExtensionIndexParser`), installed right away when it can play.
   `VideoServer` can carry a MIME hint (HLS for URLs without `.m3u8`) and the source's own intro/outro
   times, which the player prefers over AniSkip. `AnimeEpisodeMapper`
   maps TMDB season/episode to an AniList episode (ani.zip + AniList GraphQL, both keyless);
@@ -94,11 +104,21 @@ Rules:
   and `SubSourceRepository` (keyless, mirrors subsource.net's own API: IMDb search -> list ->
   download token -> zip), plus any the stream carries. `SubtitleFetcher` downloads and unwraps
   them (gzip, zip, charset) for both the player and the cast proxy; promo cues are stripped.
+  `SavedSubtitleRepository` keeps subtitles on the device (`filesDir/subtitles/<download id>/`, files
+  plus `index.json`), saved from Downloads (any language, or an imported file). Downloads also
+  record the stream's own subtitles there (`stream.json`) so the sheet can offer them; older
+  downloads re-resolve the stream sources to find them. `DownloadSubtitleSaver` saves every
+  subtitle in the languages chosen in Settings (default English) when a download starts: the
+  stream's own, plus OpenSubtitles/SubSource unless turned off. The player lists
+  them first for that title/episode, online or offline; `SubtitleFetcher` reads `file:` URLs only
+  from that folder because the cast proxy fetches whatever URL it is given. Deleting a download
+  deletes its saved subtitles.
 - **Network.** `AppDns` (DNS-over-HTTPS, default AdGuard, chosen in Settings) backs every OkHttp
   client and Coil's image loader (`OpenStreamApp`), because some ISPs block TMDB at the DNS level.
   Media3 playback/downloads and WebView sources still use the system resolver.
-- **Settings.** `AppSettingsStore` (SharedPreferences) holds theme, dynamic color, DNS and
-  Wi-Fi-only downloads; `MainActivity` applies the theme.
+- **Settings.** `AppSettingsStore` (SharedPreferences) holds theme, dynamic color, DNS,
+  Wi-Fi-only downloads and the subtitle languages saved with downloads; `MainActivity` applies the
+  theme.
 - **Skip intro.** `SkipTimesRepository`: `AnimeEpisodeMapper` gives the MAL id and the episode within
   that entry (AniList title search only as a fallback), AniSkip v2 gives the intro/recap/credits
   times (anime only), and the player picks the submission timed on the closest file length. All

@@ -7,6 +7,8 @@ import com.ivor.openstream.domain.model.ExtensionStatus
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeParseException
@@ -26,9 +28,13 @@ class ExtensionIndexParser @Inject constructor() {
         isLenient = true
     }
 
-    /** Parses a repository document: an object, or a bare array of entries. */
-    fun parseRepo(raw: String): ExtensionRepoDto {
+    /**
+     * Parses a repository document: an object, a bare array of entries, or a Stremio add-on
+     * manifest ([sourceUrl] is where it was fetched, which is how the add-on is addressed).
+     */
+    fun parseRepo(raw: String, sourceUrl: String? = null): ExtensionRepoDto {
         val root = json.parseToJsonElement(raw)
+        if (root is JsonObject && isStremioManifest(root)) return stremioRepo(root, sourceUrl)
         return when (root) {
             is JsonArray -> ExtensionRepoDto(extensions = decodeEntries(root))
             is JsonObject -> {
@@ -105,12 +111,85 @@ class ExtensionIndexParser @Inject constructor() {
         }
     }
 
+    private companion object {
+        /** After the built-in direct routes, before WebView fallbacks. */
+        const val STREMIO_PRIORITY = 40
+    }
+
     private fun decodeEntries(array: JsonArray?): List<ExtensionEntryDto> =
         array.orEmpty().mapNotNull { element ->
             runCatching {
                 json.decodeFromJsonElement(ExtensionEntryDto.serializer(), element)
             }.getOrNull()
         }
+
+    private fun isStremioManifest(root: JsonObject): Boolean =
+        "resources" in root && "id" in root && "extensions" !in root && "extensionLists" !in root
+
+    /**
+     * A Stremio add-on as a one-entry repository, so pasting its link in "Add repository" is all
+     * it takes. Installed straight away when it can play here: it serves streams and doesn't
+     * need configuring first (a configured add-on's link already carries its settings).
+     */
+    private fun stremioRepo(manifest: JsonObject, sourceUrl: String?): ExtensionRepoDto {
+        val addonId = manifest.text("id")?.takeIf { it.isNotBlank() }
+            ?: throw IllegalArgumentException("Stremio manifest has no id")
+        val name = manifest.text("name")?.trim().orEmpty().ifEmpty { addonId }
+        val baseUrl = sourceUrl?.substringBefore('?')?.removeSuffix("/manifest.json")?.trimEnd('/').orEmpty()
+        val resources = (manifest["resources"] as? JsonArray).orEmpty().mapNotNull { resource ->
+            when (resource) {
+                is JsonPrimitive -> resource.contentOrNull
+                is JsonObject -> resource.text("name")
+                else -> null
+            }
+        }
+        val hints = manifest["behaviorHints"] as? JsonObject
+        val needsConfiguring = hints?.text("configurationRequired") == "true"
+        val servesStreams = "stream" in resources
+        val playable = servesStreams && !needsConfiguring && baseUrl.isNotEmpty()
+        val types = (manifest["types"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+        val note = when {
+            !servesStreams -> "This add-on has no streams (only catalogs, metadata or subtitles), so it has nothing to play here."
+            needsConfiguring -> "Configure this add-on on its own page first, then add the link it gives you."
+            else -> null
+        }
+        val logo = manifest.text("logo")?.takeIf { it.startsWith("https://") }
+        val entry = ExtensionEntryDto(
+            id = addonId.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').ifEmpty { "addon" },
+            name = name,
+            description = listOfNotNull(manifest.text("description")?.trim()?.takeIf { it.isNotEmpty() }, note)
+                .joinToString("\n\n"),
+            version = manifest.text("version")?.trim().orEmpty().ifEmpty { "1.0.0" },
+            versionCode = semverCode(manifest.text("version")),
+            authors = listOfNotNull(baseUrl.substringAfter("://").substringBefore('/').takeIf { it.isNotEmpty() }),
+            iconUrl = logo,
+            tags = (listOf("stremio") + types.map { if (it == "movie") "movies" else it }).distinct(),
+            status = if (playable) 3 else 0,
+            homepage = baseUrl.takeIf { it.isNotEmpty() && hints?.text("configurable") == "true" }?.let { "$it/configure" },
+            installedByDefault = playable,
+            engine = ExtensionEngineDto(
+                type = if (playable) "stremio" else "unsupported",
+                endpoint = baseUrl,
+                priority = STREMIO_PRIORITY
+            )
+        )
+        return ExtensionRepoDto(
+            name = "$name (Stremio)",
+            description = "Stremio add-on",
+            iconUrl = logo,
+            website = baseUrl.takeIf { it.isNotEmpty() },
+            extensions = listOf(entry)
+        )
+    }
+
+    /** "1.4.12" -> 1004012, so a newer add-on version shows as an update. */
+    private fun semverCode(version: String?): Int {
+        val parts = version.orEmpty().split('.', '-', '+').take(3).map { it.toIntOrNull()?.coerceIn(0, 999) ?: 0 }
+        return (parts.getOrElse(0) { 0 } * 1_000_000 + parts.getOrElse(1) { 0 } * 1_000 + parts.getOrElse(2) { 0 })
+            .coerceAtLeast(1)
+    }
+
+    private fun JsonObject.text(key: String): String? = (get(key) as? JsonPrimitive)?.contentOrNull
 
     /** Entries are decoded one by one, so keep them out of the strict repository decode. */
     private fun stripEntries(root: JsonObject): JsonObject =

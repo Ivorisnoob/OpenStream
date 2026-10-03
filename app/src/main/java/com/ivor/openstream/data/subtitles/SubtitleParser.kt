@@ -39,7 +39,8 @@ fun parseSubtitles(content: String): List<SubtitleCue> {
         }
     } else {
         Log.i("PlayerSubtitles", "Detected SRT/VTT format")
-        val timestampRegex = Regex("(\\d{2}:\\d{2}:\\d{2}[,.]\\d{3})\\s*-->\\s*(\\d{2}:\\d{2}:\\d{2}[,.]\\d{3})")
+        // WebVTT may leave the hours out ("01:02.345"); SRT always has them ("00:01:02,345").
+        val timestampRegex = Regex("((?:\\d{1,2}:)?\\d{1,2}:\\d{2}[,.]\\d{1,3})\\s*-->\\s*((?:\\d{1,2}:)?\\d{1,2}:\\d{2}[,.]\\d{1,3})")
         val blocks = cleanContent.split(Regex("\\n\\s*\\n")).filter { it.isNotBlank() }
         
         for (block in blocks) {
@@ -92,15 +93,16 @@ private fun parseAssTimestamp(ts: String): Long {
     }
 }
 
+/** "hh:mm:ss.mmm", or "mm:ss.mmm" as WebVTT allows; a comma works as the separator too. */
 private fun parseTimestamp(ts: String): Long {
-    val clean = ts.replace(',', '.')
+    val clean = ts.trim().replace(',', '.')
     val parts = clean.split(':')
-    if (parts.size < 3) return 0L
-    
-    val secondsParts = parts[2].split('.')
-    
-    val h = parts[0].toLongOrNull() ?: 0L
-    val m = parts[1].toLongOrNull() ?: 0L
+    if (parts.size !in 2..3) return 0L
+
+    val secondsParts = parts.last().split('.')
+
+    val h = if (parts.size == 3) parts[0].toLongOrNull() ?: 0L else 0L
+    val m = parts[parts.size - 2].toLongOrNull() ?: 0L
     val s = secondsParts[0].toLongOrNull() ?: 0L
     val ms = if (secondsParts.size > 1) {
         secondsParts[1].padEnd(3, '0').take(3).toLongOrNull() ?: 0L

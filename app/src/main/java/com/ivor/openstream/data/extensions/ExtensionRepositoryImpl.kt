@@ -115,6 +115,8 @@ class ExtensionRepositoryImpl @Inject constructor(
                     rebuildManifests()
                     toRepo(repoId, snapshot)
                 }
+                // A pasted Stremio add-on is ready to use without a separate install step.
+                seedDefaultInstalls()
                 publish(isSyncing = false)
                 repo
             }
@@ -190,11 +192,18 @@ class ExtensionRepositoryImpl @Inject constructor(
         return updates.size
     }
 
+    /** Already in source order: [publish] sorts the catalog that way. */
     override fun activeExtensions(): List<MarketplaceExtension> {
         ensureLoaded()
-        return _catalog.value.extensions
-            .filter { it.isActive }
-            .sortedBy { it.manifest.engine.priority }
+        return _catalog.value.extensions.filter { it.isActive }
+    }
+
+    override fun setSourceOrder(keys: List<String>) {
+        ensureLoaded()
+        // Keep ranks for sources not in this list (uninstalled ones the user may reinstall).
+        val rest = store.sourceOrder().filterNot { it in keys }
+        store.setSourceOrder(keys + rest)
+        publish(isSyncing = _catalog.value.isSyncing)
     }
 
     override fun recordOutcome(key: String, success: Boolean) {
@@ -284,7 +293,14 @@ class ExtensionRepositoryImpl @Inject constructor(
     private fun publish(isSyncing: Boolean) {
         val installs = store.installs()
         val usage = store.usage()
-        val extensions = manifests.map { manifest ->
+        val order = store.sourceOrder().withIndex().associate { (index, key) -> key to index }
+        // The user's ranking first; the rest by the catalog's priority, as before ranking existed.
+        val ranked = manifests.sortedWith(
+            compareBy<ExtensionManifest> { order[it.key] ?: Int.MAX_VALUE }
+                .thenBy { it.engine.priority }
+                .thenBy { it.name.lowercase() }
+        )
+        val extensions = ranked.map { manifest ->
             val record = installs[manifest.key]
             val stats = usage[manifest.key]
             MarketplaceExtension(

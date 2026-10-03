@@ -99,6 +99,13 @@ class ExtensionStateStore @Inject constructor(
         write(KEY_REPOS, repoSerializer, customRepos().filterNot { it.id == repoId })
     }
 
+    /** Extension keys in the order the user ranked them; anything missing ranks after these. */
+    fun sourceOrder(): List<String> = read(KEY_ORDER, seededSerializer, emptyList())
+
+    fun setSourceOrder(keys: List<String>) {
+        write(KEY_ORDER, seededSerializer, keys.distinct())
+    }
+
     fun lastSyncedAt(): Long = preferences.getLong(KEY_LAST_SYNC, 0L)
 
     fun setLastSyncedAt(timestamp: Long) {
@@ -148,6 +155,7 @@ class ExtensionStateStore @Inject constructor(
         const val KEY_REPOS = "marketplace.repos"
         const val KEY_LAST_SYNC = "marketplace.last_sync"
         const val KEY_SEEDED = "marketplace.seeded"
+        const val KEY_ORDER = "marketplace.source_order"
         const val MAX_SAMPLES = 40
     }
 }

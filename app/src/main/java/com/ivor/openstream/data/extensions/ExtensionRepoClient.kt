@@ -17,7 +17,7 @@ class ExtensionRepoClient @Inject constructor(
 ) {
 
     suspend fun fetch(url: String): CachedRepoSnapshot = withContext(Dispatchers.IO) {
-        val repo = parser.parseRepo(get(url))
+        val repo = parser.parseRepo(get(url), sourceUrl = url)
         val linked = repo.extensionLists
             .mapNotNull { RepoUrlNormalizer.normalize(it) }
             .flatMap { listUrl ->
