@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.home
 
+import com.ivor.openstream.presentation.components.badge
 import com.ivor.openstream.presentation.components.byWidth
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -190,14 +191,5 @@ private fun ContinueWatchingCard(
                 modifier = Modifier.padding(start = 4.dp)
             )
         }
-    }
-}
-
-private fun WatchProgress.badge(): String {
-    val remaining = ((durationMs - positionMs) / 60_000L).coerceAtLeast(1L)
-    return when {
-        isUpNext && !isMovie -> "Up next · S$season E$episode"
-        isMovie -> "${remaining}m left"
-        else -> "S$season E$episode · ${remaining}m left"
     }
 }

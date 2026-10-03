@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dark pair for the Material You aliases above; without it the dark widget would keep light
+     wallpaper colours. -->
+<resources>
+    <color name="widget_accent">@android:color/system_accent1_200</color>
+    <color name="widget_surface">@android:color/system_neutral1_900</color>
+    <color name="widget_on_surface">@android:color/system_neutral1_50</color>
+    <color name="widget_on_surface_variant">@android:color/system_neutral1_300</color>
+    <color name="widget_art_placeholder">@android:color/system_neutral1_800</color>
+</resources>

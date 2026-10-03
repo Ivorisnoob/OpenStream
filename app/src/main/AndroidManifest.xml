@@ -82,6 +82,21 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_provider_paths" />
         </provider>
+
+        <!-- Continue Watching widget. Exported because the launcher binds and broadcasts to it;
+             an intent filter with no explicit exported fails the merge on API 31+. -->
+        <receiver
+            android:name=".presentation.widget.ContinueWatchingProvider"
+            android:exported="true"
+            android:label="@string/widget_continue_watching_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/openstream_continue_watching_info" />
+        </receiver>
     </application>
 
 </manifest>

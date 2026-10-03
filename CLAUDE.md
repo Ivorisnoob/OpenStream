@@ -48,7 +48,8 @@ data/streaming     Source resolution, extension -> provider registry, id mapping
 data/extensions    Extension catalog: repos, cache, parser, ranking, bundled copy
 data/service       Media3 download service
 domain             Models and repository interfaces
-presentation       Screens + ViewModels; player/session holds the app-wide player
+presentation       Screens + ViewModels; player/session holds the app-wide player; widget is the
+                   home-screen Continue Watching card
 ui/theme           Colors, type, ExpressiveShapes
 ```
 
@@ -135,7 +136,13 @@ Rules:
 - **Backup / diagnostics.** `LibraryBackup` (JSON, merge on restore) and `Diagnostics` (crash files
   in `filesDir/crashes`, recorder installed in `OpenStreamApp`) back the Settings entries.
 - **Deep links.** `MainActivity` is `singleTask`; `DeepLinks` turns TMDB links (VIEW or shared text)
-  into Details, `AppShortcut` handles launcher shortcuts.
+  into Details, `AppShortcut` handles launcher shortcuts. The Continue Watching widget reuses the
+  same path: `presentation/widget/` builds a TMDB VIEW intent as the tap `PendingIntent`, so a
+  widget tap needs no navigation code. The widget is RemoteViews, not Glance, and reads Room
+  directly inside `goAsync()`; `ContinueWatchingWidgetRefresher` repaints it from the Application
+  scope on every progress change rather than on a timer. Its layout uses plain colour resources
+  (`values-v31` aliases the system Material You roles) because a RemoteViews layout is inflated in
+  the launcher's process, where `?attr/…` would resolve against the launcher's theme.
 - **Downloads.** Everything goes through Media3's `DownloadManager` (`DownloadRepositoryImpl`):
   queue resolves sources in the app scope, live progress from the manager, pause/resume/retry,
   one rendition up to 1080p from master playlists. Offline playback reads the same cache.
