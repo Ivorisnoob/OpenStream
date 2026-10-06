@@ -170,6 +170,7 @@ fun ExoPlayerView(
     onSubtitleLanguageChosen: (String) -> Unit = {},
     /** Intro/recap/credits times from AniSkip; empty falls back to a manual skip early on. */
     skipSegments: List<SkipSegment> = emptyList(),
+    showSkipButton: Boolean = true,
     /** Leave the player screen with playback continuing in the mini player (swipe down inline). */
     onMinimize: () -> Unit = onBackClick,
     /** This season's episodes; a swipe up in fullscreen opens them. */
@@ -1321,7 +1322,8 @@ fun ExoPlayerView(
             totalTime > MANUAL_SKIP_MS * 4 && currentTime in 5_000L..MANUAL_SKIP_WINDOW_MS
         val skipLabel = activeSegment?.type?.label ?: "Skip ${MANUAL_SKIP_MS / 1_000}s"
         AnimatedVisibility(
-            visible = (activeSegment != null || offerManualSkip) && !isLocked && !isInPictureInPicture && !showSettingsDialog,
+            visible = showSkipButton && (activeSegment != null || offerManualSkip) && !isLocked &&
+                !isInPictureInPicture && !showSettingsDialog,
             enter = slideInHorizontally { it / 2 } + fadeIn(),
             exit = slideOutHorizontally { it / 2 } + fadeOut(),
             modifier = Modifier

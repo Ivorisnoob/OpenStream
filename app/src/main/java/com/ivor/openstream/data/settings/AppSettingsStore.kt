@@ -54,6 +54,8 @@ data class AppSettings(
     val defaultSpeed: Float = 1f,
     /** Count down into the next episode when one ends. */
     val autoPlayNext: Boolean = true,
+    /** Offer the skip intro / recap / credits button over the video. */
+    val showSkipButton: Boolean = true,
     /** Tallest rendition a download picks from a master playlist. */
     val downloadMaxHeight: Int = 1080,
     /** Picture-in-picture buttons left and right of play/pause (Android shows three at most). */
@@ -106,6 +108,7 @@ class AppSettingsStore @Inject constructor(
             .putInt(KEY_SEEK_STEP, updated.seekStepSeconds)
             .putFloat(KEY_DEFAULT_SPEED, updated.defaultSpeed)
             .putBoolean(KEY_AUTO_PLAY_NEXT, updated.autoPlayNext)
+            .putBoolean(KEY_SHOW_SKIP_BUTTON, updated.showSkipButton)
             .putInt(KEY_DOWNLOAD_HEIGHT, updated.downloadMaxHeight)
             .putString(KEY_PIP_LEFT, updated.pipLeftAction.name)
             .putString(KEY_PIP_RIGHT, updated.pipRightAction.name)
@@ -127,6 +130,7 @@ class AppSettingsStore @Inject constructor(
             defaultSpeed = prefs.getFloat(KEY_DEFAULT_SPEED, defaults.defaultSpeed)
                 .takeIf { it in AppSettings.DEFAULT_SPEEDS } ?: defaults.defaultSpeed,
             autoPlayNext = prefs.getBoolean(KEY_AUTO_PLAY_NEXT, defaults.autoPlayNext),
+            showSkipButton = prefs.getBoolean(KEY_SHOW_SKIP_BUTTON, defaults.showSkipButton),
             downloadMaxHeight = prefs.getInt(KEY_DOWNLOAD_HEIGHT, defaults.downloadMaxHeight)
                 .takeIf { it in AppSettings.DOWNLOAD_HEIGHTS } ?: defaults.downloadMaxHeight,
             pipLeftAction = enumOrDefault(prefs.getString(KEY_PIP_LEFT, null), defaults.pipLeftAction),
@@ -157,6 +161,7 @@ class AppSettingsStore @Inject constructor(
         const val KEY_SEEK_STEP = "app_seek_step_seconds"
         const val KEY_DEFAULT_SPEED = "app_default_speed"
         const val KEY_AUTO_PLAY_NEXT = "app_auto_play_next"
+        const val KEY_SHOW_SKIP_BUTTON = "app_show_skip_button"
         const val KEY_DOWNLOAD_HEIGHT = "app_download_max_height"
         const val KEY_ACTIVE_PROFILE = "app_active_profile_id"
         const val KEY_PIP_LEFT = "app_pip_left_action"

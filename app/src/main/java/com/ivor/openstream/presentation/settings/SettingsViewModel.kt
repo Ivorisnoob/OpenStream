@@ -163,6 +163,7 @@ class SettingsViewModel @Inject constructor(
     fun setDefaultSpeed(speed: Float) = appSettingsStore.update { it.copy(defaultSpeed = speed) }
 
     fun setAutoPlayNext(enabled: Boolean) = appSettingsStore.update { it.copy(autoPlayNext = enabled) }
+    fun setShowSkipButton(enabled: Boolean) = appSettingsStore.update { it.copy(showSkipButton = enabled) }
 
     fun setDownloadMaxHeight(height: Int) = appSettingsStore.update { it.copy(downloadMaxHeight = height) }
 

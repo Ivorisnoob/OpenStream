@@ -506,6 +506,7 @@ fun PlayerScreen(
                             onSubtitleLanguageChosen = viewModel::setPreferredSubtitleLanguage,
                             // Times from the source itself beat AniSkip's crowd-sourced ones.
                             skipSegments = activeServer?.skipSegments?.takeIf { it.isNotEmpty() } ?: skipSegments,
+                            showSkipButton = appSettings.showSkipButton,
                             episodes = if (mediaType == "movie") emptyList() else seasonEpisodes,
                             currentEpisodeNumber = episode,
                             episodeProgress = episodeProgress,

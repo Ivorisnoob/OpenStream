@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Storefront
@@ -246,7 +247,7 @@ fun SettingsScreen(
                 item(key = "playback") {
                     SettingsGroup(title = "Playback") {
                         ChoiceRow(
-                            index = 0, count = 3,
+                            index = 0, count = 4,
                             icon = Icons.Default.Forward10,
                             title = "Seek step",
                             supporting = "Double-tap and the skip buttons",
@@ -256,7 +257,7 @@ fun SettingsScreen(
                             onSelect = viewModel::setSeekStep
                         )
                         ChoiceRow(
-                            index = 1, count = 3,
+                            index = 1, count = 4,
                             icon = Icons.Default.Speed,
                             title = "Default speed",
                             options = AppSettings.DEFAULT_SPEEDS,
@@ -265,12 +266,20 @@ fun SettingsScreen(
                             onSelect = viewModel::setDefaultSpeed
                         )
                         SwitchRow(
-                            index = 2, count = 3,
+                            index = 2, count = 4,
                             icon = Icons.Default.SkipNext,
                             title = "Auto-play next episode",
                             supporting = "Count down into the next episode",
                             checked = appSettings.autoPlayNext,
                             onCheckedChange = viewModel::setAutoPlayNext
+                        )
+                        SwitchRow(
+                            index = 3, count = 4,
+                            icon = Icons.Default.FastForward,
+                            title = "Skip button",
+                            supporting = "Offer to skip intros, recaps and credits",
+                            checked = appSettings.showSkipButton,
+                            onCheckedChange = viewModel::setShowSkipButton
                         )
                     }
                 }
