@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 4x3 cells (Android's n*70-30dp grid). targetCellWidth/Height, previewLayout and description
+     are API 31; older launchers ignore them. updatePeriodMillis is only a backstop that repairs
+     anything missed while the process was dead - playback and profile switches re-render the
+     widget in-process, and the system clamps this to a 30 minute floor anyway. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:description="@string/widget_continue_watching_description"
+    android:initialLayout="@layout/widget_continue_watching"
+    android:minWidth="250dp"
+    android:minHeight="180dp"
+    android:previewLayout="@layout/widget_continue_watching"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="4"
+    android:targetCellHeight="3"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen"
+    tools:targetApi="31" />

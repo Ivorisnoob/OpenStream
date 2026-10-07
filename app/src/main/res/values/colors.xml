@@ -7,4 +7,14 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Widget colours. Plain resources, never ?attr/...: a RemoteViews layout is inflated in the
+         launcher's process, so theme attributes would resolve against the launcher's theme. The
+         values mirror the app's static Vibrant palette (ui/theme/Color.kt). -->
+    <color name="widget_surface">#FFFBFE</color>
+    <color name="widget_on_surface">#1C1B1F</color>
+    <color name="widget_on_surface_variant">#49454F</color>
+    <color name="widget_art_placeholder">#E7E0EC</color>
+    <color name="widget_on_art">#FFFFFFFF</color>
+    <color name="widget_accent">#6F43C0</color>
 </resources>

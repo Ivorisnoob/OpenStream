@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Material You. Aliasing the wallpaper-derived system colours gives the widget dynamic colour
+     with no code, at reduced fidelity: it follows the wallpaper rather than
+     AppSettings.dynamicColor, so a user who turned dynamic colour off still sees a dynamic widget.
+     There is no way to make a resource alias conditional. -->
+<resources>
+    <color name="widget_accent">@android:color/system_accent1_600</color>
+    <color name="widget_surface">@android:color/system_neutral1_10</color>
+    <color name="widget_on_surface">@android:color/system_neutral1_900</color>
+    <color name="widget_on_surface_variant">@android:color/system_neutral1_700</color>
+    <color name="widget_art_placeholder">@android:color/system_neutral1_100</color>
+</resources>

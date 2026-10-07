@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dark values. The launcher re-inflates the widget when the system night mode flips, so this
+     applies with no code. It follows the SYSTEM setting, not AppSettings.themeMode, which the
+     user can force to light or dark independently. -->
+<resources>
+    <color name="widget_surface">#1C1B1F</color>
+    <color name="widget_on_surface">#E6E1E5</color>
+    <color name="widget_on_surface_variant">#CAC4D0</color>
+    <color name="widget_art_placeholder">#2B2930</color>
+    <color name="widget_accent">#D0BCFF</color>
+</resources>

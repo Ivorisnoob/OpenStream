@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API 31+ launchers round the widget's own corners, so the shape only shows below 31. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/widget_surface" />
+    <corners android:radius="16dp" />
+</shape>
