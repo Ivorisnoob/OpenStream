@@ -81,6 +81,9 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            // Strip dead library resources (AppCompat/Material/Cast/ExoPlayer
+            // layouts, drawables and strings the app never uses).
+            isShrinkResources = true
             signingConfig = signingConfigs.findByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -100,9 +103,23 @@ android {
         compose = true
         buildConfig = true
     }
+    // Keep only the locales the app actually translates (values/ + values-XX).
+    // Without this, every library (AppCompat, Material, GMS, ExoPlayer) ships
+    // ~95 extra languages into resources.arsc (~1MB waste).
+    androidResources {
+        localeFilters += listOf(
+            "en", "ar", "de", "es", "fr", "hi", "it", "ja",
+            "ko", "pt", "pt-rBR", "ru", "uk", "zh-rCN"
+        )
+    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            // Drop duplicated license/version files every library jar brings.
+            excludes += "META-INF/**/LICENSE.txt"
+            excludes += "META-INF/**/*.version"
+            excludes += "META-INF/**/*.md"
+            excludes += "META-INF/**/CHANGES"
         }
     }
 }
@@ -134,7 +151,9 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.kotlinx.serialization)
     implementation(libs.okhttp)
-    implementation(libs.okhttp.logging.interceptor)
+    // Debug-only: verbose HTTP logging. Release uses a no-op (see
+    // src/debug/.../LoggingInterceptorFactory.kt vs src/release/...).
+    debugImplementation(libs.okhttp.logging.interceptor)
     implementation(libs.okhttp.dnsoverhttps)
     implementation(libs.kotlinx.serialization.json)
 
