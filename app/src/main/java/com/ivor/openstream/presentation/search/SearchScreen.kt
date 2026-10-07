@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.search
 
+import com.ivor.openstream.R
 import com.ivor.openstream.presentation.components.bottomContentPadding
 import com.ivor.openstream.presentation.components.isCompactWidth
 import androidx.compose.foundation.layout.height
@@ -91,6 +92,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
@@ -171,7 +173,7 @@ fun SearchScreen(
         item(key = "header", span = FullWidth) {
             Column(modifier = Modifier.statusBarsPadding().padding(top = 20.dp)) {
                 Text(
-                    text = "Search",
+                    text = stringResource(R.string.search_title),
                     style = MaterialTheme.typography.displaySmall,
                     fontWeight = FontWeight.Black,
                     modifier = Modifier
@@ -181,12 +183,12 @@ fun SearchScreen(
                 TextField(
                     value = state.query,
                     onValueChange = viewModel::onQueryChange,
-                    placeholder = { Text("Movies, shows and anime") },
+                    placeholder = { Text(stringResource(R.string.search_hint)) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     trailingIcon = {
                         if (state.query.isNotEmpty() || state.genre != null) {
                             IconButton(onClick = viewModel::clear) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear search")
+                                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cd_clear_search))
                             }
                         }
                     },
@@ -221,8 +223,8 @@ fun SearchScreen(
                         InputChip(
                             selected = true,
                             onClick = viewModel::clear,
-                            label = { Text(genre.label) },
-                            trailingIcon = { Icon(Icons.Default.Close, contentDescription = "Stop browsing ${genre.label}", modifier = Modifier.size(18.dp)) },
+                            label = { Text(stringResource(genre.labelRes)) },
+                            trailingIcon = { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cd_stop_genre, stringResource(genre.labelRes)), modifier = Modifier.size(18.dp)) },
                             shape = ExpressiveShapes.small
                         )
                     }
@@ -234,7 +236,7 @@ fun SearchScreen(
                                 SearchFilter.entries
                             },
                             selected = state.filter,
-                            label = { it.label },
+                            label = { stringResource(it.labelRes) },
                             onSelect = viewModel::onFilterSelected,
                             modifier = Modifier.weight(1f)
                         )
@@ -281,29 +283,29 @@ fun SearchScreen(
             state.error != null -> item(key = "error", span = FullWidth) {
                 LibraryEmptyState(
                     icon = Icons.Default.SearchOff,
-                    title = "Search didn't go through",
-                    body = "Check your connection and try again.",
-                    action = { Button(onClick = viewModel::retry, shape = ExpressiveShapes.medium) { Text("Try again") } }
+                    title = stringResource(R.string.search_failed),
+                    body = stringResource(R.string.home_check_connection),
+                    action = { Button(onClick = viewModel::retry, shape = ExpressiveShapes.medium) { Text(stringResource(R.string.action_try_again)) } }
                 )
             }
 
             results.isEmpty() && state.filters.activeCount > 0 && !state.isLoadingMore -> item(key = "no-filtered-results", span = FullWidth) {
                 LibraryEmptyState(
                     icon = Icons.Default.FilterAltOff,
-                    title = "Nothing matches these filters",
-                    body = "Loosen the year, rating or language, or clear them to see everything.",
-                    action = { Button(onClick = viewModel::resetFilters, shape = ExpressiveShapes.medium) { Text("Clear filters") } }
+                    title = stringResource(R.string.search_nothing_matches_filters),
+                    body = stringResource(R.string.search_loosen_filters),
+                    action = { Button(onClick = viewModel::resetFilters, shape = ExpressiveShapes.medium) { Text(stringResource(R.string.search_clear_filters)) } }
                 )
             }
 
             results.isEmpty() && state.query.trim().length >= 2 -> item(key = "no-results", span = FullWidth) {
                 LibraryEmptyState(
                     icon = Icons.Default.TravelExplore,
-                    title = "No results for \"${state.query.trim()}\"",
+                    title = stringResource(R.string.er_no_results_for, state.query.trim()),
                     body = if (state.filter != SearchFilter.ALL) {
-                        "Try another filter, a different spelling, or browse by genre."
+                        stringResource(R.string.search_try_other_filter)
                     } else {
-                        "Try a different spelling or the original title, or browse by genre."
+                        stringResource(R.string.search_no_results_hint)
                     }
                 )
             }
@@ -340,8 +342,8 @@ private fun androidx.compose.foundation.lazy.grid.LazyGridScope.browseContent(
         item(key = "recent", span = FullWidth) {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    SectionLabel("Recent searches", Modifier.weight(1f))
-                    TextButton(onClick = onClearRecent) { Text("Clear") }
+                    SectionLabel(stringResource(R.string.search_recent), Modifier.weight(1f))
+                    TextButton(onClick = onClearRecent) { Text(stringResource(R.string.action_clear)) }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     state.recent.forEach { query ->
@@ -353,7 +355,7 @@ private fun androidx.compose.foundation.lazy.grid.LazyGridScope.browseContent(
                             trailingIcon = {
                                 Icon(
                                     Icons.Default.Close,
-                                    contentDescription = "Remove $query",
+                                    contentDescription = stringResource(R.string.cd_remove_query, query),
                                     modifier = Modifier
                                         .size(18.dp)
                                         .clickable { onRemoveRecent(query) }
@@ -370,7 +372,7 @@ private fun androidx.compose.foundation.lazy.grid.LazyGridScope.browseContent(
     if (state.trending.isNotEmpty()) {
         item(key = "trending", span = FullWidth) {
             Column {
-                SectionLabel("Trending now")
+                SectionLabel(stringResource(R.string.home_trending_now))
                 // Tablets split the chart into two columns instead of one long, stretched list.
                 val columns = byWidth(compact = 1, medium = 2)
                 val perColumn = (state.trending.size + columns - 1) / columns
@@ -390,7 +392,7 @@ private fun androidx.compose.foundation.lazy.grid.LazyGridScope.browseContent(
 
     item(key = "genres", span = FullWidth) {
         Column {
-            SectionLabel("Browse by genre")
+            SectionLabel(stringResource(R.string.search_browse_genre))
             val palette = listOf(
                 MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer,
                 MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer,
@@ -420,7 +422,7 @@ private fun androidx.compose.foundation.lazy.grid.LazyGridScope.browseContent(
                             ) {
                                 Icon(genre.icon(), contentDescription = null)
                                 Text(
-                                    text = genre.label,
+                                    text = stringResource(genre.labelRes),
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
                                     maxLines = 2,
@@ -506,24 +508,35 @@ private fun ActiveFiltersRow(
             FilterChip(
                 selected = filters.activeCount > 0,
                 onClick = onOpen,
-                label = { Text(if (filters.activeCount > 0) "Filters · ${filters.activeCount}" else "Filters") },
+                label = {
+                    Text(
+                        if (filters.activeCount > 0) stringResource(R.string.search_filters_count, filters.activeCount)
+                        else stringResource(R.string.search_filters)
+                    )
+                },
                 leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(18.dp)) },
                 shape = ExpressiveShapes.small
             )
         }
         if (filters.year != YearRange.ANY) {
             item(key = "year") {
-                RemovableChip(filters.year.label, "year") { onChange(filters.copy(year = YearRange.ANY)) }
+                RemovableChip(
+                    filters.year.labelRes?.let { stringResource(it) } ?: filters.year.label,
+                    stringResource(R.string.filter_type_year)
+                ) { onChange(filters.copy(year = YearRange.ANY)) }
             }
         }
         if (filters.minRating != MinRating.ANY) {
             item(key = "rating") {
-                RemovableChip("Rated ${filters.minRating.label}", "rating") { onChange(filters.copy(minRating = MinRating.ANY)) }
+                RemovableChip(
+                    stringResource(R.string.search_rated_filter, filters.minRating.label),
+                    stringResource(R.string.filter_type_rating)
+                ) { onChange(filters.copy(minRating = MinRating.ANY)) }
             }
         }
         filters.language?.let { code ->
             item(key = "language") {
-                RemovableChip(languageName(code), "language") { onChange(filters.copy(language = null)) }
+                RemovableChip(languageName(code), stringResource(R.string.filter_type_language)) { onChange(filters.copy(language = null)) }
             }
         }
     }
@@ -535,7 +548,7 @@ private fun RemovableChip(label: String, what: String, onRemove: () -> Unit) {
         selected = true,
         onClick = onRemove,
         label = { Text(label) },
-        trailingIcon = { Icon(Icons.Default.Close, contentDescription = "Remove $what filter", modifier = Modifier.size(18.dp)) },
+        trailingIcon = { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cd_remove_filter, what), modifier = Modifier.size(18.dp)) },
         shape = ExpressiveShapes.small
     )
 }
@@ -558,19 +571,19 @@ private fun FiltersSheet(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Text(
-                text = "Filters",
+                text = stringResource(R.string.search_filters),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.semantics { heading() }
             )
-            FilterSection("Release year") {
+            FilterSection(stringResource(R.string.search_release_year)) {
                 YearRange.entries.forEach { range ->
-                    SheetChip(range.label, selected = filters.year == range) { onChange(filters.copy(year = range)) }
+                    SheetChip(range.labelRes?.let { stringResource(it) } ?: range.label, selected = filters.year == range) { onChange(filters.copy(year = range)) }
                 }
             }
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "Minimum rating",
+                    text = stringResource(R.string.search_min_rating),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -579,14 +592,14 @@ private fun FiltersSheet(
                 ConnectedChoiceGroup(
                     options = MinRating.entries,
                     selected = filters.minRating,
-                    label = { if (it == MinRating.ANY) "Any" else "${it.label} ★" },
+                    label = { if (it.labelRes != null) stringResource(it.labelRes) else "${it.label} ★" },
                     onSelect = { onChange(filters.copy(minRating = it)) }
                 )
             }
-            FilterSection("Original language") {
-                SheetChip("Any", selected = filters.language == null) { onChange(filters.copy(language = null)) }
-                FILTER_LANGUAGES.forEach { (code, name) ->
-                    SheetChip(name, selected = filters.language == code) { onChange(filters.copy(language = code)) }
+            FilterSection(stringResource(R.string.search_original_language)) {
+                SheetChip(stringResource(R.string.st_any), selected = filters.language == null) { onChange(filters.copy(language = null)) }
+                FILTER_LANGUAGES.forEach { (code, _) ->
+                    SheetChip(languageName(code), selected = filters.language == code) { onChange(filters.copy(language = code)) }
                 }
             }
             Row(
@@ -594,10 +607,10 @@ private fun FiltersSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TextButton(onClick = onReset, enabled = filters.activeCount > 0) { Text("Reset") }
+                TextButton(onClick = onReset, enabled = filters.activeCount > 0) { Text(stringResource(R.string.action_reset)) }
                 Spacer(Modifier.weight(1f))
                 Button(onClick = onDismiss, shape = ExpressiveShapes.medium) {
-                    Text(if (matchCount == 1) "Show 1 result" else "Show $matchCount results")
+                    Text(if (matchCount == 1) stringResource(R.string.action_show_one_result) else stringResource(R.string.search_show_results, matchCount))
                 }
             }
         }
@@ -637,9 +650,11 @@ private fun SheetChip(label: String, selected: Boolean, onClick: () -> Unit) {
     )
 }
 
-private fun languageName(code: String): String =
-    FILTER_LANGUAGES.firstOrNull { it.first == code }?.second
-        ?: Locale.forLanguageTag(code).getDisplayLanguage(Locale.ENGLISH).ifBlank { code.uppercase() }
+private fun languageName(code: String): String {
+    val display = Locale.forLanguageTag(code).getDisplayLanguage(Locale.getDefault())
+    if (display.isNotBlank() && !display.equals(code, ignoreCase = true)) return display
+    return FILTER_LANGUAGES.firstOrNull { it.first == code }?.second ?: code.uppercase()
+}
 
 @Composable
 private fun SortMenu(selected: SortOption, onSelect: (SortOption) -> Unit) {
@@ -647,7 +662,7 @@ private fun SortMenu(selected: SortOption, onSelect: (SortOption) -> Unit) {
     Box {
         AssistChip(
             onClick = { open = true },
-            label = { Text(selected.label) },
+            label = { Text(stringResource(selected.labelRes)) },
             leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null, modifier = Modifier.size(18.dp)) },
             shape = ExpressiveShapes.small,
             modifier = Modifier.padding(start = 8.dp)
@@ -655,9 +670,9 @@ private fun SortMenu(selected: SortOption, onSelect: (SortOption) -> Unit) {
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             SortOption.entries.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(option.label) },
+                    text = { Text(stringResource(option.labelRes)) },
                     trailingIcon = if (option == selected) {
-                        { Icon(Icons.Default.Check, contentDescription = "Selected") }
+                        { Icon(Icons.Default.Check, contentDescription = stringResource(R.string.cd_selected)) }
                     } else {
                         null
                     },
@@ -709,7 +724,7 @@ private fun TopResultCard(item: AnimeDto, onClick: () -> Unit) {
             ) {
                 Surface(shape = ExpressiveShapes.small, color = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) {
                     Text(
-                        "TOP RESULT",
+                        stringResource(R.string.home_top_result).uppercase(),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Black,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
@@ -746,7 +761,7 @@ private fun ResultCard(item: AnimeDto, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .clip(ExpressiveShapes.medium)
-            .clickable(onClickLabel = "Open ${item.name}", onClick = onClick)
+            .clickable(onClickLabel = stringResource(R.string.misc_open_title, item.name), onClick = onClick)
             .padding(bottom = 10.dp)
     ) {
         Box(
@@ -771,7 +786,7 @@ private fun ResultCard(item: AnimeDto, onClick: () -> Unit) {
                         .align(Alignment.TopStart)
                         .padding(6.dp)
                 ) {
-                    Text("MOVIE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                    Text(stringResource(R.string.details_movie).uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                 }
             }
         }
@@ -795,8 +810,9 @@ private fun ResultCard(item: AnimeDto, onClick: () -> Unit) {
     }
 }
 
+@Composable
 private fun metaLine(item: AnimeDto): String = listOfNotNull(
-    if (item.isMovie) "Movie" else "Series",
+    if (item.isMovie) stringResource(R.string.details_movie) else stringResource(R.string.search_filter_series),
     item.date.take(4).takeIf { it.length == 4 },
     item.voteAverage?.takeIf { it > 0 }?.let { String.format(Locale.US, "★ %.1f", it) }
 ).joinToString("  ·  ")

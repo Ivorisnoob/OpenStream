@@ -1,10 +1,13 @@
 package com.ivor.openstream.presentation.details
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ivor.openstream.R
 import com.ivor.openstream.data.remote.model.AnimeDetailsDto
 import com.ivor.openstream.data.local.entity.WatchLaterEntity
+import com.ivor.openstream.data.local.entity.ReminderEntity
 import com.ivor.openstream.data.remote.model.SeasonDetailsDto
 import com.ivor.openstream.data.remote.model.EpisodeDto
 import com.ivor.openstream.data.remote.model.toAnimeDto
@@ -12,6 +15,9 @@ import com.ivor.openstream.data.local.entity.DownloadEntity
 import com.ivor.openstream.data.local.dao.CustomListSummary
 import com.ivor.openstream.data.local.entity.CustomListItemEntity
 import com.ivor.openstream.data.repository.CustomListRepository
+import com.ivor.openstream.data.repository.ReminderRepository
+import com.ivor.openstream.data.repository.TitleRatingRepository
+import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.domain.model.DownloadTarget
 import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.domain.repository.AnimeRepository
@@ -19,6 +25,7 @@ import com.ivor.openstream.domain.repository.DownloadRepository
 import com.ivor.openstream.domain.repository.WatchLaterRepository
 import com.ivor.openstream.domain.repository.WatchProgressRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +35,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -41,6 +49,10 @@ class DetailsViewModel @Inject constructor(
     private val downloadRepository: DownloadRepository,
     private val watchProgressRepository: WatchProgressRepository,
     private val listRepository: CustomListRepository,
+    private val reminderRepository: ReminderRepository,
+    private val ratingRepository: TitleRatingRepository,
+    private val settings: AppSettingsStore,
+    @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -57,6 +69,39 @@ class DetailsViewModel @Inject constructor(
             started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
             initialValue = false
         )
+
+    /** True when this title hasn't released yet, so "Remind me" makes sense. */
+    val remindable: StateFlow<Boolean> = uiState
+        .map { (it as? DetailsUiState.Success)?.details?.let { d -> isUnreleased(d) } ?: false }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** Whether the active profile has a reminder set for this title. */
+    val reminderSet: StateFlow<Boolean> = settings.activeProfileId
+        .flatMapLatest { id -> reminderRepository.isReminder(id, mediaType, animeId) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** Toggles the "Remind me" request for this title, confirming via [messages]. */
+    fun toggleReminder() {
+        val details = (_uiState.value as? DetailsUiState.Success)?.details ?: return
+        viewModelScope.launch {
+            val profileId = settings.activeProfileId.value
+            if (reminderSet.value) {
+                reminderRepository.remove(profileId, mediaType, animeId)
+                _messages.tryEmit(context.getString(R.string.remind_removed))
+            } else {
+                reminderRepository.add(
+                    ReminderEntity(
+                        profileId = profileId,
+                        mediaType = mediaType,
+                        tmdbId = animeId,
+                        title = details.name,
+                        posterPath = details.posterPath
+                    )
+                )
+                _messages.tryEmit(context.getString(R.string.remind_set))
+            }
+        }
+    }
 
     /** Every episode the user has touched, newest first. */
     private val titleProgress = watchProgressRepository.progressForTitle(mediaType, animeId)
@@ -96,7 +141,7 @@ class DetailsViewModel @Inject constructor(
                     }
                 }
                 .onFailure { exception ->
-                    _uiState.value = DetailsUiState.Error(exception.message ?: "Unknown error")
+                    _uiState.value = DetailsUiState.Error(exception.message ?: context.getString(R.string.er_unknown))
                 }
         }
     }
@@ -206,7 +251,7 @@ class DetailsViewModel @Inject constructor(
         viewModelScope.launch {
             if (!watched) {
                 watchProgressRepository.clearTitle(mediaType, animeId)
-                _messages.tryEmit("Marked ${details.name} unwatched")
+                _messages.tryEmit(context.getString(R.string.details_marked_unwatched, details.name))
                 return@launch
             }
             if (mediaType == "movie") {
@@ -236,9 +281,10 @@ class DetailsViewModel @Inject constructor(
                     }
                 _messages.tryEmit(
                     when {
-                        failedSeasons > 0 -> "Couldn't load $failedSeasons season(s). Check your connection and try again."
-                        marked == 0 -> "Everything aired is already watched"
-                        else -> "Marked $marked episode${if (marked == 1) "" else "s"} watched"
+                        failedSeasons > 0 -> context.getString(R.string.details_seasons_failed, failedSeasons)
+                        marked == 0 -> context.getString(R.string.er_everything_watched)
+                        marked == 1 -> context.getString(R.string.details_marked_episodes_one)
+                        else -> context.getString(R.string.details_marked_episodes_other, marked)
                     }
                 )
             } finally {
@@ -262,6 +308,25 @@ class DetailsViewModel @Inject constructor(
         }
     }
 
+    /** The user's explicit taste signal for this title, if any. */
+    val rating: StateFlow<Int?> = ratingRepository.ratingFor(mediaType, animeId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun rate(value: Int) {
+        val details = (_uiState.value as? DetailsUiState.Success)?.details ?: return
+        viewModelScope.launch {
+            ratingRepository.toggle(
+                mediaType = mediaType,
+                tmdbId = animeId,
+                rating = value,
+                title = details.name,
+                genreIds = details.genres.orEmpty().map { it.id }.toSet(),
+                language = details.originalLanguage,
+                voteAverage = details.voteAverage
+            )
+        }
+    }
+
     /** Makes a list (or finds one with that name) and puts this title in it. */
     fun createListWithTitle(name: String) {
         val details = (_uiState.value as? DetailsUiState.Success)?.details ?: return
@@ -269,7 +334,7 @@ class DetailsViewModel @Inject constructor(
         viewModelScope.launch {
             val listId = listRepository.create(name)
             listRepository.add(details.asListItem(listId))
-            _messages.tryEmit("Added to ${name.trim()}")
+            _messages.tryEmit(context.getString(R.string.details_added_to, name.trim()))
         }
     }
 
@@ -287,6 +352,10 @@ class DetailsViewModel @Inject constructor(
         downloadRepository.getDownloadsForTitle(animeId, mediaType)
             .map { rows -> rows.associateBy { it.season to it.episode } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    private fun isUnreleased(details: AnimeDetailsDto): Boolean =
+        if (mediaType == "movie") isFuture(details.date)
+        else isFuture(details.firstAirDate) || details.status in setOf("Planned", "In Production", "Pilot")
 
     /** Hands episodes to the app-wide download queue; it keeps going after this screen closes. */
     fun downloadEpisodes(episodes: List<EpisodeDto>) {
@@ -314,6 +383,11 @@ private const val DEFAULT_RUNTIME_MIN = 24
 private fun isReleased(airDate: String?): Boolean {
     val date = airDate?.takeIf { it.isNotBlank() } ?: return true
     return runCatching { !LocalDate.parse(date.take(10)).isAfter(LocalDate.now()) }.getOrDefault(true)
+}
+
+private fun isFuture(date: String?): Boolean {
+    val parsed = date?.takeIf { it.isNotBlank() } ?: return false
+    return runCatching { LocalDate.parse(parsed.take(10)).isAfter(LocalDate.now()) }.getOrDefault(false)
 }
 
 /** Episodes aired so far across the regular seasons, from season sizes and the next air date. */

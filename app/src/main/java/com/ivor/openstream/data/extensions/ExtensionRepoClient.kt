@@ -1,5 +1,8 @@
 package com.ivor.openstream.data.extensions
 
+import android.content.Context
+import com.ivor.openstream.R
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -13,11 +16,18 @@ import javax.inject.Singleton
 @Singleton
 class ExtensionRepoClient @Inject constructor(
     @Named("StreamingClient") private val client: OkHttpClient,
-    private val parser: ExtensionIndexParser
+    private val parser: ExtensionIndexParser,
+    @ApplicationContext private val context: Context
 ) {
 
     suspend fun fetch(url: String): CachedRepoSnapshot = withContext(Dispatchers.IO) {
-        val repo = parser.parseRepo(get(url), sourceUrl = url)
+        val strings = ExtensionIndexParser.RepoParseStrings(
+            indexError = context.getString(R.string.st_index_not_json),
+            manifestIdError = context.getString(R.string.st_addon_no_id),
+            noStreamsNote = context.getString(R.string.st_addon_no_streams),
+            needsConfigNote = context.getString(R.string.st_addon_needs_config)
+        )
+        val repo = parser.parseRepo(get(url), sourceUrl = url, strings = strings)
         val linked = repo.extensionLists
             .mapNotNull { RepoUrlNormalizer.normalize(it) }
             .flatMap { listUrl ->
@@ -26,7 +36,7 @@ class ExtensionRepoClient @Inject constructor(
 
         val entries = (repo.extensions + linked).distinctBy { it.id }
         if (entries.isEmpty() && repo.extensionLists.isNotEmpty()) {
-            throw IOException("Repository lists could not be read")
+            throw IOException(context.getString(R.string.st_repo_lists_unreadable))
         }
 
         CachedRepoSnapshot(

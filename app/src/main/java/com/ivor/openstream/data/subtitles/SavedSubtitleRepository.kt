@@ -3,6 +3,7 @@ package com.ivor.openstream.data.subtitles
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import com.ivor.openstream.R
 import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.domain.model.DownloadTarget
 import com.ivor.openstream.domain.model.StreamSubtitle
@@ -103,7 +104,7 @@ class SavedSubtitleRepository @Inject constructor(
             val merged = (candidates + readStream(dir)).distinctBy { it.subtitle.url }
             val temp = File(dir, "$STREAM_FILE.tmp")
             temp.writeText(json.encodeToString(streamSerializer, merged))
-            if (!temp.renameTo(File(dir, STREAM_FILE))) throw IOException("Could not record stream subtitles")
+            if (!temp.renameTo(File(dir, STREAM_FILE))) throw IOException(context.getString(R.string.dl_could_not_record))
         }
     }
 
@@ -167,11 +168,11 @@ class SavedSubtitleRepository @Inject constructor(
             } ?: uri.lastPathSegment.orEmpty()
             val bytes = resolver.openInputStream(uri)?.use { input ->
                 val buffer = input.readNBytesCompat(MAX_IMPORT_BYTES + 1)
-                if (buffer.size > MAX_IMPORT_BYTES) throw IOException("That file is too large for a subtitle")
+                if (buffer.size > MAX_IMPORT_BYTES) throw IOException(context.getString(R.string.dl_sub_too_large))
                 buffer
-            } ?: throw IOException("Could not open that file")
+            } ?: throw IOException(context.getString(R.string.dl_could_not_open_file))
             val text = fetcher.textOf(bytes)
-            if (parseSubtitles(text).isEmpty()) throw IOException("No subtitles found in that file")
+            if (parseSubtitles(text).isEmpty()) throw IOException(context.getString(R.string.dl_no_sub_in_file))
 
             val baseName = name.substringBeforeLast('.').ifBlank { "Subtitles" }
             val language = guessLanguage(baseName)
@@ -242,7 +243,7 @@ class SavedSubtitleRepository @Inject constructor(
         }
         val temp = File(dir, "$INDEX_FILE.tmp")
         temp.writeText(json.encodeToString(indexSerializer, entries))
-        if (!temp.renameTo(File(dir, INDEX_FILE))) throw IOException("Could not update saved subtitles")
+        if (!temp.renameTo(File(dir, INDEX_FILE))) throw IOException(context.getString(R.string.dl_could_not_update_saved))
     }
 
     private fun directory(mediaType: String, tmdbId: Int, season: Int, episode: Int) =
@@ -345,7 +346,8 @@ class SavedSubtitleRepository @Inject constructor(
                 "zt" -> return "Chinese (Traditional)"
                 "ze" -> return "Chinese and English"
             }
-            val name = Locale.forLanguageTag(code).getDisplayLanguage(Locale.ENGLISH)
+            // Display language follows the app language (AppLocale sets the JVM default).
+            val name = Locale.forLanguageTag(code).getDisplayLanguage(Locale.getDefault())
             return if (name.isBlank() || name.equals(code, ignoreCase = true)) code.uppercase(Locale.ROOT) else name
         }
 

@@ -7,5 +7,7 @@ data class Profile(
     /** Built-in avatar key; the UI maps it to an icon and color role. */
     val avatar: String,
     /** Home and Search only show titles rated for children; Settings sits behind a hold gesture. */
-    val isKids: Boolean
+    val isKids: Boolean,
+    /** True when entering this profile requires its PIN. */
+    val hasPin: Boolean = false
 )

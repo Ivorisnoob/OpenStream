@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.ivor.openstream.data.local.dao.ProfileDao
+import com.ivor.openstream.data.local.dao.ReminderDao
+import com.ivor.openstream.data.local.dao.TitleRatingDao
 import com.ivor.openstream.data.local.entity.ProfileEntity
 import com.ivor.openstream.data.repository.ProfileRepository
 import androidx.room.migration.Migration
@@ -208,6 +210,49 @@ object DatabaseModule {
         }
     }
 
+    /**
+     * Profile PINs (nullable hash + salt), smart-download flag on downloads,
+     * plus the reminders and title-ratings tables.
+     */
+    private val migration8To9 = object : Migration(8, 9) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE `profiles` ADD COLUMN `pinHash` TEXT")
+            database.execSQL("ALTER TABLE `profiles` ADD COLUMN `pinSalt` TEXT")
+            database.execSQL("ALTER TABLE `downloads` ADD COLUMN `isSmart` INTEGER NOT NULL DEFAULT 0")
+            database.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `reminders` (
+                    `profileId` INTEGER NOT NULL,
+                    `mediaType` TEXT NOT NULL,
+                    `tmdbId` INTEGER NOT NULL,
+                    `title` TEXT NOT NULL,
+                    `posterPath` TEXT,
+                    `season` INTEGER,
+                    `episode` INTEGER,
+                    `createdAt` INTEGER NOT NULL,
+                    PRIMARY KEY(`profileId`, `mediaType`, `tmdbId`)
+                )
+                """.trimIndent()
+            )
+            database.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `title_ratings` (
+                    `profileId` INTEGER NOT NULL,
+                    `mediaType` TEXT NOT NULL,
+                    `tmdbId` INTEGER NOT NULL,
+                    `rating` INTEGER NOT NULL,
+                    `title` TEXT NOT NULL DEFAULT '',
+                    `genreIds` TEXT NOT NULL DEFAULT '',
+                    `language` TEXT,
+                    `voteAverage` REAL,
+                    `updatedAt` INTEGER NOT NULL,
+                    PRIMARY KEY(`profileId`, `mediaType`, `tmdbId`)
+                )
+                """.trimIndent()
+            )
+        }
+    }
+
     /** The profile every existing row is given; also created on a fresh install. */
     private fun seedDefaultProfile(database: SupportSQLiteDatabase) {
         database.execSQL(
@@ -229,7 +274,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "open_stream_db"
         )
-            .addMigrations(migration2To3, migration3To4, migration4To5, migration5To6, migration6To7, migration7To8)
+            .addMigrations(migration2To3, migration3To4, migration4To5, migration5To6, migration6To7, migration7To8, migration8To9)
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) = seedDefaultProfile(db)
             })
@@ -270,5 +315,15 @@ object DatabaseModule {
     @Provides
     fun provideWatchProgressDao(database: AppDatabase): WatchProgressDao {
         return database.watchProgressDao()
+    }
+
+    @Provides
+    fun provideReminderDao(database: AppDatabase): ReminderDao {
+        return database.reminderDao()
+    }
+
+    @Provides
+    fun provideTitleRatingDao(database: AppDatabase): TitleRatingDao {
+        return database.ratingDao()
     }
 }

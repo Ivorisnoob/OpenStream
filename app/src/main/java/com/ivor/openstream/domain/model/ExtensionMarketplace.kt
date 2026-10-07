@@ -1,5 +1,8 @@
 package com.ivor.openstream.domain.model
 
+import androidx.annotation.StringRes
+import com.ivor.openstream.R
+
 /**
  * Version of the extension manifest contract this build understands. Extensions declaring a
  * higher [ExtensionManifest.apiVersion] are listed but cannot be installed, mirroring the
@@ -8,11 +11,11 @@ package com.ivor.openstream.domain.model
 const val EXTENSION_API_VERSION: Int = 1
 
 /** Availability reported by the repository. Status codes match CloudStream's convention. */
-enum class ExtensionStatus(val code: Int, val label: String) {
-    DOWN(0, "Down"),
-    OK(1, "Online"),
-    SLOW(2, "Slow"),
-    BETA(3, "Beta");
+enum class ExtensionStatus(val code: Int, val label: String, @StringRes val labelRes: Int) {
+    DOWN(0, "Down", R.string.ext_status_down),
+    OK(1, "Online", R.string.ext_status_online),
+    SLOW(2, "Slow", R.string.ext_status_slow),
+    BETA(3, "Beta", R.string.ext_status_beta);
 
     companion object {
         fun fromCode(code: Int): ExtensionStatus = entries.firstOrNull { it.code == code } ?: OK
@@ -150,12 +153,12 @@ data class ExtensionRepo(
     val error: String? = null
 )
 
-enum class MarketplaceSort(val label: String) {
-    POPULAR("Popular"),
-    TRENDING("Trending"),
-    TOP_RATED("Top rated"),
-    RECENT("Recently updated"),
-    NAME("A–Z")
+enum class MarketplaceSort(val label: String, @StringRes val labelRes: Int) {
+    POPULAR("Popular", R.string.mk_sort_popular),
+    TRENDING("Trending", R.string.mk_sort_trending),
+    TOP_RATED("Top rated", R.string.mk_sort_top_rated),
+    RECENT("Recently updated", R.string.mk_sort_recent),
+    NAME("A–Z", R.string.mk_sort_az)
 }
 
 data class ExtensionCatalog(

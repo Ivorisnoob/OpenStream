@@ -1,5 +1,7 @@
 package com.ivor.openstream.presentation.player
 
+import android.content.Context
+import com.ivor.openstream.R
 import com.ivor.openstream.data.local.entity.CustomListItemEntity
 import com.ivor.openstream.data.local.dao.CustomListSummary
 import com.ivor.openstream.data.repository.CustomListRepository
@@ -25,6 +27,7 @@ import com.ivor.openstream.domain.repository.WatchLaterRepository
 import com.ivor.openstream.data.local.entity.WatchLaterEntity
 import kotlinx.coroutines.flow.map
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -112,7 +115,8 @@ class PlayerViewModel @Inject constructor(
     appSettingsStore: AppSettingsStore,
     private val skipTimesRepository: SkipTimesRepository,
     private val subtitleFetcher: SubtitleFetcher,
-    private val savedSubtitleRepository: SavedSubtitleRepository
+    private val savedSubtitleRepository: SavedSubtitleRepository,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     /** A sideloaded subtitle's text, downloaded and unwrapped by the data layer. */
@@ -371,7 +375,7 @@ class PlayerViewModel @Inject constructor(
             val details = _mediaDetails.value ?: return@launch
             val currentServer = if (System.currentTimeMillis() - server.resolvedAt > STREAM_REFRESH_AGE_MS) {
                 streamingRepository.refreshServer(server).getOrElse {
-                    _playerEvents.tryEmit("That server expired. Choose another source.")
+                    _playerEvents.tryEmit(context.getString(R.string.player_server_expired))
                     return@launch
                 }
             } else {
@@ -395,9 +399,9 @@ class PlayerViewModel @Inject constructor(
                     )
                 )
             }.onSuccess {
-                _playerEvents.tryEmit("Downloading. Find it in Downloads.")
+                _playerEvents.tryEmit(context.getString(R.string.er_download_started))
             }.onFailure {
-                _playerEvents.tryEmit(it.message ?: "Download could not be started.")
+                _playerEvents.tryEmit(it.message ?: context.getString(R.string.dl_could_not_start))
             }
         }
     }
@@ -615,7 +619,7 @@ class PlayerViewModel @Inject constructor(
             setActiveId(previous.id)
             currentIdentity?.let { streamingRepository.rememberServer(it, previous) }
             val label = failed.audioLanguage?.let { "${failed.name} ($it)" } ?: failed.name
-            _playerEvents.tryEmit("$label won't play on this device. Back to ${previous.name}.")
+            _playerEvents.tryEmit(context.getString(R.string.details_failed_devices, label, previous.name))
             return
         }
         val next = availableServers().firstOrNull { it.id !in failedServerIds }
@@ -623,18 +627,18 @@ class PlayerViewModel @Inject constructor(
             automaticFailovers++
             _activeServer.value = next
             setActiveId(next.id)
-            _playerEvents.tryEmit("${failed.name} didn't play. Trying ${next.name}.")
+            _playerEvents.tryEmit(context.getString(R.string.details_failed_trying_next, failed.name, next.name))
         } else if (!backupSourcesSearched && currentIdentity != null) {
             // Every direct link failed to play: widen the search to the backup sources once.
             backupSourcesSearched = true
             automaticFailovers = 0
             _activeServer.value = null
-            _playerEvents.tryEmit("${failed.name} didn't play. Searching backup sources…")
+            _playerEvents.tryEmit(context.getString(R.string.details_failed_searching_backup, failed.name))
             startResolution(currentIdentity!!, includeFallbacks = true)
         } else {
             _activeServer.value = null
             setActiveId(null)
-            _playerEvents.tryEmit("No more healthy servers. Choose a source or retry.")
+            _playerEvents.tryEmit(context.getString(R.string.player_no_healthy_action))
         }
     }
 

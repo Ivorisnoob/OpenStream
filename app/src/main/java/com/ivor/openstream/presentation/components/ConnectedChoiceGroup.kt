@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.dp
 fun <T> ConnectedChoiceGroup(
     options: List<T>,
     selected: T,
-    label: (T) -> String,
+    label: @Composable (T) -> String,
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier
 ) {

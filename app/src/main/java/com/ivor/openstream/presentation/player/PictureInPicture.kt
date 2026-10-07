@@ -174,11 +174,12 @@ private fun playbackAction(context: Context, isPlaying: Boolean): RemoteAction {
         Intent(ACTION_TOGGLE_PLAYBACK).setPackage(context.packageName),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
-    val (icon, label) = if (isPlaying) {
-        R.drawable.ic_pip_pause to "Pause"
+    val (icon, labelRes) = if (isPlaying) {
+        R.drawable.ic_pip_pause to R.string.cd_pause
     } else {
-        R.drawable.ic_pip_play to "Play"
+        R.drawable.ic_pip_play to R.string.cd_play
     }
+    val label = context.getString(labelRes)
     return RemoteAction(Icon.createWithResource(context, icon), label, label, intent)
 }
 
@@ -191,10 +192,10 @@ private fun buttonAction(context: Context, action: PipAction, seekStepSeconds: I
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
     val (icon, label) = when (action) {
-        PipAction.REWIND -> R.drawable.ic_pip_rewind to "Back ${seekStepSeconds}s"
-        PipAction.FORWARD -> R.drawable.ic_pip_forward to "Forward ${seekStepSeconds}s"
-        PipAction.NEXT_EPISODE -> R.drawable.ic_pip_next to "Next episode"
-        PipAction.SKIP_INTRO -> R.drawable.ic_pip_skip to "Skip intro"
+        PipAction.REWIND -> R.drawable.ic_pip_rewind to context.getString(R.string.pip_back_seconds, seekStepSeconds)
+        PipAction.FORWARD -> R.drawable.ic_pip_forward to context.getString(R.string.pip_forward_seconds, seekStepSeconds)
+        PipAction.NEXT_EPISODE -> R.drawable.ic_pip_next to context.getString(R.string.action_next_episode)
+        PipAction.SKIP_INTRO -> R.drawable.ic_pip_skip to context.getString(R.string.player_skip_intro)
     }
     return RemoteAction(Icon.createWithResource(context, icon), label, label, intent).apply {
         isEnabled = action != PipAction.NEXT_EPISODE || canGoNext

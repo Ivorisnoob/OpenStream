@@ -1,5 +1,6 @@
 package com.ivor.openstream
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
@@ -18,9 +19,12 @@ import androidx.compose.ui.Modifier
 import com.ivor.openstream.presentation.navigation.AppNavigation
 import com.ivor.openstream.presentation.navigation.DeepLinkRequest
 import com.ivor.openstream.presentation.navigation.DeepLinks
+import com.ivor.openstream.presentation.tv.TvNavigation
+import com.ivor.openstream.presentation.tv.rememberTvMode
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import com.ivor.openstream.data.settings.AppSettingsStore
+import com.ivor.openstream.data.settings.AppLocale
 import com.ivor.openstream.data.settings.ThemeMode
 import com.ivor.openstream.presentation.player.session.PlaybackSession
 import com.ivor.openstream.presentation.shortcuts.AppShortcut
@@ -41,6 +45,10 @@ class MainActivity : ComponentActivity() {
 
     private var shortcutRequest by mutableStateOf<ShortcutRequest?>(null)
     private var deepLinkRequest by mutableStateOf<DeepLinkRequest?>(null)
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLocale.wrap(newBase, AppLocale.savedTag(newBase)))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -72,13 +80,17 @@ class MainActivity : ComponentActivity() {
                 // Most screens draw their own background without a Scaffold, so this root
                 // Surface is what gives un-styled Text the theme's onBackground color.
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    AppNavigation(
-                        windowSizeClass = windowSizeClass.widthSizeClass,
-                        shortcutRequest = shortcutRequest,
-                        onShortcutHandled = { shortcutRequest = null },
-                        deepLinkRequest = deepLinkRequest,
-                        onDeepLinkHandled = { deepLinkRequest = null }
-                    )
+                    if (rememberTvMode()) {
+                        TvNavigation()
+                    } else {
+                        AppNavigation(
+                            windowSizeClass = windowSizeClass.widthSizeClass,
+                            shortcutRequest = shortcutRequest,
+                            onShortcutHandled = { shortcutRequest = null },
+                            deepLinkRequest = deepLinkRequest,
+                            onDeepLinkHandled = { deepLinkRequest = null }
+                        )
+                    }
                 }
             }
         }
@@ -94,7 +106,7 @@ class MainActivity : ComponentActivity() {
         AppShortcut.from(intent)?.let { shortcutRequest = ShortcutRequest(it) }
         DeepLinks.from(intent)?.let { deepLinkRequest = it }
         if (DeepLinks.isUnrecognisedShare(intent)) {
-            Toast.makeText(this, "OpenStream opens TMDB movie and TV links", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.er_tmdb_links), Toast.LENGTH_LONG).show()
         }
     }
 

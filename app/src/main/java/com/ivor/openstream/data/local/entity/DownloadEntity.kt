@@ -29,7 +29,9 @@ data class DownloadEntity(
     val episodeTitle: String? = null,
     val stillPath: String? = null,
     val year: Int? = null,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    /** True when the row was created by Smart Downloads and may be auto-managed. */
+    val isSmart: Boolean = false
 ) {
     val displayTitle: String get() = showTitle ?: title
 

@@ -1,6 +1,7 @@
 package com.ivor.openstream.presentation.player.components
 
 import androidx.compose.animation.AnimatedContent
+import com.ivor.openstream.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -47,6 +48,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -186,7 +188,7 @@ fun CastPlaybackView(
                         .padding(horizontal = 4.dp)
                 ) {
                     Text(
-                        text = "Playing on $deviceName",
+                        text = stringResource(R.string.player_playing_on, deviceName),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primaryContainer,
                         maxLines = 1,
@@ -207,12 +209,12 @@ fun CastPlaybackView(
                         IconButton(onClick = { showSubtitleMenu = true }) {
                             Icon(
                                 if (subtitles.activeId != null) Icons.Default.ClosedCaption else Icons.Default.ClosedCaptionDisabled,
-                                contentDescription = "Subtitles on the TV",
+                                contentDescription = stringResource(R.string.player_subtitles_on_tv),
                                 tint = Color.White
                             )
                         }
                         DropdownMenu(expanded = showSubtitleMenu, onDismissRequest = { showSubtitleMenu = false }) {
-                            SubtitleMenuItem("Off", selected = subtitles.activeId == null) {
+                            SubtitleMenuItem(stringResource(R.string.misc_off), selected = subtitles.activeId == null) {
                                 showSubtitleMenu = false
                                 onSelectSubtitle(null)
                             }
@@ -226,7 +228,7 @@ fun CastPlaybackView(
                     }
                 }
                 IconButton(onClick = onCastClick) {
-                    Icon(Icons.Default.CastConnected, contentDescription = "Cast device: $deviceName", tint = Color.White)
+                    Icon(Icons.Default.CastConnected, contentDescription = stringResource(R.string.cd_cast_device, deviceName), tint = Color.White)
                 }
             }
 
@@ -245,10 +247,10 @@ fun CastPlaybackView(
                             modifier = Modifier.padding(horizontal = 24.dp)
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                            Button(onClick = onRetry, shape = ExpressiveShapes.medium) { Text("Retry") }
+                            Button(onClick = onRetry, shape = ExpressiveShapes.medium) { Text(stringResource(R.string.action_retry)) }
                             if (onChooseSource != null && error.fromStream) {
                                 OutlinedButton(onClick = onChooseSource, shape = ExpressiveShapes.medium) {
-                                    Text("Other source", color = Color.White)
+                                    Text(stringResource(R.string.player_other_source), color = Color.White)
                                 }
                             }
                         }
@@ -263,7 +265,7 @@ fun CastPlaybackView(
                             onClick = { castPlayer.seekTo((castPlayer.currentPosition - seekMs).coerceAtLeast(0L)) },
                             modifier = Modifier.size(48.dp)
                         ) {
-                            Icon(Icons.Default.Replay10, contentDescription = "Back $seekStepSeconds seconds")
+                            Icon(Icons.Default.Replay10, contentDescription = stringResource(R.string.cd_back_seconds, seekStepSeconds))
                         }
                         Box(contentAlignment = Alignment.Center) {
                             FilledIconButton(
@@ -278,7 +280,7 @@ fun CastPlaybackView(
                                 AnimatedContent(targetState = playWhenReady, label = "castPlayPause") { playing ->
                                     Icon(
                                         if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                        contentDescription = if (playing) "Pause on TV" else "Play on TV",
+                                        contentDescription = if (playing) stringResource(R.string.player_pause_on_tv) else stringResource(R.string.player_play_on_tv),
                                         modifier = Modifier.size(32.dp)
                                     )
                                 }
@@ -297,11 +299,11 @@ fun CastPlaybackView(
                             },
                             modifier = Modifier.size(48.dp)
                         ) {
-                            Icon(Icons.Default.Forward10, contentDescription = "Forward $seekStepSeconds seconds")
+                            Icon(Icons.Default.Forward10, contentDescription = stringResource(R.string.cd_forward_seconds, seekStepSeconds))
                         }
                         if (onNextClick != null) {
                             FilledTonalIconButton(onClick = onNextClick, modifier = Modifier.size(48.dp)) {
-                                Icon(Icons.Default.SkipNext, contentDescription = "Next episode")
+                                Icon(Icons.Default.SkipNext, contentDescription = stringResource(R.string.action_next_episode))
                             }
                         }
                     }
@@ -360,7 +362,7 @@ private fun SubtitleMenuItem(label: String, selected: Boolean, onClick: () -> Un
         text = { Text(label) },
         onClick = onClick,
         leadingIcon = {
-            if (selected) Icon(Icons.Default.Check, contentDescription = "Selected") else Spacer(Modifier.width(24.dp))
+            if (selected) Icon(Icons.Default.Check, contentDescription = stringResource(R.string.cd_selected)) else Spacer(Modifier.width(24.dp))
         }
     )
 }
@@ -408,7 +410,7 @@ fun CastDeviceSheet(
                 .padding(bottom = 16.dp)
         ) {
             Text(
-                text = if (status.isCasting) "Casting to ${status.deviceName}" else "Cast to a TV",
+                text = if (status.isCasting) stringResource(R.string.cast_casting_to, status.deviceName.orEmpty()) else stringResource(R.string.player_cast_to_tv),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
@@ -417,7 +419,7 @@ fun CastDeviceSheet(
             )
             if (status.isCasting) {
                 Text(
-                    text = "Keep this phone on the same Wi-Fi network: the TV streams through it.",
+                    text = stringResource(R.string.player_cast_phone_wifi),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 24.dp)
@@ -432,7 +434,7 @@ fun CastDeviceSheet(
                         .padding(horizontal = 24.dp, vertical = 16.dp)
                         .fillMaxWidth()
                 ) {
-                    Text("Stop casting")
+                    Text(stringResource(R.string.action_stop_casting))
                 }
                 return@Column
             }
@@ -444,7 +446,7 @@ fun CastDeviceSheet(
                 ) {
                     LoadingIndicator(modifier = Modifier.size(40.dp))
                     Text(
-                        text = if (status.connecting) "Connecting…" else "Looking for Chromecast and Google TV devices on this Wi-Fi…",
+                        text = if (status.connecting) stringResource(R.string.cast_connecting) else stringResource(R.string.cast_looking),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 16.dp)
@@ -457,7 +459,7 @@ fun CastDeviceSheet(
                         ListItem(
                             headlineContent = { Text(route.name) },
                             supportingContent = {
-                                (if (connecting) "Connecting…" else route.description)?.let { Text(it) }
+                                (if (connecting) stringResource(R.string.cast_connecting) else route.description)?.let { Text(it) }
                             },
                             leadingContent = {
                                 Icon(
@@ -478,7 +480,7 @@ fun CastDeviceSheet(
                 }
             }
             TextButton(onClick = onDismiss, modifier = Modifier.padding(horizontal = 12.dp)) {
-                Text("Close")
+                Text(stringResource(R.string.action_close))
             }
         }
     }

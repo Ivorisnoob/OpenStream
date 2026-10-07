@@ -1,11 +1,13 @@
 package com.ivor.openstream.data.cast
 
+import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import androidx.media3.cast.MediaItemConverter
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import com.ivor.openstream.R
 import com.google.android.gms.cast.MediaInfo
 import com.google.android.gms.cast.MediaQueueItem
 import com.google.android.gms.cast.MediaTrack
@@ -21,10 +23,10 @@ import com.google.android.gms.cast.MediaMetadata as CastMetadata
  * one marked [C.SELECTION_FLAG_DEFAULT] starts active) and keeps the item's extras, which carry what
  * is playing, so a session the app rejoins after a restart still knows its title and episode.
  */
-class CastMediaItemConverter : MediaItemConverter {
+class CastMediaItemConverter(private val context: Context) : MediaItemConverter {
 
     override fun toMediaQueueItem(mediaItem: MediaItem): MediaQueueItem {
-        val configuration = requireNotNull(mediaItem.localConfiguration) { "Cast items need a URI" }
+        val configuration = requireNotNull(mediaItem.localConfiguration) { context.getString(R.string.er_cast_needs_uri) }
         val metadata = mediaItem.mediaMetadata
         val isEpisode = metadata.extras?.getBoolean(EXTRA_IS_EPISODE) == true
 

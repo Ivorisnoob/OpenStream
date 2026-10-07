@@ -1,9 +1,12 @@
 package com.ivor.openstream.domain.model
 
-enum class SkipType(val label: String) {
-    INTRO("Skip intro"),
-    RECAP("Skip recap"),
-    CREDITS("Skip credits")
+import androidx.annotation.StringRes
+import com.ivor.openstream.R
+
+enum class SkipType(val label: String, @StringRes val labelRes: Int) {
+    INTRO("Skip intro", R.string.player_skip_intro),
+    RECAP("Skip recap", R.string.player_skip_recap),
+    CREDITS("Skip credits", R.string.player_skip_credits)
 }
 
 /**

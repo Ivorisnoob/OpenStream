@@ -75,15 +75,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.annotation.StringRes
+import androidx.compose.ui.res.stringResource
+import com.ivor.openstream.R
 import com.ivor.openstream.domain.model.MarketplaceExtension
 import com.ivor.openstream.domain.model.MarketplaceSort
 import com.ivor.openstream.presentation.components.ExpressiveBackButton
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 
-private enum class MarketplaceTab(val label: String) {
-    BROWSE("Browse"),
-    INSTALLED("Installed"),
-    REPOSITORIES("Repositories")
+private enum class MarketplaceTab(val label: String, @StringRes val labelRes: Int) {
+    BROWSE("Browse", R.string.mk_tab_browse),
+    INSTALLED("Installed", R.string.mk_tab_installed),
+    REPOSITORIES("Repositories", R.string.mk_tab_repositories)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -112,7 +115,7 @@ fun MarketplaceScreen(
             LargeTopAppBar(
                 title = {
                     Text(
-                        text = "Extensions",
+                        text = stringResource(R.string.mk_title),
                         style = MaterialTheme.typography.headlineLarge
                     )
                 },
@@ -146,8 +149,8 @@ fun MarketplaceScreen(
                             Text(
                                 text = when (tab) {
                                     MarketplaceTab.INSTALLED ->
-                                        "${tab.label} (${state.installed.size})"
-                                    else -> tab.label
+                                        "${stringResource(tab.labelRes)} (${state.installed.size})"
+                                    else -> stringResource(tab.labelRes)
                                 },
                                 maxLines = 1
                             )
@@ -189,7 +192,7 @@ fun MarketplaceScreen(
             repoName = state.catalog.repos
                 .firstOrNull { it.id == details.manifest.repoId }?.name
                 .orEmpty()
-                .ifEmpty { "Unknown repository" },
+                .ifEmpty { stringResource(R.string.st_unknown_repo) },
             onDismiss = { detailsFor = null },
             onInstall = { viewModel.install(details) },
             onUninstall = {
@@ -219,12 +222,12 @@ private fun BrowseTab(
                     value = state.query,
                     onValueChange = viewModel::setQuery,
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Search sources, languages, tags") },
+                    placeholder = { Text(stringResource(R.string.st_search_sources_tags)) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     trailingIcon = {
                         if (state.query.isNotEmpty()) {
                             IconButton(onClick = { viewModel.setQuery("") }) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear search")
+                                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cd_clear_search))
                             }
                         }
                     },
@@ -237,8 +240,8 @@ private fun BrowseTab(
             if (!state.isFiltered && state.charts.isNotEmpty()) {
                 item {
                     SectionHeader(
-                        title = "Top charts",
-                        subtitle = "Most popular sources across your repositories"
+                        title = stringResource(R.string.home_top_charts),
+                        subtitle = stringResource(R.string.sheet_most_popular)
                     )
                 }
                 item {
@@ -264,7 +267,7 @@ private fun BrowseTab(
                         FilterChip(
                             selected = state.sort == sort,
                             onClick = { viewModel.setSort(sort) },
-                            label = { Text(sort.label) }
+                            label = { Text(stringResource(sort.labelRes)) }
                         )
                     }
                 }
@@ -279,7 +282,7 @@ private fun BrowseTab(
                         FilterChip(
                             selected = state.tag == null,
                             onClick = viewModel::clearTag,
-                            label = { Text("All") }
+                            label = { Text(stringResource(R.string.search_filter_all)) }
                         )
                         state.tags.forEach { tag ->
                             FilterChip(
@@ -297,14 +300,14 @@ private fun BrowseTab(
                     EmptyState(
                         icon = Icons.Default.Storefront,
                         title = if (state.catalog.extensions.isEmpty()) {
-                            "No catalog yet"
+                            stringResource(R.string.st_no_catalog)
                         } else {
-                            "Nothing matches"
+                            stringResource(R.string.er_nothing_matches)
                         },
                         body = if (state.catalog.extensions.isEmpty()) {
-                            "Pull a repository in the Repositories tab, or refresh to fetch the official catalog."
+                            stringResource(R.string.st_pull_repo_hint)
                         } else {
-                            "Try another search term, or clear the category filter."
+                            stringResource(R.string.search_try_other_term)
                         }
                     )
                 }
@@ -367,7 +370,7 @@ private fun InstalledTab(
                             Spacer(Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "${state.updatable.size} updates available",
+                                    text = stringResource(R.string.st_updates_available, state.updatable.size),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -378,7 +381,7 @@ private fun InstalledTab(
                             }
                             Spacer(Modifier.width(12.dp))
                             Button(onClick = viewModel::updateAll, shape = ExpressiveShapes.small) {
-                                Text("Update all")
+                                Text(stringResource(R.string.action_update_all))
                             }
                         }
                     }
@@ -389,15 +392,15 @@ private fun InstalledTab(
                 item {
                     EmptyState(
                         icon = Icons.Default.Extension,
-                        title = "No sources installed",
-                        body = "Install at least one source extension or playback will have nothing to resolve."
+                        title = stringResource(R.string.mk_no_sources),
+                        body = stringResource(R.string.st_source_install_note)
                     )
                 }
                 item {
                     Button(onClick = onBrowse, shape = ExpressiveShapes.small) {
                         Icon(Icons.Default.Add, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Browse the marketplace")
+                        Text(stringResource(R.string.action_browse_marketplace))
                     }
                 }
             } else {
@@ -430,33 +433,32 @@ private fun SearchOrderCard(mode: SourceSearchMode, onModeChange: (SourceSearchM
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Text(
-                text = "Search order",
+                text = stringResource(R.string.sheet_search_order),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.semantics { heading() }
             )
             Spacer(Modifier.height(10.dp))
+            val searchModeLabels = SourceSearchMode.entries.associateWith { stringResource(it.labelRes) }
             ConnectedChoiceGroup(
                 options = SourceSearchMode.entries,
                 selected = mode,
-                label = { it.label },
+                label = { searchModeLabels.getValue(it) },
                 onSelect = onModeChange
             )
             Spacer(Modifier.height(10.dp))
             Text(
                 text = when (mode) {
                     SourceSearchMode.ALL_AT_ONCE ->
-                        "Every source is searched together, fastest overall. Streams are sorted by quality; " +
-                            "the order below breaks ties."
+                        stringResource(R.string.player_search_all_at_once)
                     SourceSearchMode.IN_ORDER ->
-                        "Sources are searched one at a time from the top, and the first one that finds " +
-                            "something plays. The rest are searched only if its streams fail or you tap Find more."
+                        stringResource(R.string.player_search_in_order)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = "Use the arrows on each source to change the order.",
+                text = stringResource(R.string.sheet_use_arrows),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp)
@@ -486,15 +488,13 @@ private fun RepositoriesTab(
                 ) {
                     Column(modifier = Modifier.padding(18.dp)) {
                         Text(
-                            text = "Add a repository or Stremio add-on",
+                            text = stringResource(R.string.st_add_repo_hint),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            text = "Paste a link to an index.json, or a Stremio add-on's manifest.json (stremio:// links " +
-                                "and configured add-on links work too). Add-ons that stream direct links are installed " +
-                                "right away; torrent-only and debrid add-ons can't play here.",
+                            text = stringResource(R.string.mk_addon_help),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -503,7 +503,7 @@ private fun RepositoriesTab(
                             value = repoUrl,
                             onValueChange = { repoUrl = it },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("https://…/index.json or …/manifest.json") },
+                            placeholder = { Text(stringResource(R.string.st_repo_example)) },
                             leadingIcon = { Icon(Icons.Default.Public, contentDescription = null) },
                             singleLine = true,
                             shape = ExpressiveShapes.medium,
@@ -528,7 +528,7 @@ private fun RepositoriesTab(
                         ) {
                             Icon(Icons.Default.Add, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
-                            Text("Add repository")
+                            Text(stringResource(R.string.st_add_repository))
                         }
                     }
                 }
@@ -554,12 +554,12 @@ private fun RepositoriesTab(
                         Spacer(Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = "Repositories ship data, not code",
+                                text = stringResource(R.string.st_repo_data_note),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "An extension only picks and configures a resolver that already ships inside OpenStream, so a third-party list cannot run its own code on your device.",
+                                text = stringResource(R.string.st_repo_data_body),
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
@@ -596,18 +596,18 @@ private fun LineupSummary(installed: Int, enabled: Int) {
     ) {
         Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(
-                text = "Your source lineup",
+                text = stringResource(R.string.sheet_your_lineup),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Black
             )
             Text(
-                text = "OpenStream races every enabled source when you press Play and keeps the fastest result.",
+                text = stringResource(R.string.st_race_note),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
             )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SummaryStat(label = "Installed", value = installed.toString())
-                SummaryStat(label = "Enabled", value = enabled.toString())
+                SummaryStat(label = stringResource(R.string.st_installed), value = installed.toString())
+                SummaryStat(label = stringResource(R.string.st_enabled), value = enabled.toString())
             }
         }
     }
@@ -643,7 +643,7 @@ private fun RefreshAction(isSyncing: Boolean, onClick: () -> Unit) {
     IconButton(onClick = onClick, enabled = !isSyncing) {
         Icon(
             imageVector = Icons.Default.Refresh,
-            contentDescription = "Refresh repositories",
+            contentDescription = stringResource(R.string.action_refresh_repositories),
             modifier = Modifier
                 .size(24.dp)
                 .rotate(if (isSyncing) rotation else 0f)

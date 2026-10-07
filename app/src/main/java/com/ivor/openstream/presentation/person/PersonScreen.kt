@@ -1,6 +1,7 @@
 package com.ivor.openstream.presentation.person
 
 import com.ivor.openstream.presentation.components.isCompactWidth
+import com.ivor.openstream.R
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Row
 import com.ivor.openstream.presentation.components.byWidth
@@ -28,6 +29,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -76,8 +78,8 @@ fun PersonScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text("Couldn't load this person", style = MaterialTheme.typography.titleMedium)
-                Button(onClick = viewModel::load) { Text("Try again") }
+                Text(stringResource(R.string.details_could_not_load_person), style = MaterialTheme.typography.titleMedium)
+                Button(onClick = viewModel::load) { Text(stringResource(R.string.action_try_again)) }
             }
 
             is PersonUiState.Success -> LazyVerticalGrid(
@@ -93,7 +95,7 @@ fun PersonScreen(
                 if (state.credits.isNotEmpty()) {
                     item(key = "credits-title", span = { GridItemSpan(maxLineSpan) }) {
                         Text(
-                            text = "Known for",
+                            text = stringResource(R.string.details_known_for),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier
@@ -197,7 +199,7 @@ private fun PersonText(person: PersonDto, centered: Boolean) {
             modifier = Modifier.padding(top = 16.dp)
         )
         TextButton(onClick = { bioExpanded = !bioExpanded }) {
-            Text(if (bioExpanded) "Show less" else "Read more")
+            Text(if (bioExpanded) stringResource(R.string.action_show_less) else stringResource(R.string.action_read_more))
         }
     }
 }
@@ -207,7 +209,7 @@ private fun CreditCard(title: AnimeDto, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .clip(ExpressiveShapes.medium)
-            .clickable(onClickLabel = "Open ${title.name}", onClick = onClick)
+            .clickable(onClickLabel = stringResource(R.string.misc_open_title, title.name), onClick = onClick)
             .padding(bottom = 10.dp)
     ) {
         AsyncImage(
@@ -240,13 +242,13 @@ private fun CreditCard(title: AnimeDto, onClick: () -> Unit) {
 }
 
 /** "Acting · Born 1974-11-11 in Los Angeles" and similar, from whatever TMDB has. */
+@Composable
 private fun personFacts(person: PersonDto): String? {
     val born = person.birthday?.let { date ->
-        buildString {
-            append("Born ").append(date)
-            person.placeOfBirth?.takeIf { it.isNotBlank() }?.let { append(" in ").append(it) }
-        }
+        person.placeOfBirth?.takeIf { it.isNotBlank() }?.let { place ->
+            stringResource(R.string.ps_born_in, date, place)
+        } ?: stringResource(R.string.ps_born, date)
     }
-    val died = person.deathday?.let { "Died $it" }
+    val died = person.deathday?.let { stringResource(R.string.ps_died, it) }
     return listOfNotNull(person.knownForDepartment, born, died).joinToString(" · ").takeIf { it.isNotBlank() }
 }

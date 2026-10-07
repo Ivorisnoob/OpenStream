@@ -1,6 +1,7 @@
 package com.ivor.openstream.presentation.player.components
 
 import androidx.compose.animation.core.Animatable
+import com.ivor.openstream.R
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -21,6 +22,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -85,7 +87,7 @@ fun UpNextOverlay(
 
             Column(modifier = Modifier.weight(1f, fill = false)) {
                 Text(
-                    text = "UP NEXT",
+                    text = stringResource(R.string.player_up_next).uppercase(),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -109,7 +111,7 @@ fun UpNextOverlay(
                     onClick = onCancel,
                     modifier = Modifier.padding(top = 2.dp)
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
 
@@ -129,7 +131,7 @@ fun UpNextOverlay(
                         contentColor = MaterialTheme.colorScheme.onPrimary
                     )
                 ) {
-                    Icon(Icons.Filled.PlayArrow, contentDescription = "Play next episode now")
+                    Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.action_play_next_now))
                 }
             }
         }

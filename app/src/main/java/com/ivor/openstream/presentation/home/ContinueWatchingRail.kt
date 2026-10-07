@@ -1,6 +1,7 @@
 package com.ivor.openstream.presentation.home
 
 import com.ivor.openstream.presentation.components.byWidth
+import com.ivor.openstream.R
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -28,6 +29,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -96,7 +98,7 @@ private fun ContinueWatchingCard(
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 showMenu = true
             },
-                    onLongClickLabel = "More options"
+                    onLongClickLabel = stringResource(R.string.misc_more_options)
                 )
         ) {
             if (image != null) {
@@ -156,14 +158,14 @@ private fun ContinueWatchingCard(
 
             DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                 DropdownMenuItem(
-                    text = { Text("Go to details") },
+                    text = { Text(stringResource(R.string.action_go_to_details)) },
                     onClick = {
                         showMenu = false
                         onOpenDetails()
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text("Remove from row") },
+                    text = { Text(stringResource(R.string.action_remove_from_row)) },
                     onClick = {
                         showMenu = false
                         onRemove()
@@ -193,11 +195,13 @@ private fun ContinueWatchingCard(
     }
 }
 
+@Composable
 private fun WatchProgress.badge(): String {
     val remaining = ((durationMs - positionMs) / 60_000L).coerceAtLeast(1L)
+    val minutesLeft = stringResource(R.string.misc_minutes_short, remaining)
     return when {
-        isUpNext && !isMovie -> "Up next · S$season E$episode"
-        isMovie -> "${remaining}m left"
-        else -> "S$season E$episode · ${remaining}m left"
+        isUpNext && !isMovie -> "${stringResource(R.string.player_up_next)} · S$season E$episode"
+        isMovie -> minutesLeft
+        else -> "S$season E$episode · $minutesLeft"
     }
 }

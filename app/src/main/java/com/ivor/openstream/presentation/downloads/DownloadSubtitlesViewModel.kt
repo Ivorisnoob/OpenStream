@@ -1,8 +1,10 @@
 package com.ivor.openstream.presentation.downloads
 
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ivor.openstream.R
 import com.ivor.openstream.data.local.entity.DownloadEntity
 import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.data.subtitles.SavedSubtitle
@@ -12,6 +14,7 @@ import com.ivor.openstream.domain.model.MediaIdentity
 import com.ivor.openstream.domain.repository.StreamingRepository
 import com.ivor.openstream.domain.repository.SubtitleRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.joinAll
@@ -76,7 +79,8 @@ data class DownloadSubtitlesUiState(
 class DownloadSubtitlesViewModel @Inject constructor(
     private val subtitleRepository: SubtitleRepository,
     private val savedSubtitles: SavedSubtitleRepository,
-    private val streamingRepository: StreamingRepository
+    private val streamingRepository: StreamingRepository,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DownloadSubtitlesUiState())
@@ -206,7 +210,10 @@ class DownloadSubtitlesViewModel @Inject constructor(
                     online = (state.online + found).distinctBy { it.url },
                     searchingLanguages = state.searchingLanguages - language,
                     message = if (found.isEmpty() && state.online.none { it.language == language }) {
-                        "No ${SavedSubtitleRepository.languageName(language)} subtitles found"
+                        context.getString(
+                            R.string.sub_no_lang_found,
+                            SavedSubtitleRepository.languageName(language)
+                        )
                     } else {
                         null
                     }
@@ -228,7 +235,11 @@ class DownloadSubtitlesViewModel @Inject constructor(
             state.copy(
                 saving = state.saving - subtitle.id,
                 message = result.exceptionOrNull()?.let { error ->
-                    "Could not save ${subtitle.display ?: "a subtitle"}: ${error.message ?: "download failed"}"
+                    context.getString(
+                        R.string.misc_could_not_save_detail,
+                        subtitle.display ?: context.getString(R.string.misc_a_subtitle),
+                        error.message ?: context.getString(R.string.misc_download_failed)
+                    )
                 } ?: state.message
             )
         }
@@ -245,8 +256,8 @@ class DownloadSubtitlesViewModel @Inject constructor(
                 it.copy(
                     isImporting = false,
                     message = result.fold(
-                        onSuccess = { saved -> if (saved.language == null) "Saved. Language not recognised from the file name." else null },
-                        onFailure = { error -> error.message ?: "Could not read that file" }
+                        onSuccess = { saved -> if (saved.language == null) context.getString(R.string.dl_saved_unknown_lang) else null },
+                        onFailure = { error -> error.message ?: context.getString(R.string.dl_could_not_read_file) }
                     )
                 )
             }

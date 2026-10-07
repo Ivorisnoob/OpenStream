@@ -1,6 +1,7 @@
 package com.ivor.openstream.presentation.lists
 
 import com.ivor.openstream.presentation.components.bottomContentPadding
+import com.ivor.openstream.R
 import com.ivor.openstream.presentation.components.byWidth
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -33,6 +34,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -70,6 +73,8 @@ fun CustomListScreen(
     val state by viewModel.uiState.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val undoLabel = stringResource(R.string.action_undo)
     var menuOpen by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -83,7 +88,7 @@ fun CustomListScreen(
     val remove: (CustomListItemEntity) -> Unit = { item ->
         viewModel.remove(item)
         scope.launch {
-            val result = snackbar.showSnackbar("Removed ${item.title}", actionLabel = "Undo")
+            val result = snackbar.showSnackbar(context.getString(R.string.li_removed_title, item.title), actionLabel = undoLabel)
             if (result == SnackbarResult.ActionPerformed) viewModel.restore(item)
         }
     }
@@ -108,11 +113,11 @@ fun CustomListScreen(
                     trailing = {
                         Box {
                             IconButton(onClick = { menuOpen = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "List options")
+                                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.cd_list_options))
                             }
                             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                                DropdownMenuItem(text = { Text("Rename") }, onClick = { menuOpen = false; renaming = true })
-                                DropdownMenuItem(text = { Text("Delete list") }, onClick = { menuOpen = false; confirmDelete = true })
+                                DropdownMenuItem(text = { Text(stringResource(R.string.action_rename)) }, onClick = { menuOpen = false; renaming = true })
+                                DropdownMenuItem(text = { Text(stringResource(R.string.li_delete_list)) }, onClick = { menuOpen = false; confirmDelete = true })
                             }
                         }
                     }
@@ -125,8 +130,8 @@ fun CustomListScreen(
                 state.items.isEmpty() -> item(key = "empty", span = fullWidth) {
                     LibraryEmptyState(
                         icon = Icons.AutoMirrored.Filled.PlaylistAdd,
-                        title = "This list is empty",
-                        body = "Open any movie or show and tap Add to list."
+                        title = stringResource(R.string.li_empty),
+                        body = stringResource(R.string.li_empty_hint)
                     )
                 }
             }
@@ -150,8 +155,8 @@ fun CustomListScreen(
 
     if (renaming) {
         ListNameDialog(
-            title = "Rename list",
-            confirmLabel = "Rename",
+            title = stringResource(R.string.li_rename_list),
+            confirmLabel = stringResource(R.string.action_rename),
             initialName = state.list?.name.orEmpty(),
             onConfirm = { name ->
                 renaming = false
@@ -163,15 +168,15 @@ fun CustomListScreen(
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete “${state.list?.name.orEmpty()}”?") },
-            text = { Text("The list goes away. The titles in it stay in the app and in your other lists.") },
+            title = { Text(stringResource(R.string.li_delete_confirm, state.list?.name.orEmpty())) },
+            text = { Text(stringResource(R.string.li_delete_body)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
                     viewModel.delete()
-                }) { Text("Delete") }
+                }) { Text(stringResource(R.string.action_delete)) }
             },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.action_cancel)) } }
         )
     }
 }
@@ -196,8 +201,8 @@ private fun ListTitleCard(
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         menuOpen = true
                     },
-                    onClickLabel = "Open ${item.title}",
-                    onLongClickLabel = "More options"
+                    onClickLabel = stringResource(R.string.misc_open_title, item.title),
+                    onLongClickLabel = stringResource(R.string.misc_more_options)
                 )
                 .padding(bottom = 10.dp)
         ) {
@@ -221,7 +226,7 @@ private fun ListTitleCard(
             )
             if (item.mediaType == "movie") {
                 Text(
-                    "Movie",
+                    stringResource(R.string.details_movie),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 6.dp)
@@ -229,8 +234,8 @@ private fun ListTitleCard(
             }
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(text = { Text("Open") }, onClick = { menuOpen = false; onOpen() })
-            DropdownMenuItem(text = { Text("Remove from list") }, onClick = { menuOpen = false; onRemove() })
+            DropdownMenuItem(text = { Text(stringResource(R.string.action_open)) }, onClick = { menuOpen = false; onOpen() })
+            DropdownMenuItem(text = { Text(stringResource(R.string.action_remove_from_list)) }, onClick = { menuOpen = false; onRemove() })
         }
     }
 }

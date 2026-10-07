@@ -10,7 +10,9 @@ data class DownloadTarget(
     val episodeTitle: String?,
     val posterPath: String?,
     val stillPath: String?,
-    val year: Int?
+    val year: Int?,
+    /** True when Smart Downloads owns this row and may auto-manage it. */
+    val isSmart: Boolean = false
 ) {
     val id: String get() = downloadIdFor(mediaType, tmdbId, season, episode)
 

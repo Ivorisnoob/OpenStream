@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import com.ivor.openstream.R
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -29,7 +32,8 @@ import com.ivor.openstream.ui.theme.ExpressiveShapes
 fun AnimeCard(
     anime: AnimeDto,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    matchPercent: Int? = null
 ) {
     Card(
         shape = ExpressiveShapes.medium,
@@ -56,6 +60,24 @@ fun AnimeCard(
                     .padding(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
+                if (matchPercent != null) {
+                    SuggestionChip(
+                        onClick = {},
+                        label = {
+                            Text(
+                                text = stringResource(R.string.match_percent, matchPercent),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.92f),
+                            labelColor = MaterialTheme.colorScheme.onSecondary
+                        ),
+                        border = null,
+                        modifier = Modifier.height(24.dp)
+                    )
+                }
                 if (anime.originalLanguage != null) {
                     SuggestionChip(
                         onClick = {},

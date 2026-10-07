@@ -13,6 +13,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import androidx.annotation.StringRes
+import com.ivor.openstream.R
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -103,13 +106,14 @@ import androidx.compose.ui.unit.dp
 sealed class Screen(
     val route: String,
     val label: String = "",
+    @StringRes val labelRes: Int? = null,
     val icon: androidx.compose.ui.graphics.vector.ImageVector? = null
 ) {
-    data object Home : Screen("home", "Home", Icons.Default.Home)
-    data object Search : Screen("search", "Search", Icons.Default.Search)
-    data object WatchLater : Screen("watch_later", "Saved", Icons.Default.Bookmark)
-    data object Downloads : Screen("downloads", "Downloads", Icons.Default.Download)
-    data object History : Screen("history", "History", Icons.Default.History)
+    data object Home : Screen("home", "Home", R.string.nav_home, Icons.Default.Home)
+    data object Search : Screen("search", "Search", R.string.nav_search, Icons.Default.Search)
+    data object WatchLater : Screen("watch_later", "Saved", R.string.nav_saved, Icons.Default.Bookmark)
+    data object Downloads : Screen("downloads", "Downloads", R.string.nav_downloads, Icons.Default.Download)
+    data object History : Screen("history", "History", R.string.nav_history, Icons.Default.History)
     data object Update : Screen("update")
     data object Settings : Screen("settings")
     data object Marketplace : Screen("marketplace")
@@ -241,7 +245,7 @@ fun AppNavigation(
                             openTab(screen)
                         },
                         icon = { Icon(screen.icon!!, contentDescription = null) },
-                        label = { Text(screen.label) }
+                        label = { screen.labelRes?.let { Text(stringResource(it)) } ?: Text(screen.label) }
                     )
                 }
             }
@@ -580,11 +584,11 @@ fun AppNavigation(
                             }
                             if (selected) {
                                 FilledIconButton(onClick = onClick, modifier = Modifier.size(50.dp)) {
-                                    Icon(screen.icon!!, contentDescription = screen.label)
+                                    Icon(screen.icon!!, contentDescription = screen.labelRes?.let { stringResource(it) } ?: screen.label)
                                 }
                             } else {
                                 IconButton(onClick = onClick, modifier = Modifier.size(50.dp)) {
-                                    Icon(screen.icon!!, contentDescription = screen.label)
+                                    Icon(screen.icon!!, contentDescription = screen.labelRes?.let { stringResource(it) } ?: screen.label)
                                 }
                             }
                         }
@@ -605,6 +609,7 @@ fun AppNavigation(
         WhoIsWatchingScreen(
             profiles = profiles,
             activeId = activeProfile?.id,
+            viewModel = profilesViewModel,
             onSelect = { profile ->
                 profilesViewModel.select(profile.id)
                 showProfilePicker = false
@@ -637,10 +642,10 @@ private fun OfflineBanner(showDownloadsAction: Boolean, onOpenDownloads: () -> U
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Icon(Icons.Default.CloudOff, contentDescription = null, modifier = Modifier.size(20.dp))
-            Text("You're offline", style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(R.string.offline_banner), style = MaterialTheme.typography.labelLarge)
             if (showDownloadsAction) {
                 TextButton(onClick = onOpenDownloads) {
-                    Text("Downloads", color = MaterialTheme.colorScheme.inversePrimary)
+                    Text(stringResource(R.string.nav_downloads), color = MaterialTheme.colorScheme.inversePrimary)
                 }
             } else {
                 Spacer(Modifier.size(width = 10.dp, height = 40.dp))

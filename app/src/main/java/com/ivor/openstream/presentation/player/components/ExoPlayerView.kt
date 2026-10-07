@@ -23,6 +23,8 @@ import com.ivor.openstream.data.repository.OpenSubtitlesRepository
 import com.ivor.openstream.presentation.player.CaptionStyleSettings
 import com.ivor.openstream.presentation.player.ServersState
 import androidx.annotation.OptIn
+import androidx.annotation.StringRes
+import com.ivor.openstream.R
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -53,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Shadow
@@ -188,6 +191,10 @@ fun ExoPlayerView(
     mimeType: String? = null
 ) {
     val context = LocalContext.current
+    // Read in composition for the track parser below, which runs in listener and
+    // effect callbacks where stringResource cannot be called directly.
+    val autoQualityLabel = stringResource(R.string.sheet_auto)
+    val externalSourceLabel = stringResource(R.string.sub_external_source)
     val activity = remember(context) {
         var ctx = context
         while (ctx is android.content.ContextWrapper) {
@@ -362,14 +369,15 @@ fun ExoPlayerView(
         }
     }
 
-    // Helper: parse available tracks from ExoPlayer
+    // Helper: parse available tracks from ExoPlayer. Runs in listener and effect
+    // callbacks too, so it uses the hoisted context/resources rather than stringResource.
     fun parseTracksFromPlayer(tracks: Tracks) {
         val qualities = mutableListOf<QualityOption>()
         val subtitles = mutableListOf<SubtitleOption>()
         val audios = mutableListOf<AudioOption>()
 
         // Always add Auto as the first quality option
-        qualities.add(QualityOption(label = "Auto", width = 0, height = 0, isAuto = true))
+        qualities.add(QualityOption(label = autoQualityLabel, width = 0, height = 0, isAuto = true))
 
         for (groupIndex in 0 until tracks.groups.size) {
             val group = tracks.groups[groupIndex]
@@ -419,7 +427,7 @@ fun ExoPlayerView(
                         audios += AudioOption(
                             label = languageName
                                 ?: format.label?.takeIf { it.any(Char::isLetter) }
-                                ?: if (group.length == 1 && audios.isEmpty()) "Default" else "Track ${audios.size + 1}",
+                                ?: if (group.length == 1 && audios.isEmpty()) context.getString(R.string.track_default) else context.getString(R.string.track_number, audios.size + 1),
                             language = language,
                             groupIndex = groupIndex,
                             trackIndex = trackIndex,
@@ -442,18 +450,18 @@ fun ExoPlayerView(
                         }
                         
                         val label = when {
-                            remoteMatch != null -> remoteMatch.display ?: remoteMatch.language?.uppercase() ?: "English"
-                            format.label == "English (Extracted)" || trackId == "extracted" -> "English (Extracted)"
+                            remoteMatch != null -> remoteMatch.display ?: remoteMatch.language?.uppercase() ?: displayLanguageOrNull("en").orEmpty()
+                            format.label == "English (Extracted)" || trackId == "extracted" -> context.getString(R.string.track_extracted)
                             format.label != null -> format.label!!
                             format.language != null -> {
                                 val lang = format.language!!
                                 val locale = if (lang.length <= 3) java.util.Locale(lang) 
                                              else try { java.util.Locale.forLanguageTag(lang.replace("_", "-")) } catch(e:Exception) { java.util.Locale.ENGLISH }
                                 
-                                val display = locale.getDisplayLanguage(java.util.Locale.ENGLISH)
+                                val display = locale.getDisplayLanguage(java.util.Locale.getDefault())
                                 if (display.isNotEmpty() && !display.equals(lang, ignoreCase = true)) display else lang.uppercase()
                             }
-                            else -> "Track ${subtitles.size + 1}"
+                            else -> context.getString(R.string.track_number, subtitles.size + 1)
                         }
 
                         subtitles.add(
@@ -476,11 +484,11 @@ fun ExoPlayerView(
             if (subtitles.none { it.url == remote.url }) {
                 subtitles.add(
                     SubtitleOption(
-                        label = remote.display ?: remote.language?.uppercase() ?: "English",
+                        label = remote.display ?: remote.language?.uppercase() ?: displayLanguageOrNull("en").orEmpty(),
                         trackIndex = -1, // No internal track
                         groupIndex = -1,
                         url = remote.url,
-                        subLabel = "${remote.release ?: ""} (${remote.source ?: "External"})".trim(),
+                        subLabel = "${remote.release ?: ""} (${remote.source ?: externalSourceLabel})".trim(),
                         language = remote.language
                     )
                 )
@@ -596,7 +604,7 @@ fun ExoPlayerView(
                 MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(sub.url))
                     .setMimeType(format)
                     .setLanguage(sub.language ?: "en")
-                    .setLabel(sub.display ?: "English")
+                    .setLabel(sub.display ?: displayLanguageOrNull("en").orEmpty())
                     .setId(sub.id)
                     .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
                     .setRoleFlags(C.ROLE_FLAG_SUBTITLE)
@@ -999,7 +1007,7 @@ fun ExoPlayerView(
             GestureIndicator(
                 icon = Icons.Default.BrightnessLow,
                 value = (brightness * 100).toInt(),
-                label = "Brightness"
+                label = stringResource(R.string.sheet_brightness)
             )
         }
 
@@ -1012,7 +1020,7 @@ fun ExoPlayerView(
             GestureIndicator(
                 icon = Icons.Default.VolumeUp,
                 value = (volume * 100).toInt(),
-                label = "Volume"
+                label = stringResource(R.string.sheet_volume)
             )
         }
 
@@ -1034,7 +1042,7 @@ fun ExoPlayerView(
                 ) {
                     Icon(videoScale.icon, contentDescription = null, modifier = Modifier.size(24.dp))
                     Text(
-                        videoScale.label,
+                        stringResource(videoScale.labelRes),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -1222,7 +1230,11 @@ fun ExoPlayerView(
                         modifier = Modifier.size(28.dp)
                     )
                     Text(
-                        if (seekFeedbackDirection < 0) "$seekStackSeconds sec back" else "$seekStackSeconds sec ahead",
+                        if (seekFeedbackDirection < 0) {
+                            stringResource(R.string.sheet_back_seconds, seekStackSeconds)
+                        } else {
+                            stringResource(R.string.sheet_forward_seconds, seekStackSeconds)
+                        },
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -1249,7 +1261,7 @@ fun ExoPlayerView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(Icons.Default.FastForward, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Text("2× speed", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.player_boost_speed), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -1278,7 +1290,7 @@ fun ExoPlayerView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(Icons.Default.LockOpen, contentDescription = null)
-                    Text("Tap to unlock", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.action_tap_to_unlock), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -1320,7 +1332,7 @@ fun ExoPlayerView(
         val activeSegment = fittingSegments.firstOrNull { currentTime >= it.startMs && currentTime < it.endMs - 1_000 }
         val offerManualSkip = skipSegments.isEmpty() && !manualSkipUsed && areControlsVisible &&
             totalTime > MANUAL_SKIP_MS * 4 && currentTime in 5_000L..MANUAL_SKIP_WINDOW_MS
-        val skipLabel = activeSegment?.type?.label ?: "Skip ${MANUAL_SKIP_MS / 1_000}s"
+        val skipLabel = activeSegment?.let { stringResource(it.type.labelRes) } ?: stringResource(R.string.player_skip_seconds, MANUAL_SKIP_MS / 1_000)
         AnimatedVisibility(
             visible = showSkipButton && (activeSegment != null || offerManualSkip) && !isLocked &&
                 !isInPictureInPicture && !showSettingsDialog,
@@ -1370,7 +1382,7 @@ fun ExoPlayerView(
                         LoadingIndicator(modifier = Modifier.size(32.dp))
                         Column {
                             Text(
-                                "Connecting to stream",
+                                stringResource(R.string.player_connecting),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold
                             )
@@ -1571,10 +1583,10 @@ private fun ScrubPreview(targetMs: Long, deltaMs: Long, durationMs: Long) {
 }
 
 /** How the video fills the player: letterboxed, cropped to fill the screen, or stretched. */
-enum class VideoScale(val resizeMode: Int, val label: String, val icon: ImageVector) {
-    FIT(AspectRatioFrameLayout.RESIZE_MODE_FIT, "Fit", Icons.Default.FitScreen),
-    ZOOM(AspectRatioFrameLayout.RESIZE_MODE_ZOOM, "Zoom to fill", Icons.Default.ZoomOutMap),
-    STRETCH(AspectRatioFrameLayout.RESIZE_MODE_FILL, "Stretch", Icons.Default.AspectRatio);
+enum class VideoScale(val resizeMode: Int, val label: String, @StringRes val labelRes: Int, val icon: ImageVector) {
+    FIT(AspectRatioFrameLayout.RESIZE_MODE_FIT, "Fit", R.string.scale_fit, Icons.Default.FitScreen),
+    ZOOM(AspectRatioFrameLayout.RESIZE_MODE_ZOOM, "Zoom to fill", R.string.player_zoom_fill, Icons.Default.ZoomOutMap),
+    STRETCH(AspectRatioFrameLayout.RESIZE_MODE_FILL, "Stretch", R.string.scale_stretch, Icons.Default.AspectRatio);
 
     fun next(): VideoScale = entries[(ordinal + 1) % entries.size]
 }
@@ -1595,7 +1607,7 @@ private fun displayLanguageOrNull(code: String): String? {
     val normalized = code.trim().replace('_', '-')
     if (!Regex("^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$").matches(normalized)) return null
     if (normalized.equals("und", ignoreCase = true)) return null
-    val name = java.util.Locale.forLanguageTag(normalized).getDisplayLanguage(java.util.Locale.ENGLISH)
+    val name = java.util.Locale.forLanguageTag(normalized).getDisplayLanguage(java.util.Locale.getDefault())
     return name.takeIf { it.isNotBlank() && !it.equals(normalized, ignoreCase = true) }
 }
 

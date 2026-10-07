@@ -27,6 +27,12 @@ interface ProfileDao {
     @Query("UPDATE profiles SET name = :name, avatar = :avatar, isKids = :isKids WHERE id = :id")
     suspend fun update(id: Long, name: String, avatar: String, isKids: Boolean)
 
+    @Query("UPDATE profiles SET pinHash = :hash, pinSalt = :salt WHERE id = :id")
+    suspend fun setPin(id: Long, hash: String, salt: String)
+
+    @Query("UPDATE profiles SET pinHash = NULL, pinSalt = NULL WHERE id = :id")
+    suspend fun clearPin(id: Long)
+
     @Query("DELETE FROM profiles WHERE id = :id")
     suspend fun deleteRow(id: Long)
 
@@ -45,6 +51,12 @@ interface ProfileDao {
     @Query("DELETE FROM custom_lists WHERE profileId = :id")
     suspend fun deleteLists(id: Long)
 
+    @Query("DELETE FROM reminders WHERE profileId = :id")
+    suspend fun deleteReminders(id: Long)
+
+    @Query("DELETE FROM title_ratings WHERE profileId = :id")
+    suspend fun deleteRatings(id: Long)
+
     /** Deletes a profile and everything that belonged to it (downloads are device-wide and stay). */
     @Transaction
     suspend fun deleteWithData(id: Long) {
@@ -53,6 +65,8 @@ interface ProfileDao {
         deleteHidden(id)
         deleteListItems(id)
         deleteLists(id)
+        deleteReminders(id)
+        deleteRatings(id)
         deleteRow(id)
     }
 }

@@ -39,6 +39,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -96,12 +97,12 @@ fun UpdateScreen(
                         Box(Modifier.weight(1f))
                         if (state !is UpdateUiState.Checking && state !is UpdateUiState.Downloading) {
                             IconButton(onClick = viewModel::checkForUpdate) {
-                                Icon(Icons.Default.Refresh, contentDescription = "Check again")
+                                Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_check_again))
                             }
                         }
                     }
                     Text(
-                        text = "Updates",
+                        text = stringResource(R.string.st_updates),
                         style = MaterialTheme.typography.displaySmall,
                         fontWeight = FontWeight.Black,
                         modifier = Modifier
@@ -109,7 +110,7 @@ fun UpdateScreen(
                             .semantics { heading() }
                     )
                     Text(
-                        text = "You're on version ${viewModel.currentVersion}",
+                        text = stringResource(R.string.st_current_version, viewModel.currentVersion),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 4.dp, top = 4.dp)
@@ -128,24 +129,24 @@ fun UpdateScreen(
                         UpdateUiState.Checking -> StatusCard(
                             tone = Tone.Neutral,
                             leading = { LoadingIndicator(modifier = Modifier.size(48.dp)) },
-                            title = "Checking for updates",
-                            body = "Looking at the latest release on GitHub."
+                            title = stringResource(R.string.up_checking),
+                            body = stringResource(R.string.st_looking_github)
                         )
 
                         is UpdateUiState.UpToDate -> StatusCard(
                             tone = Tone.Neutral,
                             leading = { AppMark() },
-                            title = "You're up to date",
-                            body = "OpenStream ${viewModel.currentVersion} is the latest version."
+                            title = stringResource(R.string.st_up_to_date),
+                            body = stringResource(R.string.up_latest_version, viewModel.currentVersion)
                         )
 
                         is UpdateUiState.Available -> StatusCard(
                             tone = Tone.Highlight,
                             leading = { StatusIcon(Icons.Default.NewReleases) },
-                            badge = "NEW VERSION",
-                            title = "OpenStream ${current.release.displayVersion()}",
+                            badge = stringResource(R.string.st_new_version).uppercase(),
+                            title = stringResource(R.string.up_version_format, current.release.displayVersion()),
                             body = listOfNotNull(
-                                current.release.publishedDate()?.let { "Released $it" },
+                                current.release.publishedDate()?.let { stringResource(R.string.up_released_on, it) },
                                 current.asset?.let { formatSize(it.size) }
                             ).joinToString("  ·  ")
                         ) {
@@ -156,7 +157,7 @@ fun UpdateScreen(
                                     modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
                                 ) {
                                     Icon(Icons.Default.Download, contentDescription = null)
-                                    Text("Download update", modifier = Modifier.padding(start = 10.dp), fontWeight = FontWeight.Bold)
+                                    Text(stringResource(R.string.action_download_update), modifier = Modifier.padding(start = 10.dp), fontWeight = FontWeight.Bold)
                                 }
                             } else {
                                 // The release has no APK attached yet; the page itself still has the notes.
@@ -164,32 +165,37 @@ fun UpdateScreen(
                                     onClick = { uriHandler.openUri(current.release.htmlUrl) },
                                     shape = ExpressiveShapes.large,
                                     modifier = Modifier.fillMaxWidth()
-                                ) { Text("Open the release on GitHub") }
+                                ) { Text(stringResource(R.string.action_open_github_release)) }
                             }
                         }
 
                         is UpdateUiState.Downloading -> StatusCard(
                             tone = Tone.Highlight,
                             leading = { StatusIcon(Icons.Default.Download) },
-                            title = "Downloading ${current.release.displayVersion()}",
+                            title = stringResource(R.string.up_downloading, current.release.displayVersion()),
                             body = if (current.totalBytes > 0) {
-                                "${(current.progress * 100).toInt()}%  ·  ${formatSize(current.downloadedBytes)} of ${formatSize(current.totalBytes)}"
+                                stringResource(
+                                    R.string.dl_progress_full,
+                                    (current.progress * 100).toInt(),
+                                    formatSize(current.downloadedBytes),
+                                    formatSize(current.totalBytes)
+                                )
                             } else {
-                                "Starting download…"
+                                stringResource(R.string.up_starting_download)
                             }
                         ) {
                             LinearWavyProgressIndicator(progress = { current.progress }, modifier = Modifier.fillMaxWidth())
-                            TextButton(onClick = viewModel::cancelDownload, modifier = Modifier.align(Alignment.End)) { Text("Cancel") }
+                            TextButton(onClick = viewModel::cancelDownload, modifier = Modifier.align(Alignment.End)) { Text(stringResource(R.string.action_cancel)) }
                         }
 
                         is UpdateUiState.ReadyToInstall -> StatusCard(
                             tone = Tone.Highlight,
                             leading = { StatusIcon(Icons.Default.InstallMobile) },
-                            title = "Ready to install",
+                            title = stringResource(R.string.st_ready_install),
                             body = if (viewModel.canInstall()) {
-                                "Android will ask you to confirm the update. Your history, saved titles and downloads are kept."
+                                stringResource(R.string.st_android_confirm_update)
                             } else {
-                                "Allow OpenStream to install updates first, then come back and tap Install."
+                                stringResource(R.string.st_allow_install_note)
                             }
                         ) {
                             Button(
@@ -200,17 +206,17 @@ fun UpdateScreen(
                                 shape = ExpressiveShapes.large,
                                 modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
                             ) {
-                                Text(if (viewModel.canInstall()) "Install" else "Allow installs", fontWeight = FontWeight.Bold)
+                                Text(if (viewModel.canInstall()) stringResource(R.string.action_install) else stringResource(R.string.action_allow_installs), fontWeight = FontWeight.Bold)
                             }
                         }
 
                         is UpdateUiState.Failed -> StatusCard(
                             tone = Tone.Error,
                             leading = { StatusIcon(Icons.Default.CloudOff) },
-                            title = "Something went wrong",
+                            title = stringResource(R.string.er_something_wrong),
                             body = current.message
                         ) {
-                            FilledTonalButton(onClick = viewModel::checkForUpdate, shape = ExpressiveShapes.large) { Text("Try again") }
+                            FilledTonalButton(onClick = viewModel::checkForUpdate, shape = ExpressiveShapes.large) { Text(stringResource(R.string.action_try_again)) }
                         }
                     }
                 }
@@ -226,7 +232,7 @@ fun UpdateScreen(
                     ) {
                         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(
-                                text = if (state is UpdateUiState.UpToDate) "What's in ${release?.displayVersion()}" else "What's new",
+                                text = if (state is UpdateUiState.UpToDate) release?.displayVersion()?.let { stringResource(R.string.up_whats_in, it) } ?: stringResource(R.string.st_whats_new) else stringResource(R.string.st_whats_new),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Black,
                                 modifier = Modifier.semantics { heading() }
@@ -239,9 +245,9 @@ fun UpdateScreen(
 
             item(key = "links") {
                 val links = listOfNotNull(
-                    release?.let { Triple(Icons.Default.NewReleases, "This release on GitHub", it.htmlUrl) },
-                    Triple(Icons.AutoMirrored.Filled.OpenInNew, "All releases", "$REPO_URL/releases"),
-                    Triple(Icons.Default.Code, "Source code", REPO_URL)
+                    release?.let { Triple(Icons.Default.NewReleases, stringResource(R.string.st_this_release), it.htmlUrl) },
+                    Triple(Icons.AutoMirrored.Filled.OpenInNew, stringResource(R.string.st_all_releases), "$REPO_URL/releases"),
+                    Triple(Icons.Default.Code, stringResource(R.string.up_source_code), REPO_URL)
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
                     links.forEachIndexed { index, (icon, label, url) ->

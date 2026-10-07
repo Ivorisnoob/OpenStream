@@ -1,13 +1,19 @@
 package com.ivor.openstream.data.settings
 
 import android.content.SharedPreferences
+import androidx.annotation.StringRes
+import com.ivor.openstream.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
-enum class ThemeMode(val label: String) { SYSTEM("System"), LIGHT("Light"), DARK("Dark") }
+enum class ThemeMode(val label: String, @StringRes val labelRes: Int) {
+    SYSTEM("System", R.string.st_theme_system),
+    LIGHT("Light", R.string.st_theme_light),
+    DARK("Dark", R.string.st_theme_dark)
+}
 
 /**
  * Where the app resolves host names. Some ISPs (several in India) poison DNS answers for TMDB, so
@@ -16,31 +22,32 @@ enum class ThemeMode(val label: String) { SYSTEM("System"), LIGHT("Light"), DARK
  */
 enum class DnsProvider(
     val label: String,
+    @StringRes val labelRes: Int,
     val url: String?,
     /** Resolver IPs, so reaching the resolver itself never depends on the network's DNS. */
     val bootstrapHosts: List<String>
 ) {
-    SYSTEM("System", null, emptyList()),
-    ADGUARD("AdGuard", "https://unfiltered.adguard-dns.com/dns-query", listOf("94.140.14.140", "94.140.14.141")),
-    CLOUDFLARE("Cloudflare", "https://cloudflare-dns.com/dns-query", listOf("1.1.1.1", "1.0.0.1")),
-    GOOGLE("Google", "https://dns.google/dns-query", listOf("8.8.8.8", "8.8.4.4"))
+    SYSTEM("System", R.string.st_dns_system, null, emptyList()),
+    ADGUARD("AdGuard", R.string.dns_name_adguard, "https://unfiltered.adguard-dns.com/dns-query", listOf("94.140.14.140", "94.140.14.141")),
+    CLOUDFLARE("Cloudflare", R.string.dns_name_cloudflare, "https://cloudflare-dns.com/dns-query", listOf("1.1.1.1", "1.0.0.1")),
+    GOOGLE("Google", R.string.dns_name_google, "https://dns.google/dns-query", listOf("8.8.8.8", "8.8.4.4"))
 }
 
 /** A button in the picture-in-picture window, beside play/pause. */
-enum class PipAction(val label: String) {
-    REWIND("Back"),
-    FORWARD("Forward"),
-    NEXT_EPISODE("Next"),
-    SKIP_INTRO("Skip intro")
+enum class PipAction(val label: String, @StringRes val labelRes: Int) {
+    REWIND("Back", R.string.pip_back),
+    FORWARD("Forward", R.string.pip_forward),
+    NEXT_EPISODE("Next", R.string.pip_next),
+    SKIP_INTRO("Skip intro", R.string.player_skip_intro)
 }
 
 /** How the player searches installed sources. */
-enum class SourceSearchMode(val label: String) {
+enum class SourceSearchMode(val label: String, @StringRes val labelRes: Int) {
     /** Every source at once; the list is sorted by quality, the user's order breaking ties. */
-    ALL_AT_ONCE("All at once"),
+    ALL_AT_ONCE("All at once", R.string.sheet_search_all),
 
     /** One source at a time, top of the user's order first, stopping at the first with streams. */
-    IN_ORDER("In my order")
+    IN_ORDER("In my order", R.string.sheet_search_in_order)
 }
 
 data class AppSettings(
@@ -65,12 +72,21 @@ data class AppSettings(
     val subtitleDownloadLanguages: List<String> = listOf("en"),
     /** Besides the video's own subtitles, also save OpenSubtitles and SubSource ones. */
     val subtitleDownloadFromSites: Boolean = true,
-    val sourceSearchMode: SourceSearchMode = SourceSearchMode.ALL_AT_ONCE
+    val sourceSearchMode: SourceSearchMode = SourceSearchMode.ALL_AT_ONCE,
+    /** BCP-47 app language tag, or null to follow the system locale. */
+    val appLanguage: String? = null,
+    /** Daily check of followed shows for newly aired episodes. */
+    val episodeNotifications: Boolean = true,
+    /** Auto-download the next unwatched episodes and delete watched ones. */
+    val smartDownloads: Boolean = false,
+    /** How many episodes ahead Smart Downloads keeps (1..3). */
+    val smartKeepAhead: Int = 2
 ) {
     companion object {
         val SEEK_STEPS = listOf(5, 10, 15, 30)
         val DEFAULT_SPEEDS = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
         val DOWNLOAD_HEIGHTS = listOf(480, 720, 1080)
+        val SMART_AHEAD_OPTIONS = listOf(1, 2, 3)
     }
 }
 
@@ -115,6 +131,10 @@ class AppSettingsStore @Inject constructor(
             .putString(KEY_SUBTITLE_LANGUAGES, updated.subtitleDownloadLanguages.joinToString(","))
             .putBoolean(KEY_SUBTITLE_FROM_SITES, updated.subtitleDownloadFromSites)
             .putString(KEY_SOURCE_SEARCH_MODE, updated.sourceSearchMode.name)
+            .putString(KEY_APP_LANGUAGE, updated.appLanguage)
+            .putBoolean(KEY_EPISODE_NOTIFICATIONS, updated.episodeNotifications)
+            .putBoolean(KEY_SMART_DOWNLOADS, updated.smartDownloads)
+            .putInt(KEY_SMART_AHEAD, updated.smartKeepAhead)
             .apply()
     }
 
@@ -139,9 +159,47 @@ class AppSettingsStore @Inject constructor(
                 ?.let { parseLanguages(it) }
                 ?: defaults.subtitleDownloadLanguages,
             subtitleDownloadFromSites = prefs.getBoolean(KEY_SUBTITLE_FROM_SITES, defaults.subtitleDownloadFromSites),
-            sourceSearchMode = enumOrDefault(prefs.getString(KEY_SOURCE_SEARCH_MODE, null), defaults.sourceSearchMode)
+            sourceSearchMode = enumOrDefault(prefs.getString(KEY_SOURCE_SEARCH_MODE, null), defaults.sourceSearchMode),
+            appLanguage = prefs.getString(KEY_APP_LANGUAGE, null),
+            episodeNotifications = prefs.getBoolean(KEY_EPISODE_NOTIFICATIONS, defaults.episodeNotifications),
+            smartDownloads = prefs.getBoolean(KEY_SMART_DOWNLOADS, defaults.smartDownloads),
+            smartKeepAhead = prefs.getInt(KEY_SMART_AHEAD, defaults.smartKeepAhead)
+                .takeIf { it in AppSettings.SMART_AHEAD_OPTIONS } ?: defaults.smartKeepAhead
         )
     }
+
+    fun setAppLanguage(tag: String?) = update { it.copy(appLanguage = tag) }
+
+    fun setEpisodeNotifications(enabled: Boolean) = update { it.copy(episodeNotifications = enabled) }
+
+    fun setSmartDownloads(enabled: Boolean) = update { it.copy(smartDownloads = enabled) }
+
+    fun setSmartKeepAhead(count: Int) =
+        update { it.copy(smartKeepAhead = count.takeIf { it in AppSettings.SMART_AHEAD_OPTIONS } ?: AppSettings().smartKeepAhead) }
+
+    // region Profile PIN lockout (attempt counting survives restarts)
+
+    fun pinAttempts(profileId: Long): Int = prefs.getInt(pinAttemptsKey(profileId), 0)
+
+    fun setPinAttempts(profileId: Long, attempts: Int) {
+        prefs.edit().putInt(pinAttemptsKey(profileId), attempts).apply()
+    }
+
+    fun pinLockoutUntil(profileId: Long): Long = prefs.getLong(pinLockoutKey(profileId), 0L)
+
+    fun setPinLockout(profileId: Long, untilMs: Long) {
+        prefs.edit().putLong(pinLockoutKey(profileId), untilMs).apply()
+    }
+
+    fun clearPinLockout(profileId: Long) {
+        prefs.edit().remove(pinAttemptsKey(profileId)).remove(pinLockoutKey(profileId)).apply()
+    }
+
+    private fun pinAttemptsKey(profileId: Long) = "pin_attempts_$profileId"
+
+    private fun pinLockoutKey(profileId: Long) = "pin_lockout_$profileId"
+
+    // endregion
 
     private inline fun <reified T : Enum<T>> enumOrDefault(name: String?, default: T): T =
         name?.let { value -> enumValues<T>().firstOrNull { it.name == value } } ?: default
@@ -154,6 +212,10 @@ class AppSettingsStore @Inject constructor(
         const val KEY_SUBTITLE_LANGUAGES = "app_subtitle_download_languages"
         const val KEY_SUBTITLE_FROM_SITES = "app_subtitle_download_from_sites"
         const val KEY_SOURCE_SEARCH_MODE = "app_source_search_mode"
+        const val KEY_APP_LANGUAGE = AppLocale.KEY_APP_LANGUAGE
+        const val KEY_EPISODE_NOTIFICATIONS = "app_episode_notifications"
+        const val KEY_SMART_DOWNLOADS = "app_smart_downloads"
+        const val KEY_SMART_AHEAD = "app_smart_keep_ahead"
         const val KEY_THEME = "app_theme_mode"
         const val KEY_DYNAMIC_COLOR = "app_dynamic_color"
         const val KEY_DNS = "app_dns_provider"

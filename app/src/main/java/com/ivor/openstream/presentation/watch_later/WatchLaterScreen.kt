@@ -1,6 +1,7 @@
 package com.ivor.openstream.presentation.watch_later
 
 import com.ivor.openstream.presentation.components.bottomContentPadding
+import com.ivor.openstream.R
 import com.ivor.openstream.presentation.components.byWidth
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -42,6 +43,8 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -91,13 +94,15 @@ fun WatchLaterScreen(
     var creatingList by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val undoLabel = stringResource(R.string.action_undo)
     var sortMenuOpen by remember { mutableStateOf(false) }
     val fullWidth: androidx.compose.foundation.lazy.grid.LazyGridItemSpanScope.() -> GridItemSpan = { GridItemSpan(maxLineSpan) }
 
     val remove: (WatchLaterEntity) -> Unit = { entry ->
         viewModel.remove(entry)
         scope.launch {
-            val result = snackbar.showSnackbar("Removed ${entry.title}", actionLabel = "Undo")
+            val result = snackbar.showSnackbar(context.getString(R.string.li_removed_title, entry.title), actionLabel = undoLabel)
             if (result == SnackbarResult.ActionPerformed) viewModel.restore(entry)
         }
     }
@@ -117,25 +122,25 @@ fun WatchLaterScreen(
             item(key = "header", span = fullWidth) {
                 LibraryHeader(
                     modifier = Modifier.bleed(16.dp),
-                    title = "Saved",
+                    title = stringResource(R.string.nav_saved),
                     subtitle = when (state.totalCount) {
                         0 -> null
-                        1 -> "1 title"
-                        else -> "${state.totalCount} titles"
+                        1 -> stringResource(R.string.count_title_one)
+                        else -> stringResource(R.string.count_titles, state.totalCount)
                     },
                     onBackClick = onBackClick,
                     trailing = {
                         if (state.totalCount > 1) {
                             Box {
                                 IconButton(onClick = { sortMenuOpen = true }) {
-                                    Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort: ${state.sort.label}")
+                                    Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = stringResource(R.string.cd_sort_by, stringResource(state.sort.labelRes)))
                                 }
                                 DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
                                     SavedSort.entries.forEach { option ->
                                         DropdownMenuItem(
-                                            text = { Text(option.label) },
+                                            text = { Text(stringResource(option.labelRes)) },
                                             trailingIcon = if (option == state.sort) {
-                                                { Icon(Icons.Default.Check, contentDescription = "Selected") }
+                                                { Icon(Icons.Default.Check, contentDescription = stringResource(R.string.cd_selected)) }
                                             } else {
                                                 null
                                             },
@@ -156,7 +161,7 @@ fun WatchLaterScreen(
             item(key = "lists", span = fullWidth) {
                 Column(modifier = Modifier.bleed(16.dp)) {
                     Text(
-                        text = "Your lists",
+                        text = stringResource(R.string.li_your_lists),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier
@@ -174,7 +179,7 @@ fun WatchLaterScreen(
                         item(key = "new-list") { NewListCard(onClick = { creatingList = true }) }
                     }
                     Text(
-                        text = "Watch later",
+                        text = stringResource(R.string.action_watch_later),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier
@@ -190,12 +195,12 @@ fun WatchLaterScreen(
                         LocalSearchField(
                             value = state.query,
                             onValueChange = viewModel::onQueryChange,
-                            placeholder = "Search saved titles"
+                            placeholder = stringResource(R.string.li_search_saved)
                         )
                         ChoiceChips(
                             options = SavedFilter.entries,
                             selected = state.filter,
-                            label = { it.label },
+                            label = { stringResource(it.labelRes) },
                             onSelect = viewModel::onFilterChange,
                             modifier = Modifier.padding(top = 12.dp)
                         )
@@ -210,20 +215,20 @@ fun WatchLaterScreen(
                 state.totalCount == 0 -> item(key = "empty", span = fullWidth) {
                     LibraryEmptyState(
                         icon = Icons.Default.BookmarkBorder,
-                        title = "Nothing saved yet",
-                        body = "Tap My list on any title to keep it here for later."
+                        title = stringResource(R.string.li_nothing_saved),
+                        body = stringResource(R.string.li_tap_list_hint)
                     )
                 }
                 state.items.isEmpty() -> item(key = "no-matches", span = fullWidth) {
                     LibraryEmptyState(
                         icon = Icons.Default.SearchOff,
-                        title = "No matches",
-                        body = "Nothing you saved matches this search and filter.",
+                        title = stringResource(R.string.er_no_results),
+                        body = stringResource(R.string.li_nothing_saved_filter),
                         action = {
                             TextButton(onClick = {
                                 viewModel.onQueryChange("")
                                 viewModel.onFilterChange(SavedFilter.ALL)
-                            }) { Text("Clear search and filters") }
+                            }) { Text(stringResource(R.string.search_clear_search_filters)) }
                         }
                     )
                 }
@@ -249,8 +254,8 @@ fun WatchLaterScreen(
 
     if (creatingList) {
         ListNameDialog(
-            title = "New list",
-            confirmLabel = "Create",
+            title = stringResource(R.string.li_new_list),
+            confirmLabel = stringResource(R.string.create_label),
             onConfirm = { name ->
                 creatingList = false
                 viewModel.createList(name, onOpenList)
@@ -284,8 +289,8 @@ private fun SavedCard(
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         menuOpen = true
                     },
-                    onClickLabel = "Open ${entry.title}",
-                    onLongClickLabel = "More options"
+                    onClickLabel = stringResource(R.string.misc_open_title, entry.title),
+                    onLongClickLabel = stringResource(R.string.misc_more_options)
                 )
                 .padding(bottom = 10.dp)
         ) {
@@ -342,9 +347,10 @@ private fun SavedCard(
             latest?.let {
                 Text(
                     text = when {
-                        it.isMovie && it.completed -> "Watched"
-                        it.isMovie -> "Continue watching"
-                        else -> "S${it.season} E${it.episode}" + if (it.completed) " · watched" else ""
+                        it.isMovie && it.completed -> stringResource(R.string.details_watched)
+                        it.isMovie -> stringResource(R.string.home_continue_watching)
+                        it.completed -> stringResource(R.string.misc_code_watched, "S${it.season} E${it.episode}")
+                        else -> "S${it.season} E${it.episode}"
                     },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
@@ -353,8 +359,8 @@ private fun SavedCard(
             }
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(text = { Text("Open") }, onClick = { menuOpen = false; onOpen() })
-            DropdownMenuItem(text = { Text("Remove from saved") }, onClick = { menuOpen = false; onRemove() })
+            DropdownMenuItem(text = { Text(stringResource(R.string.action_open)) }, onClick = { menuOpen = false; onOpen() })
+            DropdownMenuItem(text = { Text(stringResource(R.string.action_remove_from_saved)) }, onClick = { menuOpen = false; onRemove() })
         }
     }
 }

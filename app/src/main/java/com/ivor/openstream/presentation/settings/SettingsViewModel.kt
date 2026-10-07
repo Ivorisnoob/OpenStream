@@ -1,6 +1,7 @@
 package com.ivor.openstream.presentation.settings
 
 import android.content.Context
+import com.ivor.openstream.R
 import android.net.Uri
 import androidx.annotation.OptIn
 import androidx.lifecycle.ViewModel
@@ -10,6 +11,8 @@ import androidx.media3.exoplayer.offline.DownloadManager
 import coil3.SingletonImageLoader
 import com.ivor.openstream.data.backup.BackupFormatException
 import com.ivor.openstream.data.backup.LibraryBackup
+import com.ivor.openstream.data.downloads.SmartDownloads
+import com.ivor.openstream.data.notifications.EpisodeAlarm
 import com.ivor.openstream.data.diagnostics.Diagnostics
 import com.ivor.openstream.data.repository.HiddenTitlesRepository
 import com.ivor.openstream.data.settings.AppSettings
@@ -55,7 +58,8 @@ class SettingsViewModel @Inject constructor(
     private val watchProgressRepository: WatchProgressRepository,
     private val hiddenTitlesRepository: HiddenTitlesRepository,
     private val libraryBackup: LibraryBackup,
-    private val diagnostics: Diagnostics
+    private val diagnostics: Diagnostics,
+    private val smartDownloads: SmartDownloads
 ) : ViewModel() {
 
     val state: StateFlow<SettingsUiState> = extensionRepository.catalog
@@ -94,38 +98,38 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { _crashCount.value = withContext(Dispatchers.IO) { diagnostics.crashCount } }
     }
 
-    fun exportBackup(uri: Uri) = runFileJob(failure = "Couldn't save the backup") {
+    fun exportBackup(uri: Uri) = runFileJob(failure = context.getString(R.string.st_could_not_save_backup)) {
         openOutput(uri).use { libraryBackup.export(it) }
-        "Library backed up"
+        context.getString(R.string.st_backed_up)
     }
 
-    fun restoreBackup(uri: Uri) = runFileJob(failure = "Couldn't restore that file") {
+    fun restoreBackup(uri: Uri) = runFileJob(failure = context.getString(R.string.st_could_not_restore)) {
         val summary = openInput(uri).use { libraryBackup.restore(it) }
         // Restored settings may flip Wi-Fi-only; the download manager has to hear about it.
         withContext(Dispatchers.Main) {
             downloadManager.requirements = downloadRequirements(appSettingsStore.current.wifiOnlyDownloads)
         }
         buildList {
-            if (summary.watchLater > 0) add("${summary.watchLater} saved")
-            if (summary.progress > 0) add("${summary.progress} progress entries")
-            if (summary.hidden > 0) add("${summary.hidden} hidden")
-            if (summary.lists > 0) add("${summary.lists} lists")
+            if (summary.watchLater > 0) add(context.getString(R.string.restore_saved, summary.watchLater))
+            if (summary.progress > 0) add(context.getString(R.string.restore_progress, summary.progress))
+            if (summary.hidden > 0) add(context.getString(R.string.restore_hidden, summary.hidden))
+            if (summary.lists > 0) add(context.getString(R.string.restore_lists, summary.lists))
         }.let { parts ->
-            if (parts.isEmpty()) "Restored settings; your library was already up to date"
-            else "Restored " + parts.joinToString(", ")
+            if (parts.isEmpty()) context.getString(R.string.st_restored_settings)
+            else context.getString(R.string.st_restored_counts, parts.joinToString(", "))
         }
     }
 
-    fun exportDiagnostics(uri: Uri) = runFileJob(failure = "Couldn't save the diagnostics file") {
+    fun exportDiagnostics(uri: Uri) = runFileJob(failure = context.getString(R.string.st_diag_failed)) {
         openOutput(uri).use { diagnostics.export(it) }
-        "Diagnostics saved"
+        context.getString(R.string.st_diag_saved)
     }
 
     fun clearCrashReports() {
         viewModelScope.launch {
             withContext(Dispatchers.IO) { diagnostics.clearCrashes() }
             _crashCount.value = 0
-            _messages.tryEmit("Crash reports cleared")
+            _messages.tryEmit(context.getString(R.string.st_crash_cleared))
         }
     }
 
@@ -134,7 +138,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _isWorking.value = true
             val message = runCatching { withContext(Dispatchers.IO) { block() } }
-                .getOrElse { error -> (error as? BackupFormatException)?.message ?: failure }
+                .getOrElse { error -> (error as? BackupFormatException)?.let { context.getString(it.resId) } ?: failure }
             _isWorking.value = false
             _messages.tryEmit(message)
         }
@@ -153,6 +157,17 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setThemeMode(mode: ThemeMode) = appSettingsStore.update { it.copy(themeMode = mode) }
+
+    fun setAppLanguage(tag: String?) = appSettingsStore.setAppLanguage(tag)
+
+    fun setEpisodeNotifications(enabled: Boolean) {
+        appSettingsStore.setEpisodeNotifications(enabled)
+        if (enabled) {
+            EpisodeAlarm.schedule(context)
+        } else {
+            EpisodeAlarm.cancel(context)
+        }
+    }
 
     fun setDynamicColor(enabled: Boolean) = appSettingsStore.update { it.copy(dynamicColor = enabled) }
 
@@ -182,6 +197,13 @@ class SettingsViewModel @Inject constructor(
         downloadManager.requirements = downloadRequirements(wifiOnly)
     }
 
+    fun setSmartDownloads(enabled: Boolean) {
+        appSettingsStore.setSmartDownloads(enabled)
+        if (enabled) smartDownloads.reconcileNow()
+    }
+
+    fun setSmartKeepAhead(count: Int) = appSettingsStore.setSmartKeepAhead(count)
+
     fun clearImageCache() {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
@@ -190,21 +212,21 @@ class SettingsViewModel @Inject constructor(
                 loader.diskCache?.clear()
             }
             refreshImageCacheSize()
-            _messages.tryEmit("Image cache cleared")
+            _messages.tryEmit(context.getString(R.string.st_cache_cleared))
         }
     }
 
     fun clearWatchHistory() {
         viewModelScope.launch {
             watchProgressRepository.clearAll()
-            _messages.tryEmit("Watch history and progress cleared")
+            _messages.tryEmit(context.getString(R.string.st_history_cleared))
         }
     }
 
     fun unhideAllTitles() {
         viewModelScope.launch {
             hiddenTitlesRepository.unhideAll()
-            _messages.tryEmit("Hidden titles are back on Home")
+            _messages.tryEmit(context.getString(R.string.home_hidden_titles_back))
         }
     }
 

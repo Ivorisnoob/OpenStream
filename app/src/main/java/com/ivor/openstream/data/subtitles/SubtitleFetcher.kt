@@ -1,6 +1,7 @@
 package com.ivor.openstream.data.subtitles
 
 import android.content.Context
+import com.ivor.openstream.R
 import com.ivor.openstream.data.repository.OpenSubtitlesRepository
 import com.ivor.openstream.data.repository.SubSourceRepository
 import com.ivor.openstream.data.streaming.BROWSER_USER_AGENT
@@ -41,7 +42,7 @@ class SubtitleFetcher @Inject constructor(
     suspend fun fetchText(url: String, headers: Map<String, String> = emptyMap()): String = withContext(Dispatchers.IO) {
         if (url.startsWith("file:")) return@withContext readSaved(url)
         val bytes = when {
-            SubSourceRepository.isSubSourceUrl(url) -> download(SubSourceRepository.resolveDownloadUrl(client, url), emptyMap())
+            SubSourceRepository.isSubSourceUrl(url) -> download(SubSourceRepository.resolveDownloadUrl(context, client, url), emptyMap())
             url.toHttpUrlOrNull()?.host?.endsWith("opensubtitles.org") == true ->
                 // OpenSubtitles only asks for a User-Agent; the stream's Referer would be wrong there.
                 download(url, mapOf("User-Agent" to OpenSubtitlesRepository.USER_AGENT))
@@ -62,11 +63,11 @@ class SubtitleFetcher @Inject constructor(
         headers: Map<String, String>,
         depth: Int = 0
     ): String = coroutineScope {
-        val base = playlistUrl.toHttpUrlOrNull() ?: throw IOException("Bad subtitle playlist address")
+        val base = playlistUrl.toHttpUrlOrNull() ?: throw IOException(context.getString(R.string.dl_bad_sub_address))
         val entries = playlist.lines().map(String::trim)
             .filter { it.isNotEmpty() && !it.startsWith("#") }
             .mapNotNull { base.resolve(it)?.toString() }
-        if (entries.isEmpty()) throw IOException("The subtitle playlist is empty")
+        if (entries.isEmpty()) throw IOException(context.getString(R.string.dl_empty_playlist))
         val requestHeaders = mapOf("User-Agent" to BROWSER_USER_AGENT) + headers
 
         if (depth == 0 && Regex("#EXT-X-STREAM-INF|#EXT-X-MEDIA").containsMatchIn(playlist)) {
@@ -85,7 +86,7 @@ class SubtitleFetcher @Inject constructor(
                 }
             }.awaitAll()
         }.filterNotNull()
-        if (parts.isEmpty()) throw IOException("The subtitle playlist has no cues")
+        if (parts.isEmpty()) throw IOException(context.getString(R.string.dl_playlist_no_cues))
         parts.joinToString("\n\n")
     }
 
@@ -106,7 +107,7 @@ class SubtitleFetcher @Inject constructor(
         val file = File(URI(url)).canonicalFile
         val root = SavedSubtitleRepository.rootDirectory(context).canonicalPath + File.separator
         if (!file.path.startsWith(root) || file.extension.lowercase() !in SavedSubtitleRepository.FILE_EXTENSIONS) {
-            throw IOException("Not a saved subtitle")
+            throw IOException(context.getString(R.string.dl_not_saved_sub))
         }
         return file.readText()
     }
@@ -115,7 +116,7 @@ class SubtitleFetcher @Inject constructor(
         val request = Request.Builder().url(url).apply { headers.forEach { (name, value) -> header(name, value) } }.build()
         return client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw IOException("Subtitle server returned HTTP ${response.code}")
-            response.body?.bytes() ?: throw IOException("Empty subtitle response")
+            response.body?.bytes() ?: throw IOException(context.getString(R.string.dl_empty_sub_response))
         }
     }
 
@@ -141,7 +142,7 @@ class SubtitleFetcher @Inject constructor(
                 }
             }
         }
-        return best ?: throw IOException("No subtitle file in the archive")
+        return best ?: throw IOException(context.getString(R.string.dl_no_sub_in_archive))
     }
 
     /** UTF-8 when the file is valid UTF-8, otherwise Windows-1252 (common for older SRTs). */

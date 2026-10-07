@@ -33,6 +33,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -206,7 +207,7 @@ fun MiniPlayer(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    val detail = castStatus.deviceName?.let { "Casting to $it" } ?: item.subtitle
+                    val detail = castStatus.deviceName?.let { stringResource(R.string.cast_casting_to, it) } ?: item.subtitle
                     if (detail.isNotEmpty()) {
                         Text(
                             text = detail,
@@ -228,12 +229,12 @@ fun MiniPlayer(
                     AnimatedContent(targetState = isPlaying, label = "miniPlayPause") { playing ->
                         Icon(
                             if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (playing) "Pause" else "Play"
+                            contentDescription = if (playing) stringResource(R.string.cd_pause) else stringResource(R.string.cd_play)
                         )
                     }
                 }
                 IconButton(onClick = session::stop) {
-                    Icon(Icons.Default.Close, contentDescription = "Stop playback")
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_stop_playback))
                 }
             }
             LinearProgressIndicator(

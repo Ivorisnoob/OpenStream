@@ -10,6 +10,7 @@ import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
+import com.ivor.openstream.R
 import com.ivor.openstream.data.local.dao.DownloadDao
 import com.ivor.openstream.data.local.entity.DownloadEntity
 import com.ivor.openstream.data.service.HlsDownloadService
@@ -184,14 +185,14 @@ class DownloadRepositoryImpl @Inject constructor(
             resolutionSlots.withPermit {
                 val server = findDownloadableServer(target)
                 if (server == null) {
-                    dao.updateProgress(target.id, DownloadStatus.FAILED, 0, 0, 0, "No downloadable source found")
+                    dao.updateProgress(target.id, DownloadStatus.FAILED, 0, 0, 0, context.getString(R.string.dl_no_source))
                 } else {
                     try {
                         start(server, target)
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (error: Exception) {
-                        dao.updateProgress(target.id, DownloadStatus.FAILED, 0, 0, 0, error.message ?: "Could not start")
+                        dao.updateProgress(target.id, DownloadStatus.FAILED, 0, 0, 0, error.message ?: context.getString(R.string.er_could_not_start))
                     }
                 }
             }
@@ -319,8 +320,8 @@ class DownloadRepositoryImpl @Inject constructor(
             download.percentDownloaded < 0 -> 0
             else -> download.percentDownloaded.toInt().coerceIn(0, 100)
         }
-        val error = finalException?.let { "Source stopped responding" }
-            ?: if (status == DownloadStatus.FAILED) "Download failed" else null
+        val error = finalException?.let { context.getString(R.string.player_source_stopped) }
+            ?: if (status == DownloadStatus.FAILED) context.getString(R.string.dl_failed) else null
         if (finalException != null) Log.w(TAG, "Download ${download.request.id} failed", finalException)
         dao.updateProgress(
             downloadId = download.request.id,
@@ -387,7 +388,7 @@ class DownloadRepositoryImpl @Inject constructor(
                     row.status == DownloadStatus.FAILED -> Unit
                     else -> dao.updateProgress(
                         row.downloadId, DownloadStatus.FAILED, 0, 0, 0,
-                        if (row.status == DownloadStatus.COMPLETED) "Downloaded files are missing" else "Download was interrupted"
+                        if (row.status == DownloadStatus.COMPLETED) context.getString(R.string.dl_files_missing) else context.getString(R.string.dl_interrupted)
                     )
                 }
             }
@@ -434,7 +435,8 @@ class DownloadRepositoryImpl @Inject constructor(
         showTitle = target.showTitle,
         episodeTitle = target.episodeTitle,
         stillPath = target.stillPath,
-        year = target.year
+        year = target.year,
+        isSmart = target.isSmart
     )
 
     private fun DownloadEntity.toTarget() = DownloadTarget(
@@ -446,7 +448,8 @@ class DownloadRepositoryImpl @Inject constructor(
         episodeTitle = episodeTitle,
         posterPath = posterPath,
         stillPath = stillPath,
-        year = year
+        year = year,
+        isSmart = isSmart
     )
 
     private fun isMedia3(downloadId: String) = downloadId.startsWith("dl_") || downloadId.startsWith("hls_")

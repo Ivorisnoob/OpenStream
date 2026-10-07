@@ -94,6 +94,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -105,6 +106,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import coil3.compose.AsyncImage
+import com.ivor.openstream.R
 import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.presentation.player.components.ExoPlayerView
 import com.ivor.openstream.presentation.player.components.MANUAL_SKIP_MS
@@ -272,12 +274,15 @@ fun PlayerScreen(
         )
     }
 
+    // Read in composition: the snackbar is shown from a coroutine where stringResource is unavailable.
+    val sourcesActionLabel = stringResource(R.string.sheet_sources)
+    val noHealthyMessage = stringResource(R.string.player_no_healthy_action)
     LaunchedEffect(Unit) {
         viewModel.playerEvents.collect { message ->
-            val needsSourceAction = message.startsWith("No more healthy servers")
+            val needsSourceAction = message == noHealthyMessage
             val result = snackbarHostState.showSnackbar(
                 message = message,
-                actionLabel = if (needsSourceAction) "Sources" else null,
+                actionLabel = if (needsSourceAction) sourcesActionLabel else null,
                 duration = if (needsSourceAction) SnackbarDuration.Long else SnackbarDuration.Short
             )
             if (result == SnackbarResult.ActionPerformed) {
@@ -287,9 +292,13 @@ fun PlayerScreen(
     }
     
     // Dynamic Title for Player HUD
-    val playerTitle = if (mediaType == "movie") mediaDetails?.name ?: "Movie" else mediaDetails?.name ?: "Show"
+    val playerTitle = if (mediaType == "movie") {
+        mediaDetails?.name ?: stringResource(R.string.details_movie)
+    } else {
+        mediaDetails?.name ?: stringResource(R.string.player_show_fallback)
+    }
     val playerSubtitle = if (mediaType == "movie") "" else {
-        val epName = currentEpisode?.name ?: "Episode $episode"
+        val epName = currentEpisode?.name ?: stringResource(R.string.misc_episode_number, episode)
         "S$season:E$episode • $epName"
     }
 
@@ -479,14 +488,14 @@ fun PlayerScreen(
                             modifier = Modifier.fillMaxSize(),
                             remoteSubtitles = allSubtitles,
                             sourceLabel = if (downloadId != null) {
-                                "Offline copy"
+                                stringResource(R.string.dl_offline_copy)
                             } else {
                                 activeServer?.name
                             },
                             sourceSummary = if (downloadId != null) {
-                                "Stored on this device"
+                                stringResource(R.string.dl_stored_device)
                             } else {
-                                activeServer?.let { "${it.providerName} · ${it.sourceSummary()}" }
+                                activeServer?.let { "${it.providerName} · ${it.sourceSummary(LocalContext.current)}" }
                             },
                             serversState = serversState,
                             canChangeSource = downloadId == null,
@@ -619,13 +628,18 @@ fun PlayerScreen(
                                     Text(
                                         text = when (val state = serversState) {
                                             is ServersState.Resolving ->
-                                                "Searching sources… ${state.servers.size} found"
-                                            is ServersState.Empty -> "No servers responded"
-                                            is ServersState.Ready -> "Choose a server to continue"
+                                                stringResource(
+                                                    R.string.src_progress,
+                                                    state.servers.size,
+                                                    state.completedProviders,
+                                                    state.totalProviders
+                                                )
+                                            is ServersState.Empty -> stringResource(R.string.player_no_servers)
+                                            is ServersState.Ready -> stringResource(R.string.player_choose_server)
                                             ServersState.Idle -> if (isResolvingLocalUri) {
-                                                "Opening offline video…"
+                                                stringResource(R.string.player_opening_offline)
                                             } else {
-                                                "Preparing sources…"
+                                                stringResource(R.string.player_preparing_sources)
                                             }
                                         },
                                         color = Color.White.copy(alpha = 0.6f),
@@ -637,14 +651,14 @@ fun PlayerScreen(
                                             onClick = viewModel::retryResolution,
                                             shape = ExpressiveShapes.medium
                                         ) {
-                                            Text("Retry sources")
+                                            Text(stringResource(R.string.action_retry_sources))
                                         }
                                     } else if (serversState is ServersState.Ready) {
                                         Button(
                                             onClick = { showServerPicker = true },
                                             shape = ExpressiveShapes.medium
                                         ) {
-                                            Text("Choose a source")
+                                            Text(stringResource(R.string.player_choose_source))
                                         }
                                     }
                                 }

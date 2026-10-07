@@ -65,6 +65,11 @@ import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.ThumbDown
+import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.NotificationsNone
+import com.ivor.openstream.data.local.entity.TitleRatingEntity
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material3.AlertDialog
@@ -113,6 +118,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
@@ -123,6 +129,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
+import com.ivor.openstream.R
 import com.ivor.openstream.data.local.entity.DownloadEntity
 import com.ivor.openstream.data.remote.model.AnimeDetailsDto
 import com.ivor.openstream.data.remote.model.AnimeDto
@@ -158,6 +165,9 @@ fun DetailsScreen(
     val titleWatchedBusy by viewModel.titleWatchedBusy.collectAsState()
     val lists by viewModel.lists.collectAsState()
     val memberOf by viewModel.memberOf.collectAsState()
+    val remindable by viewModel.remindable.collectAsState()
+    val reminderSet by viewModel.reminderSet.collectAsState()
+    val rating by viewModel.rating.collectAsState()
     var showListSheet by remember { mutableStateOf(false) }
     var confirmUnwatched by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
@@ -173,7 +183,7 @@ fun DetailsScreen(
             val send = Intent(Intent.ACTION_SEND)
                 .setType("text/plain")
                 .putExtra(Intent.EXTRA_TEXT, "${details.name} — https://www.themoviedb.org/$mediaType/${details.id}")
-            context.startActivity(Intent.createChooser(send, "Share ${details.name}"))
+            context.startActivity(Intent.createChooser(send, context.getString(R.string.share_title, details.name)))
         }
     }
 
@@ -229,6 +239,11 @@ fun DetailsScreen(
                         inListCount = memberOf.size,
                         onSave = { showListSheet = true },
                         onShare = share,
+                        showRemind = remindable || reminderSet,
+                        reminderSet = reminderSet,
+                        onToggleReminder = viewModel::toggleReminder,
+                        rating = rating,
+                        onRate = viewModel::rate,
                         onDownload = {
                             if (activeDownloads > 0) {
                                 onOpenDownloads()
@@ -249,7 +264,11 @@ fun DetailsScreen(
                         if (!isMovie && next.airDate != null) {
                             item(key = "next-airing") {
                                 NextAiringBanner(
-                                    text = "S${next.seasonNumber} E${next.episodeNumber} arrives ${formatDate(next.airDate, "EEE, MMM d")}"
+                                    text = stringResource(
+                                        R.string.next_airing_arrives,
+                                        "S${next.seasonNumber} E${next.episodeNumber}",
+                                        formatDate(next.airDate, "EEE, MMM d")
+                                    )
                                 )
                             }
                         }
@@ -301,7 +320,7 @@ fun DetailsScreen(
                 val episodeItems: LazyListScope.(columns: Int) -> Unit = { columns ->
                     if (!isMovie && !details.seasons.isNullOrEmpty()) {
                         item(key = "episodes-header") {
-                            SectionTitle("Episodes")
+                            SectionTitle(stringResource(R.string.details_episodes))
                             SeasonPicker(
                                 details = details,
                                 selected = state.selectedSeasonDetails?.seasonNumber,
@@ -349,14 +368,14 @@ fun DetailsScreen(
                 val extraItems: LazyListScope.() -> Unit = {
                     if (details.cast.isNotEmpty()) {
                         item(key = "cast") {
-                            SectionTitle("Cast")
+                            SectionTitle(stringResource(R.string.cast_title))
                             CastRail(details.cast.take(20), onOpenPerson)
                         }
                     }
 
                     if (trailers.isNotEmpty()) {
                         item(key = "trailers") {
-                            SectionTitle("Trailers")
+                            SectionTitle(stringResource(R.string.trailers_title))
                             TrailerRail(trailers)
                         }
                     }
@@ -364,7 +383,7 @@ fun DetailsScreen(
                     val recommendations = details.recommendations?.results.orEmpty().filter { it.posterPath != null }
                     if (recommendations.isNotEmpty()) {
                         item(key = "more-like-this") {
-                            SectionTitle("More like this")
+                            SectionTitle(stringResource(R.string.details_more_like_this))
                             RecommendationRail(
                                 items = recommendations,
                                 defaultMediaType = mediaType,
@@ -375,7 +394,7 @@ fun DetailsScreen(
                 }
                 val infoItems: LazyListScope.() -> Unit = {
                     item(key = "info") {
-                        SectionTitle("Details")
+                        SectionTitle(stringResource(R.string.st_details))
                         // A readable row length on tablets instead of label and value a screen apart.
                         Box(Modifier.widthIn(max = 720.dp)) { InfoList(details, isMovie) }
                     }
@@ -447,15 +466,15 @@ fun DetailsScreen(
     if (confirmUnwatched && loadedTitle != null) {
         AlertDialog(
             onDismissRequest = { confirmUnwatched = false },
-            title = { Text("Mark $loadedTitle unwatched?") },
-            text = { Text("This clears its watch history and resume points, including Continue Watching.") },
+            title = { Text(stringResource(R.string.details_mark_unwatched_confirm, loadedTitle)) },
+            text = { Text(stringResource(R.string.pf_clear_profile_history)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmUnwatched = false
                     viewModel.setTitleWatched(false)
-                }) { Text("Mark unwatched") }
+                }) { Text(stringResource(R.string.action_mark_unwatched)) }
             },
-            dismissButton = { TextButton(onClick = { confirmUnwatched = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { confirmUnwatched = false }) { Text(stringResource(R.string.action_cancel)) } }
         )
     }
 }
@@ -497,7 +516,7 @@ private fun TopBar(
                         val send = Intent(Intent.ACTION_SEND)
                             .setType("text/plain")
                             .putExtra(Intent.EXTRA_TEXT, "$title — $shareUrl")
-                        context.startActivity(Intent.createChooser(send, "Share $title"))
+                        context.startActivity(Intent.createChooser(send, context.getString(R.string.share_title, title)))
                     }
                 ) {
                     Surface(
@@ -506,7 +525,7 @@ private fun TopBar(
                     ) {
                         Icon(
                             Icons.Default.Share,
-                            contentDescription = "Share",
+                            contentDescription = stringResource(R.string.cd_share),
                             modifier = Modifier.padding(8.dp)
                         )
                     }
@@ -563,7 +582,7 @@ private fun Hero(
             ) {
                 AsyncImage(
                     model = "https://image.tmdb.org/t/p/w342${details.posterPath}",
-                    contentDescription = "${details.name} poster",
+                    contentDescription = stringResource(R.string.cd_poster, details.name),
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -688,7 +707,7 @@ private fun WideHero(
                 ) {
                     AsyncImage(
                         model = "https://image.tmdb.org/t/p/w342${details.posterPath}",
-                        contentDescription = "${details.name} poster",
+                        contentDescription = stringResource(R.string.cd_poster, details.name),
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -753,17 +772,18 @@ private fun WideHero(
 
 @Composable
 private fun StatusPill(status: String?) {
-    val label = when (status) {
-        "Returning Series", "In Production" -> "Airing"
-        "Ended" -> "Completed"
-        "Canceled" -> "Cancelled"
+    val labelRes = when (status) {
+        "Returning Series", "In Production" -> R.string.status_airing
+        "Ended" -> R.string.status_completed
+        "Canceled" -> R.string.status_cancelled
         "Released", null -> return
-        else -> status
+        else -> null
     }
+    val label = labelRes?.let { stringResource(it) } ?: status.orEmpty()
     Surface(
         shape = ExpressiveShapes.small,
-        color = if (label == "Airing") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest,
-        contentColor = if (label == "Airing") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+        color = if (labelRes == R.string.status_airing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest,
+        contentColor = if (labelRes == R.string.status_airing) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
     ) {
         Text(
             text = label.uppercase(),
@@ -776,20 +796,26 @@ private fun StatusPill(status: String?) {
 
 @Composable
 private fun MetaLine(details: AnimeDetailsDto, isMovie: Boolean, modifier: Modifier = Modifier) {
+    val runtimeText = details.runtime?.takeIf { it > 0 }?.let { formatRuntime(it) }
+    val seasonsText = details.numberOfSeasons?.let {
+        if (it == 1) stringResource(R.string.season_count_one) else stringResource(R.string.season_count_other, it)
+    }
+    val episodesText = details.numberOfEpisodes?.let { stringResource(R.string.eps_count, it) }
     val parts = buildList {
         details.date.take(4).takeIf { it.length == 4 }?.let(::add)
         if (isMovie) {
-            details.runtime?.takeIf { it > 0 }?.let { add(formatRuntime(it)) }
+            runtimeText?.let(::add)
         } else {
-            details.numberOfSeasons?.let { add(if (it == 1) "1 season" else "$it seasons") }
-            details.numberOfEpisodes?.let { add("$it eps") }
+            seasonsText?.let(::add)
+            episodesText?.let(::add)
         }
     }
     val rating = details.voteAverage.takeIf { it > 0 }
+    val ratedDescription = rating?.let { stringResource(R.string.cd_rated_format, String.format(Locale.US, "%.1f", it)) }
     Row(
         modifier = modifier.semantics(mergeDescendants = true) {
             contentDescription = listOfNotNull(
-                rating?.let { String.format(Locale.US, "Rated %.1f out of 10", it) },
+                ratedDescription,
                 parts.joinToString(", ")
             ).joinToString(". ")
         },
@@ -837,6 +863,11 @@ private fun PrimaryActions(
     onSave: () -> Unit,
     onShare: () -> Unit,
     onDownload: () -> Unit,
+    showRemind: Boolean,
+    reminderSet: Boolean,
+    onToggleReminder: () -> Unit,
+    rating: Int?,
+    onRate: (Int) -> Unit,
     modifier: Modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp)
 ) {
     val uriHandler = LocalUriHandler.current
@@ -854,17 +885,17 @@ private fun PrimaryActions(
             Column {
                 Text(
                     text = when {
-                        resume == null -> "Play"
-                        isMovie -> "Resume"
-                        resume.isUpNext -> "Continue with S${resume.season} E${resume.episode}"
-                        else -> "Resume S${resume.season} E${resume.episode}"
+                        resume == null -> stringResource(R.string.details_play)
+                        isMovie -> stringResource(R.string.cd_resume)
+                        resume.isUpNext -> stringResource(R.string.continue_with_code, "S${resume.season} E${resume.episode}")
+                        else -> stringResource(R.string.resume_code, "S${resume.season} E${resume.episode}")
                     },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 if (resume != null && resume.fraction > 0f) {
                     val minutesLeft = ((resume.durationMs - resume.positionMs) / 60_000L).coerceAtLeast(1)
-                    Text("$minutesLeft min left", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.details_minutes_left, minutesLeft), style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
@@ -888,16 +919,16 @@ private fun PrimaryActions(
             val saved = isSaved || inListCount > 0
             ActionTile(
                 icon = if (saved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                label = if (saved) "Saved" else "Save",
+                label = if (saved) stringResource(R.string.cd_saved) else stringResource(R.string.action_save),
                 highlighted = saved,
                 onClick = onSave,
                 modifier = Modifier.weight(1f)
             )
             val downloadLabel = when {
-                activeDownloads > 0 -> "Downloading $activeDownloads"
-                isMovie && movieDownload?.status == DownloadStatus.COMPLETED -> "Downloaded"
-                isMovie -> "Download"
-                else -> "Download season"
+                activeDownloads > 0 -> stringResource(R.string.downloading_count, activeDownloads)
+                isMovie && movieDownload?.status == DownloadStatus.COMPLETED -> stringResource(R.string.cd_downloaded)
+                isMovie -> stringResource(R.string.action_download)
+                else -> stringResource(R.string.action_download_season)
             }
             ActionTile(
                 icon = if (isMovie && movieDownload?.status == DownloadStatus.COMPLETED) Icons.Default.DownloadDone else Icons.Default.Download,
@@ -909,7 +940,7 @@ private fun PrimaryActions(
             if (hasTrailer && trailer != null) {
                 ActionTile(
                     icon = Icons.Default.Theaters,
-                    label = "Trailer",
+                    label = stringResource(R.string.details_trailer),
                     onClick = { uriHandler.openUri("https://www.youtube.com/watch?v=${trailer.key}") },
                     modifier = Modifier.weight(1f)
                 )
@@ -924,10 +955,10 @@ private fun PrimaryActions(
             ActionTile(
                 icon = if (isWatched) Icons.Default.DoneAll else Icons.Default.Done,
                 label = when {
-                    watchedBusy -> "Marking…"
-                    isWatched -> "Watched"
-                    isMovie -> "Mark watched"
-                    else -> "Mark all watched"
+                    watchedBusy -> stringResource(R.string.marking_label)
+                    isWatched -> stringResource(R.string.details_watched)
+                    isMovie -> stringResource(R.string.action_mark_watched)
+                    else -> stringResource(R.string.action_mark_all_watched)
                 },
                 highlighted = isWatched,
                 busy = watchedBusy,
@@ -936,8 +967,38 @@ private fun PrimaryActions(
             )
             ActionTile(
                 icon = Icons.Default.Share,
-                label = "Share",
+                label = stringResource(R.string.action_share),
                 onClick = onShare,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (showRemind) {
+                ActionTile(
+                    icon = if (reminderSet) Icons.Default.NotificationsActive else Icons.Default.NotificationsNone,
+                    label = stringResource(if (reminderSet) R.string.remind_on else R.string.remind_me),
+                    highlighted = reminderSet,
+                    onClick = onToggleReminder,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            ActionTile(
+                icon = Icons.Default.ThumbUp,
+                label = stringResource(R.string.cd_like),
+                highlighted = rating == TitleRatingEntity.LIKE,
+                onClick = { onRate(TitleRatingEntity.LIKE) },
+                modifier = Modifier.weight(1f)
+            )
+            ActionTile(
+                icon = Icons.Default.ThumbDown,
+                label = stringResource(R.string.cd_dislike),
+                highlighted = rating == TitleRatingEntity.DISLIKE,
+                onClick = { onRate(TitleRatingEntity.DISLIKE) },
                 modifier = Modifier.weight(1f)
             )
         }
@@ -998,7 +1059,7 @@ private fun NextAiringBanner(text: String) {
         ) {
             Icon(Icons.Default.Event, contentDescription = null)
             Column(modifier = Modifier.padding(start = 14.dp)) {
-                Text("Next episode", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.action_next_episode), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                 Text(text, style = MaterialTheme.typography.bodyMedium)
             }
         }
@@ -1024,7 +1085,7 @@ private fun Overview(
         )
         if (text.length > 220) {
             TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(horizontal = 0.dp)) {
-                Text(if (expanded) "Show less" else "More")
+                Text(if (expanded) stringResource(R.string.action_show_less) else stringResource(R.string.more_short))
             }
         }
     }
@@ -1056,7 +1117,7 @@ private fun SeasonWatchedAction(allWatched: Boolean, onClick: () -> Unit) {
                 modifier = Modifier.size(18.dp)
             )
             Spacer(Modifier.width(8.dp))
-            Text(if (allWatched) "Mark season unwatched" else "Mark season watched")
+            Text(if (allWatched) stringResource(R.string.action_mark_season_unwatched) else stringResource(R.string.action_mark_season_watched))
         }
     }
 }
@@ -1187,8 +1248,11 @@ private fun EpisodeCard(
     val watched = progress?.completed == true
     var menuOpen by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
+    val markWatchedLabel = stringResource(if (watched) R.string.action_mark_unwatched else R.string.action_mark_watched)
+    val downloadActionLabel = stringResource(R.string.action_download)
+    val episodeNumberText = stringResource(R.string.misc_episode_number, episode.episodeNumber)
     val meta = listOfNotNull(
-        episode.runtime?.takeIf { it > 0 }?.let(::formatRuntime),
+        episode.runtime?.takeIf { it > 0 }?.let { formatRuntime(it) },
         episode.airDate?.let { formatDate(it, "MMM d, yyyy") }
     ).joinToString("  ·  ")
 
@@ -1204,15 +1268,15 @@ private fun EpisodeCard(
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 menuOpen = true
             },
-                onClickLabel = "Play episode ${episode.episodeNumber}",
-                onLongClickLabel = "More options"
+                onClickLabel = stringResource(R.string.play_episode, episode.episodeNumber),
+                onLongClickLabel = stringResource(R.string.misc_more_options)
             )
             .semantics(mergeDescendants = true) {
                 customActions = listOf(
-                    CustomAccessibilityAction(if (watched) "Mark as unwatched" else "Mark as watched") {
+                    CustomAccessibilityAction(markWatchedLabel) {
                         onSetWatched(!watched); true
                     },
-                    CustomAccessibilityAction("Download") { onDownload(); true }
+                    CustomAccessibilityAction(downloadActionLabel) { onDownload(); true }
                 )
             }
             .padding(8.dp)
@@ -1247,7 +1311,7 @@ private fun EpisodeCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = if (released) meta.ifEmpty { "Episode ${episode.episodeNumber}" } else "Coming ${episode.airDate?.let { formatDate(it, "MMM d") } ?: "soon"}",
+                        text = if (released) meta.ifEmpty { episodeNumberText } else episode.airDate?.let { stringResource(R.string.coming_date, formatDate(it, "MMM d")) } ?: stringResource(R.string.coming_soon),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 2.dp)
@@ -1269,7 +1333,7 @@ private fun EpisodeCard(
 
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             DropdownMenuItem(
-                text = { Text(if (watched) "Mark as unwatched" else "Mark as watched") },
+                text = { Text(markWatchedLabel) },
                 leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null) },
                 onClick = {
                     menuOpen = false
@@ -1277,7 +1341,7 @@ private fun EpisodeCard(
                 }
             )
             DropdownMenuItem(
-                text = { Text("Download") },
+                text = { Text(downloadActionLabel) },
                 leadingIcon = { Icon(Icons.Default.Download, contentDescription = null) },
                 enabled = released,
                 onClick = {
@@ -1315,7 +1379,7 @@ private fun BoxScope.EpisodeThumbnailOverlay(number: Int, progress: WatchProgres
         ) {
             Icon(
                 Icons.Default.CheckCircle,
-                contentDescription = "Watched",
+                contentDescription = stringResource(R.string.cd_watched),
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(28.dp)
             )
@@ -1338,10 +1402,11 @@ private fun BoxScope.EpisodeThumbnailOverlay(number: Int, progress: WatchProgres
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun EpisodeDownloadAction(download: DownloadEntity?, onDownload: () -> Unit) {
+    val downloadingDescription = stringResource(R.string.cd_downloading_percent, download?.progress ?: 0)
     when (download?.status) {
         DownloadStatus.COMPLETED -> Icon(
             Icons.Default.DownloadDone,
-            contentDescription = "Downloaded",
+            contentDescription = stringResource(R.string.cd_downloaded),
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(12.dp)
         )
@@ -1355,7 +1420,7 @@ private fun EpisodeDownloadAction(download: DownloadEntity?, onDownload: () -> U
             modifier = Modifier
                 .padding(8.dp)
                 .size(32.dp)
-                .semantics { contentDescription = "Downloading, ${download.progress} percent" }
+                .semantics { contentDescription = downloadingDescription }
         ) {
             CircularProgressIndicator(
                 progress = { download.progress / 100f },
@@ -1366,7 +1431,7 @@ private fun EpisodeDownloadAction(download: DownloadEntity?, onDownload: () -> U
         else -> IconButton(onClick = onDownload) {
             Icon(
                 if (download?.status == DownloadStatus.FAILED) Icons.Default.Refresh else Icons.Default.Download,
-                contentDescription = if (download?.status == DownloadStatus.FAILED) "Retry download" else "Download"
+                contentDescription = if (download?.status == DownloadStatus.FAILED) stringResource(R.string.action_retry_download) else stringResource(R.string.action_download)
             )
         }
     }
@@ -1387,7 +1452,7 @@ private fun CastRail(cast: List<CastDto>, onOpenPerson: (Int) -> Unit) {
                 modifier = Modifier
                     .width(88.dp)
                     .clip(ExpressiveShapes.medium)
-                    .clickable(onClickLabel = "Open ${person.name}") { onOpenPerson(person.id) }
+                    .clickable(onClickLabel = stringResource(R.string.misc_open_title, person.name)) { onOpenPerson(person.id) }
                     .semantics(mergeDescendants = true) {}
                     // The role line used to sit on the clipped bottom corners.
                     .padding(start = 4.dp, end = 4.dp, bottom = 10.dp),
@@ -1438,7 +1503,7 @@ private fun TrailerRail(trailers: List<VideoDto>) {
                 modifier = Modifier
                     .width(240.dp)
                     .clip(ExpressiveShapes.medium)
-                    .clickable(onClickLabel = "Play ${video.name} on YouTube") {
+                    .clickable(onClickLabel = stringResource(R.string.play_on_youtube, video.name)) {
                         uriHandler.openUri("https://www.youtube.com/watch?v=${video.key}")
                     }
                     .padding(bottom = 10.dp)
@@ -1495,7 +1560,7 @@ private fun RecommendationRail(
                 modifier = Modifier
                     .width(124.dp)
                     .clip(ExpressiveShapes.medium)
-                    .clickable(onClickLabel = "Open ${anime.name}") {
+                    .clickable(onClickLabel = stringResource(R.string.misc_open_title, anime.name)) {
                         onOpen(anime.id, anime.mediaType?.takeIf { it == "movie" || it == "tv" } ?: defaultMediaType)
                     }
                     .padding(bottom = 10.dp)
@@ -1527,19 +1592,23 @@ private fun RecommendationRail(
 @Composable
 private fun InfoList(details: AnimeDetailsDto, isMovie: Boolean) {
     val uriHandler = LocalUriHandler.current
+    val statusLabel = stringResource(R.string.st_status)
+    val firstAiredLabel = stringResource(R.string.details_first_aired)
+    val originalTitleLabel = stringResource(R.string.details_original_title)
+    val languageLabel = stringResource(R.string.details_language)
     val rows = buildList {
-        details.status?.let { add("Status" to it) }
+        details.status?.let { add(statusLabel to it) }
         details.date.takeIf { it.isNotBlank() }?.let {
-            add((if (isMovie) "Released" else "First aired") to formatDate(it, "MMMM d, yyyy"))
+            add((if (isMovie) stringResource(R.string.info_released) else firstAiredLabel) to formatDate(it, "MMMM d, yyyy"))
         }
-        details.nativeTitle?.let { add("Original title" to it) }
+        details.nativeTitle?.let { add(originalTitleLabel to it) }
         details.originalLanguage?.let { code ->
-            val name = Locale.forLanguageTag(code).getDisplayLanguage(Locale.ENGLISH).ifBlank { code }
-            add("Language" to name)
+            val name = Locale.forLanguageTag(code).getDisplayLanguage(Locale.getDefault()).ifBlank { code }
+            add(languageLabel to name)
         }
-        details.networks?.takeIf { it.isNotEmpty() }?.let { add("Network" to it.joinToString { n -> n.name }) }
+        details.networks?.takeIf { it.isNotEmpty() }?.let { add(stringResource(R.string.info_network) to it.joinToString { n -> n.name }) }
         details.productionCompanies?.takeIf { it.isNotEmpty() }?.let {
-            add("Studios" to it.take(3).joinToString { c -> c.name })
+            add(stringResource(R.string.info_studios) to it.take(3).joinToString { c -> c.name })
         }
     }
     Column(
@@ -1563,7 +1632,7 @@ private fun InfoList(details: AnimeDetailsDto, isMovie: Boolean) {
                 colors = ListItemDefaults.segmentedColors(),
                 trailingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) }
             ) {
-                Text("Official website", fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.details_official_website), fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -1578,7 +1647,7 @@ private fun DetailsError(message: String, onRetry: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text("Couldn't load this title", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.home_could_not_load_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text(
             message,
             style = MaterialTheme.typography.bodyMedium,
@@ -1586,7 +1655,7 @@ private fun DetailsError(message: String, onRetry: () -> Unit) {
             modifier = Modifier.padding(top = 8.dp)
         )
         Button(onClick = onRetry, shape = ExpressiveShapes.medium, modifier = Modifier.padding(top = 24.dp)) {
-            Text("Try again")
+            Text(stringResource(R.string.action_try_again))
         }
     }
 }
@@ -1625,8 +1694,10 @@ private fun formatDate(isoDate: String, pattern: String): String =
     runCatching { LocalDate.parse(isoDate).format(DateTimeFormatter.ofPattern(pattern, Locale.getDefault())) }
         .getOrDefault(isoDate)
 
+@Composable
 private fun formatRuntime(minutes: Int): String =
-    if (minutes >= 60) "${minutes / 60}h ${minutes % 60}m" else "${minutes}m"
+    if (minutes >= 60) stringResource(R.string.misc_duration_hm, minutes / 60, minutes % 60)
+    else stringResource(R.string.misc_duration_m, minutes)
 
 private fun compactCount(count: Int): String = when {
     count >= 1_000_000 -> String.format(Locale.US, "%.1fM", count / 1_000_000f)

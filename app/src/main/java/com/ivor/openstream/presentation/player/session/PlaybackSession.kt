@@ -1,6 +1,7 @@
 package com.ivor.openstream.presentation.player.session
 
 import android.content.Context
+import com.ivor.openstream.R
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -310,7 +311,7 @@ class PlaybackSession @Inject constructor(
             .onFailure { Log.w(TAG, "Cast unavailable: ${it.message}") }
             .getOrNull() ?: return
         castContext = cast
-        val remote = CastPlayer(cast, CastMediaItemConverter())
+        val remote = CastPlayer(cast, CastMediaItemConverter(context))
         remote.addListener(castListener)
         remote.setSessionAvailabilityListener(object : SessionAvailabilityListener {
             override fun onCastSessionAvailable() = onCastConnected()
@@ -489,7 +490,7 @@ class PlaybackSession @Inject constructor(
                 Log.w(TAG, "Could not prepare the cast stream", error)
                 _castLoading.value = false
                 _castError.value = CastError(
-                    message = error.message ?: "Couldn't send this to the TV.",
+                    message = error.message ?: context.getString(R.string.player_could_not_send_tv),
                     fromStream = false
                 )
             }
@@ -513,7 +514,7 @@ class PlaybackSession @Inject constructor(
         val options = subtitleCandidates.distinctBy { it.url }.map { subtitle ->
             CastSubtitleOption(
                 id = subtitle.id,
-                label = subtitle.display ?: subtitle.language?.uppercase() ?: "Subtitles",
+                label = subtitle.display ?: subtitle.language?.uppercase() ?: context.getString(R.string.player_subtitles),
                 language = subtitle.language
             )
         }
@@ -529,7 +530,7 @@ class PlaybackSession @Inject constructor(
         receiver: InetAddress?
     ): Pair<MediaItem, Map<String, Long>> {
         val url = castProxy.mediaUrl(item.mediaUri, headers, receiver)
-            ?: throw IOException("Connect this phone to the same Wi-Fi network as the TV.")
+            ?: throw IOException(context.getString(R.string.player_cast_same_wifi))
         val probe = castProxy.probe(item.mediaUri, headers)
         val tracks = linkedMapOf<String, Long>()
         val configurations = subtitles.mapNotNull { subtitle ->
@@ -538,7 +539,7 @@ class PlaybackSession @Inject constructor(
             MediaItem.SubtitleConfiguration.Builder(Uri.parse(subtitleUrl))
                 .setMimeType("text/vtt")
                 .setId(subtitle.id)
-                .setLabel(subtitle.display ?: subtitle.language?.uppercase() ?: "Subtitles")
+                .setLabel(subtitle.display ?: subtitle.language?.uppercase() ?: context.getString(R.string.player_subtitles))
                 .setLanguage(subtitle.language)
                 .setSelectionFlags(if (subtitle.id == activeSubtitleId) C.SELECTION_FLAG_DEFAULT else 0)
                 .build()
@@ -647,7 +648,7 @@ class PlaybackSession @Inject constructor(
             Log.w(TAG, "Receiver error: ${error.errorCodeName} ${error.message}")
             _castLoading.value = false
             _castError.value = CastError(
-                message = "The TV couldn't play this source.",
+                message = context.getString(R.string.player_tv_could_not_play),
                 fromStream = true
             )
         }

@@ -15,7 +15,10 @@ data class ProfileEntity(
     val name: String,
     val avatar: String,
     val isKids: Boolean,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    /** SHA-256 hex of salt + PIN; null means no PIN lock. */
+    val pinHash: String? = null,
+    val pinSalt: String? = null
 ) {
     companion object {
         /** The profile every row that predates profiles belongs to (seeded by the migration). */

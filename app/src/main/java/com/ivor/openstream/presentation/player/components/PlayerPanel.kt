@@ -3,6 +3,7 @@
 package com.ivor.openstream.presentation.player.components
 
 import androidx.activity.compose.BackHandler
+import com.ivor.openstream.R
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -44,6 +45,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -140,7 +142,7 @@ fun PanelHeader(
     ) {
         onBack?.let {
             IconButton(onClick = it) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
             }
         }
         Column(modifier = Modifier.weight(1f)) {
@@ -162,7 +164,7 @@ fun PanelHeader(
         actions()
         onClose?.let {
             IconButton(onClick = it) {
-                Icon(Icons.Default.Close, contentDescription = "Close")
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close))
             }
         }
     }

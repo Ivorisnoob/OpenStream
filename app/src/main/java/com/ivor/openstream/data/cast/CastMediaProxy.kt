@@ -16,6 +16,7 @@ import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.ContentMetadata
+import com.ivor.openstream.R
 import com.ivor.openstream.data.streaming.BROWSER_USER_AGENT
 import com.ivor.openstream.data.streaming.ImagePrefixStrippingDataSource
 import com.ivor.openstream.data.subtitles.SubtitleFetcher
@@ -353,7 +354,7 @@ class CastMediaProxy @Inject constructor(
     private fun fetchSubtitleAsVtt(target: String, headers: Map<String, String>): ByteArray {
         val text = runBlocking { subtitleFetcher.fetchText(target, headers) }
         val cues = parseSubtitles(text).filterNot { it.text.isSubtitleAd() }
-        if (cues.isEmpty()) throw IOException("No cues")
+        if (cues.isEmpty()) throw IOException(context.getString(R.string.dl_no_cues))
         return cues.toWebVtt().toByteArray(Charsets.UTF_8)
     }
 

@@ -1,6 +1,7 @@
 package com.ivor.openstream.presentation.downloads
 
 import androidx.activity.compose.rememberLauncherForActivityResult
+import com.ivor.openstream.R
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -54,6 +55,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -113,8 +115,8 @@ fun DownloadSubtitlesSheet(
             // On this device
             item(key = "saved-title") {
                 SectionHeader(
-                    title = "On this device",
-                    detail = if (state.saved.isEmpty()) null else "Works offline",
+                    title = stringResource(R.string.st_on_device),
+                    detail = if (state.saved.isEmpty()) null else stringResource(R.string.dl_works_offline),
                     action = {
                         FilledTonalButton(
                             onClick = { importLauncher.launch(arrayOf("*/*")) },
@@ -126,7 +128,7 @@ fun DownloadSubtitlesSheet(
                                 Icon(Icons.Default.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp))
                             }
                             Spacer(Modifier.width(8.dp))
-                            Text("Import file")
+                            Text(stringResource(R.string.dl_import_file))
                         }
                     }
                 )
@@ -135,7 +137,7 @@ fun DownloadSubtitlesSheet(
                 item(key = "saved-empty") {
                     HintCard(
                         icon = { Icon(Icons.Default.ClosedCaption, contentDescription = null) },
-                        text = "Nothing saved yet. Pick subtitles below, or import an SRT, VTT or ASS file you already have."
+                        text = stringResource(R.string.dl_nothing_saved_yet)
                     )
                 }
             }
@@ -163,11 +165,11 @@ fun DownloadSubtitlesSheet(
             // Online
             item(key = "online-title") {
                 SectionHeader(
-                    title = "Find online",
+                    title = stringResource(R.string.action_find_online),
                     detail = if (state.isCheckingSource) {
-                        "Checking the video's source, OpenSubtitles and SubSource…"
+                        stringResource(R.string.sub_checking_all)
                     } else {
-                        "The video's source, OpenSubtitles and SubSource"
+                        stringResource(R.string.dl_video_source)
                     },
                     modifier = Modifier.padding(top = 12.dp)
                 )
@@ -195,14 +197,17 @@ fun DownloadSubtitlesSheet(
                     HintCard(
                         icon = { Icon(if (state.online.isEmpty()) Icons.Default.WifiOff else Icons.Default.Search, contentDescription = null) },
                         text = when {
-                            language != null -> "No ${SavedSubtitleRepository.languageName(language)} subtitles found for this one."
-                            state.online.isEmpty() -> "Nothing found. Searching needs a connection; saved subtitles above still work offline."
-                            else -> "Everything here is hidden by the filters."
+                            language != null -> stringResource(
+                                R.string.sub_no_lang_found_title,
+                                SavedSubtitleRepository.languageName(language)
+                            )
+                            state.online.isEmpty() -> stringResource(R.string.dl_nothing_found_offline)
+                            else -> stringResource(R.string.search_hidden_by_filters)
                         },
                         action = {
                             TextButton(onClick = {
                                 if (language != null) viewModel.searchLanguage(language) else viewModel.retrySearch()
-                            }) { Text("Search again") }
+                            }) { Text(stringResource(R.string.action_search_again)) }
                         }
                     )
                 }
@@ -210,7 +215,7 @@ fun DownloadSubtitlesSheet(
             groups.forEach { (language, subtitles) ->
                 item(key = "group:$language") {
                     LanguageHeader(
-                        name = language?.let { SavedSubtitleRepository.languageName(it) } ?: "Other",
+                        name = language?.let { SavedSubtitleRepository.languageName(it) } ?: stringResource(R.string.sub_other_languages),
                         count = subtitles.size,
                         isSearching = language != null && language in state.searchingLanguages,
                         onSearchMore = language?.let { code -> { viewModel.searchLanguage(code) } }
@@ -278,7 +283,7 @@ private fun SheetHeader(download: DownloadEntity) {
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                text = "Subtitles",
+                text = stringResource(R.string.player_subtitles),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Black,
                 modifier = Modifier.semantics { heading() }
@@ -365,7 +370,7 @@ private fun FilterRow(
             FilterChip(
                 selected = languageFilter == null,
                 onClick = { onLanguage(null) },
-                label = { Text("All languages") }
+                label = { Text(stringResource(R.string.dl_all_languages)) }
             )
         }
         // A language searched by name stays in the row even before results come back.
@@ -380,7 +385,7 @@ private fun FilterRow(
         item(key = "other") {
             AssistChip(
                 onClick = onOtherLanguage,
-                label = { Text("Another language") },
+                label = { Text(stringResource(R.string.dl_another_language)) },
                 leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)) }
             )
         }
@@ -388,7 +393,7 @@ private fun FilterRow(
             FilterChip(
                 selected = hideHearingImpaired,
                 onClick = { onHideHearingImpaired(!hideHearingImpaired) },
-                label = { Text("Hide SDH") },
+                label = { Text(stringResource(R.string.player_hide_sdh)) },
                 leadingIcon = {
                     Icon(Icons.Default.Hearing, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize))
                 }
@@ -420,7 +425,7 @@ private fun LanguageHeader(name: String, count: Int, isSearching: Boolean, onSea
         Spacer(Modifier.weight(1f))
         when {
             isSearching -> LoadingIndicator(Modifier.size(32.dp))
-            onSearchMore != null -> TextButton(onClick = onSearchMore) { Text("More releases") }
+            onSearchMore != null -> TextButton(onClick = onSearchMore) { Text(stringResource(R.string.misc_more_releases)) }
         }
     }
 }
@@ -451,7 +456,7 @@ private fun SavedRow(
         },
         trailingContent = {
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete ${saved.label} subtitles")
+                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.cd_delete_subtitles, saved.label))
             }
         }
     ) {
@@ -470,7 +475,7 @@ private fun OnlineRow(
     isSelected: Boolean,
     onToggle: () -> Unit
 ) {
-    val label = subtitle.display ?: subtitle.language?.let { SavedSubtitleRepository.languageName(it) } ?: "Subtitles"
+    val label = subtitle.display ?: subtitle.language?.let { SavedSubtitleRepository.languageName(it) } ?: stringResource(R.string.player_subtitles)
     SegmentedListItem(
         checked = isSelected,
         onCheckedChange = { onToggle() },
@@ -480,7 +485,7 @@ private fun OnlineRow(
         leadingContent = {
             Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
                 when {
-                    isSaved -> Icon(Icons.Default.CheckCircle, contentDescription = "Saved", tint = MaterialTheme.colorScheme.primary)
+                    isSaved -> Icon(Icons.Default.CheckCircle, contentDescription = stringResource(R.string.nav_saved), tint = MaterialTheme.colorScheme.primary)
                     isSaving -> LoadingIndicator(Modifier.size(32.dp))
                     // The row itself toggles; the box only shows the state.
                     else -> Checkbox(checked = isSelected, onCheckedChange = null)
@@ -490,8 +495,8 @@ private fun OnlineRow(
         supportingContent = {
             Text(
                 text = when {
-                    isSaved -> "Saved · " + (subtitle.release ?: subtitle.source.orEmpty())
-                    isSaving -> "Saving…"
+                    isSaved -> stringResource(R.string.sub_saved_source, subtitle.release ?: subtitle.source.orEmpty())
+                    isSaving -> stringResource(R.string.misc_saving)
                     else -> listOfNotNull(subtitle.release, subtitle.source).joinToString(" · ")
                 },
                 maxLines = 2,
@@ -514,17 +519,17 @@ private fun SelectionBar(count: Int, onClear: () -> Unit, onSave: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = if (count == 1) "1 selected" else "$count selected",
+                text = if (count == 1) stringResource(R.string.count_selected_one) else stringResource(R.string.count_selected, count),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f)
             )
-            TextButton(onClick = onClear) { Text("Clear") }
+            TextButton(onClick = onClear) { Text(stringResource(R.string.action_clear)) }
             Spacer(Modifier.width(8.dp))
             Button(onClick = onSave, modifier = Modifier.heightIn(min = 48.dp)) {
                 Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(if (count == 1) "Save" else "Save $count")
+                Text(if (count == 1) stringResource(R.string.action_save) else stringResource(R.string.misc_save_count, count))
             }
         }
     }
@@ -537,7 +542,7 @@ private fun LanguagePickerDialog(onPick: (String) -> Unit, onDismiss: () -> Unit
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Search a language") },
+        title = { Text(stringResource(R.string.dl_search_language_hint)) },
         text = {
             LazyColumn(Modifier.heightIn(max = 420.dp)) {
                 items(languages, key = { it.first }) { (code, name) ->
@@ -550,7 +555,7 @@ private fun LanguagePickerDialog(onPick: (String) -> Unit, onDismiss: () -> Unit
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 

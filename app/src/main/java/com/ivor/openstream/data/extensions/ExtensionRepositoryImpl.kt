@@ -1,11 +1,14 @@
 package com.ivor.openstream.data.extensions
 
+import android.content.Context
+import com.ivor.openstream.R
 import com.ivor.openstream.domain.model.ExtensionCatalog
 import com.ivor.openstream.domain.model.ExtensionManifest
 import com.ivor.openstream.domain.model.ExtensionRepo
 import com.ivor.openstream.domain.model.ExtensionUsage
 import com.ivor.openstream.domain.model.MarketplaceExtension
 import com.ivor.openstream.domain.repository.ExtensionRepository
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -31,7 +34,8 @@ class ExtensionRepositoryImpl @Inject constructor(
     private val parser: ExtensionIndexParser,
     private val cache: ExtensionCacheStore,
     private val store: ExtensionStateStore,
-    private val bundled: BundledExtensionCatalog
+    private val bundled: BundledExtensionCatalog,
+    @ApplicationContext private val context: Context
 ) : ExtensionRepository {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -82,7 +86,7 @@ class ExtensionRepositoryImpl @Inject constructor(
                     }
                     .onFailure { error ->
                         synchronized(lock) {
-                            repoErrors[repoId] = error.message ?: "Could not reach repository"
+                            repoErrors[repoId] = error.message ?: context.getString(R.string.st_could_not_reach_repo)
                         }
                     }
             }
@@ -96,16 +100,16 @@ class ExtensionRepositoryImpl @Inject constructor(
     override suspend fun addRepo(url: String): Result<ExtensionRepo> {
         ensureLoaded()
         val normalized = RepoUrlNormalizer.normalize(url)
-            ?: return Result.failure(IllegalArgumentException("That does not look like a repository link"))
+            ?: return Result.failure(IllegalArgumentException(context.getString(R.string.st_bad_repo_link)))
         val repoId = RepoUrlNormalizer.repoId(normalized)
         if (synchronized(lock) { snapshots.containsKey(repoId) }) {
-            return Result.failure(IllegalStateException("That repository is already added"))
+            return Result.failure(IllegalStateException(context.getString(R.string.st_repo_already_added)))
         }
 
         return runCatching { client.fetch(normalized) }
             .mapCatching { snapshot ->
                 if (snapshot.extensions.isEmpty()) {
-                    throw IllegalStateException("Repository published no extensions")
+                    throw IllegalStateException(context.getString(R.string.st_repo_no_extensions))
                 }
                 cache.write(repoId, snapshot)
                 store.addCustomRepo(CustomRepoRecord(id = repoId, url = normalized, name = snapshot.name))
@@ -125,7 +129,7 @@ class ExtensionRepositoryImpl @Inject constructor(
     override suspend fun removeRepo(repoId: String): Result<Unit> {
         ensureLoaded()
         if (repoId == BundledExtensionCatalog.OFFICIAL_REPO_ID) {
-            return Result.failure(IllegalStateException("The official repository cannot be removed"))
+            return Result.failure(IllegalStateException(context.getString(R.string.st_official_cannot_remove)))
         }
         store.removeCustomRepo(repoId)
         store.removeInstallsForRepo(repoId)
