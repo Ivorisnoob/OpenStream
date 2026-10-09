@@ -519,7 +519,7 @@ private fun MatchRail(matches: List<MatchUi>, onOpen: (AnimeDto) -> Unit) {
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(matches, key = { it.item.id }) { match ->
+        items(matches, key = { it.key }) { match ->
             Column(modifier = Modifier.width(posterWidth)) {
                 AnimeCard(
                     anime = match.item,

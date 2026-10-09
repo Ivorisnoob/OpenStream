@@ -12,6 +12,7 @@ import coil3.SingletonImageLoader
 import com.ivor.openstream.data.backup.BackupFormatException
 import com.ivor.openstream.data.backup.LibraryBackup
 import com.ivor.openstream.data.downloads.SmartDownloads
+import com.ivor.openstream.data.playback.StreamDataGuard
 import com.ivor.openstream.data.notifications.EpisodeAlarm
 import com.ivor.openstream.data.diagnostics.Diagnostics
 import com.ivor.openstream.data.repository.HiddenTitlesRepository
@@ -59,7 +60,8 @@ class SettingsViewModel @Inject constructor(
     private val hiddenTitlesRepository: HiddenTitlesRepository,
     private val libraryBackup: LibraryBackup,
     private val diagnostics: Diagnostics,
-    private val smartDownloads: SmartDownloads
+    private val smartDownloads: SmartDownloads,
+    val streamDataGuard: StreamDataGuard
 ) : ViewModel() {
 
     val state: StateFlow<SettingsUiState> = extensionRepository.catalog
@@ -203,6 +205,12 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setSmartKeepAhead(count: Int) = appSettingsStore.setSmartKeepAhead(count)
+
+    fun setKeepPlayingInBackground(enabled: Boolean) = appSettingsStore.setKeepPlayingInBackground(enabled)
+
+    fun setWarnBeforeMeteredStream(enabled: Boolean) = appSettingsStore.setWarnBeforeMeteredStream(enabled)
+
+    fun setMeteredMaxHeight(height: Int) = appSettingsStore.setMeteredMaxHeight(height)
 
     fun clearImageCache() {
         viewModelScope.launch {

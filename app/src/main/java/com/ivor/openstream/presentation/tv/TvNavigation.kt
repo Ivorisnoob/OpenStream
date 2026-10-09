@@ -120,6 +120,7 @@ fun TvNavigation() {
                 tmdbId = animeId,
                 season = season,
                 episode = episode,
+                tvControls = true,
                 onBackClick = { navController.popBackStack() },
                 onEpisodeClick = { newSeason, newEpisode ->
                     navController.navigate(TvRoutes.player(mediaType, animeId, newSeason, newEpisode)) {

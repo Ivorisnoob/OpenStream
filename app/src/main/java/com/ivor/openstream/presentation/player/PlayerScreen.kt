@@ -48,13 +48,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DataUsage
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
@@ -104,6 +108,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import coil3.compose.AsyncImage
 import com.ivor.openstream.R
@@ -141,6 +146,8 @@ fun PlayerScreen(
     onEpisodeClick: (season: Int, episode: Int) -> Unit,
     onOpenDetails: (mediaType: String, id: Int) -> Unit = { _, _ -> },
     onOpenTitle: (id: Int, mediaType: String) -> Unit = { _, _ -> },
+    /** Android TV: the player gets D-pad controls, media notifications and a leanback start. */
+    tvControls: Boolean = false,
     viewModel: PlayerViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -351,6 +358,11 @@ fun PlayerScreen(
         if (isCasting && isFullscreen) exitFullscreen()
     }
 
+    // On a TV the player opens immersive: a 10-foot screen has no use for the surrounding chrome.
+    LaunchedEffect(tvControls, videoUrl) {
+        if (tvControls && videoUrl != null && !isFullscreen) enterFullscreen()
+    }
+
     // Handle back press in fullscreen -- exit fullscreen instead of navigating back
     BackHandler(enabled = isFullscreen) {
         exitFullscreen()
@@ -376,6 +388,38 @@ fun PlayerScreen(
 
     val onNextClick: (() -> Unit)? = nextEpisode?.let { target ->
         { onEpisodeClick(target.season, target.episode) }
+    }
+
+    // Ask before a stream runs on mobile data, once per app run, with a way out of the dialog.
+    val dataWarningMessage = stringResource(R.string.st_data_mobile_now_hint)
+    var showDataWarning by remember { mutableStateOf(false) }
+    LaunchedEffect(videoUrl, appSettings.warnBeforeMeteredStream) {
+        if (videoUrl != null && appSettings.warnBeforeMeteredStream) {
+            if (viewModel.shouldWarnBeforeStreaming()) showDataWarning = true
+        }
+    }
+    if (showDataWarning) {
+        AlertDialog(
+            onDismissRequest = { viewModel.markDataWarningAnswered(); showDataWarning = false },
+            icon = { Icon(Icons.Default.DataUsage, contentDescription = null) },
+            title = { Text(stringResource(R.string.st_data_mobile_now)) },
+            text = { Text(dataWarningMessage) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.markDataWarningAnswered()
+                    showDataWarning = false
+                }) { Text(stringResource(R.string.action_continue_anyway)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    // Lower the ceiling for this playback and stop asking on this network.
+                    viewModel.markDataWarningAnswered()
+                    viewModel.setWarnBeforeMeteredStream(false)
+                    viewModel.capVideoHeight(480)
+                    showDataWarning = false
+                }) { Text(stringResource(R.string.action_play_small, 480)) }
+            }
+        )
     }
 
     val sourceActions = SourcesPageActions(
@@ -532,9 +576,9 @@ fun PlayerScreen(
                             preferredAudioLanguage = preferredAudioLanguage,
                             onAudioLanguageChosen = viewModel::setPreferredAudioLanguage,
                             onCaptionSettingsChange = viewModel::updateCaptionSettings,
-                            onPlaybackError = {
+                            onPlaybackError = { error ->
                                 if (downloadId == null) {
-                                    viewModel.onPlaybackError()
+                                    viewModel.onPlaybackError(error)
                                     showServerPicker = viewModel.activeServer.value == null
                                 }
                             },
@@ -542,6 +586,10 @@ fun PlayerScreen(
                             onCastClick = { showCastSheet = true }.takeIf { castStatus.supported },
                             onPictureInPictureClick = enterPictureInPicture,
                             loadSubtitleText = viewModel::loadSubtitleText,
+                            keepPlayingInBackground = appSettings.keepPlayingInBackground,
+                            dpadControls = tvControls,
+                            artworkUri = (currentEpisode?.stillPath ?: mediaDetails?.backdropPath)
+                                ?.let { "https://image.tmdb.org/t/p/w1280$it" },
                             mimeType = activeServer?.mimeType.takeIf { downloadId == null }
                         )
                     }

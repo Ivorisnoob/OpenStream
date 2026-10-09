@@ -880,4 +880,25 @@
     <string name="match_rail">Top matches for you</string>
     <string name="match_percent">%1$d%% match</string>
     <string name="match_because">Because you liked %1$s</string>
+
+    <!-- Background playback -->
+    <string name="st_background_playback">Keep playing in the background</string>
+    <string name="st_background_playback_hint">Playback carries on when you leave the app, with controls in the notification and on the lock screen.</string>
+    <string name="st_notification_channel">Now playing</string>
+    <string name="st_notification_channel_hint">Controls for what\'s playing</string>
+
+    <!-- Streaming on mobile data -->
+    <string name="st_data_mobile">Mobile data streaming</string>
+    <string name="st_data_mobile_warn">Warn before streaming on mobile data</string>
+    <string name="st_data_mobile_warn_hint">Ask once, so a cellular stream never eats your data by surprise.</string>
+    <string name="st_data_mobile_cap">Quality cap on mobile data</string>
+    <string name="st_data_mobile_cap_hint">Lower quality saves data while streaming on mobile data.</string>
+    <string name="st_data_mobile_used">Data used this session: %1$s</string>
+    <string name="st_data_mobile_now">Streaming on mobile data</string>
+    <string name="st_data_mobile_now_hint">An episode can use several hundred megabytes. Continue on mobile data?</string>
+    <string name="st_data_mobile_remember_none">No limit</string>
+    <string name="action_continue_anyway">Continue anyway</string>
+    <string name="action_dont_ask_again">Don\'t ask again</string>
+    <string name="action_play_small">Play at %1$dp</string>
+    <string name="player_error_codec">This source\'s video format isn\'t supported on your device. Trying another source.</string>
 </resources>

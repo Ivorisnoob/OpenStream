@@ -96,7 +96,9 @@ data class QualityOption(
     val width: Int,
     val height: Int,
     val bitrate: Int = -1,
-    val isAuto: Boolean = false
+    val isAuto: Boolean = false,
+    /** Codec of the rendition as the stream declares it (hvc1, avc1, av01, ...). */
+    val codec: String? = null
 )
 
 /** A subtitle track, either embedded in the stream or sideloaded from a URL. */
@@ -985,7 +987,20 @@ private fun qualityOptionDescription(option: QualityOption, activeVideoHeight: I
     return buildList {
         if (option.width > 0 && option.height > 0) add("${option.width} × ${option.height}")
         if (option.bitrate > 0) add(String.format(Locale.US, "%.1f Mbps", option.bitrate / 1_000_000f))
+        option.codec?.let { add(codecName(it)) }
     }.joinToString(" · ").ifEmpty { stringResource(R.string.track_fixed) }
+}
+
+/** Short name for a codec string from the stream (avc1.640028 -> H.264, hvc1.1.6... -> H.265). */
+private fun codecName(codec: String): String = when {
+    codec.startsWith("avc1", ignoreCase = true) ||
+        codec.startsWith("avc3", ignoreCase = true) -> "H.264"
+    codec.startsWith("hvc1", ignoreCase = true) ||
+        codec.startsWith("hev1", ignoreCase = true) -> "H.265"
+    codec.startsWith("av01", ignoreCase = true) -> "AV1"
+    codec.startsWith("vp09", ignoreCase = true) -> "VP9"
+    codec.startsWith("vp8", ignoreCase = true) -> "VP8"
+    else -> codec.substringBefore('.')
 }
 
 @Composable

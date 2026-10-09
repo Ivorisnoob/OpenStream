@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import com.ivor.openstream.data.local.entity.DownloadEntity
 import com.ivor.openstream.domain.repository.SubtitleRepository
 import com.ivor.openstream.data.remote.TmdbApi
+import com.ivor.openstream.data.playback.StreamDataGuard
 import com.ivor.openstream.data.remote.model.AnimeDetailsDto
 import com.ivor.openstream.data.remote.model.EpisodeDto
 import com.ivor.openstream.data.remote.model.SubtitleDto
@@ -46,6 +47,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.time.LocalDate
+import androidx.media3.common.PlaybackException
 import androidx.media3.exoplayer.ExoPlayer
 import com.ivor.openstream.presentation.player.session.NowPlaying
 import com.ivor.openstream.presentation.player.session.PlaybackSession
@@ -112,13 +114,12 @@ class PlayerViewModel @Inject constructor(
     private val sharedPreferences: SharedPreferences,
     private val json: Json,
     private val playbackSession: PlaybackSession,
-    appSettingsStore: AppSettingsStore,
-    private val skipTimesRepository: SkipTimesRepository,
-    private val subtitleFetcher: SubtitleFetcher,
+    private val appSettingsStore: AppSettingsStore,
+    private val skipTimesRepository: SkipTimesRepository,    private val subtitleFetcher: SubtitleFetcher,
     private val savedSubtitleRepository: SavedSubtitleRepository,
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val streamDataGuard: StreamDataGuard
 ) : ViewModel() {
-
     /** A sideloaded subtitle's text, downloaded and unwrapped by the data layer. */
     suspend fun loadSubtitleText(url: String, headers: Map<String, String>): String =
         subtitleFetcher.fetchText(url, headers)
@@ -136,6 +137,17 @@ class PlayerViewModel @Inject constructor(
     fun applyRequestHeaders(headers: Map<String, String>) = playbackSession.setRequestHeaders(headers)
 
     val sleepTimer: StateFlow<SleepTimer?> = playbackSession.sleepTimer
+
+    /** Network guard state, so playback can warn and cap for metered connections. */
+    fun shouldWarnBeforeStreaming(): Boolean = streamDataGuard.shouldWarn()
+
+    fun markDataWarningAnswered() = streamDataGuard.markAsked()
+
+    /** Applies a one-off quality cap for this playback, e.g. after the user chose to save data. */
+    fun capVideoHeight(height: Int) = playbackSession.setSessionHeightCap(height)
+
+    /** Turns the metered-stream prompt off for good, from the player's data warning. */
+    fun setWarnBeforeMeteredStream(enabled: Boolean) = appSettingsStore.setWarnBeforeMeteredStream(enabled)
 
     fun setSleepTimer(timer: SleepTimer?) = playbackSession.setSleepTimer(timer)
 
@@ -607,7 +619,7 @@ class PlayerViewModel @Inject constructor(
         streamingRepository.rememberServer(identity, server)
     }
 
-    fun onPlaybackError() {
+    fun onPlaybackError(error: PlaybackException? = null) {
         val failed = _activeServer.value ?: return
         failedServerIds += failed.id
         // A source the user picked by hand (often a dub) failed: go back to what was playing rather
@@ -621,6 +633,11 @@ class PlayerViewModel @Inject constructor(
             val label = failed.audioLanguage?.let { "${failed.name} ($it)" } ?: failed.name
             _playerEvents.tryEmit(context.getString(R.string.details_failed_devices, label, previous.name))
             return
+        }
+        // Some sources only serve H.265, which older hardware cannot decode. Say so before failing
+        // over, instead of leaving the user with a silent black screen.
+        if (error != null && error.isUnsupportedVideoFormat()) {
+            _playerEvents.tryEmit(context.getString(R.string.player_error_codec))
         }
         val next = availableServers().firstOrNull { it.id !in failedServerIds }
         if (next != null && automaticFailovers < MAX_AUTOMATIC_FAILOVERS) {
@@ -701,3 +718,11 @@ class PlayerViewModel @Inject constructor(
 /** Japanese animation: the titles AniSkip can have times for. */
 private fun AnimeDetailsDto.isAnime(): Boolean =
     genres.orEmpty().any { it.id == 16 } && originalLanguage.equals("ja", ignoreCase = true)
+
+/** True for errors that mean the device cannot play the video the source handed over. */
+private fun PlaybackException.isUnsupportedVideoFormat(): Boolean = when (errorCode) {
+    PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
+    PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+    PlaybackException.ERROR_CODE_DECODING_FAILED -> true
+    else -> false
+}

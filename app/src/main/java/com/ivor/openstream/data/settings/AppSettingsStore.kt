@@ -80,13 +80,21 @@ data class AppSettings(
     /** Auto-download the next unwatched episodes and delete watched ones. */
     val smartDownloads: Boolean = false,
     /** How many episodes ahead Smart Downloads keeps (1..3). */
-    val smartKeepAhead: Int = 2
+    val smartKeepAhead: Int = 2,
+    /** Playback keeps going when the app leaves the foreground, with a media notification. */
+    val keepPlayingInBackground: Boolean = true,
+    /** Ask before a stream runs on a metered network (once per app run). */
+    val warnBeforeMeteredStream: Boolean = true,
+    /** Tallest rendition allowed while streaming on a metered network; 0 means no limit. */
+    val meteredMaxHeight: Int = 720
 ) {
     companion object {
         val SEEK_STEPS = listOf(5, 10, 15, 30)
         val DEFAULT_SPEEDS = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
         val DOWNLOAD_HEIGHTS = listOf(480, 720, 1080)
         val SMART_AHEAD_OPTIONS = listOf(1, 2, 3)
+        /** Quality caps offered for metered networks: 720p, 480p and no limit. */
+        val METERED_CAPS = listOf(720, 480, 0)
     }
 }
 
@@ -135,6 +143,9 @@ class AppSettingsStore @Inject constructor(
             .putBoolean(KEY_EPISODE_NOTIFICATIONS, updated.episodeNotifications)
             .putBoolean(KEY_SMART_DOWNLOADS, updated.smartDownloads)
             .putInt(KEY_SMART_AHEAD, updated.smartKeepAhead)
+            .putBoolean(KEY_BACKGROUND_PLAYBACK, updated.keepPlayingInBackground)
+            .putBoolean(KEY_WARN_METERED, updated.warnBeforeMeteredStream)
+            .putInt(KEY_METERED_HEIGHT, updated.meteredMaxHeight)
             .apply()
     }
 
@@ -164,7 +175,11 @@ class AppSettingsStore @Inject constructor(
             episodeNotifications = prefs.getBoolean(KEY_EPISODE_NOTIFICATIONS, defaults.episodeNotifications),
             smartDownloads = prefs.getBoolean(KEY_SMART_DOWNLOADS, defaults.smartDownloads),
             smartKeepAhead = prefs.getInt(KEY_SMART_AHEAD, defaults.smartKeepAhead)
-                .takeIf { it in AppSettings.SMART_AHEAD_OPTIONS } ?: defaults.smartKeepAhead
+                .takeIf { it in AppSettings.SMART_AHEAD_OPTIONS } ?: defaults.smartKeepAhead,
+            keepPlayingInBackground = prefs.getBoolean(KEY_BACKGROUND_PLAYBACK, defaults.keepPlayingInBackground),
+            warnBeforeMeteredStream = prefs.getBoolean(KEY_WARN_METERED, defaults.warnBeforeMeteredStream),
+            meteredMaxHeight = prefs.getInt(KEY_METERED_HEIGHT, defaults.meteredMaxHeight)
+                .takeIf { it in AppSettings.METERED_CAPS } ?: defaults.meteredMaxHeight
         )
     }
 
@@ -176,6 +191,14 @@ class AppSettingsStore @Inject constructor(
 
     fun setSmartKeepAhead(count: Int) =
         update { it.copy(smartKeepAhead = count.takeIf { it in AppSettings.SMART_AHEAD_OPTIONS } ?: AppSettings().smartKeepAhead) }
+
+    fun setKeepPlayingInBackground(enabled: Boolean) = update { it.copy(keepPlayingInBackground = enabled) }
+
+    fun setWarnBeforeMeteredStream(enabled: Boolean) = update { it.copy(warnBeforeMeteredStream = enabled) }
+
+    /** 0 clears the cap, so metered networks stream at the source's best quality. */
+    fun setMeteredMaxHeight(height: Int) =
+        update { it.copy(meteredMaxHeight = height.takeIf { it in AppSettings.METERED_CAPS } ?: 0) }
 
     // region Profile PIN lockout (attempt counting survives restarts)
 
@@ -216,6 +239,9 @@ class AppSettingsStore @Inject constructor(
         const val KEY_EPISODE_NOTIFICATIONS = "app_episode_notifications"
         const val KEY_SMART_DOWNLOADS = "app_smart_downloads"
         const val KEY_SMART_AHEAD = "app_smart_keep_ahead"
+        const val KEY_BACKGROUND_PLAYBACK = "app_background_playback"
+        const val KEY_WARN_METERED = "app_warn_metered_stream"
+        const val KEY_METERED_HEIGHT = "app_metered_max_height"
         const val KEY_THEME = "app_theme_mode"
         const val KEY_DYNAMIC_COLOR = "app_dynamic_color"
         const val KEY_DNS = "app_dns_provider"

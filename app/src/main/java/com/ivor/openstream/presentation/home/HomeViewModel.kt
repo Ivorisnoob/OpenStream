@@ -23,7 +23,9 @@ import com.ivor.openstream.domain.matching.TitleMatcher
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -66,7 +68,9 @@ sealed interface HomeUiState {
 data class MatchUi(
     val item: AnimeDto,
     val percent: Int,
-    val becauseName: String?
+    val becauseName: String?,
+    /** Stable LazyRow key: a movie and a show can share a TMDB id, so the type is part of it. */
+    val key: String
 )
 
 @HiltViewModel
@@ -132,7 +136,10 @@ class HomeViewModel @Inject constructor(
     /** Taste-matched titles from the loaded catalogs; empty until the first like. */
     val matches: StateFlow<List<MatchUi>> = combine(_uiState, matchInputs) { state, inputs ->
         matchForState(state, inputs)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    }
+        // Scoring is pure Kotlin over every catalog item; it must not run on the composition thread.
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private fun matchForState(state: HomeUiState, inputs: MatchInputs): List<MatchUi> {
         val success = state as? HomeUiState.Success ?: return emptyList()
@@ -148,7 +155,6 @@ class HomeViewModel @Inject constructor(
             )
         }
         val savedKeys = inputs.saved.map { it.mediaType to it.id }.toSet()
-        val listedKeys = inputs.lists.flatten().toSet()
         val completedKeys = inputs.progress.filter { it.completed }.map { it.mediaType to it.tmdbId }.toSet()
         val hiddenParsed = inputs.hidden.mapNotNull { key ->
             val (type, id) = key.split(':').takeIf { it.size == 2 } ?: return@mapNotNull null
@@ -168,21 +174,30 @@ class HomeViewModel @Inject constructor(
             )
         }
         val affinity = inputs.lists + listOf(savedKeys)
-        return TitleMatcher.match(
+        val matched = TitleMatcher.match(
             candidates = pool,
             ratings = rated,
             lists = affinity,
-            excluded = completedKeys + hiddenParsed + savedKeys + listedKeys +
+            // Titles already saved, completed, hidden or disliked are never suggested again.
+            // List membership stays out of this on purpose: sharing a list with a liked title is
+            // what makes the affinity signal in TitleMatcher mean anything.
+            excluded = completedKeys + hiddenParsed +
                 rated.filter { it.rating < 0 }.map { it.key }.toSet(),
             minScore = 0.40,
             limit = 20
-        ).filter { it.key !in savedKeys && it.key !in listedKeys }
+        ).filter { it.key !in savedKeys }
             .take(10)
             .mapNotNull { match ->
                 byKey[match.key]?.let { item ->
-                    MatchUi(item = item, percent = match.percent, becauseName = match.becauseName)
+                    MatchUi(
+                        item = item,
+                        percent = match.percent,
+                        becauseName = match.becauseName,
+                        key = "${match.key.first}:${match.key.second}"
+                    )
                 }
             }
+        return matched
     }
 
     init {

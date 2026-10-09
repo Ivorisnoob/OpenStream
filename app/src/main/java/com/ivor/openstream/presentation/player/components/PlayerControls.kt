@@ -72,6 +72,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -154,6 +157,8 @@ fun PlayerControls(
     onCastClick: (() -> Unit)? = null,
     /** Pops the video out into picture-in-picture; null hides the button. */
     onPictureInPictureClick: (() -> Unit)? = null,
+    /** Focus target for the control bar, so a D-pad can move focus from the video onto it. */
+    controlsFocusRequester: FocusRequester? = null,
     onBackClick: () -> Unit
 ) {
     val metrics = if (isFullscreen) FullscreenMetrics else InlineMetrics
@@ -174,6 +179,12 @@ fun PlayerControls(
                         0.7f to Color.Black.copy(alpha = 0.28f),
                         1f to Color.Black.copy(alpha = 0.8f)
                     )
+                )
+                // Explicitly a focus group while shown, so the video surface can hand focus over.
+                .then(
+                    controlsFocusRequester?.let { requester ->
+                        Modifier.focusRequester(requester).focusGroup()
+                    } ?: Modifier
                 )
                 // Fullscreen ignores the display cutout: controls keep their normal edge margin instead of
                 // shifting sideways around the notch, and the bars are hidden anyway.

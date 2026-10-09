@@ -1,6 +1,7 @@
 package com.ivor.openstream.presentation.settings
 
 import com.ivor.openstream.presentation.components.CenteredListBox
+import com.ivor.openstream.presentation.downloads.formatBytes
 import android.app.Activity
 import android.os.Build
 import android.text.format.Formatter
@@ -19,6 +20,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.DataUsage
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.DarkMode
@@ -278,7 +281,7 @@ fun SettingsScreen(
                 item(key = "playback") {
                     SettingsGroup(title = stringResource(R.string.st_playback)) {
                         ChoiceRow(
-                            index = 0, count = 4,
+                            index = 0, count = 5,
                             icon = Icons.Default.Forward10,
                             title = stringResource(R.string.sheet_seek_step),
                             supporting = stringResource(R.string.player_double_tap),
@@ -288,7 +291,7 @@ fun SettingsScreen(
                             onSelect = viewModel::setSeekStep
                         )
                         ChoiceRow(
-                            index = 1, count = 4,
+                            index = 1, count = 5,
                             icon = Icons.Default.Speed,
                             title = stringResource(R.string.sheet_default_speed),
                             options = AppSettings.DEFAULT_SPEEDS,
@@ -297,7 +300,7 @@ fun SettingsScreen(
                             onSelect = viewModel::setDefaultSpeed
                         )
                         SwitchRow(
-                            index = 2, count = 4,
+                            index = 2, count = 5,
                             icon = Icons.Default.SkipNext,
                             title = stringResource(R.string.sheet_autoplay_next),
                             supporting = stringResource(R.string.player_countdown_next),
@@ -305,12 +308,47 @@ fun SettingsScreen(
                             onCheckedChange = viewModel::setAutoPlayNext
                         )
                         SwitchRow(
-                            index = 3, count = 4,
+                            index = 3, count = 5,
                             icon = Icons.Default.FastForward,
                             title = stringResource(R.string.sheet_skip_button),
                             supporting = stringResource(R.string.player_offer_skip),
                             checked = appSettings.showSkipButton,
                             onCheckedChange = viewModel::setShowSkipButton
+                        )
+                        SwitchRow(
+                            index = 4, count = 5,
+                            icon = Icons.Default.NotificationsActive,
+                            title = stringResource(R.string.st_background_playback),
+                            supporting = stringResource(R.string.st_background_playback_hint),
+                            checked = appSettings.keepPlayingInBackground,
+                            onCheckedChange = viewModel::setKeepPlayingInBackground
+                        )
+                    }
+                }
+
+                item(key = "mobile-data") {
+                    val dataUsed by viewModel.streamDataGuard.dataUsedBytes.collectAsState()
+                    SettingsGroup(
+                        title = stringResource(R.string.st_data_mobile),
+                        footer = stringResource(R.string.st_data_mobile_used, formatBytes(dataUsed))
+                    ) {
+                        SwitchRow(
+                            index = 0, count = 2,
+                            icon = Icons.Default.DataUsage,
+                            title = stringResource(R.string.st_data_mobile_warn),
+                            supporting = stringResource(R.string.st_data_mobile_warn_hint),
+                            checked = appSettings.warnBeforeMeteredStream,
+                            onCheckedChange = viewModel::setWarnBeforeMeteredStream
+                        )
+                        ChoiceRow(
+                            index = 1, count = 2,
+                            icon = Icons.Default.HighQuality,
+                            title = stringResource(R.string.st_data_mobile_cap),
+                            supporting = stringResource(R.string.st_data_mobile_cap_hint),
+                            options = AppSettings.METERED_CAPS,
+                            selected = appSettings.meteredMaxHeight,
+                            label = { if (it == 0) stringResource(R.string.st_data_mobile_remember_none) else "${it}p" },
+                            onSelect = viewModel::setMeteredMaxHeight
                         )
                     }
                 }
