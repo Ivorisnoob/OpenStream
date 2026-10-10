@@ -11,6 +11,7 @@ import com.ivor.openstream.data.settings.SourceSearchMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
@@ -57,32 +58,56 @@ class StreamingRepositoryImpl @Inject constructor(
      * nothing, either once all of them are done or after [FALLBACK_HEAD_START_MS], whichever comes
      * first. With [SourceSearchMode.IN_ORDER] providers run one at a time in the user's order and
      * the search stops at the first that finds something ("Find more" then searches the rest).
+     *
+     * With [preferLastWorking] the source that last played something ([rememberWorkingSource]) is
+     * asked first, on its own. If it has streams the search ends there; if it has none, or has not
+     * answered within [REMEMBERED_HEAD_START_MS], the search above runs as usual.
      */
     override fun resolveServers(
         identity: MediaIdentity,
-        includeFallbacks: Boolean
+        includeFallbacks: Boolean,
+        preferLastWorking: Boolean
     ): Flow<ServerResolution> = channelFlow {
         val installedProviders = withContext(Dispatchers.IO) { providerRegistry.activeProviders() }
         val providerPriorities = installedProviders.associate { it.id to it.priority }
         val installedEnabled = installedProviders.filter { it.isEnabled }
         // Never let the breaker leave nothing to try: then everything gets another go.
         val enabledProviders = installedEnabled.filterNot { isBreakerOpen(it.id) }.ifEmpty { installedEnabled }
-        val directProviders = if (includeFallbacks) {
+        // Not when everything is being searched on purpose ("Find more", failover).
+        val remembered = if (preferLastWorking && !includeFallbacks) {
+            lastWorkingSourceId(identity)?.let { id -> enabledProviders.firstOrNull { it.id == id } }
+        } else {
+            null
+        }
+        val otherProviders = if (remembered == null) {
             enabledProviders
         } else {
-            enabledProviders.filterNot(ExtensionStreamProvider::isFallback)
+            enabledProviders.filterNot { it.id == remembered.id }
+        }
+        val directProviders = if (includeFallbacks) {
+            otherProviders
+        } else {
+            otherProviders.filterNot(ExtensionStreamProvider::isFallback)
         }
         val fallbackProviders = if (includeFallbacks) {
             emptyList()
         } else {
-            enabledProviders.filter(ExtensionStreamProvider::isFallback)
+            otherProviders.filter(ExtensionStreamProvider::isFallback)
         }
         val inOrder = appSettings.current.sourceSearchMode == SourceSearchMode.IN_ORDER
         val firstStageProviders = directProviders.ifEmpty { fallbackProviders }
         val deferredFallbackProviders = fallbackProviders.takeIf { directProviders.isNotEmpty() }.orEmpty()
         // Shown straight away, before the id lookup, so the screen says sources are being searched.
-        send(ServerResolution(totalProviders = if (inOrder) enabledProviders.size else firstStageProviders.size))
-        if (firstStageProviders.isEmpty()) {
+        send(
+            ServerResolution(
+                totalProviders = when {
+                    inOrder -> enabledProviders.size
+                    remembered != null -> 1
+                    else -> firstStageProviders.size
+                }
+            )
+        )
+        if (remembered == null && firstStageProviders.isEmpty()) {
             send(ServerResolution(isComplete = true))
             return@channelFlow
         }
@@ -122,11 +147,13 @@ class StreamingRepositoryImpl @Inject constructor(
         }
 
         if (inOrder && !includeFallbacks) {
-            // The user's order exactly, fallbacks included wherever they were placed.
-            enabledProviders.forEachIndexed { index, provider ->
+            // The user's order exactly, fallbacks included wherever they were placed; only the
+            // source that played last time jumps the queue.
+            val ordered = listOfNotNull(remembered) + otherProviders
+            ordered.forEachIndexed { index, provider ->
                 absorb(runProvider(provider, enrichedIdentity))
                 val found = servers.isNotEmpty()
-                send(progress(servers, index + 1, enabledProviders.size, failedProviders, isComplete = found || index == enabledProviders.lastIndex))
+                send(progress(servers, index + 1, ordered.size, failedProviders, isComplete = found || index == ordered.lastIndex))
                 if (found) return@channelFlow
             }
             return@channelFlow
@@ -136,6 +163,9 @@ class StreamingRepositoryImpl @Inject constructor(
         var pending = 0
         var total = 0
         var fallbacksStarted = false
+        var headStart: Job? = null
+        // False while the remembered source is the only one that has been asked.
+        var searchStarted = false
 
         fun start(providers: List<ExtensionStreamProvider>) {
             pending += providers.size
@@ -149,18 +179,36 @@ class StreamingRepositoryImpl @Inject constructor(
             start(deferredFallbackProviders)
         }
 
-        start(firstStageProviders)
-        val headStart = if (deferredFallbackProviders.isNotEmpty()) {
+        /** The full search: every direct provider at once, fallbacks after their head start. */
+        fun startSearch() {
+            searchStarted = true
+            start(firstStageProviders)
+            if (deferredFallbackProviders.isNotEmpty()) {
+                headStart = launch {
+                    delay(FALLBACK_HEAD_START_MS)
+                    events.send(ResolutionEvent.FallbackDeadline)
+                }
+            }
+        }
+
+        val rememberedDeadline = if (remembered != null) {
+            start(listOf(remembered))
             launch {
-                delay(FALLBACK_HEAD_START_MS)
-                events.send(ResolutionEvent.FallbackDeadline)
+                delay(REMEMBERED_HEAD_START_MS)
+                events.send(ResolutionEvent.RememberedDeadline)
             }
         } else {
+            startSearch()
             null
         }
 
         while (pending > 0) {
             when (val event = events.receive()) {
+                // The remembered source is taking its time: stop waiting on it alone.
+                ResolutionEvent.RememberedDeadline -> if (!searchStarted) {
+                    startSearch()
+                    send(progress(servers, total - pending, total, failedProviders, isComplete = false))
+                }
                 ResolutionEvent.FallbackDeadline -> if (servers.isEmpty()) {
                     startFallbacks()
                     send(progress(servers, total - pending, total, failedProviders, isComplete = false))
@@ -168,12 +216,19 @@ class StreamingRepositoryImpl @Inject constructor(
                 is ResolutionEvent.Outcome -> {
                     pending--
                     absorb(event)
+                    if (!searchStarted) {
+                        // The remembered source answered first. With streams that is the whole
+                        // answer (nothing else is pending); with none, everything else is asked.
+                        rememberedDeadline?.cancel()
+                        if (servers.isEmpty()) startSearch()
+                    }
                     // Direct providers are all done and found nothing: fallbacks are the last hope.
                     if (pending == 0 && servers.isEmpty()) startFallbacks()
                     send(progress(servers, total - pending, total, failedProviders, isComplete = pending == 0))
                 }
             }
         }
+        rememberedDeadline?.cancel()
         headStart?.cancel()
         events.close()
     }
@@ -263,11 +318,27 @@ class StreamingRepositoryImpl @Inject constructor(
     private fun preferenceKey(identity: MediaIdentity): String =
         "last_stream_server:${identity.cacheKey}"
 
+    override fun rememberWorkingSource(identity: MediaIdentity, server: VideoServer) {
+        if (server.providerId.isBlank()) return
+        preferences.edit()
+            .putString("$WORKING_SOURCE_KEY:${identity.tmdbType}", server.providerId)
+            .putString(WORKING_SOURCE_KEY, server.providerId)
+            .apply()
+    }
+
+    /** The source that last played this kind of title (movie or show), else the last to play anything. */
+    private fun lastWorkingSourceId(identity: MediaIdentity): String? =
+        preferences.getString("$WORKING_SOURCE_KEY:${identity.tmdbType}", null)
+            ?: preferences.getString(WORKING_SOURCE_KEY, null)
+
     private sealed interface ResolutionEvent {
         data class Outcome(val provider: ExtensionStreamProvider, val result: Result<List<VideoServer>>) : ResolutionEvent
 
         /** Direct providers have had [FALLBACK_HEAD_START_MS] on their own. */
         data object FallbackDeadline : ResolutionEvent
+
+        /** The remembered source has had [REMEMBERED_HEAD_START_MS] on its own. */
+        data object RememberedDeadline : ResolutionEvent
     }
 
     private companion object {
@@ -277,6 +348,10 @@ class StreamingRepositoryImpl @Inject constructor(
         const val PROVIDER_TIMEOUT_MS = 25_000L
         const val ID_LOOKUP_TIMEOUT_MS = 8_000L
         const val FALLBACK_HEAD_START_MS = 8_000L
+
+        /** How long the source that played last time is waited on before the others start too. */
+        const val REMEMBERED_HEAD_START_MS = 10_000L
+        const val WORKING_SOURCE_KEY = "last_working_source"
         const val CIRCUIT_BREAKER_THRESHOLD = 5
         const val BREAKER_COOLDOWN_MS = 2 * 60_000L
     }

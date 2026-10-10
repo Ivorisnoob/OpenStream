@@ -71,6 +71,9 @@ Rules:
   provider's priority is its position. Search mode (`SourceSearchMode` in `AppSettings`): all at
   once (rank by quality, order breaks ties) or in order (one at a time, stop at the first with
   streams; ranking puts the order before quality; "Find more" searches everything).
+  The player's automatic search first asks the source that last played something
+  (`rememberWorkingSource`, kept per movie/tv) on its own and stops there when it has streams; with
+  none, or no answer in 10 s, the normal search runs. Downloads and "Find more" search everything.
   Engines: `vidking-direct` (`VidkingDirectApi`, encrypted payload, prefers the master playlist so
   quality switches in-player), `web-embed` and `vidking-webview` (`WebEmbedResolver`: first a native
   pass through `HosterExtractors` (Filemoon, StreamWish/VidHide, Voe, Mp4Upload, Vidmoly, ok.ru) when

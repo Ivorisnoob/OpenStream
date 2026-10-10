@@ -622,6 +622,7 @@ class PlayerViewModel @Inject constructor(
         val identity = currentIdentity ?: return
         val server = _activeServer.value ?: return
         streamingRepository.rememberServer(identity, server)
+        streamingRepository.rememberWorkingSource(identity, server)
     }
 
     fun onPlaybackError(error: PlaybackException? = null) {
@@ -676,7 +677,13 @@ class PlayerViewModel @Inject constructor(
     private fun startResolution(identity: MediaIdentity, includeFallbacks: Boolean = false) {
         resolutionJob?.cancel()
         resolutionJob = viewModelScope.launch {
-            streamingRepository.resolveServers(identity, includeFallbacks).collect { progress ->
+            // The automatic search asks the source that played last time first; a widened search
+            // ("Find more", failover) goes to everything.
+            streamingRepository.resolveServers(
+                identity,
+                includeFallbacks,
+                preferLastWorking = !includeFallbacks
+            ).collect { progress ->
                 // Keep the stream the mini player is already playing at the top of the list.
                 val candidates = adoptedServer?.let { adopted ->
                     listOf(adopted) + progress.servers.filterNot { it.id == adopted.id }
