@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 /** Fires the daily episode check off the main thread; AlarmManager holds a wake window. */
@@ -24,11 +25,18 @@ class EpisodeCheckReceiver : BroadcastReceiver() {
         val pending = goAsync()
         scope.launch {
             try {
-                runCatching { notifier.checkOnce() }
+                // The system only waits so long for a receiver; a slow network must not run the
+                // check past that. Shows it didn't reach are picked up by the next run.
+                runCatching { withTimeoutOrNull(CHECK_BUDGET_MS) { notifier.checkOnce() } }
             } finally {
                 pending.finish()
             }
         }
+    }
+
+    private companion object {
+        /** Under the 60 s the system gives a background broadcast before it reports an ANR. */
+        const val CHECK_BUDGET_MS = 45_000L
     }
 }
 

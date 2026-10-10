@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Background playback holds a wake lock and a Wi-Fi lock while playing with the screen off. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- In-app updates hand the downloaded APK to the system installer. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Daily new-episode check wakes the app to compare followed shows against TMDB. -->

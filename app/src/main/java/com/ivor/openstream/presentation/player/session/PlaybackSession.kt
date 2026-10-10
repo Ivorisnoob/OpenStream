@@ -3,7 +3,6 @@ package com.ivor.openstream.presentation.player.session
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import androidx.core.content.ContextCompat
 import com.ivor.openstream.R
 import android.net.Uri
 import android.os.Bundle
@@ -37,6 +36,7 @@ import com.google.android.gms.cast.framework.CastContext
 import com.google.android.gms.cast.framework.CastSession
 import com.google.android.gms.cast.framework.CastState
 import com.ivor.openstream.BuildConfig
+import com.ivor.openstream.MainActivity
 import com.ivor.openstream.data.cast.CastMediaItemConverter
 import com.ivor.openstream.data.cast.CastMediaProxy
 import com.ivor.openstream.data.playback.DeviceDecoders
@@ -53,6 +53,8 @@ import com.ivor.openstream.presentation.player.NextEpisodeTarget
 import com.ivor.openstream.presentation.player.components.SUBTITLES_OFF
 import com.ivor.openstream.presentation.player.components.sameLanguage
 import com.ivor.openstream.presentation.player.PlaybackService
+import io.github.ivorisnoob.smoothmotion.media3.SmoothMotion
+import io.github.ivorisnoob.smoothmotion.media3.SmoothMotionConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -172,12 +174,21 @@ class PlaybackSession @Inject constructor(
     private var lastSavedPositionMs = -1L
     private var completionRecordedFor: String? = null
 
-    private var localPlayerCreated = false
+        private var localPlayerCreated = false
+
+    var smoothMotion: SmoothMotion? = null
+        private set
 
     init {
         // Follow the network so a cap set for mobile data applies as soon as one is joined.
         scope.launch {
             streamDataGuard.isMetered.collect { applyNetworkConstraints() }
+        }
+        scope.launch {
+            appSettingsStore.settings.collect { settings ->
+                smoothMotion?.enabled = settings.smoothMotionEnabled
+                smoothMotion?.maxFps = settings.smoothMotionMaxFps
+            }
         }
         // Saves progress every few seconds, and remembers where the TV is (its state is gone once
         // the session ends).
@@ -223,13 +234,19 @@ class PlaybackSession @Inject constructor(
 
     /**
      * Brings up the notification service, which plays in the foreground while the app is in the
-     * background. Media3's MediaSessionService stops itself once playback ends.
+     * background. Media3 drops it out of the foreground when playback pauses or ends; the service
+     * itself stays until the task is swiped away while paused or the system stops it.
+     *
+     * A plain start, not startForegroundService: that one crashes the app unless startForeground
+     * follows within seconds, and Media3 only goes foreground while the player is playing (so a
+     * quick pause would miss it). Media3 promotes the service itself. The start is refused when
+     * the app is in the background, which leaves the flag clear for the next playback.
      */
     fun startPlaybackService() {
         if (notificationServiceStarted) return
         notificationServiceStarted = true
         val intent = Intent(context, PlaybackService::class.java)
-        runCatching { ContextCompat.startForegroundService(context, intent) }
+        runCatching { context.startService(intent) }
             .onFailure { notificationServiceStarted = false }
     }
 
@@ -238,25 +255,30 @@ class PlaybackSession @Inject constructor(
         notificationServiceStarted = false
     }
 
+    /** Whether leaving the app should leave playback running (Settings). */
+    val keepPlayingInBackground: Boolean
+        get() = appSettingsStore.current.keepPlayingInBackground
+
     /** Tapping the notification opens the title that is playing. */
     private fun refreshSessionActivity() {
-        val item = _nowPlaying.value ?: return
+        if (_nowPlaying.value == null) return
         val session = mediaSessionInstance ?: return
-        val kind = if (item.isMovie) "movie" else "tv"
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.themoviedb.org/$kind/${item.tmdbId}"))
-            .setPackage(context.packageName)
-        val pending = PendingIntent.getActivity(
-            context,
-            SESSION_REQUEST_CODE,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        runCatching { session.setSessionActivity(pending) }
+        runCatching { session.setSessionActivity(sessionActivity()) }
     }
 
+    /**
+     * Opens the playing title's page, or just the app when nothing is playing. The session is
+     * built after the first title is set, so this has to read the title itself.
+     */
     private fun sessionActivity(): PendingIntent {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.themoviedb.org/tv/0"))
-            .setPackage(context.packageName)
+        val item = _nowPlaying.value
+        val intent = if (item != null) {
+            val kind = if (item.isMovie) "movie" else "tv"
+            Intent(Intent.ACTION_VIEW, Uri.parse("https://www.themoviedb.org/$kind/${item.tmdbId}"))
+                .setPackage(context.packageName)
+        } else {
+            Intent(context, MainActivity::class.java)
+        }
         return PendingIntent.getActivity(
             context,
             SESSION_REQUEST_CODE,
@@ -804,7 +826,7 @@ class PlaybackSession @Inject constructor(
         val trackSelector = DefaultTrackSelector(context).apply {
             parameters = codecPreferences()
         }
-        return ExoPlayer.Builder(context)
+        val basePlayer = ExoPlayer.Builder(context)
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
@@ -813,13 +835,25 @@ class PlaybackSession @Inject constructor(
                 // Share the device with other apps: duck or pause when something else asks.
                 true
             )
+            // Background playback: pause when headphones are unplugged instead of switching to the
+            // speaker, and keep the CPU and Wi-Fi awake while playing with the screen off.
+            .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(context)
                     .setDataSourceFactory(ImagePrefixStrippingDataSource.Factory(dataSource))
             )
             .setTrackSelector(trackSelector)
             .build()
-            .apply {
+        smoothMotion = SmoothMotion.install(
+            basePlayer,
+            context,
+            SmoothMotionConfig(
+                enabled = appSettingsStore.current.smoothMotionEnabled,
+                maxFps = appSettingsStore.current.smoothMotionMaxFps
+            )
+        )
+        return basePlayer.apply {
                 playWhenReady = true
                 applyNetworkConstraints()                // Debug builds log load errors, format switches and dropped frames under "EventLogger".
                 if (BuildConfig.DEBUG) addAnalyticsListener(EventLogger())

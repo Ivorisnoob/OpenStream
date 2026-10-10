@@ -901,4 +901,13 @@
     <string name="action_dont_ask_again">Don\'t ask again</string>
     <string name="action_play_small">Play at %1$dp</string>
     <string name="player_error_codec">This source\'s video format isn\'t supported on your device. Trying another source.</string>
+    <!-- Smooth motion (frame interpolation) -->
+    <string name="st_smooth_motion">Smooth motion</string>
+    <string name="st_smooth_motion_hint">Real-time frame interpolation for smoother video playback (uses more battery and GPU).</string>
+    <string name="st_smooth_motion_footer">Uses motion estimation shaders to increase frame rates up to 60 or 120 fps. Automatically pauses for HDR, battery saver, and when the phone is warm.</string>
+    <string name="st_smooth_motion_status">Status: %1$s</string>
+    <string name="st_smooth_motion_max_fps">Max frame rate</string>
+    <string name="st_smooth_motion_max_fps_hint">Target frame rate cap for motion interpolation.</string>
+    <string name="st_smooth_motion_fps_val">Up to %1$d fps</string>
+    <string name="st_smooth_motion_unsupported">Not supported on this device\'s GPU (requires OpenGL ES 3.2).</string>
 </resources>

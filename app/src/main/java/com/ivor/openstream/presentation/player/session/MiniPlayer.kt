@@ -61,6 +61,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.util.UnstableApi
 import com.ivor.openstream.R
 import androidx.media3.ui.PlayerView
+import io.github.ivorisnoob.smoothmotion.ui.bindSmoothMotion
+import io.github.ivorisnoob.smoothmotion.ui.unbindSmoothMotion
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
@@ -98,12 +100,18 @@ fun MiniPlayer(
         }
     }
 
-    // Outside the player screen nothing else pauses on backgrounding; do it here.
+    // Outside the player screen nothing else pauses on backgrounding; do it here, unless the user
+    // asked for background playback (the media notification takes over then).
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             // A TV keeps playing when the phone locks or the app goes to the background.
-            if (event == Lifecycle.Event.ON_STOP && !session.castStatus.value.isCasting) session.player.pause()
+            if (event == Lifecycle.Event.ON_STOP &&
+                !session.castStatus.value.isCasting &&
+                !session.keepPlayingInBackground
+            ) {
+                session.player.pause()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -189,9 +197,21 @@ fun MiniPlayer(
                                     FrameLayout.LayoutParams.MATCH_PARENT
                                 )
                                 player = session.player
+                                session.smoothMotion?.let { bindSmoothMotion(it) }
                             }
                         },
-                        onRelease = { view -> view.player = null },
+                        update = { view ->
+                            val sm = session.smoothMotion
+                            if (sm != null) {
+                                view.bindSmoothMotion(sm)
+                            } else {
+                                view.unbindSmoothMotion()
+                            }
+                        },
+                        onRelease = { view ->
+                            view.unbindSmoothMotion()
+                            view.player = null
+                        },
                         modifier = Modifier.fillMaxSize()
                     )
                 }

@@ -19,6 +19,8 @@ import com.ivor.openstream.domain.repository.AnimeRepository
 import com.ivor.openstream.domain.repository.WatchLaterRepository
 import com.ivor.openstream.domain.repository.WatchProgressRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import javax.inject.Inject
@@ -61,6 +63,8 @@ class EpisodeNotifier @Inject constructor(
         val today = runCatching { LocalDate.now().toString() }.getOrDefault("9999-12-31")
         var posted = 0
         for ((tmdbId, title) in followed) {
+            // The receiver runs this under a time limit; stop here, not inside a runCatching.
+            currentCoroutineContext().ensureActive()
             if (posted >= MAX_NOTIFICATIONS_PER_RUN) break
             val episode = runCatching {
                 animeRepository.getMediaDetails(tmdbId, "tv").getOrNull()?.nextEpisodeToAir
@@ -88,6 +92,7 @@ class EpisodeNotifier @Inject constructor(
         if (reminders.isEmpty()) return 0
         var fired = 0
         for (reminder in reminders) {
+            currentCoroutineContext().ensureActive()
             try {
                 val details = animeRepository.getMediaDetails(reminder.tmdbId, reminder.mediaType)
                     .getOrNull() ?: continue

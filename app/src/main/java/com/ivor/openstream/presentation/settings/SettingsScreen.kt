@@ -326,6 +326,37 @@ fun SettingsScreen(
                     }
                 }
 
+                if (viewModel.isSmoothMotionSupported) {
+                    item(key = "smooth-motion") {
+                        val smoothMotionCount = if (appSettings.smoothMotionEnabled) 2 else 1
+                        SettingsGroup(
+                            title = stringResource(R.string.st_smooth_motion),
+                            footer = stringResource(R.string.st_smooth_motion_footer)
+                        ) {
+                            SwitchRow(
+                                index = 0, count = smoothMotionCount,
+                                icon = Icons.Default.AutoAwesome,
+                                title = stringResource(R.string.st_smooth_motion),
+                                supporting = stringResource(R.string.st_smooth_motion_hint),
+                                checked = appSettings.smoothMotionEnabled,
+                                onCheckedChange = viewModel::setSmoothMotionEnabled
+                            )
+                            if (appSettings.smoothMotionEnabled) {
+                                ChoiceRow(
+                                    index = 1, count = smoothMotionCount,
+                                    icon = Icons.Default.Speed,
+                                    title = stringResource(R.string.st_smooth_motion_max_fps),
+                                    supporting = stringResource(R.string.st_smooth_motion_max_fps_hint),
+                                    options = AppSettings.SMOOTH_MOTION_FPS_OPTIONS,
+                                    selected = appSettings.smoothMotionMaxFps,
+                                    label = { stringResource(R.string.st_smooth_motion_fps_val, it) },
+                                    onSelect = viewModel::setSmoothMotionMaxFps
+                                )
+                            }
+                        }
+                    }
+                }
+
                 item(key = "mobile-data") {
                     val dataUsed by viewModel.streamDataGuard.dataUsedBytes.collectAsState()
                     SettingsGroup(

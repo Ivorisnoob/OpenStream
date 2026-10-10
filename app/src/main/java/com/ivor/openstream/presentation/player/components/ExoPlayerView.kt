@@ -112,11 +112,10 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.key.type
 import androidx.compose.foundation.focusable
-import androidx.compose.ui.zIndex
+import io.github.ivorisnoob.smoothmotion.media3.SmoothMotion
+import io.github.ivorisnoob.smoothmotion.ui.bindSmoothMotion
+import io.github.ivorisnoob.smoothmotion.ui.unbindSmoothMotion
 import androidx.compose.ui.unit.IntOffset
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 import kotlinx.coroutines.Dispatchers
@@ -207,6 +206,8 @@ fun ExoPlayerView(
     keepPlayingInBackground: Boolean = true,
     /** Artwork for the media notification and lock screen; a TMDB image URL. */
     artworkUri: String? = null,
+    /** Optional SmoothMotion engine for real-time frame interpolation. */
+    smoothMotion: SmoothMotion? = null,
     /** D-pad and remote-key handling, for the Android TV player surface. */
     dpadControls: Boolean = false
 ) {
@@ -364,45 +365,51 @@ fun ExoPlayerView(
                 true
             }
             android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> {
-                if (isDown || event.nativeKeyEvent.repeatCount > 0) return false
+                if (!isDown || event.nativeKeyEvent.repeatCount > 0) return false
                 if (!exoPlayer.isPlaying) exoPlayer.play()
                 areControlsVisible = true
                 true
             }
             android.view.KeyEvent.KEYCODE_MEDIA_PAUSE -> {
-                if (isDown || event.nativeKeyEvent.repeatCount > 0) return false
+                if (!isDown || event.nativeKeyEvent.repeatCount > 0) return false
                 if (exoPlayer.isPlaying) exoPlayer.pause()
                 areControlsVisible = true
                 true
             }
             android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> {
+                if (!isDown || event.nativeKeyEvent.repeatCount > 0) return false
                 onNextClick?.invoke()
                 true
             }
             android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
             android.view.KeyEvent.KEYCODE_BUTTON_R1 -> {
+                if (!isDown) return false
                 seekStep(1)
                 areControlsVisible = true
                 true
             }
             android.view.KeyEvent.KEYCODE_MEDIA_REWIND,
             android.view.KeyEvent.KEYCODE_BUTTON_L1 -> {
+                if (!isDown) return false
                 seekStep(-1)
                 areControlsVisible = true
                 true
             }
             android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
+                if (!isDown) return false
                 seekStep(-1)
                 areControlsVisible = true
                 true
             }
             android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                if (!isDown) return false
                 seekStep(1)
                 areControlsVisible = true
                 true
             }
             android.view.KeyEvent.KEYCODE_DPAD_UP,
             android.view.KeyEvent.KEYCODE_DPAD_DOWN -> {
+                if (!isDown) return false
                 areControlsVisible = true
                 true
             }
@@ -1118,6 +1125,7 @@ fun ExoPlayerView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     player = exoPlayer
+                    smoothMotion?.let { bindSmoothMotion(it) }
                     layoutParams = FrameLayout.LayoutParams(
                         android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                         android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -1126,9 +1134,19 @@ fun ExoPlayerView(
                     subtitleView?.visibility = android.view.View.GONE
                 }
             },
-            update = { view -> view.resizeMode = videoScale.resizeMode },
+            update = { view ->
+                view.resizeMode = videoScale.resizeMode
+                if (smoothMotion != null) {
+                    view.bindSmoothMotion(smoothMotion)
+                } else {
+                    view.unbindSmoothMotion()
+                }
+            },
             // Hand the video surface back so the mini player can take it over.
-            onRelease = { view -> view.player = null },
+            onRelease = { view ->
+                view.unbindSmoothMotion()
+                view.player = null
+            },
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
@@ -1565,7 +1583,8 @@ fun ExoPlayerView(
                 sleepTimer = sleepTimer,
                 episodes = episodes,
                 currentEpisode = currentEpisodeNumber,
-                episodeProgress = episodeProgress
+                episodeProgress = episodeProgress,
+                smoothMotion = smoothMotion
             ),
             actions = PlayerSettingsActions(
                 sources = sourceActions,
@@ -1606,6 +1625,7 @@ fun ExoPlayerView(
                 onSubtitleOffsetChange = { subtitleOffsetMs = it },
                 onSleepTimerChange = onSleepTimerChange,
                 onEpisodeSelected = onEpisodeSelected,
+                onSmoothMotionToggle = { enabled -> smoothMotion?.enabled = enabled },
                 onAudioSelected = { option ->
                     val tracks = exoPlayer.currentTracks
                     if (option.groupIndex < tracks.groups.size) {

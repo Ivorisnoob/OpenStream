@@ -18,6 +18,7 @@ room = "2.8.5"
 hilt = "2.60.1"
 ksp = "2.3.12"
 media3 = "1.3.1"
+smoothmotion = "0.1.0"
 materialIconsExtended = "1.7.0"
 graphicsShapes = "1.1.0-alpha01"
 material = "1.12.0"
@@ -79,6 +80,10 @@ androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.re
 androidx-media3-cast = { group = "androidx.media3", name = "media3-cast", version.ref = "media3" }
 # Background playback, lock-screen controls and the media notification.
 androidx-media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }
+
+# SmoothMotion (Video Frame Interpolation)
+smoothmotion-media3 = { group = "com.github.Ivorisnoob.smoothmotion-android", name = "smoothmotion-media3", version.ref = "smoothmotion" }
+smoothmotion-ui = { group = "com.github.Ivorisnoob.smoothmotion-android", name = "smoothmotion-ui", version.ref = "smoothmotion" }
 
 # Graphics Shapes (Expressive Shapes)
 androidx-graphics-shapes = { group = "androidx.graphics", name = "graphics-shapes", version.ref = "graphicsShapes" }

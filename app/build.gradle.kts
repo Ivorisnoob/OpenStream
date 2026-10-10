@@ -174,6 +174,10 @@ dependencies {
     implementation(libs.androidx.media3.cast)
     implementation(libs.androidx.media3.session)
 
+    // SmoothMotion (Video Frame Interpolation)
+    implementation(libs.smoothmotion.media3)
+    implementation(libs.smoothmotion.ui)
+
     // Graphics Shapes
     implementation(libs.androidx.graphics.shapes)
 

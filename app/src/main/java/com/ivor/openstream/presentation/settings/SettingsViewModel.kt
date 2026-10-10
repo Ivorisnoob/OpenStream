@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.settings
 
+import io.github.ivorisnoob.smoothmotion.media3.SmoothMotion
 import android.content.Context
 import com.ivor.openstream.R
 import android.net.Uri
@@ -207,6 +208,10 @@ class SettingsViewModel @Inject constructor(
     fun setSmartKeepAhead(count: Int) = appSettingsStore.setSmartKeepAhead(count)
 
     fun setKeepPlayingInBackground(enabled: Boolean) = appSettingsStore.setKeepPlayingInBackground(enabled)
+
+    val isSmoothMotionSupported: Boolean = SmoothMotion.isSupported(context)
+    fun setSmoothMotionEnabled(enabled: Boolean) = appSettingsStore.setSmoothMotionEnabled(enabled)
+    fun setSmoothMotionMaxFps(fps: Int) = appSettingsStore.setSmoothMotionMaxFps(fps)
 
     fun setWarnBeforeMeteredStream(enabled: Boolean) = appSettingsStore.setWarnBeforeMeteredStream(enabled)
 

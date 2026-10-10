@@ -86,7 +86,11 @@ data class AppSettings(
     /** Ask before a stream runs on a metered network (once per app run). */
     val warnBeforeMeteredStream: Boolean = true,
     /** Tallest rendition allowed while streaming on a metered network; 0 means no limit. */
-    val meteredMaxHeight: Int = 720
+    val meteredMaxHeight: Int = 720,
+    /** Real-time video frame interpolation (up to 60 or 120 fps). Off by default to save battery. */
+    val smoothMotionEnabled: Boolean = false,
+    /** Output FPS ceiling for Smooth Motion (60 or 120). */
+    val smoothMotionMaxFps: Int = 120
 ) {
     companion object {
         val SEEK_STEPS = listOf(5, 10, 15, 30)
@@ -95,6 +99,7 @@ data class AppSettings(
         val SMART_AHEAD_OPTIONS = listOf(1, 2, 3)
         /** Quality caps offered for metered networks: 720p, 480p and no limit. */
         val METERED_CAPS = listOf(720, 480, 0)
+        val SMOOTH_MOTION_FPS_OPTIONS = listOf(60, 120)
     }
 }
 
@@ -146,6 +151,8 @@ class AppSettingsStore @Inject constructor(
             .putBoolean(KEY_BACKGROUND_PLAYBACK, updated.keepPlayingInBackground)
             .putBoolean(KEY_WARN_METERED, updated.warnBeforeMeteredStream)
             .putInt(KEY_METERED_HEIGHT, updated.meteredMaxHeight)
+            .putBoolean(KEY_SMOOTH_MOTION_ENABLED, updated.smoothMotionEnabled)
+            .putInt(KEY_SMOOTH_MOTION_MAX_FPS, updated.smoothMotionMaxFps)
             .apply()
     }
 
@@ -179,7 +186,10 @@ class AppSettingsStore @Inject constructor(
             keepPlayingInBackground = prefs.getBoolean(KEY_BACKGROUND_PLAYBACK, defaults.keepPlayingInBackground),
             warnBeforeMeteredStream = prefs.getBoolean(KEY_WARN_METERED, defaults.warnBeforeMeteredStream),
             meteredMaxHeight = prefs.getInt(KEY_METERED_HEIGHT, defaults.meteredMaxHeight)
-                .takeIf { it in AppSettings.METERED_CAPS } ?: defaults.meteredMaxHeight
+                .takeIf { it in AppSettings.METERED_CAPS } ?: defaults.meteredMaxHeight,
+            smoothMotionEnabled = prefs.getBoolean(KEY_SMOOTH_MOTION_ENABLED, defaults.smoothMotionEnabled),
+            smoothMotionMaxFps = prefs.getInt(KEY_SMOOTH_MOTION_MAX_FPS, defaults.smoothMotionMaxFps)
+                .takeIf { it in AppSettings.SMOOTH_MOTION_FPS_OPTIONS } ?: defaults.smoothMotionMaxFps
         )
     }
 
@@ -199,6 +209,11 @@ class AppSettingsStore @Inject constructor(
     /** 0 clears the cap, so metered networks stream at the source's best quality. */
     fun setMeteredMaxHeight(height: Int) =
         update { it.copy(meteredMaxHeight = height.takeIf { it in AppSettings.METERED_CAPS } ?: 0) }
+
+    fun setSmoothMotionEnabled(enabled: Boolean) = update { it.copy(smoothMotionEnabled = enabled) }
+
+    fun setSmoothMotionMaxFps(fps: Int) =
+        update { it.copy(smoothMotionMaxFps = fps.takeIf { it in AppSettings.SMOOTH_MOTION_FPS_OPTIONS } ?: 120) }
 
     // region Profile PIN lockout (attempt counting survives restarts)
 
@@ -242,6 +257,8 @@ class AppSettingsStore @Inject constructor(
         const val KEY_BACKGROUND_PLAYBACK = "app_background_playback"
         const val KEY_WARN_METERED = "app_warn_metered_stream"
         const val KEY_METERED_HEIGHT = "app_metered_max_height"
+        const val KEY_SMOOTH_MOTION_ENABLED = "app_smooth_motion_enabled"
+        const val KEY_SMOOTH_MOTION_MAX_FPS = "app_smooth_motion_max_fps"
         const val KEY_THEME = "app_theme_mode"
         const val KEY_DYNAMIC_COLOR = "app_dynamic_color"
         const val KEY_DNS = "app_dns_provider"

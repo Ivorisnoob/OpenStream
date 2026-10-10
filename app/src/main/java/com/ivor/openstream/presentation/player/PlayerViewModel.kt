@@ -51,6 +51,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.exoplayer.ExoPlayer
 import com.ivor.openstream.presentation.player.session.NowPlaying
 import com.ivor.openstream.presentation.player.session.PlaybackSession
+import io.github.ivorisnoob.smoothmotion.media3.SmoothMotion
 import com.ivor.openstream.data.settings.AppSettings
 import com.ivor.openstream.domain.model.SkipSegment
 import com.ivor.openstream.data.repository.SkipTimesRepository
@@ -133,6 +134,10 @@ class PlayerViewModel @Inject constructor(
 
     /** The app-wide player; the screen attaches to it rather than owning one. */
     val player: ExoPlayer get() = playbackSession.player
+    val smoothMotion: SmoothMotion? get() = playbackSession.smoothMotion
+
+    fun setSmoothMotionEnabled(enabled: Boolean) = appSettingsStore.setSmoothMotionEnabled(enabled)
+    fun setSmoothMotionMaxFps(maxFps: Int) = appSettingsStore.setSmoothMotionMaxFps(maxFps)
 
     fun applyRequestHeaders(headers: Map<String, String>) = playbackSession.setRequestHeaders(headers)
 

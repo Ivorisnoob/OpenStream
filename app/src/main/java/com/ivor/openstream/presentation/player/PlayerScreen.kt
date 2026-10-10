@@ -521,6 +521,7 @@ fun PlayerScreen(
                             subtitle = playerSubtitle,
                             requestHeaders = activeServer?.headers.orEmpty(),
                             exoPlayer = viewModel.player,
+                            smoothMotion = viewModel.smoothMotion,
                             applyRequestHeaders = viewModel::applyRequestHeaders,
                             isFullscreen = isFullscreen,
                             onFullscreenToggle = {

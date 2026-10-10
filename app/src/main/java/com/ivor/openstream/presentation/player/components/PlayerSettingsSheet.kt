@@ -85,6 +85,9 @@ import com.ivor.openstream.presentation.player.session.SleepTimer
 import com.ivor.openstream.data.remote.model.EpisodeDto
 import com.ivor.openstream.domain.model.WatchProgress
 import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.filled.AutoAwesome
+import io.github.ivorisnoob.smoothmotion.media3.SmoothMotion
+import io.github.ivorisnoob.smoothmotion.media3.describe
 import com.ivor.openstream.presentation.player.sourceSummary
 import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.ui.theme.ExpressiveShapes
@@ -191,7 +194,8 @@ class PlayerSettingsModel(
     /** This season's episodes, for the in-player list (empty for movies). */
     val episodes: List<EpisodeDto> = emptyList(),
     val currentEpisode: Int = 0,
-    val episodeProgress: Map<Pair<Int, Int>, WatchProgress> = emptyMap()
+    val episodeProgress: Map<Pair<Int, Int>, WatchProgress> = emptyMap(),
+    val smoothMotion: SmoothMotion? = null
 )
 
 class PlayerSettingsActions(
@@ -203,7 +207,8 @@ class PlayerSettingsActions(
     val onAudioSelected: (AudioOption) -> Unit,
     val onSubtitleOffsetChange: (Long) -> Unit = {},
     val onSleepTimerChange: (SleepTimer?) -> Unit = {},
-    val onEpisodeSelected: (EpisodeDto) -> Unit = {}
+    val onEpisodeSelected: (EpisodeDto) -> Unit = {},
+    val onSmoothMotionToggle: ((Boolean) -> Unit)? = null
 )
 
 /**
@@ -283,7 +288,7 @@ private fun ColumnScope.SettingsContent(
             verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)
         ) {
             when (current) {
-                PlayerSettingsPage.MAIN -> mainPage(model, onNavigate = { page = it })
+                PlayerSettingsPage.MAIN -> mainPage(model, actions, onNavigate = { page = it })
                 PlayerSettingsPage.SOURCES -> sourcesPage(model.serversState, sourceFilter, sourceActions)
                 PlayerSettingsPage.AUDIO -> audioPage(model, actions, sourceActions, onDone = goHome)
                 PlayerSettingsPage.QUALITY -> qualityPage(
@@ -309,6 +314,7 @@ private fun ColumnScope.SettingsContent(
 
 private fun LazyListScope.mainPage(
     model: PlayerSettingsModel,
+    actions: PlayerSettingsActions,
     onNavigate: (PlayerSettingsPage) -> Unit
 ) {
     val isResolving = model.serversState is ServersState.Resolving
@@ -375,6 +381,21 @@ private fun LazyListScope.mainPage(
                 onClick = { onNavigate(PlayerSettingsPage.QUALITY) }
             )
         )
+        if (model.smoothMotion != null) {
+            val sm = model.smoothMotion
+            add(
+                MainRow(
+                    icon = Icons.Default.AutoAwesome,
+                    key = "smooth-motion",
+                    title = { stringResource(R.string.st_smooth_motion) },
+                    value = {
+                        if (sm.enabled) sm.status.value.describe()
+                        else stringResource(R.string.misc_off)
+                    },
+                    onClick = { actions.onSmoothMotionToggle?.invoke(!sm.enabled) }
+                )
+            )
+        }
         add(
             MainRow(
                 icon = Icons.Default.Speed,
