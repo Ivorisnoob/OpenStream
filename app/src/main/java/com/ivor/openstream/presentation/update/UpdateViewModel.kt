@@ -1,6 +1,7 @@
 package com.ivor.openstream.presentation.update
 
 import android.app.DownloadManager
+import com.ivor.openstream.R
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -66,7 +67,7 @@ class UpdateViewModel @Inject constructor(
                         UpdateUiState.UpToDate(release)
                     }
                 },
-                onFailure = { UpdateUiState.Failed("Couldn't reach GitHub. Check your connection and try again.") }
+                onFailure = { UpdateUiState.Failed(context.getString(R.string.st_could_not_github)) }
             )
         }
     }
@@ -77,8 +78,8 @@ class UpdateViewModel @Inject constructor(
 
         // App-specific storage: readable by the installer through FileProvider with no permissions.
         val request = DownloadManager.Request(Uri.parse(asset.downloadUrl))
-            .setTitle("OpenStream ${release.tagName}")
-            .setDescription("Downloading update")
+            .setTitle(context.getString(R.string.up_version_format, release.tagName))
+            .setDescription(context.getString(R.string.dl_downloading_update))
             .setMimeType(APK_MIME)
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, asset.name)
@@ -126,7 +127,7 @@ class UpdateViewModel @Inject constructor(
             }
             when (snapshot?.first) {
                 null, DownloadManager.STATUS_FAILED -> {
-                    _uiState.value = UpdateUiState.Failed("The download didn't finish. Try again.", release)
+                    _uiState.value = UpdateUiState.Failed(context.getString(R.string.dl_not_finished), release)
                     return
                 }
                 DownloadManager.STATUS_SUCCESSFUL -> {

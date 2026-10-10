@@ -1,6 +1,7 @@
 package com.ivor.openstream.presentation.lists
 
 import androidx.compose.foundation.background
+import com.ivor.openstream.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +34,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -78,7 +80,7 @@ fun ListNameDialog(
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it.take(MAX_NAME_LENGTH) },
-                label = { Text("Name") },
+                label = { Text(stringResource(R.string.pf_name)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 modifier = Modifier
@@ -89,7 +91,7 @@ fun ListNameDialog(
         confirmButton = {
             TextButton(onClick = { onConfirm(name.trim()) }, enabled = name.isNotBlank()) { Text(confirmLabel) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 
@@ -116,7 +118,7 @@ fun AddToListSheet(
     ) {
         Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
             Text(
-                text = "Save $titleName to…",
+                text = stringResource(R.string.details_save_to, titleName),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
@@ -128,7 +130,7 @@ fun AddToListSheet(
             LazyColumn {
                 item(key = "watch-later") {
                     ListRow(
-                        name = "Watch later",
+                        name = stringResource(R.string.action_watch_later),
                         detail = null,
                         checked = isInWatchLater,
                         icon = { Icon(if (isInWatchLater) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, contentDescription = null) },
@@ -147,7 +149,7 @@ fun AddToListSheet(
                 }
                 item(key = "new") {
                     ListItem(
-                        headlineContent = { Text("New list", fontWeight = FontWeight.SemiBold) },
+                        headlineContent = { Text(stringResource(R.string.li_new_list), fontWeight = FontWeight.SemiBold) },
                         leadingContent = { Icon(Icons.Default.Add, contentDescription = null) },
                         colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
                         modifier = Modifier.clickable(role = Role.Button) { creating = true }
@@ -158,8 +160,8 @@ fun AddToListSheet(
     }
     if (creating) {
         ListNameDialog(
-            title = "New list",
-            confirmLabel = "Create",
+            title = stringResource(R.string.li_new_list),
+            confirmLabel = stringResource(R.string.create_label),
             onConfirm = { name ->
                 creating = false
                 onCreateList(name)
@@ -243,7 +245,7 @@ fun ListCard(list: CustomListSummary, onClick: () -> Unit, modifier: Modifier = 
         modifier = modifier
             .width(128.dp)
             .clip(ExpressiveShapes.medium)
-            .clickable(onClickLabel = "Open ${list.name}", onClick = onClick)
+            .clickable(onClickLabel = stringResource(R.string.misc_open_title, list.name), onClick = onClick)
             // Keeps the text clear of the rounded bottom corners the clip above cuts.
             .padding(bottom = 10.dp)
     ) {
@@ -272,7 +274,7 @@ fun NewListCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
         modifier = modifier
             .width(128.dp)
             .clip(ExpressiveShapes.medium)
-            .clickable(onClickLabel = "Create a list", onClick = onClick)
+            .clickable(onClickLabel = stringResource(R.string.li_create_list), onClick = onClick)
             .padding(bottom = 10.dp)
     ) {
         Surface(
@@ -287,7 +289,7 @@ fun NewListCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
             }
         }
         Text(
-            text = "New list",
+            text = stringResource(R.string.li_new_list),
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(top = 8.dp, start = 6.dp, end = 6.dp)
@@ -295,6 +297,8 @@ fun NewListCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
-fun itemCountLabel(count: Int): String = if (count == 1) "1 title" else "$count titles"
+@Composable
+fun itemCountLabel(count: Int): String =
+    if (count == 1) stringResource(R.string.count_title_one) else stringResource(R.string.count_titles, count)
 
 private const val MAX_NAME_LENGTH = 60

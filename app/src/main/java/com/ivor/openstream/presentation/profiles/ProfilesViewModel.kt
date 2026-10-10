@@ -1,11 +1,15 @@
 package com.ivor.openstream.presentation.profiles
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ivor.openstream.R
 import com.ivor.openstream.data.repository.ProfileRepository
+import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.domain.model.Profile
 import com.ivor.openstream.presentation.player.session.PlaybackSession
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -22,7 +26,9 @@ import javax.inject.Inject
 @HiltViewModel
 class ProfilesViewModel @Inject constructor(
     private val repository: ProfileRepository,
-    private val playbackSession: PlaybackSession
+    private val playbackSession: PlaybackSession,
+    private val settings: AppSettingsStore,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     val profiles: StateFlow<List<Profile>> = repository.profiles
@@ -67,8 +73,36 @@ class ProfilesViewModel @Inject constructor(
     fun delete(profile: Profile) {
         viewModelScope.launch {
             if (profile.id == repository.activeProfileId.value) playbackSession.stop()
-            if (!repository.delete(profile.id)) _messages.tryEmit("Keep at least one profile")
-            else _messages.tryEmit("Deleted ${profile.name}")
+            if (!repository.delete(profile.id)) _messages.tryEmit(context.getString(R.string.pf_keep_one))
+            else _messages.tryEmit(context.getString(R.string.pf_deleted, profile.name))
         }
+    }
+
+    /** Stores a new PIN for [id]; emits pin_saved, or pin_mismatch when the code isn't 4-8 digits. */
+    fun setPin(id: Long, pin: String) {
+        viewModelScope.launch {
+            if (repository.setPin(id, pin)) _messages.tryEmit(context.getString(R.string.pin_saved))
+            else _messages.tryEmit(context.getString(R.string.pin_mismatch))
+        }
+    }
+
+    fun clearPin(id: Long) {
+        viewModelScope.launch {
+            repository.clearPin(id)
+            _messages.tryEmit(context.getString(R.string.pin_removed))
+        }
+    }
+
+    /** Checks a PIN without emitting messages; the caller formats Locked/Wrong itself. */
+    suspend fun checkPin(profile: Profile, pin: String): PinCheck {
+        if (repository.verifyPin(profile, pin)) return PinCheck.Ok
+        val secondsLeft = (settings.pinLockoutUntil(profile.id) - System.currentTimeMillis() + 999) / 1000
+        return if (secondsLeft > 0) PinCheck.Locked(secondsLeft) else PinCheck.Wrong
+    }
+
+    sealed interface PinCheck {
+        data object Ok : PinCheck
+        data object Wrong : PinCheck
+        data class Locked(val secondsLeft: Long) : PinCheck
     }
 }

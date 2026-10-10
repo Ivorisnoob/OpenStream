@@ -1,6 +1,7 @@
 package com.ivor.openstream.presentation.marketplace
 
 import androidx.compose.animation.AnimatedVisibility
+import com.ivor.openstream.R
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
@@ -40,6 +41,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -175,7 +177,7 @@ fun ExtensionRow(
                             Spacer(Modifier.width(6.dp))
                             Icon(
                                 imageVector = Icons.Default.Verified,
-                                contentDescription = "Official extension",
+                                contentDescription = stringResource(R.string.st_official_repo),
                                 modifier = Modifier.size(16.dp),
                                 tint = MaterialTheme.colorScheme.primary
                             )
@@ -221,9 +223,9 @@ fun ExtensionRow(
                     ) {
                         Text(
                             text = when {
-                                !manifest.isSupported -> "Needs a newer app version"
-                                extension.isEnabled -> "Active in player"
-                                else -> "Paused"
+                                !manifest.isSupported -> stringResource(R.string.st_needs_newer_app)
+                                extension.isEnabled -> stringResource(R.string.er_active_player)
+                                else -> stringResource(R.string.mk_paused)
                             },
                             modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.labelLarge,
@@ -237,10 +239,10 @@ fun ExtensionRow(
                         )
                         if (showReorder) {
                             IconButton(onClick = { onMoveUp?.invoke() }, enabled = onMoveUp != null) {
-                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move ${manifest.name} up")
+                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = stringResource(R.string.cd_move_up, manifest.name))
                             }
                             IconButton(onClick = { onMoveDown?.invoke() }, enabled = onMoveDown != null) {
-                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Move ${manifest.name} down")
+                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = stringResource(R.string.cd_move_down, manifest.name))
                             }
                         }
                         Switch(
@@ -256,7 +258,7 @@ fun ExtensionRow(
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(Modifier.width(4.dp))
-                            Text("Remove")
+                            Text(stringResource(R.string.action_remove))
                         }
                     }
                 }
@@ -275,17 +277,17 @@ private fun ExtensionAction(
         extension.hasUpdate -> FilledTonalButton(onClick = onUpdate, shape = ExpressiveShapes.small) {
             Icon(Icons.Default.Update, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
-            Text("Update")
+            Text(stringResource(R.string.action_update))
         }
 
         extension.isInstalled -> Icon(
             imageVector = Icons.Default.CheckCircle,
-            contentDescription = "Installed",
+            contentDescription = stringResource(R.string.st_installed),
             tint = MaterialTheme.colorScheme.primary
         )
 
         !extension.manifest.isSupported -> Text(
-            text = "Unsupported",
+            text = stringResource(R.string.mk_unsupported),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.error
         )
@@ -293,7 +295,7 @@ private fun ExtensionAction(
         else -> Button(onClick = onInstall, shape = ExpressiveShapes.small) {
             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
-            Text("Install")
+            Text(stringResource(R.string.action_install))
         }
     }
 }
@@ -352,7 +354,7 @@ fun ChartTile(
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        text = "Installed",
+                        text = stringResource(R.string.st_installed),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -363,7 +365,7 @@ fun ChartTile(
                     shape = ExpressiveShapes.small,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Install")
+                    Text(stringResource(R.string.action_install))
                 }
             }
         }
@@ -406,7 +408,7 @@ fun RepoCard(
                     )
                 }
                 if (!repo.isBuiltIn) {
-                    TextButton(onClick = onRemove) { Text("Remove") }
+                    TextButton(onClick = onRemove) { Text(stringResource(R.string.action_remove)) }
                 }
             }
             Spacer(Modifier.height(10.dp))
@@ -414,7 +416,7 @@ fun RepoCard(
                 AssistChip(
                     onClick = {},
                     enabled = false,
-                    label = { Text("$extensionCount extensions") },
+                    label = { Text(stringResource(R.string.st_extensions_count, extensionCount)) },
                     colors = AssistChipDefaults.assistChipColors(
                         disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                         disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -471,7 +473,7 @@ fun ExtensionDetailsSheet(
                         fontWeight = FontWeight.Black
                     )
                     Text(
-                        text = "${manifest.author} · v${manifest.versionName}",
+                        text = stringResource(R.string.misc_author_version, manifest.author, manifest.versionName),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -480,10 +482,10 @@ fun ExtensionDetailsSheet(
 
             Spacer(Modifier.height(18.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatBlock(label = "Status", value = manifest.status.label)
-                StatBlock(label = "Language", value = manifest.language)
+                StatBlock(label = stringResource(R.string.st_status), value = stringResource(manifest.status.labelRes))
+                StatBlock(label = stringResource(R.string.details_language), value = manifest.language)
                 StatBlock(
-                    label = if (manifest.installs > 0) "Installs" else "Reliability",
+                    label = if (manifest.installs > 0) stringResource(R.string.mk_stat_installs) else stringResource(R.string.mk_stat_reliability),
                     value = if (manifest.installs > 0) {
                         formatCount(manifest.installs)
                     } else {
@@ -500,18 +502,18 @@ fun ExtensionDetailsSheet(
             )
 
             Spacer(Modifier.height(18.dp))
-            DetailLine(label = "Repository", value = repoName)
-            DetailLine(label = "Engine", value = manifest.engine.type.key)
+            DetailLine(label = stringResource(R.string.st_repository), value = repoName)
+            DetailLine(label = stringResource(R.string.sheet_engine), value = manifest.engine.type.key)
             if (manifest.tags.isNotEmpty()) {
-                DetailLine(label = "Tags", value = manifest.tags.joinToString(", "))
+                DetailLine(label = stringResource(R.string.st_tags), value = manifest.tags.joinToString(", "))
             }
             if (manifest.updatedAt > 0L) {
-                DetailLine(label = "Updated", value = lastSyncLabel(manifest.updatedAt))
+                DetailLine(label = stringResource(R.string.st_updated), value = lastSyncLabel(manifest.updatedAt))
             }
             if (manifest.rating > 0f && manifest.ratingCount > 0) {
                 DetailLine(
-                    label = "Rating",
-                    value = "${manifest.rating} ★ (${formatCount(manifest.ratingCount.toLong())})"
+                    label = stringResource(R.string.li_sort_rating),
+                    value = stringResource(R.string.misc_rating_count, manifest.rating.toString(), formatCount(manifest.ratingCount.toLong()))
                 )
             }
 
@@ -519,7 +521,7 @@ fun ExtensionDetailsSheet(
                 Spacer(Modifier.height(14.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "Use when resolving streams",
+                        text = stringResource(R.string.sheet_use_resolving),
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyMedium
                     )
@@ -541,7 +543,7 @@ fun ExtensionDetailsSheet(
                     ) {
                         Icon(Icons.Default.Update, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Update to v${manifest.versionName}")
+                        Text(stringResource(R.string.st_updated_to, manifest.versionName))
                     }
 
                     !extension.isInstalled -> Button(
@@ -552,7 +554,7 @@ fun ExtensionDetailsSheet(
                     ) {
                         Icon(Icons.Default.Download, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Install")
+                        Text(stringResource(R.string.action_install))
                     }
 
                     else -> OutlinedButton(
@@ -562,7 +564,7 @@ fun ExtensionDetailsSheet(
                     ) {
                         Icon(Icons.Outlined.DeleteOutline, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Remove")
+                        Text(stringResource(R.string.action_remove))
                     }
                 }
                 if (manifest.homepage != null) {
@@ -570,7 +572,7 @@ fun ExtensionDetailsSheet(
                         onClick = { uriHandler.openUri(manifest.homepage) },
                         shape = ExpressiveShapes.small
                     ) {
-                        Text("Website")
+                        Text(stringResource(R.string.up_website))
                     }
                 }
             }
@@ -643,17 +645,19 @@ fun EmptyState(icon: ImageVector, title: String, body: String) {
     }
 }
 
+@Composable
 fun extensionSubtitle(extension: MarketplaceExtension): String {
     val manifest = extension.manifest
     val parts = mutableListOf(manifest.language, "v${manifest.versionName}")
-    if (manifest.installs > 0) parts += "${formatCount(manifest.installs)} installs"
-    extension.usage.successRate?.let { parts += "${(it * 100).roundToInt()}% success" }
-    if (manifest.isFallback) parts += "fallback"
+    if (manifest.installs > 0) parts += stringResource(R.string.misc_installs, formatCount(manifest.installs))
+    extension.usage.successRate?.let { parts += stringResource(R.string.misc_success_rate, (it * 100).roundToInt()) }
+    if (manifest.isFallback) parts += stringResource(R.string.mk_fallback_tag)
     return parts.joinToString(" · ")
 }
 
+@Composable
 fun reliabilityLabel(extension: MarketplaceExtension): String {
-    val rate = extension.usage.successRate ?: return "No data yet"
+    val rate = extension.usage.successRate ?: return stringResource(R.string.er_no_data)
     return "${(rate * 100).roundToInt()}%"
 }
 
@@ -663,17 +667,18 @@ fun formatCount(value: Long): String = when {
     else -> value.toString()
 }
 
+@Composable
 fun lastSyncLabel(timestamp: Long): String {
-    if (timestamp <= 0L) return "Never synced"
+    if (timestamp <= 0L) return stringResource(R.string.up_never_synced)
     val elapsed = System.currentTimeMillis() - timestamp
     val minutes = TimeUnit.MILLISECONDS.toMinutes(elapsed)
     val hours = TimeUnit.MILLISECONDS.toHours(elapsed)
     val days = TimeUnit.MILLISECONDS.toDays(elapsed)
     return when {
-        minutes < 1 -> "Just now"
-        minutes < 60 -> "${minutes}m ago"
-        hours < 24 -> "${hours}h ago"
-        days < 30 -> "${days}d ago"
-        else -> "${days / 30}mo ago"
+        minutes < 1 -> stringResource(R.string.hi_just_now)
+        minutes < 60 -> stringResource(R.string.misc_mins_ago, minutes)
+        hours < 24 -> stringResource(R.string.misc_hours_ago, hours)
+        days < 30 -> stringResource(R.string.misc_days_ago, days)
+        else -> stringResource(R.string.misc_months_ago, days / 30)
     }
 }

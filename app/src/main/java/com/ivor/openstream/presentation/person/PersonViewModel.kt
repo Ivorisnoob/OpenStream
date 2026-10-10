@@ -1,12 +1,15 @@
 package com.ivor.openstream.presentation.person
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ivor.openstream.R
 import com.ivor.openstream.data.remote.TmdbApi
 import com.ivor.openstream.data.remote.model.AnimeDto
 import com.ivor.openstream.data.remote.model.PersonDto
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,6 +25,7 @@ sealed interface PersonUiState {
 @HiltViewModel
 class PersonViewModel @Inject constructor(
     private val tmdbApi: TmdbApi,
+    @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -40,7 +44,7 @@ class PersonViewModel @Inject constructor(
             _uiState.value = runCatching { tmdbApi.getPerson(personId) }
                 .fold(
                     onSuccess = { person -> PersonUiState.Success(person, person.filmography()) },
-                    onFailure = { PersonUiState.Error(it.message ?: "Couldn't load this person") }
+                    onFailure = { PersonUiState.Error(it.message ?: context.getString(R.string.details_could_not_load_person)) }
                 )
         }
     }

@@ -21,3 +21,11 @@
 #-renamesourcefileattribute SourceFile
 # Named only in the manifest (Cast framework options), so R8 can't see it's used.
 -keep class com.ivor.openstream.data.cast.CastOptionsProvider { *; }
+
+# Release: strip verbose logging (14+ files use android.util.Log).
+# Keep warnings/errors so crash triage still has signal.
+-assumenosideeffects class android.util.Log {
+    public static *** v(...);
+    public static *** d(...);
+    public static *** i(...);
+}

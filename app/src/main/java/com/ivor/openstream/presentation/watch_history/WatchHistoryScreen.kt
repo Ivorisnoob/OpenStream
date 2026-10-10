@@ -1,6 +1,7 @@
 package com.ivor.openstream.presentation.watch_history
 
 import com.ivor.openstream.presentation.components.isCompactWidth
+import com.ivor.openstream.R
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.size
@@ -48,6 +49,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -91,12 +94,15 @@ fun WatchHistoryScreen(
     val state by viewModel.uiState.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val undoLabel = stringResource(R.string.action_undo)
+    val removedMessage = stringResource(R.string.dl_removed_history)
     var confirmClear by remember { mutableStateOf(false) }
 
     val remove: (WatchProgress) -> Unit = { entry ->
         viewModel.remove(entry)
         scope.launch {
-            val result = snackbar.showSnackbar("Removed from history", actionLabel = "Undo")
+            val result = snackbar.showSnackbar(removedMessage, actionLabel = undoLabel)
             if (result == SnackbarResult.ActionPerformed) viewModel.restore(entry)
         }
     }
@@ -121,11 +127,11 @@ fun WatchHistoryScreen(
             ) {
                 item(key = "header", span = FullRow) {
                     LibraryHeader(
-                        title = "History",
+                        title = stringResource(R.string.nav_history),
                         subtitle = if (state.watchedThisWeekMs > 0) {
-                            "${formatDuration(state.watchedThisWeekMs)} watched this week"
+                            stringResource(R.string.hi_watched_week, formatDuration(state.watchedThisWeekMs))
                         } else if (state.totalCount > 0) {
-                            "${state.totalCount} watched"
+                            stringResource(R.string.hi_watched_count, state.totalCount)
                         } else {
                             null
                         },
@@ -133,7 +139,7 @@ fun WatchHistoryScreen(
                         trailing = {
                             if (state.totalCount > 0) {
                                 IconButton(onClick = { confirmClear = true }) {
-                                    Icon(Icons.Default.DeleteSweep, contentDescription = "Clear history")
+                                    Icon(Icons.Default.DeleteSweep, contentDescription = stringResource(R.string.cd_clear_history))
                                 }
                             }
                         }
@@ -145,14 +151,14 @@ fun WatchHistoryScreen(
                         LocalSearchField(
                             value = state.query,
                             onValueChange = viewModel::onQueryChange,
-                            placeholder = "Search your history"
+                            placeholder = stringResource(R.string.hi_search)
                         )
                     }
                     item(key = "filters", span = FullRow) {
                         ChoiceChips(
                             options = HistoryFilter.entries,
                             selected = state.filter,
-                            label = { it.label },
+                            label = { stringResource(it.labelRes) },
                             onSelect = viewModel::onFilterChange,
                             modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
                         )
@@ -166,20 +172,20 @@ fun WatchHistoryScreen(
                     state.totalCount == 0 -> item(key = "empty", span = FullRow) {
                         LibraryEmptyState(
                             icon = Icons.Default.History,
-                            title = "Nothing watched yet",
-                            body = "Episodes and movies you watch show up here, so you can jump back in any time."
+                            title = stringResource(R.string.hi_nothing_watched),
+                            body = stringResource(R.string.hi_nothing_hint)
                         )
                     }
                     !state.hasResults -> item(key = "no-matches", span = FullRow) {
                         LibraryEmptyState(
                             icon = Icons.Default.SearchOff,
-                            title = "No matches",
-                            body = "Nothing in your history matches this search and filter.",
+                            title = stringResource(R.string.er_no_results),
+                            body = stringResource(R.string.hi_no_match),
                             action = {
                                 TextButton(onClick = {
                                     viewModel.onQueryChange("")
                                     viewModel.onFilterChange(HistoryFilter.ALL)
-                                }) { Text("Clear search and filters") }
+                                }) { Text(stringResource(R.string.search_clear_search_filters)) }
                             }
                         )
                     }
@@ -235,15 +241,15 @@ fun WatchHistoryScreen(
     if (confirmClear) {
         AlertDialog(
             onDismissRequest = { confirmClear = false },
-            title = { Text("Clear all history?") },
-            text = { Text("This also resets Continue watching and the watched marks on episodes. It can't be undone.") },
+            title = { Text(stringResource(R.string.hi_clear_all)) },
+            text = { Text(stringResource(R.string.li_this_reset)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmClear = false
                     viewModel.clearAll()
-                }) { Text("Clear", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(R.string.action_clear), color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.action_cancel)) } }
         )
     }
 }
@@ -263,8 +269,8 @@ private fun HistoryRow(
     val haptics = LocalHapticFeedback.current
     val time = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(entry.updatedAt))
     val status = when {
-        entry.completed -> "Watched"
-        entry.durationMs > 0 -> "${((entry.durationMs - entry.positionMs) / 60_000L).coerceAtLeast(1)}m left"
+        entry.completed -> stringResource(R.string.details_watched)
+        entry.durationMs > 0 -> stringResource(R.string.misc_minutes_short, ((entry.durationMs - entry.positionMs) / 60_000L).coerceAtLeast(1))
         else -> null
     }
 
@@ -275,7 +281,7 @@ private fun HistoryRow(
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 menuOpen = true
             },
-            onLongClickLabel = "More options",
+            onLongClickLabel = stringResource(R.string.misc_more_options),
             shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
             colors = ListItemDefaults.segmentedColors(),
             modifier = Modifier.padding(vertical = 1.dp),
@@ -283,7 +289,7 @@ private fun HistoryRow(
             supportingContent = {
                 Text(
                     text = listOfNotNull(
-                        if (entry.isMovie) "Movie" else "S${entry.season} E${entry.episode}" + (entry.episodeTitle?.let { " · $it" } ?: ""),
+                        if (entry.isMovie) stringResource(R.string.details_movie) else "S${entry.season} E${entry.episode}" + (entry.episodeTitle?.let { " · $it" } ?: ""),
                         status,
                         time
                     ).joinToString("  ·  "),
@@ -295,9 +301,9 @@ private fun HistoryRow(
             Text(entry.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(text = { Text(if (entry.completed) "Watch again" else "Resume") }, onClick = { menuOpen = false; onResume() })
-            DropdownMenuItem(text = { Text("Go to details") }, onClick = { menuOpen = false; onOpenDetails() })
-            DropdownMenuItem(text = { Text("Remove from history") }, onClick = { menuOpen = false; onRemove() })
+            DropdownMenuItem(text = { Text(if (entry.completed) stringResource(R.string.action_watch_again) else stringResource(R.string.cd_resume)) }, onClick = { menuOpen = false; onResume() })
+            DropdownMenuItem(text = { Text(stringResource(R.string.action_go_to_details)) }, onClick = { menuOpen = false; onOpenDetails() })
+            DropdownMenuItem(text = { Text(stringResource(R.string.action_remove_from_history)) }, onClick = { menuOpen = false; onRemove() })
         }
     }
 }
@@ -323,12 +329,12 @@ private fun HistoryCard(
                 .clip(ExpressiveShapes.large)
                 .combinedClickable(
                     onClick = onResume,
-                    onClickLabel = if (entry.completed) "Watch again" else "Resume",
+                    onClickLabel = if (entry.completed) stringResource(R.string.action_watch_again) else stringResource(R.string.cd_resume),
                     onLongClick = {
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         menuOpen = true
                     },
-                    onLongClickLabel = "More options"
+                    onLongClickLabel = stringResource(R.string.misc_more_options)
                 )
                 .padding(bottom = 10.dp)
         ) {
@@ -365,9 +371,9 @@ private fun HistoryCard(
                     ) {
                         if (entry.completed) {
                             Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Text(" Watched", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.details_watched), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                         } else if (entry.durationMs > 0) {
-                            Text("${minutesLeft}m left", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.misc_minutes_short, minutesLeft), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                         } else {
                             Text(time, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                         }
@@ -396,7 +402,7 @@ private fun HistoryCard(
             )
             Text(
                 text = listOfNotNull(
-                    if (entry.isMovie) "Movie" else "S${entry.season} E${entry.episode}" + (entry.episodeTitle?.let { " · $it" } ?: ""),
+                    if (entry.isMovie) stringResource(R.string.details_movie) else "S${entry.season} E${entry.episode}" + (entry.episodeTitle?.let { " · $it" } ?: ""),
                     time
                 ).joinToString("  ·  "),
                 style = MaterialTheme.typography.bodySmall,
@@ -407,9 +413,9 @@ private fun HistoryCard(
             )
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(text = { Text(if (entry.completed) "Watch again" else "Resume") }, onClick = { menuOpen = false; onResume() })
-            DropdownMenuItem(text = { Text("Go to details") }, onClick = { menuOpen = false; onOpenDetails() })
-            DropdownMenuItem(text = { Text("Remove from history") }, onClick = { menuOpen = false; onRemove() })
+            DropdownMenuItem(text = { Text(if (entry.completed) stringResource(R.string.action_watch_again) else stringResource(R.string.cd_resume)) }, onClick = { menuOpen = false; onResume() })
+            DropdownMenuItem(text = { Text(stringResource(R.string.action_go_to_details)) }, onClick = { menuOpen = false; onOpenDetails() })
+            DropdownMenuItem(text = { Text(stringResource(R.string.action_remove_from_history)) }, onClick = { menuOpen = false; onRemove() })
         }
     }
 }
@@ -453,7 +459,8 @@ private fun Thumbnail(entry: WatchProgress) {
     }
 }
 
+@Composable
 private fun formatDuration(ms: Long): String {
     val minutes = ms / 60_000L
-    return if (minutes >= 60) "${minutes / 60}h ${minutes % 60}m" else "${minutes}m"
+    return if (minutes >= 60) stringResource(R.string.misc_duration_hm, minutes / 60, minutes % 60) else stringResource(R.string.misc_duration_m, minutes)
 }

@@ -3,6 +3,8 @@
 package com.ivor.openstream.presentation.player.components
 
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalContext
+import com.ivor.openstream.R
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -27,6 +29,7 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
@@ -65,7 +68,7 @@ fun SourcesPanel(
     PlayerPanelHost(visible = visible, isFullscreen = isFullscreen, onDismiss = onDismiss) { listModifier, onClose ->
         val filter = rememberSourceFilter()
         PanelHeader(
-            title = "Sources",
+            title = stringResource(R.string.sheet_sources),
             subtitle = sourcesStatus(state),
             onClose = onClose,
             actions = { SourcesRefreshAction(state, actions.onRetry) }
@@ -93,21 +96,30 @@ fun rememberSourceFilter(): SourceFilter = SourceFilter(
 fun SourcesRefreshAction(state: ServersState, onRetry: () -> Unit) {
     if (state !is ServersState.Idle) {
         IconButton(onClick = onRetry) {
-            Icon(Icons.Default.Refresh, contentDescription = "Search sources again")
+            Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_search_sources_again))
         }
     }
 }
 
+@Composable
 fun sourcesStatus(state: ServersState): String {
     val servers = state.availableServers
     val failed = state.unavailableProviders.distinct()
     return when (state) {
         is ServersState.Resolving ->
-            "${servers.size} ready · checked ${state.completedProviders} of ${state.totalProviders}"
+            stringResource(R.string.src_progress, servers.size, state.completedProviders, state.totalProviders)
         is ServersState.Ready ->
-            "${servers.size} available" + if (failed.isNotEmpty()) " · ${failed.size} not responding" else ""
-        is ServersState.Empty -> "No source responded"
-        ServersState.Idle -> "Waiting to search"
+            if (failed.isNotEmpty()) {
+                stringResource(
+                    R.string.player_failed_count,
+                    stringResource(R.string.src_available_count, servers.size),
+                    failed.size
+                )
+            } else {
+                stringResource(R.string.src_available_count, servers.size)
+            }
+        is ServersState.Empty -> stringResource(R.string.player_no_source_responded)
+        ServersState.Idle -> stringResource(R.string.player_waiting_search)
     }
 }
 
@@ -134,8 +146,8 @@ fun LazyListScope.sourcesPage(
     if (state is ServersState.Resolving) {
         item(key = "resolving") {
             PanelNotice(
-                title = "Checking sources",
-                body = "Results appear as each source responds.",
+                title = stringResource(R.string.player_checking_sources),
+                body = stringResource(R.string.player_results_as_respond),
                 busy = true,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
@@ -145,9 +157,9 @@ fun LazyListScope.sourcesPage(
     if (servers.isEmpty() && state is ServersState.Empty) {
         item(key = "empty") {
             PanelNotice(
-                title = "No source is ready",
-                body = "Streaming hosts change often. Search again for fresh links.",
-                actionLabel = "Search again",
+                title = stringResource(R.string.player_no_source_ready),
+                body = stringResource(R.string.player_hosts_change),
+                actionLabel = stringResource(R.string.action_search_again),
                 onAction = actions.onRetry
             )
         }
@@ -165,7 +177,7 @@ fun LazyListScope.sourcesPage(
                     FilterChip(
                         selected = selectedAudio == null,
                         onClick = { filter.audio.value = null },
-                        label = { Text("Any audio") },
+                        label = { Text(stringResource(R.string.player_any_audio)) },
                         shape = ExpressiveShapes.small
                     )
                 }
@@ -173,7 +185,7 @@ fun LazyListScope.sourcesPage(
                     FilterChip(
                         selected = selectedAudio == audio,
                         onClick = { filter.audio.value = audio },
-                        label = { Text(audio.label) },
+                        label = { Text(audio.labelRes?.let { stringResource(it) } ?: audio.label) },
                         shape = ExpressiveShapes.small
                     )
                 }
@@ -193,7 +205,7 @@ fun LazyListScope.sourcesPage(
                     FilterChip(
                         selected = selectedFilter == null,
                         onClick = { filter.quality.value = null },
-                        label = { Text("All") },
+                        label = { Text(stringResource(R.string.search_filter_all)) },
                         shape = ExpressiveShapes.small
                     )
                 }
@@ -201,7 +213,15 @@ fun LazyListScope.sourcesPage(
                     FilterChip(
                         selected = selectedFilter == quality,
                         onClick = { filter.quality.value = quality },
-                        label = { Text(quality) },
+                        label = {
+                            Text(
+                                if (quality == StreamQuality.UNKNOWN.filterLabel()) {
+                                    stringResource(R.string.src_adaptive)
+                                } else {
+                                    quality
+                                }
+                            )
+                        },
                         shape = ExpressiveShapes.small
                     )
                 }
@@ -223,7 +243,7 @@ fun LazyListScope.sourcesPage(
     if (failed.isNotEmpty() && servers.isNotEmpty()) {
         item(key = "failed") {
             Text(
-                text = "Not responding: ${failed.joinToString()}",
+                text = stringResource(R.string.player_not_responding, failed.joinToString()),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp)
@@ -235,9 +255,9 @@ fun LazyListScope.sourcesPage(
     if (servers.isNotEmpty() && state is ServersState.Ready) {
         item(key = "more-sources") {
             PanelNotice(
-                title = "Missing subtitles or a dub?",
-                body = "Search the backup sources too. It takes a little longer.",
-                actionLabel = "Find more",
+                title = stringResource(R.string.dl_missing_dub),
+                body = stringResource(R.string.dl_search_too),
+                actionLabel = stringResource(R.string.action_find_more),
                 onAction = actions.onRetry,
                 modifier = Modifier.padding(top = 8.dp)
             )
@@ -270,7 +290,7 @@ private fun SourceRow(
         },
         supportingContent = {
             Text(
-                "${server.providerName} · ${server.sourceSummary()}",
+                "${server.providerName} · ${server.sourceSummary(LocalContext.current)}",
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -278,7 +298,7 @@ private fun SourceRow(
         trailingContent = {
             if (server.isDownloadable) {
                 IconButton(onClick = { actions.onDownload(server) }) {
-                    Icon(Icons.Default.Download, contentDescription = "Download from ${server.name}")
+                    Icon(Icons.Default.Download, contentDescription = stringResource(R.string.cd_download_from, server.name))
                 }
             }
         }

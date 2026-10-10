@@ -1,6 +1,7 @@
 package com.ivor.openstream.presentation.components
 
 import androidx.compose.foundation.layout.Arrangement
+import com.ivor.openstream.R
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -26,6 +27,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -97,7 +99,7 @@ fun LocalSearchField(
         trailingIcon = {
             if (value.isNotEmpty()) {
                 IconButton(onClick = { onValueChange("") }) {
-                    Icon(Icons.Default.Close, contentDescription = "Clear search")
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cd_clear_search))
                 }
             }
         },
@@ -121,7 +123,7 @@ fun LocalSearchField(
 fun <T> ChoiceChips(
     options: List<T>,
     selected: T,
-    label: (T) -> String,
+    label: @Composable (T) -> String,
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -130,7 +132,7 @@ fun <T> ChoiceChips(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(options, key = { label(it) }) { option ->
+        items(options, key = { it.toString() }) { option ->
             FilterChip(
                 selected = option == selected,
                 onClick = { onSelect(option) },

@@ -1,6 +1,7 @@
 package com.ivor.openstream.presentation.downloads
 
 import com.ivor.openstream.presentation.components.bottomContentPadding
+import com.ivor.openstream.R
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.runtime.key
@@ -57,6 +58,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.AlertDialog
@@ -110,16 +112,16 @@ fun DownloadsScreen(
     if (confirmDeleteAll) {
         AlertDialog(
             onDismissRequest = { confirmDeleteAll = false },
-            title = { Text("Delete all downloads?") },
-            text = { Text("Removes every downloaded and queued video from this device.") },
+            title = { Text(stringResource(R.string.dl_delete_all_confirm)) },
+            text = { Text(stringResource(R.string.dl_delete_all_body)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDeleteAll = false
                     viewModel.removeAll()
-                }) { Text("Delete all", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(R.string.action_delete_all), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDeleteAll = false }) { Text("Cancel") }
+                TextButton(onClick = { confirmDeleteAll = false }) { Text(stringResource(R.string.action_cancel)) }
             }
         )
     }
@@ -169,7 +171,7 @@ fun DownloadsScreen(
                 }
 
                 if (state.inProgress.isNotEmpty()) {
-                    item(key = "in-progress-title") { SectionTitle("In progress") }
+                    item(key = "in-progress-title") { SectionTitle(stringResource(R.string.hist_filter_in_progress)) }
                     itemsIndexed(state.inProgress, key = { _, item -> "active:${item.downloadId}" }) { index, item ->
                         InProgressRow(
                             download = item,
@@ -185,7 +187,7 @@ fun DownloadsScreen(
                 }
 
                 if (state.library.isNotEmpty()) {
-                    item(key = "library-title") { SectionTitle("On this device") }
+                    item(key = "library-title") { SectionTitle(stringResource(R.string.st_on_device)) }
                     items(state.library, key = { "group:${it.key}" }) { group ->
                         LibraryGroup(
                             group = group,
@@ -215,14 +217,18 @@ private fun DownloadsHeader(completedCount: Int, onBackClick: () -> Unit) {
         ExpressiveBackButton(onClick = onBackClick)
         Spacer(Modifier.height(24.dp))
         Text(
-            text = "Downloads",
+            text = stringResource(R.string.download_channel_name),
             style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.Black,
             modifier = Modifier.semantics { heading() }
         )
         if (completedCount > 0) {
             Text(
-                text = pluralize(completedCount, "video") + " on this device",
+                text = if (completedCount == 1) {
+                    stringResource(R.string.dl_video_one)
+                } else {
+                    stringResource(R.string.dl_videos_on_device, completedCount)
+                },
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp)
@@ -261,7 +267,7 @@ private fun WideDownloads(
                 modifier = Modifier.padding(bottom = 16.dp)
             )
             if (state.inProgress.isNotEmpty()) {
-                SectionTitle("In progress")
+                SectionTitle(stringResource(R.string.hist_filter_in_progress))
                 Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
                     state.inProgress.forEachIndexed { index, item ->
                         key(item.downloadId) {
@@ -291,7 +297,7 @@ private fun WideDownloads(
             item(key = "library-title", span = StaggeredGridItemSpan.FullLine) {
                 // Lines the title up with "Downloads" in the side column.
                 Box(Modifier.statusBarsPadding().padding(top = 96.dp)) {
-                    SectionTitle(if (state.library.isEmpty()) "Nothing finished yet" else "On this device")
+                    SectionTitle(if (state.library.isEmpty()) stringResource(R.string.dl_nothing_finished) else stringResource(R.string.st_on_device))
                 }
             }
             items(state.library, key = { "group:${it.key}" }) { group ->
@@ -339,7 +345,7 @@ private fun StorageCard(
                         fontWeight = FontWeight.Black
                     )
                     Text(
-                        text = "used by downloads · ${formatBytes(freeBytes)} free",
+                        text = stringResource(R.string.dl_storage_free, formatBytes(freeBytes)),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -362,7 +368,7 @@ private fun StorageCard(
             ) {
                 Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Delete all")
+                Text(stringResource(R.string.action_delete_all))
             }
         }
     }
@@ -415,6 +421,13 @@ private fun InProgressRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                if (download.isSmart) {
+                    Text(
+                        text = stringResource(R.string.dl_smart_tag),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
                 if (download.status == DownloadStatus.RUNNING || download.status == DownloadStatus.PAUSED) {
                     LinearWavyProgressIndicator(
                         progress = { progress },
@@ -427,18 +440,18 @@ private fun InProgressRow(
             Row {
                 when (download.status) {
                     DownloadStatus.RUNNING, DownloadStatus.QUEUED -> IconButton(onClick = onPause) {
-                        Icon(Icons.Default.Pause, contentDescription = "Pause")
+                        Icon(Icons.Default.Pause, contentDescription = stringResource(R.string.cd_pause))
                     }
                     DownloadStatus.PAUSED -> IconButton(onClick = onResume) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Resume")
+                        Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.cd_resume))
                     }
                     DownloadStatus.FAILED -> IconButton(onClick = onRetry) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Retry")
+                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_retry))
                     }
                     else -> LoadingIndicator(modifier = Modifier.size(40.dp))
                 }
                 IconButton(onClick = onCancel) {
-                    Icon(Icons.Default.Close, contentDescription = "Cancel download")
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cd_cancel_download))
                 }
             }
         }
@@ -504,9 +517,14 @@ private fun LibraryGroup(
                         )
                         Text(
                             text = if (group.isMovie) {
-                                "Movie · ${formatBytes(group.totalBytes)}" + subtitleSuffix(subtitleCount(group.items.first()))
+                                stringResource(R.string.details_movie) + " · ${formatBytes(group.totalBytes)}" + subtitleSuffix(subtitleCount(group.items.first()))
                             } else {
-                                "${pluralize(group.items.size, "episode")} · ${formatBytes(group.totalBytes)}"
+                                val episodes = if (group.items.size == 1) {
+                                    stringResource(R.string.dl_episode_one)
+                                } else {
+                                    stringResource(R.string.dl_episodes_other, group.items.size)
+                                }
+                                stringResource(R.string.dl_episodes_size, episodes, formatBytes(group.totalBytes))
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -515,18 +533,18 @@ private fun LibraryGroup(
                     if (group.isMovie) {
                         val movie = group.items.first()
                         FilledTonalIconButton(onClick = { onPlay(movie) }) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = "Play")
+                            Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.details_play))
                         }
                         IconButton(onClick = { onSubtitles(movie) }) {
-                            Icon(Icons.Default.ClosedCaption, contentDescription = "Subtitles for ${group.title}")
+                            Icon(Icons.Default.ClosedCaption, contentDescription = stringResource(R.string.cd_subtitles_for, group.title))
                         }
                         IconButton(onClick = onDeleteAll) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete download")
+                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.cd_delete_download))
                         }
                     } else {
                         Icon(
                             Icons.Default.ExpandMore,
-                            contentDescription = if (expanded) "Collapse" else "Expand",
+                            contentDescription = if (expanded) stringResource(R.string.dl_collapse) else stringResource(R.string.dl_expand),
                             modifier = Modifier.rotate(chevronRotation)
                         )
                     }
@@ -552,10 +570,10 @@ private fun LibraryGroup(
                             trailingContent = {
                                 Row {
                                     IconButton(onClick = { onSubtitles(item) }) {
-                                        Icon(Icons.Default.ClosedCaption, contentDescription = "Subtitles for episode ${item.episode}")
+                                        Icon(Icons.Default.ClosedCaption, contentDescription = stringResource(R.string.cd_subtitles_episode, item.episode))
                                     }
                                     IconButton(onClick = { onDelete(item) }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Delete episode")
+                                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.dl_delete_episode))
                                     }
                                 }
                             }
@@ -570,7 +588,7 @@ private fun LibraryGroup(
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(onClick = onDeleteAll) {
-                            Text("Delete all", color = MaterialTheme.colorScheme.error)
+                            Text(stringResource(R.string.action_delete_all), color = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
@@ -616,12 +634,12 @@ private fun EmptyDownloads() {
         }
         Spacer(Modifier.height(24.dp))
         Text(
-            text = "Nothing downloaded yet",
+            text = stringResource(R.string.dl_nothing_yet),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
         Text(
-            text = "Download episodes from any show's page and watch them without a connection.",
+            text = stringResource(R.string.dl_hint),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -635,22 +653,34 @@ private fun EmptyDownloads() {
 private fun DownloadEntity.headline(): String =
     if (mediaType == "movie") displayTitle else "$displayTitle · S$season E$episode"
 
+@Composable
 private fun statusLine(download: DownloadEntity): String = when (download.status) {
-    DownloadStatus.RESOLVING -> "Finding a source…"
-    DownloadStatus.QUEUED -> "Waiting to start"
-    DownloadStatus.PAUSED -> "Paused · ${download.progress}%"
-    DownloadStatus.FAILED -> download.errorMessage?.let { "$it · tap to retry" } ?: "Failed · tap to retry"
+    DownloadStatus.RESOLVING -> stringResource(R.string.dl_finding_source)
+    DownloadStatus.QUEUED -> stringResource(R.string.player_waiting_start)
+    DownloadStatus.PAUSED -> stringResource(R.string.dl_paused_percent, download.progress)
+    DownloadStatus.FAILED -> download.errorMessage?.let { stringResource(R.string.dl_error_retry, it) }
+        ?: stringResource(R.string.dl_failed_retry)
     DownloadStatus.RUNNING -> if (download.totalBytes > 0) {
-        "${download.progress}% · ${formatBytes(download.downloadedBytes)} of ${formatBytes(download.totalBytes)}"
+        stringResource(
+            R.string.dl_progress_full,
+            download.progress,
+            formatBytes(download.downloadedBytes),
+            formatBytes(download.totalBytes)
+        )
     } else {
-        "${download.progress}% · ${formatBytes(download.downloadedBytes)}"
+        stringResource(R.string.dl_progress_short, download.progress, formatBytes(download.downloadedBytes))
     }
     else -> download.episodeTitle.orEmpty()
 }
 
-private fun subtitleSuffix(count: Int) = if (count > 0) " · ${pluralize(count, "subtitle")}" else ""
-
-private fun pluralize(count: Int, noun: String) = if (count == 1) "1 $noun" else "$count ${noun}s"
+@Composable
+private fun subtitleSuffix(count: Int) = if (count == 0) {
+    ""
+} else if (count == 1) {
+    stringResource(R.string.dl_subtitle_suffix_one)
+} else {
+    stringResource(R.string.dl_subtitle_suffix_other, count)
+}
 
 internal fun formatBytes(bytes: Long): String {
     if (bytes <= 0) return "0 MB"

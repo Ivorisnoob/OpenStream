@@ -1,6 +1,8 @@
 package com.ivor.openstream.data.repository
 
+import android.content.Context
 import android.util.Log
+import com.ivor.openstream.R
 import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.data.streaming.BROWSER_USER_AGENT
 import com.ivor.openstream.data.streaming.IdMappingService
@@ -180,7 +182,7 @@ class SubSourceRepository @Inject constructor(
             url.startsWith("$API/subtitle/") && !url.startsWith("$API/subtitle/download/")
 
         /** Trades a subtitle's detail URL for its file's download URL. Blocking. */
-        fun resolveDownloadUrl(client: OkHttpClient, detailUrl: String): String {
+        fun resolveDownloadUrl(context: Context, client: OkHttpClient, detailUrl: String): String {
             val request = Request.Builder().url(detailUrl).header("User-Agent", BROWSER_USER_AGENT).build()
             val text = client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) throw IOException("SubSource returned HTTP ${response.code}")
@@ -188,7 +190,7 @@ class SubSourceRepository @Inject constructor(
             }
             val token = Json.parseToJsonElement(text).jsonObject["subtitle"]?.jsonObject
                 ?.get("download_token")?.jsonPrimitive?.contentOrNull
-                ?: throw IOException("SubSource gave no download token")
+                ?: throw IOException(context.getString(R.string.er_subsource_no_token))
             return "$API/subtitle/download/$token"
         }
     }

@@ -1,6 +1,7 @@
 package com.ivor.openstream.presentation.player.components
 
 import android.content.Intent
+import com.ivor.openstream.R
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -44,6 +45,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -135,7 +137,7 @@ fun PlayerInfoPanel(
                     Row(
                         modifier = Modifier
                             .clip(ExpressiveShapes.small)
-                            .clickable(onClickLabel = "Open ${details.name}", onClick = onOpenDetails)
+                            .clickable(onClickLabel = stringResource(R.string.misc_open_title, details.name), onClick = onOpenDetails)
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -157,7 +159,7 @@ fun PlayerInfoPanel(
                     }
                 }
                 Text(
-                    text = if (isMovie) details?.name.orEmpty() else currentEpisode?.name ?: "Episode $episode",
+                    text = if (isMovie) details?.name.orEmpty() else currentEpisode?.name ?: stringResource(R.string.misc_episode_number, episode),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Black,
                     maxLines = 3,
@@ -166,11 +168,12 @@ fun PlayerInfoPanel(
                         .padding(top = 4.dp)
                         .semantics { heading() }
                 )
+                val runtime = if (isMovie) details?.runtime else currentEpisode?.runtime ?: details?.typicalRuntime
+                val runtimeText = runtime?.takeIf { it > 0 }?.let { formatMinutes(it) }
                 MetaRow(
                     parts = buildList {
                         if (!isMovie) add("S$season · E$episode")
-                        val runtime = if (isMovie) details?.runtime else currentEpisode?.runtime ?: details?.typicalRuntime
-                        runtime?.takeIf { it > 0 }?.let { add(formatMinutes(it)) }
+                        runtimeText?.let { add(it) }
                         (if (isMovie) details?.date else currentEpisode?.airDate)
                             ?.takeIf { it.isNotBlank() }
                             ?.let { add(formatDay(it)) }
@@ -194,8 +197,11 @@ fun PlayerInfoPanel(
                         Icon(Icons.Default.SkipNext, contentDescription = null)
                         Spacer(Modifier.width(10.dp))
                         Text(
-                            text = "Next: " + (if (nextEpisode.season != season) "S${nextEpisode.season} " else "") +
-                                "E${nextEpisode.episode}" + (nextEpisode.title?.let { " · $it" } ?: ""),
+                            text = stringResource(
+                                R.string.player_next_prefix,
+                                (if (nextEpisode.season != season) "S${nextEpisode.season} " else "") +
+                                    "E${nextEpisode.episode}" + (nextEpisode.title?.let { " · $it" } ?: "")
+                            ),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
@@ -206,10 +212,10 @@ fun PlayerInfoPanel(
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val (downloadIcon, downloadLabel, busy) = when (download?.status) {
-                        DownloadStatus.COMPLETED -> Triple(Icons.Default.DownloadDone, "Downloaded", false)
+                        DownloadStatus.COMPLETED -> Triple(Icons.Default.DownloadDone, stringResource(R.string.cd_downloaded), false)
                         DownloadStatus.RUNNING -> Triple(Icons.Default.Download, "${download.progress}%", true)
-                        DownloadStatus.RESOLVING, DownloadStatus.QUEUED -> Triple(Icons.Default.Download, "Queued", true)
-                        else -> Triple(Icons.Default.Download, "Download", false)
+                        DownloadStatus.RESOLVING, DownloadStatus.QUEUED -> Triple(Icons.Default.Download, stringResource(R.string.dl_queued), true)
+                        else -> Triple(Icons.Default.Download, stringResource(R.string.action_download), false)
                     }
                     PanelTile(
                         icon = downloadIcon,
@@ -218,19 +224,19 @@ fun PlayerInfoPanel(
                         highlighted = download?.status == DownloadStatus.COMPLETED,
                         enabled = canDownload || download != null,
                         onClick = if (download?.status == DownloadStatus.COMPLETED) onRemoveDownload else onDownload,
-                        clickLabel = if (download?.status == DownloadStatus.COMPLETED) "Delete download" else "Download",
+                        clickLabel = if (download?.status == DownloadStatus.COMPLETED) stringResource(R.string.cd_delete_download) else stringResource(R.string.action_download),
                         modifier = Modifier.weight(1f)
                     )
                     PanelTile(
                         icon = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                        label = if (isSaved) "Saved" else "Save",
+                        label = if (isSaved) stringResource(R.string.nav_saved) else stringResource(R.string.action_save),
                         highlighted = isSaved,
                         onClick = onSave,
                         modifier = Modifier.weight(1f)
                     )
                     PanelTile(
                         icon = Icons.Default.Share,
-                        label = "Share",
+                        label = stringResource(R.string.action_share),
                         onClick = {
                             val name = details?.name ?: return@PanelTile
                             val link = "https://www.themoviedb.org/$mediaType/${details.id}"
@@ -238,7 +244,7 @@ fun PlayerInfoPanel(
                             context.startActivity(
                                 Intent.createChooser(
                                     Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text),
-                                    "Share"
+                                    context.getString(R.string.share_title, name)
                                 )
                             )
                         },
@@ -246,7 +252,7 @@ fun PlayerInfoPanel(
                     )
                     PanelTile(
                         icon = Icons.Default.Info,
-                        label = "Details",
+                        label = stringResource(R.string.st_details),
                         onClick = onOpenDetails,
                         modifier = Modifier.weight(1f)
                     )
@@ -268,14 +274,14 @@ fun PlayerInfoPanel(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Season $season",
+                        text = stringResource(R.string.details_season, season),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Black,
                         modifier = Modifier
                             .weight(1f)
                             .semantics { heading() }
                     )
-                    TextButton(onClick = onOpenDetails) { Text("All seasons") }
+                    TextButton(onClick = onOpenDetails) { Text(stringResource(R.string.details_all_seasons)) }
                 }
             }
             if (isLoadingEpisodes && seasonEpisodes.isEmpty()) {
@@ -294,11 +300,12 @@ fun PlayerInfoPanel(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 1.dp),
                     leadingContent = { EpisodeThumb(ep, progress) },
                     supportingContent = {
+                        val epRuntimeText = ep.runtime?.takeIf { it > 0 }?.let { formatMinutes(it) }
                         Text(
-                            text = if (isCurrent) "Now playing" else listOfNotNull(
-                                ep.runtime?.takeIf { it > 0 }?.let(::formatMinutes),
-                                if (progress?.completed == true) "Watched" else null
-                            ).joinToString(" · ").ifEmpty { "Episode ${ep.episodeNumber}" },
+                            text = if (isCurrent) stringResource(R.string.er_now_playing) else listOfNotNull(
+                                epRuntimeText,
+                                if (progress?.completed == true) stringResource(R.string.details_watched) else null
+                            ).joinToString(" · ").ifEmpty { stringResource(R.string.misc_episode_number, ep.episodeNumber) },
                             color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal
                         )
@@ -322,7 +329,7 @@ fun PlayerInfoPanel(
             if (recommendations.isNotEmpty()) {
                 item(key = "more-like-this") {
                     Text(
-                        text = "More like this",
+                        text = stringResource(R.string.details_more_like_this),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Black,
                         modifier = Modifier
@@ -349,7 +356,7 @@ private fun MetaRow(parts: List<String>, rating: Double?) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         rating?.let {
-            Icon(Icons.Default.Star, contentDescription = "Rating", tint = Color(0xFFFFB300), modifier = Modifier.size(16.dp))
+            Icon(Icons.Default.Star, contentDescription = stringResource(R.string.li_sort_rating), tint = Color(0xFFFFB300), modifier = Modifier.size(16.dp))
             Text(
                 text = String.format(Locale.US, " %.1f", it) + if (parts.isNotEmpty()) "  ·  " else "",
                 style = MaterialTheme.typography.labelLarge,
@@ -424,7 +431,7 @@ private fun ExpandableText(text: String) {
         )
         if (text.length > 160) {
             TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(0.dp)) {
-                Text(if (expanded) "Show less" else "More")
+                Text(if (expanded) stringResource(R.string.action_show_less) else stringResource(R.string.more_short))
             }
         }
     }
@@ -452,7 +459,7 @@ internal fun EpisodeThumb(episode: EpisodeDto, progress: WatchProgress?) {
                     .background(Color.Black.copy(alpha = 0.45f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.CheckCircle, contentDescription = "Watched", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Default.CheckCircle, contentDescription = stringResource(R.string.details_watched), tint = MaterialTheme.colorScheme.primary)
             }
             progress != null && progress.fraction > 0f -> LinearProgressIndicator(
                 progress = { progress.fraction },
@@ -479,7 +486,7 @@ private fun RecommendationRow(items: List<AnimeDto>, onOpen: (Int, String) -> Un
                 modifier = Modifier
                     .width(116.dp)
                     .clip(ExpressiveShapes.medium)
-                    .clickable(onClickLabel = "Open ${anime.name}") {
+                    .clickable(onClickLabel = stringResource(R.string.misc_open_title, anime.name)) {
                         onOpen(anime.id, if (anime.mediaType == "tv") "tv" else "movie")
                     }
                     .padding(bottom = 10.dp)
@@ -513,7 +520,7 @@ private fun RecommendationListItem(anime: AnimeDto, onOpen: (Int, String) -> Uni
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 2.dp)
             .clip(ExpressiveShapes.medium)
-            .clickable(onClickLabel = "Open ${anime.name}") {
+            .clickable(onClickLabel = stringResource(R.string.misc_open_title, anime.name)) {
                 onOpen(anime.id, if (anime.mediaType == "tv") "tv" else "movie")
             }
             .padding(8.dp),
@@ -552,7 +559,10 @@ private fun RecommendationListItem(anime: AnimeDto, onOpen: (Int, String) -> Uni
     }
 }
 
-private fun formatMinutes(minutes: Int) = if (minutes >= 60) "${minutes / 60}h ${minutes % 60}m" else "${minutes}m"
+@Composable
+private fun formatMinutes(minutes: Int) =
+    if (minutes >= 60) stringResource(R.string.misc_duration_hm, minutes / 60, minutes % 60)
+    else stringResource(R.string.misc_duration_m, minutes)
 
 private fun formatDay(isoDate: String): String =
     runCatching { LocalDate.parse(isoDate).format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault())) }

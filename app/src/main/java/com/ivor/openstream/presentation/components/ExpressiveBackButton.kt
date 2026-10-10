@@ -1,6 +1,8 @@
 package com.ivor.openstream.presentation.components
 
 import androidx.compose.foundation.shape.CircleShape
+import com.ivor.openstream.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.FilledTonalIconButton
@@ -29,7 +31,7 @@ fun ExpressiveBackButton(
     ) {
         Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-            contentDescription = "Back"
+            contentDescription = stringResource(R.string.cd_back)
         )
     }
 }

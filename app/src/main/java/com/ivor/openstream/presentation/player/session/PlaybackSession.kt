@@ -1,15 +1,20 @@
 package com.ivor.openstream.presentation.player.session
 
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
+import com.ivor.openstream.R
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.cast.CastPlayer
 import androidx.media3.cast.SessionAvailabilityListener
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -19,18 +24,25 @@ import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.source.LoadEventInfo
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.util.EventLogger
+import androidx.media3.session.MediaSession
 import androidx.mediarouter.media.MediaRouteSelector
 import com.google.android.gms.cast.TextTrackStyle
 import com.google.android.gms.cast.framework.CastContext
 import com.google.android.gms.cast.framework.CastSession
 import com.google.android.gms.cast.framework.CastState
 import com.ivor.openstream.BuildConfig
+import com.ivor.openstream.MainActivity
 import com.ivor.openstream.data.cast.CastMediaItemConverter
 import com.ivor.openstream.data.cast.CastMediaProxy
+import com.ivor.openstream.data.playback.DeviceDecoders
+import com.ivor.openstream.data.playback.StreamDataGuard
 import com.ivor.openstream.data.remote.model.SubtitleDto
+import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.streaming.DownloadRequestHeaderStore
 import com.ivor.openstream.data.streaming.BROWSER_USER_AGENT
 import com.ivor.openstream.data.streaming.ImagePrefixStrippingDataSource
@@ -40,6 +52,9 @@ import com.ivor.openstream.domain.repository.WatchProgressRepository
 import com.ivor.openstream.presentation.player.NextEpisodeTarget
 import com.ivor.openstream.presentation.player.components.SUBTITLES_OFF
 import com.ivor.openstream.presentation.player.components.sameLanguage
+import com.ivor.openstream.presentation.player.PlaybackService
+import io.github.ivorisnoob.smoothmotion.media3.SmoothMotion
+import io.github.ivorisnoob.smoothmotion.media3.SmoothMotionConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -122,6 +137,10 @@ sealed interface SleepTimer {
  * Casting: while a Cast session is up, [castPlayer] plays instead of the local [player]. Connecting
  * moves the current item to the TV at the phone's position; disconnecting brings it back to the
  * phone, paused where the TV was. Media reaches the receiver through [CastMediaProxy].
+ *
+ * The player is wrapped in a [MediaSession] ([mediaSession]) that [PlaybackService] shows as a
+ * media notification, so playback keeps going when the app leaves the foreground and the lock
+ * screen, headset buttons and Android Auto can control it.
  */
 @OptIn(UnstableApi::class)
 @Singleton
@@ -130,7 +149,10 @@ class PlaybackSession @Inject constructor(
     private val cache: Cache,
     private val watchProgressRepository: WatchProgressRepository,
     private val castProxy: CastMediaProxy,
-    private val downloadHeaders: DownloadRequestHeaderStore
+    private val downloadHeaders: DownloadRequestHeaderStore,
+    private val deviceDecoders: DeviceDecoders,
+    private val streamDataGuard: StreamDataGuard,
+    private val appSettingsStore: AppSettingsStore
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -152,9 +174,22 @@ class PlaybackSession @Inject constructor(
     private var lastSavedPositionMs = -1L
     private var completionRecordedFor: String? = null
 
-    private var localPlayerCreated = false
+        private var localPlayerCreated = false
+
+    var smoothMotion: SmoothMotion? = null
+        private set
 
     init {
+        // Follow the network so a cap set for mobile data applies as soon as one is joined.
+        scope.launch {
+            streamDataGuard.isMetered.collect { applyNetworkConstraints() }
+        }
+        scope.launch {
+            appSettingsStore.settings.collect { settings ->
+                smoothMotion?.enabled = settings.smoothMotionEnabled
+                smoothMotion?.maxFps = settings.smoothMotionMaxFps
+            }
+        }
         // Saves progress every few seconds, and remembers where the TV is (its state is gone once
         // the session ends).
         scope.launch {
@@ -176,6 +211,125 @@ class PlaybackSession @Inject constructor(
 
     /** Created on first use, on the main thread, by whichever surface shows video first. */
     val player: ExoPlayer by lazy { buildPlayer().also { localPlayerCreated = true } }
+
+    // region Media session (notification, lock screen, headset buttons)
+
+    private var mediaSessionInstance: MediaSession? = null
+
+    /**
+     * The session [PlaybackService] shows in the notification, and the system UI and headset
+     * buttons control. Created on first use and kept for the life of the app: the player it wraps
+     * is the app-wide one, so there is nothing to release between playbacks.
+     */
+    val mediaSession: MediaSession
+        get() = mediaSessionInstance ?: synchronized(sessionLock) {
+            mediaSessionInstance ?: MediaSession.Builder(context, player)
+                .setId(SESSION_ID)
+                .setSessionActivity(sessionActivity())
+                .build()
+                .also { mediaSessionInstance = it }
+        }
+
+    private var notificationServiceStarted = false
+
+    /**
+     * Brings up the notification service, which plays in the foreground while the app is in the
+     * background. Media3 drops it out of the foreground when playback pauses or ends; the service
+     * itself stays until the task is swiped away while paused or the system stops it.
+     *
+     * A plain start, not startForegroundService: that one crashes the app unless startForeground
+     * follows within seconds, and Media3 only goes foreground while the player is playing (so a
+     * quick pause would miss it). Media3 promotes the service itself. The start is refused when
+     * the app is in the background, which leaves the flag clear for the next playback.
+     */
+    fun startPlaybackService() {
+        if (notificationServiceStarted) return
+        notificationServiceStarted = true
+        val intent = Intent(context, PlaybackService::class.java)
+        runCatching { context.startService(intent) }
+            .onFailure { notificationServiceStarted = false }
+    }
+
+    /** Called by the service as it goes away, so it can be started again for the next playback. */
+    fun notificationServiceStopped() {
+        notificationServiceStarted = false
+    }
+
+    /** Whether leaving the app should leave playback running (Settings). */
+    val keepPlayingInBackground: Boolean
+        get() = appSettingsStore.current.keepPlayingInBackground
+
+    /** Tapping the notification opens the title that is playing. */
+    private fun refreshSessionActivity() {
+        if (_nowPlaying.value == null) return
+        val session = mediaSessionInstance ?: return
+        runCatching { session.setSessionActivity(sessionActivity()) }
+    }
+
+    /**
+     * Opens the playing title's page, or just the app when nothing is playing. The session is
+     * built after the first title is set, so this has to read the title itself.
+     */
+    private fun sessionActivity(): PendingIntent {
+        val item = _nowPlaying.value
+        val intent = if (item != null) {
+            val kind = if (item.isMovie) "movie" else "tv"
+            Intent(Intent.ACTION_VIEW, Uri.parse("https://www.themoviedb.org/$kind/${item.tmdbId}"))
+                .setPackage(context.packageName)
+        } else {
+            Intent(context, MainActivity::class.java)
+        }
+        return PendingIntent.getActivity(
+            context,
+            SESSION_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    // endregion
+
+    // region Track selection: codecs the device can play, and the data budget
+
+    /**
+     * Keeps track selection inside what the device and the network allow: H.264 instead of H.265 on
+     * hardware without an HEVC decoder, and a lower ceiling while on a metered network.
+     */
+    fun applyNetworkConstraints() {
+        if (!localPlayerCreated) return
+        val cap = meteredHeightCap()
+        player.trackSelectionParameters = player.trackSelectionParameters
+            .buildUpon()
+            .setMaxVideoSize(Int.MAX_VALUE, if (cap > 0) cap else Int.MAX_VALUE)
+            .build()
+    }
+
+    /** Tallest rendition allowed right now: the metered cap, or the source's best (0). */
+    fun meteredHeightCap(): Int {
+        if (!streamDataGuard.meteredNow) return Int.MAX_VALUE
+        return appSettingsStore.current.meteredMaxHeight.takeIf { it > 0 } ?: Int.MAX_VALUE
+    }
+
+    /** Applies a one-off cap for this playback, for example after the user chose 480p. */
+    fun setSessionHeightCap(height: Int) {
+        if (!localPlayerCreated) return
+        player.trackSelectionParameters = player.trackSelectionParameters
+            .buildUpon()
+            .setMaxVideoSize(Int.MAX_VALUE, if (height > 0) height else Int.MAX_VALUE)
+            .build()
+    }
+
+    private fun codecPreferences() = DefaultTrackSelector.Parameters.Builder()
+        .setPreferredTextLanguage("en")
+        .setSelectUndeterminedTextLanguage(true)
+        // No HEVC decoder: prefer H.264 variants so a source never picks an unplayable track.
+        .apply { if (!deviceDecoders.supportsHevc) setPreferredVideoMimeType(MimeTypes.VIDEO_H264) }
+        // Mobile data: start inside the cap straight away, not only after a network change.
+        .apply { meteredHeightCap().takeIf { it != Int.MAX_VALUE }?.let { setMaxVideoSize(Int.MAX_VALUE, it) } }
+        .build()
+
+    // endregion
+
 
     // region Cast state
 
@@ -242,6 +396,7 @@ class PlaybackSession @Inject constructor(
             endedBySleepTimer = false
         }
         _nowPlaying.value = nowPlaying
+        refreshSessionActivity()
         if (castConnected) syncCast()
     }
 
@@ -310,7 +465,7 @@ class PlaybackSession @Inject constructor(
             .onFailure { Log.w(TAG, "Cast unavailable: ${it.message}") }
             .getOrNull() ?: return
         castContext = cast
-        val remote = CastPlayer(cast, CastMediaItemConverter())
+        val remote = CastPlayer(cast, CastMediaItemConverter(context))
         remote.addListener(castListener)
         remote.setSessionAvailabilityListener(object : SessionAvailabilityListener {
             override fun onCastSessionAvailable() = onCastConnected()
@@ -489,7 +644,7 @@ class PlaybackSession @Inject constructor(
                 Log.w(TAG, "Could not prepare the cast stream", error)
                 _castLoading.value = false
                 _castError.value = CastError(
-                    message = error.message ?: "Couldn't send this to the TV.",
+                    message = error.message ?: context.getString(R.string.player_could_not_send_tv),
                     fromStream = false
                 )
             }
@@ -513,7 +668,7 @@ class PlaybackSession @Inject constructor(
         val options = subtitleCandidates.distinctBy { it.url }.map { subtitle ->
             CastSubtitleOption(
                 id = subtitle.id,
-                label = subtitle.display ?: subtitle.language?.uppercase() ?: "Subtitles",
+                label = subtitle.display ?: subtitle.language?.uppercase() ?: context.getString(R.string.player_subtitles),
                 language = subtitle.language
             )
         }
@@ -529,7 +684,7 @@ class PlaybackSession @Inject constructor(
         receiver: InetAddress?
     ): Pair<MediaItem, Map<String, Long>> {
         val url = castProxy.mediaUrl(item.mediaUri, headers, receiver)
-            ?: throw IOException("Connect this phone to the same Wi-Fi network as the TV.")
+            ?: throw IOException(context.getString(R.string.player_cast_same_wifi))
         val probe = castProxy.probe(item.mediaUri, headers)
         val tracks = linkedMapOf<String, Long>()
         val configurations = subtitles.mapNotNull { subtitle ->
@@ -538,7 +693,7 @@ class PlaybackSession @Inject constructor(
             MediaItem.SubtitleConfiguration.Builder(Uri.parse(subtitleUrl))
                 .setMimeType("text/vtt")
                 .setId(subtitle.id)
-                .setLabel(subtitle.display ?: subtitle.language?.uppercase() ?: "Subtitles")
+                .setLabel(subtitle.display ?: subtitle.language?.uppercase() ?: context.getString(R.string.player_subtitles))
                 .setLanguage(subtitle.language)
                 .setSelectionFlags(if (subtitle.id == activeSubtitleId) C.SELECTION_FLAG_DEFAULT else 0)
                 .build()
@@ -647,7 +802,7 @@ class PlaybackSession @Inject constructor(
             Log.w(TAG, "Receiver error: ${error.errorCodeName} ${error.message}")
             _castLoading.value = false
             _castError.value = CastError(
-                message = "The TV couldn't play this source.",
+                message = context.getString(R.string.player_tv_could_not_play),
                 fromStream = true
             )
         }
@@ -669,27 +824,54 @@ class PlaybackSession @Inject constructor(
             .setCacheWriteDataSinkFactory(null)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
         val trackSelector = DefaultTrackSelector(context).apply {
-            parameters = buildUponParameters()
-                .setPreferredTextLanguage("en")
-                .setSelectUndeterminedTextLanguage(true)
-                .build()
+            parameters = codecPreferences()
         }
-        return ExoPlayer.Builder(context)
+        val basePlayer = ExoPlayer.Builder(context)
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                    .build(),
+                // Share the device with other apps: duck or pause when something else asks.
+                true
+            )
+            // Background playback: pause when headphones are unplugged instead of switching to the
+            // speaker, and keep the CPU and Wi-Fi awake while playing with the screen off.
+            .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(context)
                     .setDataSourceFactory(ImagePrefixStrippingDataSource.Factory(dataSource))
             )
             .setTrackSelector(trackSelector)
             .build()
-            .apply {
+        smoothMotion = SmoothMotion.install(
+            basePlayer,
+            context,
+            SmoothMotionConfig(
+                enabled = appSettingsStore.current.smoothMotionEnabled,
+                maxFps = appSettingsStore.current.smoothMotionMaxFps
+            )
+        )
+        return basePlayer.apply {
                 playWhenReady = true
-                // Debug builds log load errors, format switches and dropped frames under "EventLogger".
+                applyNetworkConstraints()                // Debug builds log load errors, format switches and dropped frames under "EventLogger".
                 if (BuildConfig.DEBUG) addAnalyticsListener(EventLogger())
+                addAnalyticsListener(object : AnalyticsListener {
+                    override fun onLoadCompleted(
+                        eventTime: AnalyticsListener.EventTime,
+                        loadEventInfo: LoadEventInfo,
+                        mediaLoadData: androidx.media3.exoplayer.source.MediaLoadData
+                    ) {
+                        streamDataGuard.addBytesLoaded(loadEventInfo.bytesLoaded)
+                    }
+                })
                 addListener(object : Player.Listener {
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
                         if (castConnected) return
                         _isPlaying.value = isPlaying
                         if (!isPlaying) recordProgress(force = true)
+                        if (isPlaying) startPlaybackService()
                     }
 
                     override fun onPlaybackStateChanged(playbackState: Int) {
@@ -789,12 +971,17 @@ class PlaybackSession @Inject constructor(
     }
 
     private companion object {
+        val sessionLock = Any()
         const val TAG = "PlaybackSession"
         const val PROGRESS_TICK_MS = 1_000L
         const val PROGRESS_SAVE_INTERVAL_MS = 10_000L
         const val VOLUME_STEP = 0.05
         /** Receivers load every track with the media; keep the list short. */
         const val MAX_CAST_SUBTITLES = 12
+
+        /** MediaSession id: stable, so the system and Android Auto remember the session. */
+        const val SESSION_ID = "OpenStream"
+        const val SESSION_REQUEST_CODE = 41
 
         const val EXTRA_MEDIA_TYPE = "openstream.media_type"
         const val EXTRA_TMDB_ID = "openstream.tmdb_id"

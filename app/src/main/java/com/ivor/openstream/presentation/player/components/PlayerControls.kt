@@ -1,6 +1,7 @@
 package com.ivor.openstream.presentation.player.components
 
 import androidx.compose.animation.AnimatedContent
+import com.ivor.openstream.R
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Spring
@@ -58,6 +59,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.rememberSliderState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -70,6 +72,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -127,7 +132,7 @@ fun PlayerControls(
     title: String,
     subtitle: String = "",
     sourceLabel: String? = null,
-    qualityLabel: String = "Auto",
+    qualityLabel: String = stringResource(R.string.sheet_auto),
     hasSubtitles: Boolean = false,
     subtitlesEnabled: Boolean = false,
     currentTime: Long,
@@ -152,6 +157,8 @@ fun PlayerControls(
     onCastClick: (() -> Unit)? = null,
     /** Pops the video out into picture-in-picture; null hides the button. */
     onPictureInPictureClick: (() -> Unit)? = null,
+    /** Focus target for the control bar, so a D-pad can move focus from the video onto it. */
+    controlsFocusRequester: FocusRequester? = null,
     onBackClick: () -> Unit
 ) {
     val metrics = if (isFullscreen) FullscreenMetrics else InlineMetrics
@@ -172,6 +179,12 @@ fun PlayerControls(
                         0.7f to Color.Black.copy(alpha = 0.28f),
                         1f to Color.Black.copy(alpha = 0.8f)
                     )
+                )
+                // Explicitly a focus group while shown, so the video surface can hand focus over.
+                .then(
+                    controlsFocusRequester?.let { requester ->
+                        Modifier.focusRequester(requester).focusGroup()
+                    } ?: Modifier
                 )
                 // Fullscreen ignores the display cutout: controls keep their normal edge margin instead of
                 // shifting sideways around the notch, and the bars are hidden anyway.
@@ -283,10 +296,10 @@ private fun TopBar(
         }
 
         if (isFullscreen) {
-            HudIconButton(Icons.Default.Lock, "Lock screen", onLockClick)
+            HudIconButton(Icons.Default.Lock, stringResource(R.string.player_lock_screen), onLockClick)
             HudIconButton(
                 icon = if (isRotationLocked) Icons.Default.ScreenLockRotation else Icons.Default.ScreenRotation,
-                contentDescription = if (isRotationLocked) "Unlock rotation" else "Lock rotation",
+                contentDescription = if (isRotationLocked) stringResource(R.string.player_unlock_rotation) else stringResource(R.string.player_lock_rotation),
                 onClick = onRotationLockToggle
             )
             sourceLabel?.let { label ->
@@ -295,18 +308,18 @@ private fun TopBar(
             HudChip(label = qualityLabel, onClick = onQualityClick)
         } else if (sourceLabel != null && (onCastClick == null || onPictureInPictureClick == null)) {
             // Inline space is tight: with Cast and PiP showing, sources stay under Settings.
-            HudIconButton(Icons.Default.Dns, "Change source: $sourceLabel", onSourcesClick)
+            HudIconButton(Icons.Default.Dns, stringResource(R.string.player_change_source, sourceLabel), onSourcesClick)
         }
         if (hasSubtitles) {
             HudIconButton(
                 icon = if (subtitlesEnabled) Icons.Default.ClosedCaption else Icons.Default.ClosedCaptionDisabled,
-                contentDescription = "Subtitles",
+                contentDescription = stringResource(R.string.player_subtitles),
                 onClick = onSubtitlesClick
             )
         }
-        onPictureInPictureClick?.let { HudIconButton(Icons.Default.PictureInPictureAlt, "Picture in picture", it) }
-        onCastClick?.let { HudIconButton(Icons.Default.Cast, "Cast to a TV", it) }
-        HudIconButton(Icons.Default.Settings, "Playback settings", onSettingsClick)
+        onPictureInPictureClick?.let { HudIconButton(Icons.Default.PictureInPictureAlt, stringResource(R.string.player_pip), it) }
+        onCastClick?.let { HudIconButton(Icons.Default.Cast, stringResource(R.string.player_cast_to_tv), it) }
+        HudIconButton(Icons.Default.Settings, stringResource(R.string.player_playback_settings), onSettingsClick)
     }
 }
 
@@ -327,7 +340,7 @@ private fun TransportControls(
         horizontalArrangement = Arrangement.spacedBy(metrics.centerGap),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        SeekButton(rewindIcon(seekStepSeconds), "Rewind $seekStepSeconds seconds", metrics, onRewind)
+        SeekButton(rewindIcon(seekStepSeconds), stringResource(R.string.player_rewind_seconds, seekStepSeconds), metrics, onRewind)
 
         FilledIconButton(
             onClick = onPauseToggle,
@@ -354,14 +367,14 @@ private fun TransportControls(
                 ) { playing ->
                     Icon(
                         if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (playing) "Pause" else "Play",
+                        contentDescription = if (playing) stringResource(R.string.cd_pause) else stringResource(R.string.details_play),
                         modifier = Modifier.size(metrics.playIcon)
                     )
                 }
             }
         }
 
-        SeekButton(forwardIcon(seekStepSeconds), "Forward $seekStepSeconds seconds", metrics, onForward)
+        SeekButton(forwardIcon(seekStepSeconds), stringResource(R.string.cd_forward_seconds, seekStepSeconds), metrics, onForward)
     }
 }
 
@@ -483,19 +496,19 @@ private fun Timeline(
                 .padding(horizontal = 12.dp)
         )
         onNextClick?.let { next ->
-            HudIconButton(Icons.Default.SkipNext, "Next episode", next)
+            HudIconButton(Icons.Default.SkipNext, stringResource(R.string.action_next_episode), next)
         }
         // The inline player is already 16:9, so resizing only matters in fullscreen.
         if (isFullscreen) {
             HudIconButton(
                 icon = videoScale.icon,
-                contentDescription = "Video size: ${videoScale.label}. Tap to change",
+                contentDescription = stringResource(R.string.cd_video_size, stringResource(videoScale.labelRes)),
                 onClick = onVideoScaleClick
             )
         }
         HudIconButton(
             icon = if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-            contentDescription = if (isFullscreen) "Exit fullscreen" else "Enter fullscreen",
+            contentDescription = if (isFullscreen) stringResource(R.string.player_exit_fullscreen) else stringResource(R.string.player_enter_fullscreen),
             onClick = onFullscreenToggle
         )
     }

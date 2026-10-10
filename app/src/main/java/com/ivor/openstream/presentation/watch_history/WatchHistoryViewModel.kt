@@ -1,10 +1,14 @@
 package com.ivor.openstream.presentation.watch_history
 
+import android.content.Context
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ivor.openstream.R
 import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.domain.repository.WatchProgressRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -19,12 +23,12 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 import javax.inject.Inject
 
-enum class HistoryFilter(val label: String) {
-    ALL("All"),
-    MOVIES("Movies"),
-    SERIES("Series"),
-    IN_PROGRESS("In progress"),
-    FINISHED("Finished")
+enum class HistoryFilter(val label: String, @StringRes val labelRes: Int) {
+    ALL("All", R.string.search_filter_all),
+    MOVIES("Movies", R.string.search_filter_movies),
+    SERIES("Series", R.string.search_filter_series),
+    IN_PROGRESS("In progress", R.string.hist_filter_in_progress),
+    FINISHED("Finished", R.string.hist_filter_finished)
 }
 
 /** Entries watched in one period ("Today", "Yesterday", "March 2026"…). */
@@ -44,7 +48,8 @@ data class HistoryUiState(
 
 @HiltViewModel
 class WatchHistoryViewModel @Inject constructor(
-    private val repository: WatchProgressRepository
+    private val repository: WatchProgressRepository,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val query = MutableStateFlow("")
@@ -103,10 +108,10 @@ class WatchHistoryViewModel @Inject constructor(
         val today = LocalDate.now(zone)
         val daysAgo = ChronoUnit.DAYS.between(day, today)
         return when {
-            daysAgo <= 0L -> "Today"
-            daysAgo == 1L -> "Yesterday"
-            daysAgo < 7L -> "This week"
-            day.year == today.year && day.month == today.month -> "Earlier this month"
+            daysAgo <= 0L -> context.getString(R.string.hi_today)
+            daysAgo == 1L -> context.getString(R.string.hi_yesterday)
+            daysAgo < 7L -> context.getString(R.string.hi_this_week)
+            day.year == today.year && day.month == today.month -> context.getString(R.string.hi_earlier_month)
             else -> day.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault()))
         }
     }

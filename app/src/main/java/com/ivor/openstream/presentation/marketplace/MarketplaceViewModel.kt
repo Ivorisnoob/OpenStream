@@ -1,7 +1,9 @@
 package com.ivor.openstream.presentation.marketplace
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ivor.openstream.R
 import com.ivor.openstream.data.extensions.MarketplaceRanker
 import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.settings.SourceSearchMode
@@ -10,6 +12,7 @@ import com.ivor.openstream.domain.model.MarketplaceExtension
 import com.ivor.openstream.domain.model.MarketplaceSort
 import com.ivor.openstream.domain.repository.ExtensionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -37,7 +40,8 @@ data class MarketplaceUiState(
 @HiltViewModel
 class MarketplaceViewModel @Inject constructor(
     private val repository: ExtensionRepository,
-    private val appSettings: AppSettingsStore
+    private val appSettings: AppSettingsStore,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     /** How the player searches the installed sources; set on the Installed tab. */
@@ -104,18 +108,18 @@ class MarketplaceViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             runCatching { repository.refresh(force = true) }
-                .onFailure { message.value = it.message ?: "Could not refresh repositories" }
+                .onFailure { message.value = it.message ?: context.getString(R.string.st_could_not_refresh) }
         }
     }
 
     fun install(extension: MarketplaceExtension) {
         repository.install(extension.key)
-        message.value = "${extension.manifest.name} installed"
+        message.value = context.getString(R.string.st_extension_installed, extension.manifest.name)
     }
 
     fun uninstall(extension: MarketplaceExtension) {
         repository.uninstall(extension.key)
-        message.value = "${extension.manifest.name} removed"
+        message.value = context.getString(R.string.st_extension_removed, extension.manifest.name)
     }
 
     fun setEnabled(extension: MarketplaceExtension, enabled: Boolean) {
@@ -124,27 +128,28 @@ class MarketplaceViewModel @Inject constructor(
 
     fun update(extension: MarketplaceExtension) {
         repository.update(extension.key)
-        message.value = "${extension.manifest.name} updated to v${extension.manifest.versionName}"
+        message.value = context.getString(R.string.st_extension_updated, extension.manifest.name, extension.manifest.versionName)
     }
 
     fun updateAll() {
         val count = repository.updateAll()
-        message.value = if (count == 0) "Everything is up to date" else "Updated $count extensions"
+        message.value = if (count == 0) context.getString(R.string.st_everything_uptodate)
+        else context.getString(R.string.st_updated_count, count)
     }
 
     fun addRepo(url: String) {
         viewModelScope.launch {
             repository.addRepo(url)
-                .onSuccess { message.value = "Added ${it.name}" }
-                .onFailure { message.value = it.message ?: "Could not add that repository" }
+                .onSuccess { message.value = context.getString(R.string.st_repo_added, it.name) }
+                .onFailure { message.value = it.message ?: context.getString(R.string.st_could_not_add_repo) }
         }
     }
 
     fun removeRepo(repoId: String) {
         viewModelScope.launch {
             repository.removeRepo(repoId)
-                .onSuccess { message.value = "Repository removed" }
-                .onFailure { message.value = it.message ?: "Could not remove that repository" }
+                .onSuccess { message.value = context.getString(R.string.st_repo_removed) }
+                .onFailure { message.value = it.message ?: context.getString(R.string.st_could_not_remove_repo) }
         }
     }
 

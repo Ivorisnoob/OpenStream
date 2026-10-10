@@ -1,5 +1,7 @@
 package com.ivor.openstream.presentation.player
 
+import android.content.Context
+import com.ivor.openstream.R
 import com.ivor.openstream.data.local.entity.CustomListItemEntity
 import com.ivor.openstream.data.local.dao.CustomListSummary
 import com.ivor.openstream.data.repository.CustomListRepository
@@ -9,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import com.ivor.openstream.data.local.entity.DownloadEntity
 import com.ivor.openstream.domain.repository.SubtitleRepository
 import com.ivor.openstream.data.remote.TmdbApi
+import com.ivor.openstream.data.playback.StreamDataGuard
 import com.ivor.openstream.data.remote.model.AnimeDetailsDto
 import com.ivor.openstream.data.remote.model.EpisodeDto
 import com.ivor.openstream.data.remote.model.SubtitleDto
@@ -25,6 +28,7 @@ import com.ivor.openstream.domain.repository.WatchLaterRepository
 import com.ivor.openstream.data.local.entity.WatchLaterEntity
 import kotlinx.coroutines.flow.map
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -43,9 +47,11 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.time.LocalDate
+import androidx.media3.common.PlaybackException
 import androidx.media3.exoplayer.ExoPlayer
 import com.ivor.openstream.presentation.player.session.NowPlaying
 import com.ivor.openstream.presentation.player.session.PlaybackSession
+import io.github.ivorisnoob.smoothmotion.media3.SmoothMotion
 import com.ivor.openstream.data.settings.AppSettings
 import com.ivor.openstream.domain.model.SkipSegment
 import com.ivor.openstream.data.repository.SkipTimesRepository
@@ -109,12 +115,12 @@ class PlayerViewModel @Inject constructor(
     private val sharedPreferences: SharedPreferences,
     private val json: Json,
     private val playbackSession: PlaybackSession,
-    appSettingsStore: AppSettingsStore,
-    private val skipTimesRepository: SkipTimesRepository,
-    private val subtitleFetcher: SubtitleFetcher,
-    private val savedSubtitleRepository: SavedSubtitleRepository
+    private val appSettingsStore: AppSettingsStore,
+    private val skipTimesRepository: SkipTimesRepository,    private val subtitleFetcher: SubtitleFetcher,
+    private val savedSubtitleRepository: SavedSubtitleRepository,
+    @ApplicationContext private val context: Context,
+    private val streamDataGuard: StreamDataGuard
 ) : ViewModel() {
-
     /** A sideloaded subtitle's text, downloaded and unwrapped by the data layer. */
     suspend fun loadSubtitleText(url: String, headers: Map<String, String>): String =
         subtitleFetcher.fetchText(url, headers)
@@ -128,10 +134,25 @@ class PlayerViewModel @Inject constructor(
 
     /** The app-wide player; the screen attaches to it rather than owning one. */
     val player: ExoPlayer get() = playbackSession.player
+    val smoothMotion: SmoothMotion? get() = playbackSession.smoothMotion
+
+    fun setSmoothMotionEnabled(enabled: Boolean) = appSettingsStore.setSmoothMotionEnabled(enabled)
+    fun setSmoothMotionMaxFps(maxFps: Int) = appSettingsStore.setSmoothMotionMaxFps(maxFps)
 
     fun applyRequestHeaders(headers: Map<String, String>) = playbackSession.setRequestHeaders(headers)
 
     val sleepTimer: StateFlow<SleepTimer?> = playbackSession.sleepTimer
+
+    /** Network guard state, so playback can warn and cap for metered connections. */
+    fun shouldWarnBeforeStreaming(): Boolean = streamDataGuard.shouldWarn()
+
+    fun markDataWarningAnswered() = streamDataGuard.markAsked()
+
+    /** Applies a one-off quality cap for this playback, e.g. after the user chose to save data. */
+    fun capVideoHeight(height: Int) = playbackSession.setSessionHeightCap(height)
+
+    /** Turns the metered-stream prompt off for good, from the player's data warning. */
+    fun setWarnBeforeMeteredStream(enabled: Boolean) = appSettingsStore.setWarnBeforeMeteredStream(enabled)
 
     fun setSleepTimer(timer: SleepTimer?) = playbackSession.setSleepTimer(timer)
 
@@ -371,7 +392,7 @@ class PlayerViewModel @Inject constructor(
             val details = _mediaDetails.value ?: return@launch
             val currentServer = if (System.currentTimeMillis() - server.resolvedAt > STREAM_REFRESH_AGE_MS) {
                 streamingRepository.refreshServer(server).getOrElse {
-                    _playerEvents.tryEmit("That server expired. Choose another source.")
+                    _playerEvents.tryEmit(context.getString(R.string.player_server_expired))
                     return@launch
                 }
             } else {
@@ -395,9 +416,9 @@ class PlayerViewModel @Inject constructor(
                     )
                 )
             }.onSuccess {
-                _playerEvents.tryEmit("Downloading. Find it in Downloads.")
+                _playerEvents.tryEmit(context.getString(R.string.er_download_started))
             }.onFailure {
-                _playerEvents.tryEmit(it.message ?: "Download could not be started.")
+                _playerEvents.tryEmit(it.message ?: context.getString(R.string.dl_could_not_start))
             }
         }
     }
@@ -603,7 +624,7 @@ class PlayerViewModel @Inject constructor(
         streamingRepository.rememberServer(identity, server)
     }
 
-    fun onPlaybackError() {
+    fun onPlaybackError(error: PlaybackException? = null) {
         val failed = _activeServer.value ?: return
         failedServerIds += failed.id
         // A source the user picked by hand (often a dub) failed: go back to what was playing rather
@@ -615,26 +636,31 @@ class PlayerViewModel @Inject constructor(
             setActiveId(previous.id)
             currentIdentity?.let { streamingRepository.rememberServer(it, previous) }
             val label = failed.audioLanguage?.let { "${failed.name} ($it)" } ?: failed.name
-            _playerEvents.tryEmit("$label won't play on this device. Back to ${previous.name}.")
+            _playerEvents.tryEmit(context.getString(R.string.details_failed_devices, label, previous.name))
             return
+        }
+        // Some sources only serve H.265, which older hardware cannot decode. Say so before failing
+        // over, instead of leaving the user with a silent black screen.
+        if (error != null && error.isUnsupportedVideoFormat()) {
+            _playerEvents.tryEmit(context.getString(R.string.player_error_codec))
         }
         val next = availableServers().firstOrNull { it.id !in failedServerIds }
         if (next != null && automaticFailovers < MAX_AUTOMATIC_FAILOVERS) {
             automaticFailovers++
             _activeServer.value = next
             setActiveId(next.id)
-            _playerEvents.tryEmit("${failed.name} didn't play. Trying ${next.name}.")
+            _playerEvents.tryEmit(context.getString(R.string.details_failed_trying_next, failed.name, next.name))
         } else if (!backupSourcesSearched && currentIdentity != null) {
             // Every direct link failed to play: widen the search to the backup sources once.
             backupSourcesSearched = true
             automaticFailovers = 0
             _activeServer.value = null
-            _playerEvents.tryEmit("${failed.name} didn't play. Searching backup sources…")
+            _playerEvents.tryEmit(context.getString(R.string.details_failed_searching_backup, failed.name))
             startResolution(currentIdentity!!, includeFallbacks = true)
         } else {
             _activeServer.value = null
             setActiveId(null)
-            _playerEvents.tryEmit("No more healthy servers. Choose a source or retry.")
+            _playerEvents.tryEmit(context.getString(R.string.player_no_healthy_action))
         }
     }
 
@@ -697,3 +723,11 @@ class PlayerViewModel @Inject constructor(
 /** Japanese animation: the titles AniSkip can have times for. */
 private fun AnimeDetailsDto.isAnime(): Boolean =
     genres.orEmpty().any { it.id == 16 } && originalLanguage.equals("ja", ignoreCase = true)
+
+/** True for errors that mean the device cannot play the video the source handed over. */
+private fun PlaybackException.isUnsupportedVideoFormat(): Boolean = when (errorCode) {
+    PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
+    PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+    PlaybackException.ERROR_CODE_DECODING_FAILED -> true
+    else -> false
+}

@@ -29,19 +29,34 @@ class ExtensionIndexParser @Inject constructor() {
     }
 
     /**
+     * User-facing copy used while parsing. Production passes localized strings;
+     * the English defaults keep unit tests (which construct the parser directly) intact.
+     */
+    data class RepoParseStrings(
+        val indexError: String = "Repository index is not a JSON object or array",
+        val manifestIdError: String = "Stremio manifest has no id",
+        val noStreamsNote: String = "This add-on has no streams (only catalogs, metadata or subtitles), so it has nothing to play here.",
+        val needsConfigNote: String = "Configure this add-on on its own page first, then add the link it gives you."
+    )
+
+    /**
      * Parses a repository document: an object, a bare array of entries, or a Stremio add-on
      * manifest ([sourceUrl] is where it was fetched, which is how the add-on is addressed).
      */
-    fun parseRepo(raw: String, sourceUrl: String? = null): ExtensionRepoDto {
+    fun parseRepo(
+        raw: String,
+        sourceUrl: String? = null,
+        strings: RepoParseStrings = RepoParseStrings()
+    ): ExtensionRepoDto {
         val root = json.parseToJsonElement(raw)
-        if (root is JsonObject && isStremioManifest(root)) return stremioRepo(root, sourceUrl)
+        if (root is JsonObject && isStremioManifest(root)) return stremioRepo(root, sourceUrl, strings)
         return when (root) {
             is JsonArray -> ExtensionRepoDto(extensions = decodeEntries(root))
             is JsonObject -> {
                 val dto = json.decodeFromJsonElement(ExtensionRepoDto.serializer(), stripEntries(root))
                 dto.copy(extensions = decodeEntries(root["extensions"] as? JsonArray))
             }
-            else -> throw IllegalArgumentException("Repository index is not a JSON object or array")
+            else -> throw IllegalArgumentException(strings.indexError)
         }
     }
 
@@ -131,9 +146,13 @@ class ExtensionIndexParser @Inject constructor() {
      * it takes. Installed straight away when it can play here: it serves streams and doesn't
      * need configuring first (a configured add-on's link already carries its settings).
      */
-    private fun stremioRepo(manifest: JsonObject, sourceUrl: String?): ExtensionRepoDto {
+    private fun stremioRepo(
+        manifest: JsonObject,
+        sourceUrl: String?,
+        strings: RepoParseStrings
+    ): ExtensionRepoDto {
         val addonId = manifest.text("id")?.takeIf { it.isNotBlank() }
-            ?: throw IllegalArgumentException("Stremio manifest has no id")
+            ?: throw IllegalArgumentException(strings.manifestIdError)
         val name = manifest.text("name")?.trim().orEmpty().ifEmpty { addonId }
         val baseUrl = sourceUrl?.substringBefore('?')?.removeSuffix("/manifest.json")?.trimEnd('/').orEmpty()
         val resources = (manifest["resources"] as? JsonArray).orEmpty().mapNotNull { resource ->
@@ -149,8 +168,8 @@ class ExtensionIndexParser @Inject constructor() {
         val playable = servesStreams && !needsConfiguring && baseUrl.isNotEmpty()
         val types = (manifest["types"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
         val note = when {
-            !servesStreams -> "This add-on has no streams (only catalogs, metadata or subtitles), so it has nothing to play here."
-            needsConfiguring -> "Configure this add-on on its own page first, then add the link it gives you."
+            !servesStreams -> strings.noStreamsNote
+            needsConfiguring -> strings.needsConfigNote
             else -> null
         }
         val logo = manifest.text("logo")?.takeIf { it.startsWith("https://") }

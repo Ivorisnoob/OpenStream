@@ -1,14 +1,17 @@
 package com.ivor.openstream.domain.model
 
-enum class StreamQuality(val label: String, val rank: Int) {
-    Q360("360p", 0),
-    Q480("480p", 1),
-    Q720("720p", 2),
-    Q1080("1080p", 3),
-    HD("HD", 3),
-    Q1440("1440p", 4),
-    Q2160("4K", 5),
-    UNKNOWN("Auto", 2);
+import androidx.annotation.StringRes
+import com.ivor.openstream.R
+
+enum class StreamQuality(val label: String, @StringRes val labelRes: Int?, val rank: Int) {
+    Q360("360p", R.string.q_360p, 0),
+    Q480("480p", R.string.q_480p, 1),
+    Q720("720p", R.string.q_720p, 2),
+    Q1080("1080p", R.string.q_1080p, 3),
+    HD("HD", R.string.q_hd, 3),
+    Q1440("1440p", R.string.q_1440p, 4),
+    Q2160("4K", R.string.q_2160p, 5),
+    UNKNOWN("Auto", R.string.sheet_auto, 2);
 
     companion object {
         fun parse(raw: String?): StreamQuality {

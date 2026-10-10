@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -83,14 +84,14 @@ fun WelcomeSheet(viewModel: WelcomeViewModel = hiltViewModel()) {
         ) {
             AppMark()
             Text(
-                text = "Welcome to OpenStream",
+                text = stringResource(R.string.we_title),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Black,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.semantics { heading() }
             )
             Text(
-                text = "Find movies, series and anime, pick up where you left off, and take episodes offline.",
+                text = stringResource(R.string.home_onboarding_title),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -106,14 +107,12 @@ fun WelcomeSheet(viewModel: WelcomeViewModel = hiltViewModel()) {
                     Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.padding(top = 2.dp))
                     Column(modifier = Modifier.padding(start = 14.dp)) {
                         Text(
-                            text = "Not everything plays yet",
+                            text = stringResource(R.string.player_not_everything),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Streams come from sources that change often, so some titles or episodes may " +
-                                "be missing, and dubs or subtitles aren't always available. We're adding more " +
-                                "sources soon.",
+                            text = stringResource(R.string.we_sources_changing),
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(top = 4.dp)
                         )
@@ -122,7 +121,7 @@ fun WelcomeSheet(viewModel: WelcomeViewModel = hiltViewModel()) {
             }
 
             Text(
-                text = "Thanks for trying OpenStream.",
+                text = stringResource(R.string.pf_thanks),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center
@@ -135,7 +134,7 @@ fun WelcomeSheet(viewModel: WelcomeViewModel = hiltViewModel()) {
                     .fillMaxWidth()
                     .heightIn(min = 56.dp)
             ) {
-                Text("Start watching", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.action_start_watching), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -156,7 +155,7 @@ private fun AppMark() {
         )
         Image(
             painter = painterResource(R.drawable.ic_launcher_foreground),
-            contentDescription = "OpenStream",
+            contentDescription = stringResource(R.string.app_name),
             modifier = Modifier.fillMaxSize()
         )
     }

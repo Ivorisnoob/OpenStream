@@ -48,13 +48,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DataUsage
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
@@ -94,6 +98,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -103,8 +108,10 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import coil3.compose.AsyncImage
+import com.ivor.openstream.R
 import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.presentation.player.components.ExoPlayerView
 import com.ivor.openstream.presentation.player.components.MANUAL_SKIP_MS
@@ -139,6 +146,8 @@ fun PlayerScreen(
     onEpisodeClick: (season: Int, episode: Int) -> Unit,
     onOpenDetails: (mediaType: String, id: Int) -> Unit = { _, _ -> },
     onOpenTitle: (id: Int, mediaType: String) -> Unit = { _, _ -> },
+    /** Android TV: the player gets D-pad controls, media notifications and a leanback start. */
+    tvControls: Boolean = false,
     viewModel: PlayerViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -272,12 +281,15 @@ fun PlayerScreen(
         )
     }
 
+    // Read in composition: the snackbar is shown from a coroutine where stringResource is unavailable.
+    val sourcesActionLabel = stringResource(R.string.sheet_sources)
+    val noHealthyMessage = stringResource(R.string.player_no_healthy_action)
     LaunchedEffect(Unit) {
         viewModel.playerEvents.collect { message ->
-            val needsSourceAction = message.startsWith("No more healthy servers")
+            val needsSourceAction = message == noHealthyMessage
             val result = snackbarHostState.showSnackbar(
                 message = message,
-                actionLabel = if (needsSourceAction) "Sources" else null,
+                actionLabel = if (needsSourceAction) sourcesActionLabel else null,
                 duration = if (needsSourceAction) SnackbarDuration.Long else SnackbarDuration.Short
             )
             if (result == SnackbarResult.ActionPerformed) {
@@ -287,9 +299,13 @@ fun PlayerScreen(
     }
     
     // Dynamic Title for Player HUD
-    val playerTitle = if (mediaType == "movie") mediaDetails?.name ?: "Movie" else mediaDetails?.name ?: "Show"
+    val playerTitle = if (mediaType == "movie") {
+        mediaDetails?.name ?: stringResource(R.string.details_movie)
+    } else {
+        mediaDetails?.name ?: stringResource(R.string.player_show_fallback)
+    }
     val playerSubtitle = if (mediaType == "movie") "" else {
-        val epName = currentEpisode?.name ?: "Episode $episode"
+        val epName = currentEpisode?.name ?: stringResource(R.string.misc_episode_number, episode)
         "S$season:E$episode • $epName"
     }
 
@@ -342,6 +358,11 @@ fun PlayerScreen(
         if (isCasting && isFullscreen) exitFullscreen()
     }
 
+    // On a TV the player opens immersive: a 10-foot screen has no use for the surrounding chrome.
+    LaunchedEffect(tvControls, videoUrl) {
+        if (tvControls && videoUrl != null && !isFullscreen) enterFullscreen()
+    }
+
     // Handle back press in fullscreen -- exit fullscreen instead of navigating back
     BackHandler(enabled = isFullscreen) {
         exitFullscreen()
@@ -367,6 +388,38 @@ fun PlayerScreen(
 
     val onNextClick: (() -> Unit)? = nextEpisode?.let { target ->
         { onEpisodeClick(target.season, target.episode) }
+    }
+
+    // Ask before a stream runs on mobile data, once per app run, with a way out of the dialog.
+    val dataWarningMessage = stringResource(R.string.st_data_mobile_now_hint)
+    var showDataWarning by remember { mutableStateOf(false) }
+    LaunchedEffect(videoUrl, appSettings.warnBeforeMeteredStream) {
+        if (videoUrl != null && appSettings.warnBeforeMeteredStream) {
+            if (viewModel.shouldWarnBeforeStreaming()) showDataWarning = true
+        }
+    }
+    if (showDataWarning) {
+        AlertDialog(
+            onDismissRequest = { viewModel.markDataWarningAnswered(); showDataWarning = false },
+            icon = { Icon(Icons.Default.DataUsage, contentDescription = null) },
+            title = { Text(stringResource(R.string.st_data_mobile_now)) },
+            text = { Text(dataWarningMessage) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.markDataWarningAnswered()
+                    showDataWarning = false
+                }) { Text(stringResource(R.string.action_continue_anyway)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    // Lower the ceiling for this playback and stop asking on this network.
+                    viewModel.markDataWarningAnswered()
+                    viewModel.setWarnBeforeMeteredStream(false)
+                    viewModel.capVideoHeight(480)
+                    showDataWarning = false
+                }) { Text(stringResource(R.string.action_play_small, 480)) }
+            }
+        )
     }
 
     val sourceActions = SourcesPageActions(
@@ -468,6 +521,7 @@ fun PlayerScreen(
                             subtitle = playerSubtitle,
                             requestHeaders = activeServer?.headers.orEmpty(),
                             exoPlayer = viewModel.player,
+                            smoothMotion = viewModel.smoothMotion,
                             applyRequestHeaders = viewModel::applyRequestHeaders,
                             isFullscreen = isFullscreen,
                             onFullscreenToggle = {
@@ -479,14 +533,14 @@ fun PlayerScreen(
                             modifier = Modifier.fillMaxSize(),
                             remoteSubtitles = allSubtitles,
                             sourceLabel = if (downloadId != null) {
-                                "Offline copy"
+                                stringResource(R.string.dl_offline_copy)
                             } else {
                                 activeServer?.name
                             },
                             sourceSummary = if (downloadId != null) {
-                                "Stored on this device"
+                                stringResource(R.string.dl_stored_device)
                             } else {
-                                activeServer?.let { "${it.providerName} · ${it.sourceSummary()}" }
+                                activeServer?.let { "${it.providerName} · ${it.sourceSummary(LocalContext.current)}" }
                             },
                             serversState = serversState,
                             canChangeSource = downloadId == null,
@@ -523,9 +577,9 @@ fun PlayerScreen(
                             preferredAudioLanguage = preferredAudioLanguage,
                             onAudioLanguageChosen = viewModel::setPreferredAudioLanguage,
                             onCaptionSettingsChange = viewModel::updateCaptionSettings,
-                            onPlaybackError = {
+                            onPlaybackError = { error ->
                                 if (downloadId == null) {
-                                    viewModel.onPlaybackError()
+                                    viewModel.onPlaybackError(error)
                                     showServerPicker = viewModel.activeServer.value == null
                                 }
                             },
@@ -533,6 +587,10 @@ fun PlayerScreen(
                             onCastClick = { showCastSheet = true }.takeIf { castStatus.supported },
                             onPictureInPictureClick = enterPictureInPicture,
                             loadSubtitleText = viewModel::loadSubtitleText,
+                            keepPlayingInBackground = appSettings.keepPlayingInBackground,
+                            dpadControls = tvControls,
+                            artworkUri = (currentEpisode?.stillPath ?: mediaDetails?.backdropPath)
+                                ?.let { "https://image.tmdb.org/t/p/w1280$it" },
                             mimeType = activeServer?.mimeType.takeIf { downloadId == null }
                         )
                     }
@@ -619,13 +677,18 @@ fun PlayerScreen(
                                     Text(
                                         text = when (val state = serversState) {
                                             is ServersState.Resolving ->
-                                                "Searching sources… ${state.servers.size} found"
-                                            is ServersState.Empty -> "No servers responded"
-                                            is ServersState.Ready -> "Choose a server to continue"
+                                                stringResource(
+                                                    R.string.src_progress,
+                                                    state.servers.size,
+                                                    state.completedProviders,
+                                                    state.totalProviders
+                                                )
+                                            is ServersState.Empty -> stringResource(R.string.player_no_servers)
+                                            is ServersState.Ready -> stringResource(R.string.player_choose_server)
                                             ServersState.Idle -> if (isResolvingLocalUri) {
-                                                "Opening offline video…"
+                                                stringResource(R.string.player_opening_offline)
                                             } else {
-                                                "Preparing sources…"
+                                                stringResource(R.string.player_preparing_sources)
                                             }
                                         },
                                         color = Color.White.copy(alpha = 0.6f),
@@ -637,14 +700,14 @@ fun PlayerScreen(
                                             onClick = viewModel::retryResolution,
                                             shape = ExpressiveShapes.medium
                                         ) {
-                                            Text("Retry sources")
+                                            Text(stringResource(R.string.action_retry_sources))
                                         }
                                     } else if (serversState is ServersState.Ready) {
                                         Button(
                                             onClick = { showServerPicker = true },
                                             shape = ExpressiveShapes.medium
                                         ) {
-                                            Text("Choose a source")
+                                            Text(stringResource(R.string.player_choose_source))
                                         }
                                     }
                                 }

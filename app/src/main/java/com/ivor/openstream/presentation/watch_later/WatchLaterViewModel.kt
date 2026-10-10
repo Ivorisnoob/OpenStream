@@ -1,7 +1,9 @@
 package com.ivor.openstream.presentation.watch_later
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ivor.openstream.R
 import com.ivor.openstream.data.local.dao.CustomListSummary
 import com.ivor.openstream.data.local.entity.WatchLaterEntity
 import com.ivor.openstream.data.repository.CustomListRepository
@@ -17,13 +19,18 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class SavedFilter(val label: String) { ALL("All"), MOVIES("Movies"), SERIES("Series"), STARTED("Started") }
+enum class SavedFilter(val label: String, @StringRes val labelRes: Int) {
+    ALL("All", R.string.li_saved_all),
+    MOVIES("Movies", R.string.li_saved_movies),
+    SERIES("Series", R.string.li_saved_series),
+    STARTED("Started", R.string.li_saved_started)
+}
 
-enum class SavedSort(val label: String) {
-    RECENTLY_ADDED("Recently added"),
-    RECENTLY_WATCHED("Recently watched"),
-    TITLE("A–Z"),
-    RATING("Top rated")
+enum class SavedSort(val label: String, @StringRes val labelRes: Int) {
+    RECENTLY_ADDED("Recently added", R.string.li_sort_recently_added),
+    RECENTLY_WATCHED("Recently watched", R.string.li_sort_recently_watched),
+    TITLE("A–Z", R.string.li_sort_az),
+    RATING("Top rated", R.string.li_sort_rating)
 }
 
 /** A saved title plus the most recent thing watched from it, if anything. */

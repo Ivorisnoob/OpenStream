@@ -23,6 +23,8 @@ import com.ivor.openstream.data.repository.OpenSubtitlesRepository
 import com.ivor.openstream.presentation.player.CaptionStyleSettings
 import com.ivor.openstream.presentation.player.ServersState
 import androidx.annotation.OptIn
+import androidx.annotation.StringRes
+import com.ivor.openstream.R
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -53,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Shadow
@@ -62,6 +65,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
@@ -98,8 +103,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
+import androidx.compose.foundation.focusable
+import io.github.ivorisnoob.smoothmotion.media3.SmoothMotion
+import io.github.ivorisnoob.smoothmotion.ui.bindSmoothMotion
+import io.github.ivorisnoob.smoothmotion.ui.unbindSmoothMotion
 import androidx.compose.ui.unit.IntOffset
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 import kotlinx.coroutines.Dispatchers
@@ -158,7 +174,7 @@ fun ExoPlayerView(
     preferredAudioLanguage: String? = null,
     onAudioLanguageChosen: (String?) -> Unit = {},
     onCaptionSettingsChange: (CaptionStyleSettings) -> Unit = {},
-    onPlaybackError: () -> Unit = {},
+    onPlaybackError: (PlaybackException?) -> Unit = {},
     onPlaybackReady: () -> Unit = {},
     isRotationLocked: Boolean = false,
     onRotationLockToggle: () -> Unit = {},
@@ -185,9 +201,21 @@ fun ExoPlayerView(
     /** Downloads a sideloaded subtitle as text (gzip/zip handled); throws when it can't. */
     loadSubtitleText: suspend (url: String, headers: Map<String, String>) -> String = { _, _ -> throw IllegalStateException("No subtitle loader") },
     /** Container hint from the source (HLS for hosts whose URLs don't end in .m3u8). */
-    mimeType: String? = null
+    mimeType: String? = null,
+    /** Playback continues when the app leaves the foreground (the media notification takes over). */
+    keepPlayingInBackground: Boolean = true,
+    /** Artwork for the media notification and lock screen; a TMDB image URL. */
+    artworkUri: String? = null,
+    /** Optional SmoothMotion engine for real-time frame interpolation. */
+    smoothMotion: SmoothMotion? = null,
+    /** D-pad and remote-key handling, for the Android TV player surface. */
+    dpadControls: Boolean = false
 ) {
     val context = LocalContext.current
+    // Read in composition for the track parser below, which runs in listener and
+    // effect callbacks where stringResource cannot be called directly.
+    val autoQualityLabel = stringResource(R.string.sheet_auto)
+    val externalSourceLabel = stringResource(R.string.sub_external_source)
     val activity = remember(context) {
         var ctx = context
         while (ctx is android.content.ContextWrapper) {
@@ -310,6 +338,87 @@ fun ExoPlayerView(
         unlockButtonSequence++
     }
 
+    fun togglePlaybackWithFeedback() {
+        if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
+        playPauseFeedback++
+        areControlsVisible = true
+    }
+
+    /**
+     * Remote keys on Android TV. OK toggles playback, left/right seek, up/down reveal the controls
+     * (which then take focus, so those keys navigate them instead). Media keys from headsets, the
+     * notification and Android Auto land here too.
+     */
+    fun dpadAction(event: KeyEvent): Boolean {
+        if (isLocked) return false
+        val code = event.nativeKeyEvent.keyCode
+        val isDown = event.type == KeyEventType.KeyDown
+        return when (code) {
+            android.view.KeyEvent.KEYCODE_DPAD_CENTER,
+            android.view.KeyEvent.KEYCODE_ENTER,
+            android.view.KeyEvent.KEYCODE_NUMPAD_ENTER,
+            android.view.KeyEvent.KEYCODE_SPACE,
+            android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                // Only on the press, and only for the first press of an auto-repeat.
+                if (!isDown || event.nativeKeyEvent.repeatCount > 0) return false
+                togglePlaybackWithFeedback()
+                true
+            }
+            android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                if (!isDown || event.nativeKeyEvent.repeatCount > 0) return false
+                if (!exoPlayer.isPlaying) exoPlayer.play()
+                areControlsVisible = true
+                true
+            }
+            android.view.KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                if (!isDown || event.nativeKeyEvent.repeatCount > 0) return false
+                if (exoPlayer.isPlaying) exoPlayer.pause()
+                areControlsVisible = true
+                true
+            }
+            android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> {
+                if (!isDown || event.nativeKeyEvent.repeatCount > 0) return false
+                onNextClick?.invoke()
+                true
+            }
+            android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
+            android.view.KeyEvent.KEYCODE_BUTTON_R1 -> {
+                if (!isDown) return false
+                seekStep(1)
+                areControlsVisible = true
+                true
+            }
+            android.view.KeyEvent.KEYCODE_MEDIA_REWIND,
+            android.view.KeyEvent.KEYCODE_BUTTON_L1 -> {
+                if (!isDown) return false
+                seekStep(-1)
+                areControlsVisible = true
+                true
+            }
+            android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
+                if (!isDown) return false
+                seekStep(-1)
+                areControlsVisible = true
+                true
+            }
+            android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                if (!isDown) return false
+                seekStep(1)
+                areControlsVisible = true
+                true
+            }
+            android.view.KeyEvent.KEYCODE_DPAD_UP,
+            android.view.KeyEvent.KEYCODE_DPAD_DOWN -> {
+                if (!isDown) return false
+                areControlsVisible = true
+                true
+            }
+            else -> false
+        }
+    }
+
+    fun handleDpadKey(event: KeyEvent): Boolean = dpadAction(event)
+
     LaunchedEffect(unlockButtonSequence) {
         if (unlockButtonSequence > 0) {
             delay(2500)
@@ -362,14 +471,15 @@ fun ExoPlayerView(
         }
     }
 
-    // Helper: parse available tracks from ExoPlayer
+    // Helper: parse available tracks from ExoPlayer. Runs in listener and effect
+    // callbacks too, so it uses the hoisted context/resources rather than stringResource.
     fun parseTracksFromPlayer(tracks: Tracks) {
         val qualities = mutableListOf<QualityOption>()
         val subtitles = mutableListOf<SubtitleOption>()
         val audios = mutableListOf<AudioOption>()
 
         // Always add Auto as the first quality option
-        qualities.add(QualityOption(label = "Auto", width = 0, height = 0, isAuto = true))
+        qualities.add(QualityOption(label = autoQualityLabel, width = 0, height = 0, isAuto = true))
 
         for (groupIndex in 0 until tracks.groups.size) {
             val group = tracks.groups[groupIndex]
@@ -381,14 +491,17 @@ fun ExoPlayerView(
                         val format = group.getTrackFormat(trackIndex)
                         if (format.height > 0) {
                             val label = "${format.height}p"
-                            // Avoid duplicates
-                            if (qualities.none { it.label == label }) {
+                            val codec = format.codecs?.takeIf { it.isNotBlank() }
+                            // Avoid duplicates: a repeated resolution over a codec that already
+                            // has a row says nothing new, unless the codec differs.
+                            if (qualities.none { it.label == label && it.codec == codec }) {
                                 qualities.add(
                                     QualityOption(
                                         label = label,
                                         width = format.width,
                                         height = format.height,
-                                        bitrate = format.bitrate
+                                        bitrate = format.bitrate,
+                                        codec = codec
                                     )
                                 )
                             }
@@ -419,7 +532,7 @@ fun ExoPlayerView(
                         audios += AudioOption(
                             label = languageName
                                 ?: format.label?.takeIf { it.any(Char::isLetter) }
-                                ?: if (group.length == 1 && audios.isEmpty()) "Default" else "Track ${audios.size + 1}",
+                                ?: if (group.length == 1 && audios.isEmpty()) context.getString(R.string.track_default) else context.getString(R.string.track_number, audios.size + 1),
                             language = language,
                             groupIndex = groupIndex,
                             trackIndex = trackIndex,
@@ -442,18 +555,18 @@ fun ExoPlayerView(
                         }
                         
                         val label = when {
-                            remoteMatch != null -> remoteMatch.display ?: remoteMatch.language?.uppercase() ?: "English"
-                            format.label == "English (Extracted)" || trackId == "extracted" -> "English (Extracted)"
+                            remoteMatch != null -> remoteMatch.display ?: remoteMatch.language?.uppercase() ?: displayLanguageOrNull("en").orEmpty()
+                            format.label == "English (Extracted)" || trackId == "extracted" -> context.getString(R.string.track_extracted)
                             format.label != null -> format.label!!
                             format.language != null -> {
                                 val lang = format.language!!
                                 val locale = if (lang.length <= 3) java.util.Locale(lang) 
                                              else try { java.util.Locale.forLanguageTag(lang.replace("_", "-")) } catch(e:Exception) { java.util.Locale.ENGLISH }
                                 
-                                val display = locale.getDisplayLanguage(java.util.Locale.ENGLISH)
+                                val display = locale.getDisplayLanguage(java.util.Locale.getDefault())
                                 if (display.isNotEmpty() && !display.equals(lang, ignoreCase = true)) display else lang.uppercase()
                             }
-                            else -> "Track ${subtitles.size + 1}"
+                            else -> context.getString(R.string.track_number, subtitles.size + 1)
                         }
 
                         subtitles.add(
@@ -476,11 +589,11 @@ fun ExoPlayerView(
             if (subtitles.none { it.url == remote.url }) {
                 subtitles.add(
                     SubtitleOption(
-                        label = remote.display ?: remote.language?.uppercase() ?: "English",
+                        label = remote.display ?: remote.language?.uppercase() ?: displayLanguageOrNull("en").orEmpty(),
                         trackIndex = -1, // No internal track
                         groupIndex = -1,
                         url = remote.url,
-                        subLabel = "${remote.release ?: ""} (${remote.source ?: "External"})".trim(),
+                        subLabel = "${remote.release ?: ""} (${remote.source ?: externalSourceLabel})".trim(),
                         language = remote.language
                     )
                 )
@@ -579,6 +692,21 @@ fun ExoPlayerView(
         applySubtitle(match)
     }
 
+        // Notification and lock-screen metadata: what the notification shows comes from the media item.
+        val mediaMetadata = remember(title, subtitle, artworkUri) {
+            MediaMetadata.Builder()
+                .setTitle(title)
+                .setSubtitle(subtitle.takeIf { it.isNotEmpty() })
+                .setArtworkUri(artworkUri?.let(android.net.Uri::parse))
+                .build()
+        }
+
+        fun buildMediaItem(): MediaItem.Builder =
+            MediaItem.Builder()
+                .setUri(videoUrl)
+                .setMimeType(mimeType)
+                .setMediaMetadata(mediaMetadata)
+
     LaunchedEffect(videoUrl, remoteSubtitles) {
         val currentMediaItem = exoPlayer.currentMediaItem
         val currentUri = currentMediaItem?.localConfiguration?.uri
@@ -596,7 +724,7 @@ fun ExoPlayerView(
                 MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(sub.url))
                     .setMimeType(format)
                     .setLanguage(sub.language ?: "en")
-                    .setLabel(sub.display ?: "English")
+                    .setLabel(sub.display ?: displayLanguageOrNull("en").orEmpty())
                     .setId(sub.id)
                     .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
                     .setRoleFlags(C.ROLE_FLAG_SUBTITLE)
@@ -607,7 +735,7 @@ fun ExoPlayerView(
         // CASE 1: Video URL changed (Episode switch) -> Full Reset
         if (currentUri != newUri) {
             applyRequestHeaders(requestHeaders)
-            val mediaItemBuilder = MediaItem.Builder().setUri(videoUrl).setMimeType(mimeType)
+            val mediaItemBuilder = buildMediaItem()
             val configs = buildSubtitleConfigs(remoteSubtitles)
             if (configs.isNotEmpty()) {
                 mediaItemBuilder.setSubtitleConfigurations(configs)
@@ -626,7 +754,7 @@ fun ExoPlayerView(
             val currentPosition = exoPlayer.currentPosition
             val wasPlaying = exoPlayer.isPlaying
             
-            val mediaItemBuilder = MediaItem.Builder().setUri(videoUrl).setMimeType(mimeType)
+            val mediaItemBuilder = buildMediaItem()
             val configs = buildSubtitleConfigs(remoteSubtitles)
             mediaItemBuilder.setSubtitleConfigurations(configs)
             
@@ -700,11 +828,12 @@ fun ExoPlayerView(
         }
     }
 
-    // Pause when the app leaves the foreground so audio never keeps playing behind the launcher.
+    // Pause when the app leaves the foreground so audio never keeps playing behind the launcher,
+    // unless the user asked for background playback (the media notification takes over then).
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, exoPlayer) {
+    DisposableEffect(lifecycleOwner, exoPlayer, keepPlayingInBackground) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) {
+            if (event == Lifecycle.Event.ON_STOP && !keepPlayingInBackground) {
                 exoPlayer.pause()
                 latestProgressChanged(
                     exoPlayer.currentPosition.coerceAtLeast(0L),
@@ -749,7 +878,7 @@ fun ExoPlayerView(
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 Log.e("PlayerError", "ExoPlayer Error: ${error.message}", error)
                 isBuffering = false
-                latestPlaybackError()
+                latestPlaybackError(error)
             }
 
             override fun onIsPlayingChanged(playing: Boolean) {
@@ -795,9 +924,37 @@ fun ExoPlayerView(
         }
     }
 
+    // Android TV: the remote's D-pad and media keys drive playback when the surface is focused.
+    val videoHasFocus = remember { mutableStateOf(false) }
+    val videoFocusRequester = remember { FocusRequester() }
+    val controlsFocusRequester = remember { FocusRequester() }
+    val dpadModifier = if (dpadControls) {
+        Modifier
+            .focusRequester(videoFocusRequester)
+            .onFocusChanged { videoHasFocus.value = it.hasFocus }
+            .focusable()
+            .onPreviewKeyEvent { event ->
+                if (!videoHasFocus.value) return@onPreviewKeyEvent false
+                handleDpadKey(event)
+            }    } else {
+        Modifier
+    }
+    // The video surface takes the focus when a new stream starts (a TV never leaves it orphaned).
+    LaunchedEffect(dpadControls, videoUrl) {
+        if (dpadControls) {
+            runCatching { videoFocusRequester.requestFocus() }
+            areControlsVisible = true
+        }
+    }
+    // Controls showing on a TV hands the focus to the control bar so D-pad navigates it.
+    LaunchedEffect(areControlsVisible, dpadControls) {
+        if (dpadControls && areControlsVisible) runCatching { controlsFocusRequester.requestFocus() }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
+            .then(dpadModifier)
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {
@@ -968,6 +1125,7 @@ fun ExoPlayerView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     player = exoPlayer
+                    smoothMotion?.let { bindSmoothMotion(it) }
                     layoutParams = FrameLayout.LayoutParams(
                         android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                         android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -976,9 +1134,19 @@ fun ExoPlayerView(
                     subtitleView?.visibility = android.view.View.GONE
                 }
             },
-            update = { view -> view.resizeMode = videoScale.resizeMode },
+            update = { view ->
+                view.resizeMode = videoScale.resizeMode
+                if (smoothMotion != null) {
+                    view.bindSmoothMotion(smoothMotion)
+                } else {
+                    view.unbindSmoothMotion()
+                }
+            },
             // Hand the video surface back so the mini player can take it over.
-            onRelease = { view -> view.player = null },
+            onRelease = { view ->
+                view.unbindSmoothMotion()
+                view.player = null
+            },
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
@@ -999,7 +1167,7 @@ fun ExoPlayerView(
             GestureIndicator(
                 icon = Icons.Default.BrightnessLow,
                 value = (brightness * 100).toInt(),
-                label = "Brightness"
+                label = stringResource(R.string.sheet_brightness)
             )
         }
 
@@ -1012,7 +1180,7 @@ fun ExoPlayerView(
             GestureIndicator(
                 icon = Icons.Default.VolumeUp,
                 value = (volume * 100).toInt(),
-                label = "Volume"
+                label = stringResource(R.string.sheet_volume)
             )
         }
 
@@ -1034,7 +1202,7 @@ fun ExoPlayerView(
                 ) {
                     Icon(videoScale.icon, contentDescription = null, modifier = Modifier.size(24.dp))
                     Text(
-                        videoScale.label,
+                        stringResource(videoScale.labelRes),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -1120,8 +1288,7 @@ fun ExoPlayerView(
             hasSubtitles = subtitleOptions.isNotEmpty(),
             subtitlesEnabled = selectedSubtitle?.isDisabled == false,
             currentTime = currentTime,
-            totalTime = totalTime,
-            onPauseToggle = {
+            totalTime = totalTime,            onPauseToggle = {
                 if (exoPlayer.isPlaying) {
                     exoPlayer.pause()
                 } else {
@@ -1192,6 +1359,7 @@ fun ExoPlayerView(
                     enter()
                 }
             },
+            controlsFocusRequester = controlsFocusRequester.takeIf { dpadControls },
             onBackClick = onBackClick
         )
 
@@ -1222,7 +1390,11 @@ fun ExoPlayerView(
                         modifier = Modifier.size(28.dp)
                     )
                     Text(
-                        if (seekFeedbackDirection < 0) "$seekStackSeconds sec back" else "$seekStackSeconds sec ahead",
+                        if (seekFeedbackDirection < 0) {
+                            stringResource(R.string.sheet_back_seconds, seekStackSeconds)
+                        } else {
+                            stringResource(R.string.sheet_forward_seconds, seekStackSeconds)
+                        },
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -1249,7 +1421,7 @@ fun ExoPlayerView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(Icons.Default.FastForward, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Text("2× speed", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.player_boost_speed), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -1278,7 +1450,7 @@ fun ExoPlayerView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(Icons.Default.LockOpen, contentDescription = null)
-                    Text("Tap to unlock", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.action_tap_to_unlock), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -1320,7 +1492,7 @@ fun ExoPlayerView(
         val activeSegment = fittingSegments.firstOrNull { currentTime >= it.startMs && currentTime < it.endMs - 1_000 }
         val offerManualSkip = skipSegments.isEmpty() && !manualSkipUsed && areControlsVisible &&
             totalTime > MANUAL_SKIP_MS * 4 && currentTime in 5_000L..MANUAL_SKIP_WINDOW_MS
-        val skipLabel = activeSegment?.type?.label ?: "Skip ${MANUAL_SKIP_MS / 1_000}s"
+        val skipLabel = activeSegment?.let { stringResource(it.type.labelRes) } ?: stringResource(R.string.player_skip_seconds, MANUAL_SKIP_MS / 1_000)
         AnimatedVisibility(
             visible = showSkipButton && (activeSegment != null || offerManualSkip) && !isLocked &&
                 !isInPictureInPicture && !showSettingsDialog,
@@ -1370,7 +1542,7 @@ fun ExoPlayerView(
                         LoadingIndicator(modifier = Modifier.size(32.dp))
                         Column {
                             Text(
-                                "Connecting to stream",
+                                stringResource(R.string.player_connecting),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold
                             )
@@ -1411,7 +1583,8 @@ fun ExoPlayerView(
                 sleepTimer = sleepTimer,
                 episodes = episodes,
                 currentEpisode = currentEpisodeNumber,
-                episodeProgress = episodeProgress
+                episodeProgress = episodeProgress,
+                smoothMotion = smoothMotion
             ),
             actions = PlayerSettingsActions(
                 sources = sourceActions,
@@ -1452,6 +1625,7 @@ fun ExoPlayerView(
                 onSubtitleOffsetChange = { subtitleOffsetMs = it },
                 onSleepTimerChange = onSleepTimerChange,
                 onEpisodeSelected = onEpisodeSelected,
+                onSmoothMotionToggle = { enabled -> smoothMotion?.enabled = enabled },
                 onAudioSelected = { option ->
                     val tracks = exoPlayer.currentTracks
                     if (option.groupIndex < tracks.groups.size) {
@@ -1571,10 +1745,10 @@ private fun ScrubPreview(targetMs: Long, deltaMs: Long, durationMs: Long) {
 }
 
 /** How the video fills the player: letterboxed, cropped to fill the screen, or stretched. */
-enum class VideoScale(val resizeMode: Int, val label: String, val icon: ImageVector) {
-    FIT(AspectRatioFrameLayout.RESIZE_MODE_FIT, "Fit", Icons.Default.FitScreen),
-    ZOOM(AspectRatioFrameLayout.RESIZE_MODE_ZOOM, "Zoom to fill", Icons.Default.ZoomOutMap),
-    STRETCH(AspectRatioFrameLayout.RESIZE_MODE_FILL, "Stretch", Icons.Default.AspectRatio);
+enum class VideoScale(val resizeMode: Int, val label: String, @StringRes val labelRes: Int, val icon: ImageVector) {
+    FIT(AspectRatioFrameLayout.RESIZE_MODE_FIT, "Fit", R.string.scale_fit, Icons.Default.FitScreen),
+    ZOOM(AspectRatioFrameLayout.RESIZE_MODE_ZOOM, "Zoom to fill", R.string.player_zoom_fill, Icons.Default.ZoomOutMap),
+    STRETCH(AspectRatioFrameLayout.RESIZE_MODE_FILL, "Stretch", R.string.scale_stretch, Icons.Default.AspectRatio);
 
     fun next(): VideoScale = entries[(ordinal + 1) % entries.size]
 }
@@ -1595,7 +1769,7 @@ private fun displayLanguageOrNull(code: String): String? {
     val normalized = code.trim().replace('_', '-')
     if (!Regex("^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$").matches(normalized)) return null
     if (normalized.equals("und", ignoreCase = true)) return null
-    val name = java.util.Locale.forLanguageTag(normalized).getDisplayLanguage(java.util.Locale.ENGLISH)
+    val name = java.util.Locale.forLanguageTag(normalized).getDisplayLanguage(java.util.Locale.getDefault())
     return name.takeIf { it.isNotBlank() && !it.equals(normalized, ignoreCase = true) }
 }
 

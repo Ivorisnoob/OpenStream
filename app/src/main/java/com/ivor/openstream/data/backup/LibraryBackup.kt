@@ -1,5 +1,7 @@
 package com.ivor.openstream.data.backup
 
+import androidx.annotation.StringRes
+import com.ivor.openstream.R
 import com.ivor.openstream.data.local.dao.CustomListDao
 import com.ivor.openstream.data.local.dao.HiddenTitleDao
 import com.ivor.openstream.data.local.dao.WatchLaterDao
@@ -34,7 +36,7 @@ data class RestoreSummary(
     val profiles: Int = 0
 )
 
-class BackupFormatException(message: String) : Exception(message)
+class BackupFormatException(@StringRes val resId: Int) : Exception()
 
 /**
  * The user's library as one JSON file: every profile with its Watch Later, custom lists, watch
@@ -93,9 +95,9 @@ class LibraryBackup @Inject constructor(
     suspend fun restore(input: InputStream): RestoreSummary {
         val text = input.bufferedReader().use { it.readText() }
         val backup = runCatching { json.decodeFromString(BackupFile.serializer(), text) }
-            .getOrElse { throw BackupFormatException("This isn't an OpenStream backup") }
-        if (backup.app != APP_ID) throw BackupFormatException("This isn't an OpenStream backup")
-        if (backup.version > VERSION) throw BackupFormatException("This backup is from a newer version of OpenStream")
+            .getOrElse { throw BackupFormatException(R.string.st_not_backup) }
+        if (backup.app != APP_ID) throw BackupFormatException(R.string.st_not_backup)
+        if (backup.version > VERSION) throw BackupFormatException(R.string.st_backup_newer)
 
         var total = MergeCounts()
         backup.profiles.forEach { profile ->
@@ -271,7 +273,11 @@ private data class BackupSettings(
     val pipRightAction: String? = null,
     val subtitleDownloadLanguages: List<String>? = null,
     val subtitleDownloadFromSites: Boolean? = null,
-    val sourceSearchMode: String? = null
+    val sourceSearchMode: String? = null,
+    val appLanguage: String? = null,
+    val episodeNotifications: Boolean? = null,
+    val smartDownloads: Boolean? = null,
+    val smartKeepAhead: Int? = null
 ) {
     fun applyTo(current: AppSettings) = current.copy(
         themeMode = ThemeMode.entries.firstOrNull { it.name == themeMode } ?: current.themeMode,
@@ -287,7 +293,11 @@ private data class BackupSettings(
         pipRightAction = PipAction.entries.firstOrNull { it.name == pipRightAction } ?: current.pipRightAction,
         subtitleDownloadLanguages = subtitleDownloadLanguages?.filter { it.isNotBlank() }?.distinct() ?: current.subtitleDownloadLanguages,
         subtitleDownloadFromSites = subtitleDownloadFromSites ?: current.subtitleDownloadFromSites,
-        sourceSearchMode = SourceSearchMode.entries.firstOrNull { it.name == sourceSearchMode } ?: current.sourceSearchMode
+        sourceSearchMode = SourceSearchMode.entries.firstOrNull { it.name == sourceSearchMode } ?: current.sourceSearchMode,
+        appLanguage = appLanguage ?: current.appLanguage,
+        episodeNotifications = episodeNotifications ?: current.episodeNotifications,
+        smartDownloads = smartDownloads ?: current.smartDownloads,
+        smartKeepAhead = smartKeepAhead?.takeIf { it in AppSettings.SMART_AHEAD_OPTIONS } ?: current.smartKeepAhead
     )
 }
 
@@ -305,5 +315,9 @@ private fun AppSettings.toBackup() = BackupSettings(
     pipRightAction = pipRightAction.name,
     subtitleDownloadLanguages = subtitleDownloadLanguages,
     subtitleDownloadFromSites = subtitleDownloadFromSites,
-    sourceSearchMode = sourceSearchMode.name
+    sourceSearchMode = sourceSearchMode.name,
+    appLanguage = appLanguage,
+    episodeNotifications = episodeNotifications,
+    smartDownloads = smartDownloads,
+    smartKeepAhead = smartKeepAhead
 )

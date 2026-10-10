@@ -1,6 +1,7 @@
 package com.ivor.openstream.presentation.settings
 
 import androidx.compose.foundation.layout.Arrangement
+import com.ivor.openstream.R
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -19,6 +20,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -30,8 +32,10 @@ import androidx.compose.ui.unit.dp
 import com.ivor.openstream.data.subtitles.SavedSubtitleRepository
 
 /** "English, Spanish", or "Off" when no language is picked. */
+@Composable
 internal fun subtitleLanguagesSummary(languages: List<String>): String =
-    if (languages.isEmpty()) "Off" else languages.joinToString(", ") { SavedSubtitleRepository.languageName(it) }
+    if (languages.isEmpty()) stringResource(R.string.misc_off)
+    else languages.joinToString(", ") { SavedSubtitleRepository.languageName(it) }
 
 /**
  * Which subtitle languages every new download saves for offline use. Changes apply as they are
@@ -66,16 +70,16 @@ internal fun SubtitleLanguagesSheet(
             item(key = "header") {
                 Column(Modifier.padding(start = 8.dp, end = 8.dp, bottom = 12.dp)) {
                     Text(
-                        text = "Subtitles with downloads",
+                        text = stringResource(R.string.dl_subtitles_with),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Black,
                         modifier = Modifier.semantics { heading() }
                     )
                     Text(
                         text = if (selected.isEmpty()) {
-                            "No language picked: downloads won't save subtitles. You can still add them from Downloads."
+                            stringResource(R.string.dl_no_language)
                         } else {
-                            "Every new download also saves all subtitles in these languages, so they work offline."
+                            stringResource(R.string.dl_subtitles_hint)
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -94,21 +98,21 @@ internal fun SubtitleLanguagesSheet(
                     supportingContent = {
                         Text(
                             if (fromSites) {
-                                "The video's own subtitles plus OpenSubtitles and SubSource"
+                                stringResource(R.string.dl_video_source_short)
                             } else {
-                                "Only the subtitles the video's source provides"
+                                stringResource(R.string.dl_only_source)
                             }
                         )
                     },
                     trailingContent = { Switch(checked = fromSites, onCheckedChange = null) }
                 ) {
-                    Text("Also from subtitle sites", fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.dl_also_from_sites), fontWeight = FontWeight.SemiBold)
                 }
             }
 
             item(key = "languages-title") {
                 Text(
-                    text = "Languages",
+                    text = stringResource(R.string.st_languages),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,

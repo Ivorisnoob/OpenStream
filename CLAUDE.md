@@ -56,7 +56,7 @@ Rules:
 - Composables render state and forward intent. ViewModels own screen state as `StateFlow`.
   Networking and persistence stay in `data/`.
 - Routes and arguments live in `presentation/navigation/AppNavigation.kt`.
-- Room schema changes need a real `Migration` in `di/DatabaseModule.kt` (current version 8).
+- Room schema changes need a real `Migration` in `di/DatabaseModule.kt` (current version 9).
   `fallbackToDestructiveMigration` is only a safety net; users' downloads and progress live there.
 
 ## How the main features work
@@ -91,6 +91,10 @@ Rules:
   to it and never releases it; leaving the player keeps playback going in `MiniPlayer`. The session
   also records watch progress (`WatchProgressRepository`) and queues the next episode for
   Continue Watching. Debug builds log player events under `EventLogger`.
+  The session also owns a `MediaSession`; `PlaybackService` (Media3 `MediaSessionService`) shows it
+  as the media notification and keeps playback going in the background. The service is started
+  with a plain `startService` and adds the session itself in `onCreate`: Media3 1.3 ignores a plain
+  start intent, and `startForegroundService` crashes the app when `startForeground` doesn't follow.
 - **Casting.** `PlaybackSession` also owns a Media3 `CastPlayer` (Default Media Receiver, options in
   `CastOptionsProvider`, initialised from `MainActivity`). `activePlayer` is the TV while casting;
   connecting moves the item there at the phone's position, disconnecting brings it back paused.

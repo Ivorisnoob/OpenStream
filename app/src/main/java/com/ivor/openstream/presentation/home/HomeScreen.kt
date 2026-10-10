@@ -1,6 +1,7 @@
 package com.ivor.openstream.presentation.home
 
 import com.ivor.openstream.presentation.components.SkeletonBox
+import com.ivor.openstream.presentation.components.AnimeCard
 import com.ivor.openstream.presentation.components.bottomContentPadding
 import com.ivor.openstream.presentation.components.byWidth
 import com.ivor.openstream.presentation.components.isCompactWidth
@@ -27,6 +28,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import com.ivor.openstream.domain.model.Profile
@@ -63,6 +65,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -79,6 +83,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
+import com.ivor.openstream.R
 import com.ivor.openstream.data.remote.model.AnimeDto
 import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.ui.theme.ExpressiveShapes
@@ -99,15 +104,18 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val continueWatching by viewModel.continueWatching.collectAsState()
+    val matches by viewModel.matches.collectAsState()
     val open: (AnimeDto) -> Unit = { onAnimeClick(it.id, if (it.isMovie) "movie" else "tv") }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val undoLabel = stringResource(R.string.action_undo)
     val hide: (AnimeDto) -> Unit = { anime ->
         viewModel.hideTitle(anime)
         scope.launch {
             val result = snackbarHostState.showSnackbar(
-                message = "${anime.name} hidden from Home",
-                actionLabel = "Undo",
+                message = context.getString(R.string.home_hidden_from_home, anime.name),
+                actionLabel = undoLabel,
                 duration = SnackbarDuration.Short
             )
             if (result == SnackbarResult.ActionPerformed) viewModel.unhideTitle(anime)
@@ -143,20 +151,27 @@ fun HomeScreen(
                             profile = profile,
                             onSwitchProfile = onSwitchProfile,
                             onKidsTap = {
-                                scope.launch { snackbarHostState.showSnackbar("Hold the avatar to leave the kids profile") }
+                                scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.home_hold_avatar_kids)) }
                             }
                         )
                     }
 
                     if (continueWatching.isNotEmpty()) {
                         item(key = "continue_watching") {
-                            SectionHeader(title = "Continue watching")
+                            SectionHeader(title = stringResource(R.string.home_continue_watching))
                             ContinueWatchingRail(
                                 items = continueWatching,
                                 onResume = onResume,
                                 onOpenDetails = { onOpenDetails(it.mediaType, it.tmdbId) },
                                 onRemove = viewModel::removeFromContinueWatching
                             )
+                        }
+                    }
+
+                    if (matches.isNotEmpty()) {
+                        item(key = "top-matches") {
+                            SectionHeader(title = stringResource(R.string.match_rail))
+                            MatchRail(matches = matches, onOpen = open)
                         }
                     }
 
@@ -205,7 +220,7 @@ private fun HeroSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "OpenStream",
+                text = stringResource(R.string.app_name),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Black,
                 color = MaterialTheme.colorScheme.onBackground,
@@ -214,10 +229,10 @@ private fun HeroSection(
             // A kids profile keeps Settings and updates out of reach; leaving takes a hold on the avatar.
             if (profile?.isKids != true) {
                 IconButton(onClick = onUpdateClick) {
-                    Icon(Icons.Default.SystemUpdate, contentDescription = "Check for updates")
+                    Icon(Icons.Default.SystemUpdate, contentDescription = stringResource(R.string.action_check_for_updates))
                 }
                 IconButton(onClick = onSettingsClick) {
-                    Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.cd_settings))
                 }
             }
             ProfileSwitchButton(profile = profile, onSwitch = onSwitchProfile, onKidsTap = onKidsTap)
@@ -310,7 +325,7 @@ private fun CarouselItemScope.HeroCard(
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
                 Text(
-                    text = "#$rank this week",
+                    text = "#" + stringResource(R.string.home_rank_this_week, rank),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -331,10 +346,12 @@ private fun CarouselItemScope.HeroCard(
 
 @Composable
 private fun MetaLine(anime: AnimeDto) {
+    val movieLabel = if (anime.isMovie) stringResource(R.string.details_movie) else null
+    val genreLabel = anime.genreIds.orEmpty().firstOrNull { it != 16 }?.let { genreName(it) }
     val parts = buildList {
         anime.date.take(4).takeIf { it.length == 4 }?.let(::add)
-        if (anime.isMovie) add("Movie")
-        anime.genreIds.orEmpty().mapNotNull(GENRE_NAMES::get).firstOrNull { it != "Animation" }?.let(::add)
+        movieLabel?.let(::add)
+        genreLabel?.let(::add)
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         anime.voteAverage?.takeIf { it > 0 }?.let { rating ->
@@ -454,8 +471,7 @@ private fun LandscapeRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit, onH
 }
 
 @Composable
-private fun PosterRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit, onHide: (AnimeDto) -> Unit) {
-    val posterWidth = byWidth(compact = 132.dp, medium = 152.dp, expanded = 164.dp)
+private fun PosterRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit, onHide: (AnimeDto) -> Unit) {    val posterWidth = byWidth(compact = 132.dp, medium = 152.dp, expanded = 164.dp)
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -495,14 +511,44 @@ private fun PosterRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit, onHide
     }
 }
 
+/** Taste matches: poster cards with a match-% badge and the reason underneath. */
+@Composable
+private fun MatchRail(matches: List<MatchUi>, onOpen: (AnimeDto) -> Unit) {
+    val posterWidth = byWidth(compact = 132.dp, medium = 152.dp, expanded = 164.dp)
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(matches, key = { it.key }) { match ->
+            Column(modifier = Modifier.width(posterWidth)) {
+                AnimeCard(
+                    anime = match.item,
+                    onClick = { onOpen(match.item) },
+                    matchPercent = match.percent
+                )
+                match.becauseName?.let { name ->
+                    Text(
+                        text = stringResource(R.string.match_because, name),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 6.dp, start = 6.dp, end = 6.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
 /** Tap opens the title; long-press opens its menu. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun Modifier.titleClickable(anime: AnimeDto, onOpen: (AnimeDto) -> Unit, onLongPress: () -> Unit): Modifier {
     val haptics = LocalHapticFeedback.current
     return combinedClickable(
-        onClickLabel = "Open ${anime.name}",
-        onLongClickLabel = "More options",
+        onClickLabel = stringResource(R.string.misc_open_title, anime.name),
+        onLongClickLabel = stringResource(R.string.misc_more_options),
         onLongClick = {
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
             onLongPress()
@@ -515,7 +561,7 @@ private fun Modifier.titleClickable(anime: AnimeDto, onOpen: (AnimeDto) -> Unit,
 private fun NotInterestedMenu(expanded: Boolean, onDismiss: () -> Unit, onHide: () -> Unit) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
         DropdownMenuItem(
-            text = { Text("Not interested") },
+            text = { Text(stringResource(R.string.home_not_interested)) },
             leadingIcon = { Icon(Icons.Default.VisibilityOff, contentDescription = null) },
             onClick = {
                 onDismiss()
@@ -548,44 +594,46 @@ private fun HomeError(onRetry: () -> Unit) {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Couldn't reach the catalog",
+            text = stringResource(R.string.st_could_not_catalog),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
         Text(
-            text = "Check your connection and try again.",
+            text = stringResource(R.string.home_check_connection),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp)
         )
         Spacer(modifier = Modifier.height(24.dp))
         Button(onClick = onRetry, shape = ExpressiveShapes.medium) {
-            Text("Try again")
+            Text(stringResource(R.string.action_try_again))
         }
     }
 }
 
 /** TMDB genre ids that anime titles use (the TV and movie lists share most of them). */
-private val GENRE_NAMES = mapOf(
-    16 to "Animation",
-    10759 to "Action & Adventure",
-    28 to "Action",
-    12 to "Adventure",
-    35 to "Comedy",
-    18 to "Drama",
-    10765 to "Sci-Fi & Fantasy",
-    14 to "Fantasy",
-    878 to "Sci-Fi",
-    9648 to "Mystery",
-    10749 to "Romance",
-    80 to "Crime",
-    27 to "Horror",
-    53 to "Thriller",
-    10751 to "Family",
-    10762 to "Kids",
-    36 to "History",
-    10402 to "Music"
-)
+@Composable
+private fun genreName(id: Int): String? = when (id) {
+    16 -> stringResource(R.string.genre_animation)
+    10759 -> stringResource(R.string.genre_action_adventure)
+    28 -> stringResource(R.string.genre_action)
+    12 -> stringResource(R.string.genre_adventure)
+    35 -> stringResource(R.string.genre_comedy)
+    18 -> stringResource(R.string.genre_drama)
+    10765 -> stringResource(R.string.genre_scifi_fantasy)
+    14 -> stringResource(R.string.genre_fantasy)
+    878 -> stringResource(R.string.genre_scifi)
+    9648 -> stringResource(R.string.genre_mystery)
+    10749 -> stringResource(R.string.genre_romance)
+    80 -> stringResource(R.string.genre_crime)
+    27 -> stringResource(R.string.genre_horror)
+    53 -> stringResource(R.string.genre_thriller)
+    10751 -> stringResource(R.string.genre_family)
+    10762 -> stringResource(R.string.genre_kids)
+    36 -> stringResource(R.string.genre_history)
+    10402 -> stringResource(R.string.genre_music)
+    else -> null
+}
 
 /** Mirrors the Home layout (title, hero, two shelves) so nothing jumps when content arrives. */
 @Composable

@@ -1,13 +1,17 @@
 package com.ivor.openstream.presentation.search
 
+import android.content.Context
 import android.content.SharedPreferences
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ivor.openstream.R
 import com.ivor.openstream.data.remote.model.AnimeDto
 import com.ivor.openstream.domain.model.AnimeCatalog
 import com.ivor.openstream.domain.model.BrowseGenre
 import com.ivor.openstream.domain.repository.AnimeRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,29 +22,34 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 
-enum class SearchFilter(val label: String) { ALL("All"), MOVIES("Movies"), SERIES("Series"), ANIME("Anime") }
-
-enum class SortOption(val label: String, val apiValue: String) {
-    BEST_MATCH("Best match", "relevance"),
-    POPULAR("Popular", "popularity.desc"),
-    TOP_RATED("Top rated", "vote_average.desc"),
-    NEWEST("Newest", "first_air_date.desc")
+enum class SearchFilter(val label: String, @StringRes val labelRes: Int) {
+    ALL("All", R.string.search_filter_all),
+    MOVIES("Movies", R.string.search_filter_movies),
+    SERIES("Series", R.string.search_filter_series),
+    ANIME("Anime", R.string.search_filter_anime)
 }
 
-enum class YearRange(val label: String, val years: IntRange?) {
-    ANY("Any", null),
-    Y2020S("2020s", 2020..2029),
-    Y2010S("2010s", 2010..2019),
-    Y2000S("2000s", 2000..2009),
-    Y1990S("1990s", 1990..1999),
-    OLDER("Older", 0..1989)
+enum class SortOption(val label: String, @StringRes val labelRes: Int, val apiValue: String) {
+    BEST_MATCH("Best match", R.string.search_sort_best, "relevance"),
+    POPULAR("Popular", R.string.search_sort_popular, "popularity.desc"),
+    TOP_RATED("Top rated", R.string.search_sort_rated, "vote_average.desc"),
+    NEWEST("Newest", R.string.search_sort_newest, "first_air_date.desc")
 }
 
-enum class MinRating(val label: String, val minimum: Double) {
-    ANY("Any", 0.0),
-    SIX("6+", 6.0),
-    SEVEN("7+", 7.0),
-    EIGHT("8+", 8.0)
+enum class YearRange(val label: String, @StringRes val labelRes: Int?, val years: IntRange?) {
+    ANY("Any", R.string.st_any, null),
+    Y2020S("2020s", null, 2020..2029),
+    Y2010S("2010s", null, 2010..2019),
+    Y2000S("2000s", null, 2000..2009),
+    Y1990S("1990s", null, 1990..1999),
+    OLDER("Older", R.string.search_year_older, 0..1989)
+}
+
+enum class MinRating(val label: String, @StringRes val labelRes: Int?, val minimum: Double) {
+    ANY("Any", R.string.st_any, 0.0),
+    SIX("6+", null, 6.0),
+    SEVEN("7+", null, 7.0),
+    EIGHT("8+", null, 8.0)
 }
 
 /** Original languages offered as filters, as TMDB's ISO 639-1 codes. */
@@ -117,7 +126,8 @@ private fun AnimeDto.isAnime(): Boolean =
 class SearchViewModel @Inject constructor(
     private val repository: AnimeRepository,
     private val sharedPreferences: SharedPreferences,
-    private val json: Json
+    private val json: Json,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SearchUiState(recent = loadRecent()))
@@ -252,7 +262,7 @@ class SearchViewModel @Inject constructor(
             },
             onFailure = { error ->
                 _uiState.update {
-                    it.copy(isLoading = false, isLoadingMore = false, error = if (target == 1) error.message ?: "Search failed" else it.error)
+                    it.copy(isLoading = false, isLoadingMore = false, error = if (target == 1) error.message ?: context.getString(R.string.search_failed_short) else it.error)
                 }
             }
         )
