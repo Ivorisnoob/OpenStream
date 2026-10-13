@@ -915,4 +915,28 @@
     <string name="st_smooth_motion_max_fps_hint">Target frame rate cap for motion interpolation.</string>
     <string name="st_smooth_motion_fps_val">Up to %1$d fps</string>
     <string name="st_smooth_motion_unsupported">Not supported on this device\'s GPU (requires OpenGL ES 3.2).</string>
+
+    <!-- Issue 19: delete confirmation + download source picker -->
+    <string name="dl_delete_confirm">Delete download?</string>
+    <string name="dl_delete_body">Remove %1$s from this device? You’ll need to download it again to watch offline.</string>
+    <string name="dl_delete_group_confirm">Delete %1$s?</string>
+    <string name="dl_delete_group_body">Remove %1$d episodes of %2$s from this device? You’ll need to download them again to watch offline.</string>
+    <plurals name="dl_delete_episodes">
+        <item quantity="one">Delete 1 episode?</item>
+        <item quantity="other">Delete %1$d episodes?</item>
+    </plurals>
+    <string name="dl_cancel_confirm">Cancel download?</string>
+    <string name="dl_cancel_body">Stop downloading %1$s? The partial file will be removed.</string>
+    <string name="action_keep">Keep</string>
+    <string name="season_episode_format">Season %1$d, Episode %2$d</string>
+    <string name="dl_batch_count">%1$d episodes</string>
+    <string name="dl_pick_source_title">Choose download source</string>
+    <string name="dl_pick_source_hint">Choose where to download from.</string>
+    <string name="dl_pick_batch_hint">We’ll use the provider and quality you tap for every episode where available.</string>
+    <string name="dl_batch_queued">Downloading %1$d episodes… Find them in Downloads.</string>
+    <string name="dl_hold_options">Hold to choose the source</string>
+    <string name="dl_hold_tip">Tip: hold Download to choose the source and quality.</string>
+    <string name="dl_choose_source">Choose download source</string>
+    <string name="dl_no_quality_match">No sources in this quality yet.</string>
+    <string name="action_show_all">Show all</string>
 </resources>
