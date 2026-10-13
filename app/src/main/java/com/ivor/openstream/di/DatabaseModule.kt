@@ -15,6 +15,7 @@ import com.ivor.openstream.data.local.dao.CustomListDao
 import com.ivor.openstream.data.local.dao.DownloadDao
 import com.ivor.openstream.data.local.dao.HiddenTitleDao
 import com.ivor.openstream.data.local.dao.IdMappingDao
+import com.ivor.openstream.data.local.dao.LocalMediaDao
 import com.ivor.openstream.data.local.dao.WatchLaterDao
 import com.ivor.openstream.data.local.dao.WatchProgressDao
 import dagger.Module
@@ -253,6 +254,31 @@ object DatabaseModule {
         }
     }
 
+    /**
+     * Local media files table for imported and storage-saved videos.
+     */
+    private val migration9To10 = object : Migration(9, 10) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `local_media` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `uri` TEXT NOT NULL,
+                    `displayName` TEXT NOT NULL,
+                    `sizeBytes` INTEGER NOT NULL,
+                    `durationMs` INTEGER NOT NULL,
+                    `dateAdded` INTEGER NOT NULL,
+                    `dateModified` INTEGER NOT NULL,
+                    `mimeType` TEXT,
+                    `folderName` TEXT,
+                    `thumbnailUri` TEXT
+                )
+                """.trimIndent()
+            )
+            database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_local_media_uri` ON `local_media` (`uri`)")
+        }
+    }
+
     /** The profile every existing row is given; also created on a fresh install. */
     private fun seedDefaultProfile(database: SupportSQLiteDatabase) {
         database.execSQL(
@@ -274,7 +300,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "open_stream_db"
         )
-            .addMigrations(migration2To3, migration3To4, migration4To5, migration5To6, migration6To7, migration7To8, migration8To9)
+            .addMigrations(migration2To3, migration3To4, migration4To5, migration5To6, migration6To7, migration7To8, migration8To9, migration9To10)
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) = seedDefaultProfile(db)
             })
@@ -325,5 +351,10 @@ object DatabaseModule {
     @Provides
     fun provideTitleRatingDao(database: AppDatabase): TitleRatingDao {
         return database.ratingDao()
+    }
+
+    @Provides
+    fun provideLocalMediaDao(database: AppDatabase): LocalMediaDao {
+        return database.localMediaDao()
     }
 }

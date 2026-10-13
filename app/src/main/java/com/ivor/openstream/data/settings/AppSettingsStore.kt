@@ -90,7 +90,9 @@ data class AppSettings(
     /** Real-time video frame interpolation (up to 60 or 120 fps). Off by default to save battery. */
     val smoothMotionEnabled: Boolean = false,
     /** Output FPS ceiling for Smooth Motion (60 or 120). */
-    val smoothMotionMaxFps: Int = 120
+    val smoothMotionMaxFps: Int = 120,
+    /** Automatically export completed downloads to device storage under Downloads/Openstream. */
+    val autoExportDownloadsToStorage: Boolean = false
 ) {
     companion object {
         val SEEK_STEPS = listOf(5, 10, 15, 30)
@@ -153,6 +155,7 @@ class AppSettingsStore @Inject constructor(
             .putInt(KEY_METERED_HEIGHT, updated.meteredMaxHeight)
             .putBoolean(KEY_SMOOTH_MOTION_ENABLED, updated.smoothMotionEnabled)
             .putInt(KEY_SMOOTH_MOTION_MAX_FPS, updated.smoothMotionMaxFps)
+            .putBoolean(KEY_AUTO_EXPORT_DOWNLOADS_TO_STORAGE, updated.autoExportDownloadsToStorage)
             .apply()
     }
 
@@ -189,7 +192,8 @@ class AppSettingsStore @Inject constructor(
                 .takeIf { it in AppSettings.METERED_CAPS } ?: defaults.meteredMaxHeight,
             smoothMotionEnabled = prefs.getBoolean(KEY_SMOOTH_MOTION_ENABLED, defaults.smoothMotionEnabled),
             smoothMotionMaxFps = prefs.getInt(KEY_SMOOTH_MOTION_MAX_FPS, defaults.smoothMotionMaxFps)
-                .takeIf { it in AppSettings.SMOOTH_MOTION_FPS_OPTIONS } ?: defaults.smoothMotionMaxFps
+                .takeIf { it in AppSettings.SMOOTH_MOTION_FPS_OPTIONS } ?: defaults.smoothMotionMaxFps,
+            autoExportDownloadsToStorage = prefs.getBoolean(KEY_AUTO_EXPORT_DOWNLOADS_TO_STORAGE, defaults.autoExportDownloadsToStorage)
         )
     }
 
@@ -214,6 +218,8 @@ class AppSettingsStore @Inject constructor(
 
     fun setSmoothMotionMaxFps(fps: Int) =
         update { it.copy(smoothMotionMaxFps = fps.takeIf { it in AppSettings.SMOOTH_MOTION_FPS_OPTIONS } ?: 120) }
+
+    fun setAutoExportDownloadsToStorage(enabled: Boolean) = update { it.copy(autoExportDownloadsToStorage = enabled) }
 
     // region Profile PIN lockout (attempt counting survives restarts)
 
@@ -271,6 +277,7 @@ class AppSettingsStore @Inject constructor(
         const val KEY_ACTIVE_PROFILE = "app_active_profile_id"
         const val KEY_PIP_LEFT = "app_pip_left_action"
         const val KEY_PIP_RIGHT = "app_pip_right_action"
+        const val KEY_AUTO_EXPORT_DOWNLOADS_TO_STORAGE = "app_auto_export_downloads_to_storage"
         /** Matches ProfileEntity.DEFAULT_ID, the profile the Room migration seeds. */
         const val DEFAULT_PROFILE_ID = 1L
     }

@@ -1,5 +1,6 @@
 package com.ivor.openstream.domain.repository
 
+import android.net.Uri
 import com.ivor.openstream.data.local.entity.DownloadEntity
 import com.ivor.openstream.domain.model.DownloadTarget
 import com.ivor.openstream.domain.model.VideoServer
@@ -31,4 +32,7 @@ interface DownloadRepository {
     suspend fun removeDownload(downloadId: String)
 
     suspend fun getPlaybackUri(downloadId: String): String?
+
+    /** Exports a completed download to the device's public Downloads/Openstream folder. */
+    suspend fun exportToStorage(downloadId: String): Result<Uri>
 }

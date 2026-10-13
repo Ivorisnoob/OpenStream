@@ -217,6 +217,8 @@ class SettingsViewModel @Inject constructor(
 
     fun setMeteredMaxHeight(height: Int) = appSettingsStore.setMeteredMaxHeight(height)
 
+    fun setAutoExportDownloadsToStorage(enabled: Boolean) = appSettingsStore.setAutoExportDownloadsToStorage(enabled)
+
     fun clearImageCache() {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {

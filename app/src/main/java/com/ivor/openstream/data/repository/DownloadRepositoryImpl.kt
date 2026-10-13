@@ -11,6 +11,7 @@ import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
 import com.ivor.openstream.R
+import com.ivor.openstream.data.downloads.DownloadStorageExporter
 import com.ivor.openstream.data.local.dao.DownloadDao
 import com.ivor.openstream.data.local.entity.DownloadEntity
 import com.ivor.openstream.data.service.HlsDownloadService
@@ -72,7 +73,8 @@ class DownloadRepositoryImpl @Inject constructor(
     private val json: Json,
     private val appSettings: AppSettingsStore,
     private val savedSubtitles: SavedSubtitleRepository,
-    private val subtitleSaver: DownloadSubtitleSaver
+    private val subtitleSaver: DownloadSubtitleSaver,
+    private val storageExporter: DownloadStorageExporter
 ) : DownloadRepository {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -177,6 +179,12 @@ class DownloadRepositoryImpl @Inject constructor(
             .getOrNull() ?: entity.uri
     }
 
+    override suspend fun exportToStorage(downloadId: String): Result<Uri> {
+        val entity = dao.getDownloadById(downloadId)
+            ?: return Result.failure(IllegalStateException("Download $downloadId not found"))
+        return storageExporter.exportToStorage(entity)
+    }
+
     // region Starting downloads
 
     private fun resolveAndStart(target: DownloadTarget) {
@@ -242,14 +250,11 @@ class DownloadRepositoryImpl @Inject constructor(
         }.onFailure { Log.w(TAG, "Could not record stream subtitles for ${target.id}", it) }
         subtitleSaver.saveFor(target, streamSubtitles)
         withContext(Dispatchers.Main) {
-            // Replace any older copy so segments from two different links never mix.
-            if (media3.downloadIndex.getDownload(target.id) != null) media3.removeDownload(target.id)
+            // Replace any older copy so segments from two different links never mix.\n            if (media3.downloadIndex.getDownload(target.id) != null) media3.removeDownload(target.id)
             val started = runCatching {
                 DownloadService.sendAddDownload(context, HlsDownloadService::class.java, request, true)
             }.isSuccess
-            // Starting a foreground service from the background is blocked on Android 12+;
-            // the manager still downloads while the app process is alive.
-            if (!started) media3.addDownload(request)
+            // Starting a foreground service from the background is blocked on Android 12+;\n            // the manager still downloads while the app process is alive.\n            if (!started) media3.addDownload(request)
         }
     }
 
@@ -336,6 +341,18 @@ class DownloadRepositoryImpl @Inject constructor(
             },
             errorMessage = error
         )
+
+        if (status == DownloadStatus.COMPLETED && appSettings.current.autoExportDownloadsToStorage) {
+            val id = download.request.id
+            if (!storageExporter.isExported(id)) {
+                scope.launch {
+                    val entity = dao.getDownloadById(id)
+                    if (entity != null) {
+                        storageExporter.exportToStorage(entity)
+                    }
+                }
+            }
+        }
     }
 
     private suspend fun syncLegacySystemDownloads() {

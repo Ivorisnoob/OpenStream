@@ -9,6 +9,7 @@ import com.ivor.openstream.data.local.dao.ReminderDao
 import com.ivor.openstream.data.local.dao.TitleRatingDao
 import com.ivor.openstream.data.local.dao.WatchLaterDao
 import com.ivor.openstream.data.local.dao.IdMappingDao
+import com.ivor.openstream.data.local.dao.LocalMediaDao
 import com.ivor.openstream.data.local.dao.ProfileDao
 import com.ivor.openstream.data.local.dao.WatchProgressDao
 import com.ivor.openstream.data.local.entity.CustomListEntity
@@ -16,6 +17,7 @@ import com.ivor.openstream.data.local.entity.CustomListItemEntity
 import com.ivor.openstream.data.local.entity.DownloadEntity
 import com.ivor.openstream.data.local.entity.HiddenTitleEntity
 import com.ivor.openstream.data.local.entity.IdMappingEntity
+import com.ivor.openstream.data.local.entity.LocalMediaEntity
 import com.ivor.openstream.data.local.entity.ProfileEntity
 import com.ivor.openstream.data.local.entity.ReminderEntity
 import com.ivor.openstream.data.local.entity.TitleRatingEntity
@@ -33,9 +35,10 @@ import com.ivor.openstream.data.local.entity.WatchProgressEntity
         CustomListItemEntity::class,
         ProfileEntity::class,
         ReminderEntity::class,
-        TitleRatingEntity::class
+        TitleRatingEntity::class,
+        LocalMediaEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -48,4 +51,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun profileDao(): ProfileDao
     abstract fun reminderDao(): ReminderDao
     abstract fun ratingDao(): TitleRatingDao
+    abstract fun localMediaDao(): LocalMediaDao
 }

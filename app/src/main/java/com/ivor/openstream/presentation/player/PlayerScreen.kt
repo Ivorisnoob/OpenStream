@@ -137,6 +137,7 @@ fun PlayerScreen(
     season: Int,
     episode: Int,
     downloadId: String? = null,
+    localMediaId: Long? = null,
     onBackClick: () -> Unit,
     onEpisodeClick: (season: Int, episode: Int) -> Unit,
     onOpenDetails: (mediaType: String, id: Int) -> Unit = { _, _ -> },
@@ -179,13 +180,14 @@ fun PlayerScreen(
     var showCastSheet by remember { mutableStateOf(false) }
     val enterPictureInPicture = rememberEnterPictureInPicture()
 
+    val isLocalOrDownloaded = downloadId != null || localMediaId != null
     var localVideoUrl by rememberSaveable { mutableStateOf<String?>(null) }
-    var isResolvingLocalUri by remember { mutableStateOf(downloadId != null) }
+    var isResolvingLocalUri by remember { mutableStateOf(isLocalOrDownloaded) }
     var showServerPicker by rememberSaveable { mutableStateOf(false) }
-    var resumePositionMs by rememberSaveable(tmdbId, season, episode, downloadId) {
+    var resumePositionMs by rememberSaveable(tmdbId, season, episode, downloadId, localMediaId) {
         mutableLongStateOf(0L)
     }
-    var sessionPlaybackSpeed by rememberSaveable(tmdbId, season, episode, downloadId) {
+    var sessionPlaybackSpeed by rememberSaveable(tmdbId, season, episode, downloadId, localMediaId) {
         mutableFloatStateOf(viewModel.appSettings.value.defaultSpeed)
     }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -258,22 +260,32 @@ fun PlayerScreen(
     )
 
     // Trigger data fetch
-    LaunchedEffect(tmdbId, season, episode, downloadId) {
-        if (downloadId != null) {
+    LaunchedEffect(tmdbId, season, episode, downloadId, localMediaId) {
+        if (localMediaId != null) {
             isResolvingLocalUri = true
-            val uri = viewModel.getPlaybackUri(downloadId)
-            if (uri != null) {
-                localVideoUrl = uri
+            val item = viewModel.getLocalMedia(localMediaId)
+            if (item != null) {
+                localVideoUrl = item.uri
             }
             isResolvingLocalUri = false
+            viewModel.loadLocalMedia(localMediaId)
+        } else {
+            if (downloadId != null) {
+                isResolvingLocalUri = true
+                val uri = viewModel.getPlaybackUri(downloadId)
+                if (uri != null) {
+                    localVideoUrl = uri
+                }
+                isResolvingLocalUri = false
+            }
+            viewModel.loadSeasonDetails(
+                mediaType = mediaType,
+                tmdbId = tmdbId,
+                seasonNumber = season,
+                currentEpisodeNumber = episode,
+                resolveStreams = downloadId == null
+            )
         }
-        viewModel.loadSeasonDetails(
-            mediaType = mediaType,
-            tmdbId = tmdbId,
-            seasonNumber = season,
-            currentEpisodeNumber = episode,
-            resolveStreams = downloadId == null
-        )
     }
 
     // Read in composition: the snackbar is shown from a coroutine where stringResource is unavailable.
@@ -294,12 +306,14 @@ fun PlayerScreen(
     }
     
     // Dynamic Title for Player HUD
-    val playerTitle = if (mediaType == "movie") {
+    val playerTitle = if (localMediaId != null) {
+        mediaDetails?.name ?: stringResource(R.string.local_file)
+    } else if (mediaType == "movie") {
         mediaDetails?.name ?: stringResource(R.string.details_movie)
     } else {
         mediaDetails?.name ?: stringResource(R.string.player_show_fallback)
     }
-    val playerSubtitle = if (mediaType == "movie") "" else {
+    val playerSubtitle = if (localMediaId != null || mediaType == "movie") "" else {
         val epName = currentEpisode?.name ?: stringResource(R.string.misc_episode_number, episode)
         "S$season:E$episode • $epName"
     }
@@ -500,7 +514,7 @@ fun PlayerScreen(
                         seekStepSeconds = appSettings.seekStepSeconds,
                         onSelectSubtitle = viewModel::selectCastSubtitle,
                         onRetry = viewModel::retryCast,
-                        onChooseSource = { showServerPicker = true }.takeIf { downloadId == null },
+                        onChooseSource = { showServerPicker = true }.takeIf { !isLocalOrDownloaded },
                         onNextClick = onNextClick,
                         onBackClick = onBackClick,
                         onCastClick = { showCastSheet = true },
@@ -530,18 +544,17 @@ fun PlayerScreen(
                             },
                             modifier = Modifier.fillMaxSize(),
                             remoteSubtitles = allSubtitles,
-                            sourceLabel = if (downloadId != null) {
-                                stringResource(R.string.dl_offline_copy)
-                            } else {
-                                activeServer?.name
+                            sourceLabel = when {
+                                localMediaId != null -> stringResource(R.string.local_file)
+                                downloadId != null -> stringResource(R.string.dl_offline_copy)
+                                else -> activeServer?.name
                             },
-                            sourceSummary = if (downloadId != null) {
-                                stringResource(R.string.dl_stored_device)
-                            } else {
-                                activeServer?.let { "${it.providerName} · ${it.sourceSummary(LocalContext.current)}" }
+                            sourceSummary = when {
+                                localMediaId != null || downloadId != null -> stringResource(R.string.dl_stored_device)
+                                else -> activeServer?.let { "${it.providerName} · ${it.sourceSummary(LocalContext.current)}" }
                             },
                             serversState = serversState,
-                            canChangeSource = downloadId == null,
+                            canChangeSource = !isLocalOrDownloaded,
                             initialPositionMs = resumePositionMs,
                             onPositionChanged = { resumePositionMs = it },
                             onPlaybackEnded = {
@@ -576,7 +589,7 @@ fun PlayerScreen(
                             onAudioLanguageChosen = viewModel::setPreferredAudioLanguage,
                             onCaptionSettingsChange = viewModel::updateCaptionSettings,
                             onPlaybackError = { error ->
-                                if (downloadId == null) {
+                                if (!isLocalOrDownloaded) {
                                     viewModel.onPlaybackError(error)
                                     showServerPicker = viewModel.activeServer.value == null
                                 }
@@ -589,7 +602,7 @@ fun PlayerScreen(
                             dpadControls = tvControls,
                             artworkUri = (currentEpisode?.stillPath ?: mediaDetails?.backdropPath)
                                 ?.let { "https://image.tmdb.org/t/p/w1280$it" },
-                            mimeType = activeServer?.mimeType.takeIf { downloadId == null }
+                            mimeType = activeServer?.mimeType.takeIf { !isLocalOrDownloaded }
                         )
                     }
                 } else {
@@ -746,7 +759,7 @@ fun PlayerScreen(
             // Once a stream plays, Sources is a page inside the player's settings panel.
             SourcesPanel(
                 // While casting there is no in-player settings panel, so sources open here too.
-                visible = showServerPicker && (videoUrl == null || isCasting) && downloadId == null,
+                visible = showServerPicker && (videoUrl == null || isCasting) && !isLocalOrDownloaded,
                 isFullscreen = isFullscreen,
                 state = serversState,
                 actions = sourceActions,
@@ -778,7 +791,7 @@ fun PlayerScreen(
                         episodeProgress = episodeProgress,
                         nextEpisode = nextEpisode,
                         download = currentDownload,
-                        canDownload = downloadId == null && activeServer?.isDownloadable == true,
+                        canDownload = !isLocalOrDownloaded && activeServer?.isDownloadable == true,
                         isSaved = isSaved || memberOf.isNotEmpty(),
                         onPlayEpisode = onEpisodeClick,
                         onDownload = { activeServer?.let(viewModel::downloadVideo) },
