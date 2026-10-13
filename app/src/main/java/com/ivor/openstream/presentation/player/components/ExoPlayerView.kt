@@ -209,7 +209,10 @@ fun ExoPlayerView(
     /** Optional SmoothMotion engine for real-time frame interpolation. */
     smoothMotion: SmoothMotion? = null,
     /** D-pad and remote-key handling, for the Android TV player surface. */
-    dpadControls: Boolean = false
+    dpadControls: Boolean = false,
+    volumeBoostPercent: Int = 100,
+    onVolumeBoostChange: (Int) -> Unit = {},
+    onOpenExternalPlayer: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     // Read in composition for the track parser below, which runs in listener and
@@ -1584,7 +1587,8 @@ fun ExoPlayerView(
                 episodes = episodes,
                 currentEpisode = currentEpisodeNumber,
                 episodeProgress = episodeProgress,
-                smoothMotion = smoothMotion
+                smoothMotion = smoothMotion,
+                volumeBoostPercent = volumeBoostPercent
             ),
             actions = PlayerSettingsActions(
                 sources = sourceActions,
@@ -1626,6 +1630,8 @@ fun ExoPlayerView(
                 onSleepTimerChange = onSleepTimerChange,
                 onEpisodeSelected = onEpisodeSelected,
                 onSmoothMotionToggle = { enabled -> smoothMotion?.enabled = enabled },
+                onVolumeBoostChange = onVolumeBoostChange,
+                onOpenExternalPlayer = onOpenExternalPlayer,
                 onAudioSelected = { option ->
                     val tracks = exoPlayer.currentTracks
                     if (option.groupIndex < tracks.groups.size) {

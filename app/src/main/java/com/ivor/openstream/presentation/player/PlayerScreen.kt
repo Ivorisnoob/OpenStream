@@ -599,6 +599,9 @@ fun PlayerScreen(
                             onPictureInPictureClick = enterPictureInPicture,
                             loadSubtitleText = viewModel::loadSubtitleText,
                             keepPlayingInBackground = appSettings.keepPlayingInBackground,
+                            volumeBoostPercent = appSettings.volumeBoostPercent,
+                            onVolumeBoostChange = viewModel::setVolumeBoostPercent,
+                            onOpenExternalPlayer = { viewModel.openInExternalPlayer(context) },
                             dpadControls = tvControls,
                             artworkUri = (currentEpisode?.stillPath ?: mediaDetails?.backdropPath)
                                 ?.let { "https://image.tmdb.org/t/p/w1280$it" },

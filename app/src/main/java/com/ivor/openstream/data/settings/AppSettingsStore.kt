@@ -3,6 +3,7 @@ package com.ivor.openstream.data.settings
 import android.content.SharedPreferences
 import androidx.annotation.StringRes
 import com.ivor.openstream.R
+import com.ivor.openstream.data.playback.VolumeBooster
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -92,7 +93,9 @@ data class AppSettings(
     /** Output FPS ceiling for Smooth Motion (60 or 120). */
     val smoothMotionMaxFps: Int = 120,
     /** Automatically export completed downloads to device storage under Downloads/Openstream. */
-    val autoExportDownloadsToStorage: Boolean = false
+    val autoExportDownloadsToStorage: Boolean = false,
+    /** Hardware volume boost percentage via LoudnessEnhancer (100% = normal / 0 dB, up to 300%). */
+    val volumeBoostPercent: Int = 100
 ) {
     companion object {
         val SEEK_STEPS = listOf(5, 10, 15, 30)
@@ -102,6 +105,7 @@ data class AppSettings(
         /** Quality caps offered for metered networks: 720p, 480p and no limit. */
         val METERED_CAPS = listOf(720, 480, 0)
         val SMOOTH_MOTION_FPS_OPTIONS = listOf(60, 120)
+        val VOLUME_BOOST_PRESETS = listOf(100, 125, 150, 200, 250, 300)
     }
 }
 
@@ -156,6 +160,7 @@ class AppSettingsStore @Inject constructor(
             .putBoolean(KEY_SMOOTH_MOTION_ENABLED, updated.smoothMotionEnabled)
             .putInt(KEY_SMOOTH_MOTION_MAX_FPS, updated.smoothMotionMaxFps)
             .putBoolean(KEY_AUTO_EXPORT_DOWNLOADS_TO_STORAGE, updated.autoExportDownloadsToStorage)
+            .putInt(KEY_VOLUME_BOOST, updated.volumeBoostPercent)
             .apply()
     }
 
@@ -193,7 +198,9 @@ class AppSettingsStore @Inject constructor(
             smoothMotionEnabled = prefs.getBoolean(KEY_SMOOTH_MOTION_ENABLED, defaults.smoothMotionEnabled),
             smoothMotionMaxFps = prefs.getInt(KEY_SMOOTH_MOTION_MAX_FPS, defaults.smoothMotionMaxFps)
                 .takeIf { it in AppSettings.SMOOTH_MOTION_FPS_OPTIONS } ?: defaults.smoothMotionMaxFps,
-            autoExportDownloadsToStorage = prefs.getBoolean(KEY_AUTO_EXPORT_DOWNLOADS_TO_STORAGE, defaults.autoExportDownloadsToStorage)
+            autoExportDownloadsToStorage = prefs.getBoolean(KEY_AUTO_EXPORT_DOWNLOADS_TO_STORAGE, defaults.autoExportDownloadsToStorage),
+            volumeBoostPercent = prefs.getInt(KEY_VOLUME_BOOST, defaults.volumeBoostPercent)
+                .coerceIn(VolumeBooster.MIN_PERCENT, VolumeBooster.MAX_PERCENT)
         )
     }
 
@@ -220,6 +227,8 @@ class AppSettingsStore @Inject constructor(
         update { it.copy(smoothMotionMaxFps = fps.takeIf { it in AppSettings.SMOOTH_MOTION_FPS_OPTIONS } ?: 120) }
 
     fun setAutoExportDownloadsToStorage(enabled: Boolean) = update { it.copy(autoExportDownloadsToStorage = enabled) }
+    fun setVolumeBoostPercent(percent: Int) =
+        update { it.copy(volumeBoostPercent = percent.coerceIn(VolumeBooster.MIN_PERCENT, VolumeBooster.MAX_PERCENT)) }
 
     // region Profile PIN lockout (attempt counting survives restarts)
 
@@ -265,6 +274,7 @@ class AppSettingsStore @Inject constructor(
         const val KEY_METERED_HEIGHT = "app_metered_max_height"
         const val KEY_SMOOTH_MOTION_ENABLED = "app_smooth_motion_enabled"
         const val KEY_SMOOTH_MOTION_MAX_FPS = "app_smooth_motion_max_fps"
+        const val KEY_VOLUME_BOOST = "app_volume_boost_percent"
         const val KEY_THEME = "app_theme_mode"
         const val KEY_DYNAMIC_COLOR = "app_dynamic_color"
         const val KEY_DNS = "app_dns_provider"

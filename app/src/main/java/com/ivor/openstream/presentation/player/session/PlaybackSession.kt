@@ -41,6 +41,7 @@ import com.ivor.openstream.data.cast.CastMediaItemConverter
 import com.ivor.openstream.data.cast.CastMediaProxy
 import com.ivor.openstream.data.playback.DeviceDecoders
 import com.ivor.openstream.data.playback.StreamDataGuard
+import com.ivor.openstream.data.playback.VolumeBooster
 import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.streaming.DownloadRequestHeaderStore
@@ -180,6 +181,8 @@ class PlaybackSession @Inject constructor(
     var smoothMotion: SmoothMotion? = null
         private set
 
+    private val volumeBooster = VolumeBooster()
+
     init {
         // Follow the network so a cap set for mobile data applies as soon as one is joined.
         scope.launch {
@@ -189,6 +192,7 @@ class PlaybackSession @Inject constructor(
             appSettingsStore.settings.collect { settings ->
                 smoothMotion?.enabled = settings.smoothMotionEnabled
                 smoothMotion?.maxFps = settings.smoothMotionMaxFps
+                volumeBooster.setBoostPercentage(settings.volumeBoostPercent)
             }
         }
         // Saves progress every few seconds, and remembers where the TV is (its state is gone once
@@ -449,6 +453,7 @@ class PlaybackSession @Inject constructor(
             player.stop()
             player.clearMediaItems()
         }
+        volumeBooster.release()
         _nowPlaying.value = null
         requestHeaders = emptyMap()
     }
@@ -874,11 +879,20 @@ class PlaybackSession @Inject constructor(
                 maxFps = appSettingsStore.current.smoothMotionMaxFps
             )
         )
+        volumeBooster.setBoostPercentage(appSettingsStore.current.volumeBoostPercent)
+        volumeBooster.attachSession(basePlayer.audioSessionId)
         return basePlayer.apply {
                 playWhenReady = true
                 applyNetworkConstraints()                // Debug builds log load errors, format switches and dropped frames under "EventLogger".
                 if (BuildConfig.DEBUG) addAnalyticsListener(EventLogger())
                 addAnalyticsListener(object : AnalyticsListener {
+                    override fun onAudioSessionIdChanged(
+                        eventTime: AnalyticsListener.EventTime,
+                        audioSessionId: Int
+                    ) {
+                        volumeBooster.attachSession(audioSessionId)
+                    }
+
                     override fun onLoadCompleted(
                         eventTime: AnalyticsListener.EventTime,
                         loadEventInfo: LoadEventInfo,
@@ -897,6 +911,9 @@ class PlaybackSession @Inject constructor(
 
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         if (castConnected) return
+                        if (playbackState == Player.STATE_READY) {
+                            volumeBooster.attachSession(audioSessionId)
+                        }
                         if (playbackState == Player.STATE_ENDED) {
                             recordProgress(force = true, ended = true)
                             // Registered before the screen's listener, so this is set by the time it asks.

@@ -49,6 +49,9 @@ import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import com.ivor.openstream.data.playback.VolumeBooster
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
@@ -162,6 +165,7 @@ enum class PlayerSettingsPage(val title: String, @StringRes val titleRes: Int) {
     MAIN("Playback", R.string.st_playback),
     SOURCES("Sources", R.string.sheet_sources),
     AUDIO("Audio", R.string.sheet_audio),
+    VOLUME_BOOST("Volume boost", R.string.sheet_volume_boost),
     QUALITY("Quality", R.string.sheet_quality),
     SPEED("Speed", R.string.sheet_speed),
     SUBTITLES("Subtitles", R.string.sheet_subtitles),
@@ -195,7 +199,8 @@ class PlayerSettingsModel(
     val episodes: List<EpisodeDto> = emptyList(),
     val currentEpisode: Int = 0,
     val episodeProgress: Map<Pair<Int, Int>, WatchProgress> = emptyMap(),
-    val smoothMotion: SmoothMotion? = null
+    val smoothMotion: SmoothMotion? = null,
+    val volumeBoostPercent: Int = 100
 )
 
 class PlayerSettingsActions(
@@ -208,7 +213,9 @@ class PlayerSettingsActions(
     val onSubtitleOffsetChange: (Long) -> Unit = {},
     val onSleepTimerChange: (SleepTimer?) -> Unit = {},
     val onEpisodeSelected: (EpisodeDto) -> Unit = {},
-    val onSmoothMotionToggle: ((Boolean) -> Unit)? = null
+    val onSmoothMotionToggle: ((Boolean) -> Unit)? = null,
+    val onVolumeBoostChange: (Int) -> Unit = {},
+    val onOpenExternalPlayer: (() -> Unit)? = null
 )
 
 /**
@@ -291,6 +298,7 @@ private fun ColumnScope.SettingsContent(
                 PlayerSettingsPage.MAIN -> mainPage(model, actions, onNavigate = { page = it })
                 PlayerSettingsPage.SOURCES -> sourcesPage(model.serversState, sourceFilter, sourceActions)
                 PlayerSettingsPage.AUDIO -> audioPage(model, actions, sourceActions, onDone = goHome)
+                PlayerSettingsPage.VOLUME_BOOST -> volumeBoostPage(model, actions)
                 PlayerSettingsPage.QUALITY -> qualityPage(
                     model = model,
                     actions = actions,
@@ -374,6 +382,15 @@ private fun LazyListScope.mainPage(
         )
         add(
             MainRow(
+                icon = Icons.AutoMirrored.Filled.VolumeUp,
+                key = "volume-boost",
+                title = { stringResource(R.string.sheet_volume_boost) },
+                value = { "${model.volumeBoostPercent}%" },
+                onClick = { onNavigate(PlayerSettingsPage.VOLUME_BOOST) }
+            )
+        )
+        add(
+            MainRow(
                 icon = Icons.Default.HighQuality,
                 key = "quality",
                 title = { stringResource(R.string.sheet_quality) },
@@ -446,6 +463,17 @@ private fun LazyListScope.mainPage(
                 onClick = { onNavigate(PlayerSettingsPage.SLEEP) }
             )
         )
+        if (actions.onOpenExternalPlayer != null) {
+            add(
+                MainRow(
+                    icon = Icons.AutoMirrored.Filled.OpenInNew,
+                    key = "external-player",
+                    title = { stringResource(R.string.sheet_external_player) },
+                    value = { stringResource(R.string.action_open_external_player) },
+                    onClick = { actions.onOpenExternalPlayer.invoke() }
+                )
+            )
+        }
     }
 
     itemsIndexed(rows, key = { _, row -> row.key }) { index, row ->
@@ -544,6 +572,58 @@ private fun LazyListScope.qualityPage(
                 modifier = Modifier.padding(top = 12.dp)
             )
         }
+    }
+}
+
+// endregion
+
+// region Volume Boost
+
+@OptIn(ExperimentalLayoutApi::class)
+private fun LazyListScope.volumeBoostPage(
+    model: PlayerSettingsModel,
+    actions: PlayerSettingsActions
+) {
+    item(key = "boost-value") {
+        Text(
+            text = "${model.volumeBoostPercent}%",
+            style = MaterialTheme.typography.displayMedium,
+            fontWeight = FontWeight.Black,
+            color = MaterialTheme.colorScheme.primary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp)
+        )
+    }
+    item(key = "boost-options") {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            maxItemsInEachRow = 3
+        ) {
+            VolumeBooster.BOOST_PRESETS.forEach { percent ->
+                ToggleButton(
+                    checked = percent == model.volumeBoostPercent,
+                    onCheckedChange = { actions.onVolumeBoostChange(percent) },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        if (percent == 100) stringResource(R.string.speed_normal) else "${percent}%",
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+    }
+    item(key = "boost-description") {
+        Text(
+            text = stringResource(R.string.sheet_volume_boost_desc),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp)
+        )
     }
 }
 

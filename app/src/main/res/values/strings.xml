@@ -964,4 +964,16 @@
     <string name="sort_size_asc">Smallest size</string>
     <string name="sort_duration_desc">Longest duration</string>
     <string name="sort_duration_asc">Shortest duration</string>
+    <!-- Volume Boost & External Media Tools -->
+    <string name="sheet_volume_boost">Volume boost</string>
+    <string name="sheet_volume_boost_desc">Increases dialogue and maximum output using psychoacoustic limiting without audio distortion.</string>
+    <string name="sheet_external_player">External player</string>
+    <string name="action_open_external_player">Open in external player</string>
+    <string name="action_download_external">External download manager</string>
+    <string name="action_download_1dm">Download with 1DM</string>
+    <string name="action_download_adm">Download with ADM</string>
+    <string name="action_copy_aria2">Copy aria2 command</string>
+    <string name="action_copy_curl">Copy curl command</string>
+    <string name="copied_aria2_command">aria2 command copied to clipboard</string>
+    <string name="copied_curl_command">curl command copied to clipboard</string>
 </resources>

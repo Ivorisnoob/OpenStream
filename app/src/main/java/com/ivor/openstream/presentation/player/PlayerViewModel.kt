@@ -4,6 +4,12 @@ import com.ivor.openstream.data.local.entity.LocalMediaEntity
 import com.ivor.openstream.data.repository.LocalMediaRepository
 
 import android.content.Context
+import android.net.Uri
+import com.ivor.openstream.data.playback.ExternalPlayer
+import com.ivor.openstream.data.playback.ExternalPlayerRequest
+import com.ivor.openstream.data.playback.ExternalSubtitle
+import com.ivor.openstream.data.downloads.ExternalDownloader
+import com.ivor.openstream.data.downloads.ExternalDownloadInfo
 import com.ivor.openstream.R
 import com.ivor.openstream.data.local.entity.CustomListItemEntity
 import com.ivor.openstream.data.local.dao.CustomListSummary
@@ -142,6 +148,67 @@ class PlayerViewModel @Inject constructor(
 
     fun setSmoothMotionEnabled(enabled: Boolean) = appSettingsStore.setSmoothMotionEnabled(enabled)
     fun setSmoothMotionMaxFps(maxFps: Int) = appSettingsStore.setSmoothMotionMaxFps(maxFps)
+    fun setVolumeBoostPercent(percent: Int) = appSettingsStore.setVolumeBoostPercent(percent)
+
+    /**
+     * Pauses internal playback and hands the active stream off to an external player
+     * (Just Player, VLC, mpv, MX Player, Nova) via Android intent.
+     */
+    fun openInExternalPlayer(context: Context): Boolean {
+        val streamUri = activeServer.value?.url ?: _mediaUri.value?.first ?: return false
+        val details = _mediaDetails.value
+        val episode = _currentEpisode.value
+        val title = when {
+            details != null && episode != null ->
+                "${details.name} - S${episode.seasonNumber}E${episode.episodeNumber}"
+            details != null ->
+                details.name.ifBlank { "Video" }
+            else -> "Video"
+        }
+        val headers = activeServer.value?.headers.orEmpty()
+        val positionMs = player.currentPosition.coerceAtLeast(0L)
+        val subs = remoteSubtitles.value.mapNotNull { sub ->
+            runCatching {
+                ExternalSubtitle(
+                    uri = Uri.parse(sub.url),
+                    name = sub.display ?: sub.language ?: "Subtitle",
+                    isDefault = false
+                )
+            }.getOrNull()
+        }
+
+        player.pause()
+
+        val request = ExternalPlayerRequest(
+            mediaUri = Uri.parse(streamUri),
+            title = title,
+            positionMs = positionMs,
+            headers = headers,
+            subtitles = subs
+        )
+        return ExternalPlayer.launch(context, request, context.getString(R.string.sheet_external_player))
+    }
+
+    /**
+     * Gathers stream metadata and headers for external download utilities (1DM, ADM, aria2, curl).
+     */
+    fun getExternalDownloadInfo(): ExternalDownloadInfo? {
+        val streamUrl = activeServer.value?.url ?: _mediaUri.value?.first ?: return null
+        val details = _mediaDetails.value
+        val episode = _currentEpisode.value
+        val title = when {
+            details != null && episode != null ->
+                "${details.name} - S${episode.seasonNumber}E${episode.episodeNumber}"
+            details != null ->
+                details.name.ifBlank { "Video" }
+            else -> "Video"
+        }
+        return ExternalDownloadInfo(
+            url = streamUrl,
+            title = title,
+            headers = activeServer.value?.headers.orEmpty()
+        )
+    }
 
     fun applyRequestHeaders(headers: Map<String, String>) = playbackSession.setRequestHeaders(headers)
 
