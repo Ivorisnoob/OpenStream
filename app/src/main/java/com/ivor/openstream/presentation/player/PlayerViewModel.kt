@@ -194,6 +194,7 @@ class PlayerViewModel @Inject constructor(
 
     /** A stream still playing from the mini player that this screen should continue, not reload. */
     private var adoptedServer: VideoServer? = null
+    private var userChosenServerId: String? = null
 
 
     private val _captionSettings = MutableStateFlow(loadCaptionSettings())
@@ -481,6 +482,7 @@ class PlayerViewModel @Inject constructor(
         val continuing = playbackSession.nowPlaying.value
             ?.takeIf { it.matches(mediaType, tmdbId, seasonNumber, currentEpisodeNumber) }
         adoptedServer = continuing?.server?.takeIf { continuing.downloadId == null }
+        userChosenServerId = adoptedServer?.id
         adoptedServer?.let { _activeServer.value = it }
 
         loadJob = viewModelScope.launch {
@@ -610,12 +612,16 @@ class PlayerViewModel @Inject constructor(
 
     fun selectServer(serverId: String) {
         val server = availableServers().firstOrNull { it.id == serverId } ?: return
+        userChosenServerId = serverId
         switchedFrom = _activeServer.value?.takeIf { it.id != serverId }
         failedServerIds.remove(serverId)
         automaticFailovers = 0
         _activeServer.value = server
         setActiveId(serverId)
-        currentIdentity?.let { streamingRepository.rememberServer(it, server) }
+        currentIdentity?.let { identity ->
+            streamingRepository.rememberServer(identity, server)
+            streamingRepository.rememberWorkingSource(identity, server)
+        }
     }
 
     fun onPlaybackReady() {
@@ -685,13 +691,17 @@ class PlayerViewModel @Inject constructor(
                 preferLastWorking = !includeFallbacks
             ).collect { progress ->
                 // Keep the stream the mini player is already playing at the top of the list.
+                val rememberedId = currentIdentity?.let { streamingRepository.getRememberedServerId(it) }
+                val targetServerId = userChosenServerId ?: rememberedId
+                // Keep the stream the mini player is already playing at the top of the list.
                 val candidates = adoptedServer?.let { adopted ->
                     listOf(adopted) + progress.servers.filterNot { it.id == adopted.id }
                 } ?: progress.servers
                 val healthyServers = candidates.filterNot { it.id in failedServerIds }
-                val active = _activeServer.value?.takeIf { current ->
-                    healthyServers.any { it.id == current.id }
-                } ?: healthyServers.firstOrNull()
+                val active = healthyServers.firstOrNull { it.id == targetServerId }
+                    ?: _activeServer.value?.takeIf { current -> healthyServers.any { it.id == current.id } }
+                    ?: _activeServer.value?.takeIf { current -> targetServerId != null && current.id == targetServerId }
+                    ?: healthyServers.firstOrNull()
                 _activeServer.value = active
 
                 _serversState.value = when {

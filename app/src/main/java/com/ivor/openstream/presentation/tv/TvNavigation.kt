@@ -53,6 +53,7 @@ fun TvNavigation() {
                         TvRoutes.player(progress.mediaType, progress.tmdbId, progress.season, progress.episode)
                     )
                 },
+                onProviders = { openTab(TvRoutes.MARKETPLACE) },
                 onSearch = { openTab(TvRoutes.SEARCH) },
                 onSettings = { openTab(TvRoutes.SETTINGS) }
             )

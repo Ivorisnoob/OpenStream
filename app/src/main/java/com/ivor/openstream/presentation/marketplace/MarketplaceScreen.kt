@@ -1,4 +1,8 @@
 package com.ivor.openstream.presentation.marketplace
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 
 import com.ivor.openstream.presentation.components.CenteredListBox
 import androidx.compose.animation.AnimatedVisibility
@@ -143,9 +147,20 @@ fun MarketplaceScreen(
                 containerColor = MaterialTheme.colorScheme.surface
             ) {
                 MarketplaceTab.entries.forEach { tab ->
+                    val tabInteractionSource = remember { MutableInteractionSource() }
+                    val isTabFocused by tabInteractionSource.collectIsFocusedAsState()
                     Tab(
                         selected = selectedTab == tab,
                         onClick = { selectedTab = tab },
+                        interactionSource = tabInteractionSource,
+                        modifier = Modifier
+                            .then(
+                                if (isTabFocused) {
+                                    Modifier
+                                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f), ExpressiveShapes.small)
+                                        .border(2.dp, MaterialTheme.colorScheme.primary, ExpressiveShapes.small)
+                                } else Modifier
+                            ),
                         text = {
                             Text(
                                 text = when (tab) {
@@ -153,7 +168,8 @@ fun MarketplaceScreen(
                                         "${stringResource(tab.labelRes)} (${state.installed.size})"
                                     else -> stringResource(tab.labelRes)
                                 },
-                                maxLines = 1
+                                maxLines = 1,
+                                fontWeight = if (isTabFocused || selectedTab == tab) FontWeight.Bold else FontWeight.Normal
                             )
                         }
                     )

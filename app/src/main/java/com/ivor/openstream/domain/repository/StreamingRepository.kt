@@ -21,6 +21,7 @@ interface StreamingRepository {
     suspend fun getServers(identity: MediaIdentity): List<VideoServer>
     suspend fun refreshServer(server: VideoServer): Result<VideoServer>
     fun rememberServer(identity: MediaIdentity, server: VideoServer)
+    fun getRememberedServerId(identity: MediaIdentity): String?
 
     /** [server] actually played: its source is the one [resolveServers] can ask first next time. */
     fun rememberWorkingSource(identity: MediaIdentity, server: VideoServer)

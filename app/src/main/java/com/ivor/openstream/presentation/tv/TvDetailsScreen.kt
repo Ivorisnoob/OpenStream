@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.tv
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,14 +25,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,7 +42,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -254,15 +251,10 @@ private fun TvDetailsHero(
                 )
             }
             Row(modifier = Modifier.padding(top = 20.dp)) {
-                Button(
+                TvButton(
                     onClick = onPlay,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondary,
-                        contentColor = MaterialTheme.colorScheme.onSecondary
-                    ),
-                    modifier = Modifier
-                        .height(64.dp)
-                        .focusRequester(playRequester)
+                    focusRequester = playRequester,
+                    modifier = Modifier.height(64.dp)
                 ) {
                     Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.width(28.dp))
                     Spacer(Modifier.width(8.dp))
@@ -272,7 +264,7 @@ private fun TvDetailsHero(
                     )
                 }
                 Spacer(Modifier.width(16.dp))
-                OutlinedButton(
+                TvOutlinedButton(
                     onClick = onToggleSaved,
                     modifier = Modifier.height(64.dp)
                 ) {
@@ -308,10 +300,18 @@ private fun TvSeasonRow(
             FilterChip(
                 selected = number == selected,
                 onClick = { onSelect(number) },
-                label = { Text(name, style = MaterialTheme.typography.titleMedium) },
+                label = {
+                    Text(
+                        name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = if (focused.value) FontWeight.Bold else FontWeight.Normal
+                    )
+                },
+                border = if (focused.value) {
+                    BorderStroke(2.5.dp, MaterialTheme.colorScheme.primary)
+                } else null,
                 modifier = Modifier
                     .scale(tvFocusScale(focused.value, animated))
-                    .tvFocusable()
                     .onFocusChanged { focused.value = it.isFocused }
             )
         }

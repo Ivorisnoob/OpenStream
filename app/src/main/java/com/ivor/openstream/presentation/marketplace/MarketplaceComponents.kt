@@ -1,4 +1,10 @@
 package com.ivor.openstream.presentation.marketplace
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.scale
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 
 import androidx.compose.animation.AnimatedVisibility
 import com.ivor.openstream.R
@@ -131,22 +137,30 @@ fun ExtensionRow(
     showReorder: Boolean = false
 ) {
     val manifest = extension.manifest
+    val rowInteractionSource = remember { MutableInteractionSource() }
+    val isRowFocused by rowInteractionSource.collectIsFocusedAsState()
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(ExpressiveShapes.large)
-            .clickable(onClick = onClick),
+        onClick = onClick,
+        interactionSource = rowInteractionSource,
         shape = ExpressiveShapes.large,
-        color = if (extension.isInstalled) {
+        color = if (isRowFocused) {
+            MaterialTheme.colorScheme.surfaceContainerHighest
+        } else if (extension.isInstalled) {
             MaterialTheme.colorScheme.surfaceContainerHigh
         } else {
             MaterialTheme.colorScheme.surfaceContainerLow
         },
-        border = if (extension.hasUpdate) {
+        border = if (isRowFocused) {
+            BorderStroke(2.5.dp, MaterialTheme.colorScheme.primary)
+        } else if (extension.hasUpdate) {
             BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.7f))
         } else {
             null
-        }
+        },
+        shadowElevation = if (isRowFocused) 8.dp else 0.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (isRowFocused) Modifier.scale(1.02f) else Modifier)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -272,10 +286,20 @@ private fun ExtensionAction(
     onUpdate: () -> Unit
 ) {
     when {
-        extension.hasUpdate -> FilledTonalButton(onClick = onUpdate, shape = ExpressiveShapes.small) {
-            Icon(Icons.Default.Update, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.action_update))
+        extension.hasUpdate -> {
+            val updateInteractionSource = remember { MutableInteractionSource() }
+            val isUpdateFocused by updateInteractionSource.collectIsFocusedAsState()
+            FilledTonalButton(
+                onClick = onUpdate,
+                interactionSource = updateInteractionSource,
+                shape = ExpressiveShapes.small,
+                border = if (isUpdateFocused) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+                modifier = if (isUpdateFocused) Modifier.scale(1.08f) else Modifier
+            ) {
+                Icon(Icons.Default.Update, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.action_update))
+            }
         }
 
         extension.isInstalled -> Icon(
@@ -290,10 +314,20 @@ private fun ExtensionAction(
             color = MaterialTheme.colorScheme.error
         )
 
-        else -> Button(onClick = onInstall, shape = ExpressiveShapes.small) {
-            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.action_install))
+        else -> {
+            val installInteractionSource = remember { MutableInteractionSource() }
+            val isInstallFocused by installInteractionSource.collectIsFocusedAsState()
+            Button(
+                onClick = onInstall,
+                interactionSource = installInteractionSource,
+                shape = ExpressiveShapes.small,
+                border = if (isInstallFocused) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+                modifier = if (isInstallFocused) Modifier.scale(1.08f) else Modifier
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.action_install))
+            }
         }
     }
 }
@@ -307,13 +341,18 @@ fun ChartTile(
     onInstall: () -> Unit
 ) {
     val manifest = extension.manifest
+    val tileInteractionSource = remember { MutableInteractionSource() }
+    val isTileFocused by tileInteractionSource.collectIsFocusedAsState()
     Surface(
+        onClick = onClick,
+        interactionSource = tileInteractionSource,
+        shape = ExpressiveShapes.large,
+        color = if (isTileFocused) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = if (isTileFocused) BorderStroke(2.5.dp, MaterialTheme.colorScheme.primary) else null,
+        shadowElevation = if (isTileFocused) 8.dp else 0.dp,
         modifier = Modifier
             .width(212.dp)
-            .clip(ExpressiveShapes.large)
-            .clickable(onClick = onClick),
-        shape = ExpressiveShapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh
+            .then(if (isTileFocused) Modifier.scale(1.04f) else Modifier)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
