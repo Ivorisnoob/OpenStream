@@ -385,6 +385,21 @@ fun SettingsScreen(
                     }
                 }
 
+                item(key = "stream-quality") {
+                    SettingsGroup(title = stringResource(R.string.st_group_stream_quality)) {
+                        ChoiceRow(
+                            index = 0, count = 1,
+                            icon = Icons.Default.HighQuality,
+                            title = stringResource(R.string.st_stream_cap),
+                            supporting = stringResource(R.string.st_stream_cap_hint),
+                            options = AppSettings.STREAM_CAPS,
+                            selected = appSettings.streamMaxHeight,
+                            label = { capLabel(it) },
+                            onSelect = viewModel::setStreamMaxHeight
+                        )
+                    }
+                }
+
                 item(key = "pip") {
                     SettingsGroup(
                         title = stringResource(R.string.st_group_pip),
@@ -842,3 +857,11 @@ private fun fileDate(withTime: Boolean = false): String =
 
 private fun formatSpeed(speed: Float): String =
     if (speed % 1f == 0f) speed.toInt().toString() else speed.toString().trimEnd('0')
+
+/** 0 means "no limit"; 2160 is labelled 4K rather than 2160p, as everywhere else. */
+@Composable
+private fun capLabel(height: Int): String = when (height) {
+    0 -> stringResource(R.string.st_stream_cap_none)
+    2160 -> stringResource(R.string.q_2160p)
+    else -> "${height}p"
+}

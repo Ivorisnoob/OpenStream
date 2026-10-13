@@ -29,7 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
+
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,31 +43,38 @@ import com.ivor.openstream.presentation.components.ExpressiveMotion
 import com.ivor.openstream.presentation.player.NextEpisodeTarget
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 
-private const val UP_NEXT_COUNTDOWN_MS = 8_000
+private const val UP_NEXT_COUNTDOWN_MS = 8_000L
 
 /**
- * Shown when an episode ends. Counts down and continues automatically, the way every streaming
- * app does; the ring around the play button is the countdown so no extra number is needed.
+ * Shown when an episode ends.
+ *
+ * The countdown is a *prompt*, not an autopilot: when the ring empties the overlay keeps
+ * waiting and focus stays on Play. Advancing is always an OK press. Auto-playing after the
+ * countdown (with no way to stop it other than finding the Cancel button in time) was reported
+ * as the app "skipping" on its own, and on a TV it also moves focus while the viewer is still
+ * reading, which is worse than the phone case.
+ *
+ * [countdownDurationMs] is passed in so the TV overlay can present a longer, deliberate prompt.
  */
 @Composable
 fun UpNextOverlay(
     target: NextEpisodeTarget,
     onPlayNow: () -> Unit,
     onCancel: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    countdownDurationMs: Long = UP_NEXT_COUNTDOWN_MS
 ) {
-    val latestPlayNow by rememberUpdatedState(onPlayNow)
     val countdown = remember(target) { Animatable(1f) }
-    // Same 8s timing with reduced motion, but the ring jumps instead of sweeping.
+    // Same timing with reduced motion, but the ring jumps instead of sweeping.
     val reducedCountdown = ExpressiveMotion.reducedMotion()
-    LaunchedEffect(target) {
+    LaunchedEffect(target, countdownDurationMs) {
         if (reducedCountdown) {
-            delay(UP_NEXT_COUNTDOWN_MS.toLong())
+            delay(countdownDurationMs)
             countdown.snapTo(0f)
         } else {
-            countdown.animateTo(0f, tween(UP_NEXT_COUNTDOWN_MS, easing = LinearEasing))
+            countdown.animateTo(0f, tween(countdownDurationMs.toInt(), easing = LinearEasing))
         }
-        latestPlayNow()
+        // Deliberately stops here: no latestPlayNow(). Nothing advances without OK.
     }
 
     Surface(

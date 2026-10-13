@@ -27,6 +27,7 @@ import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.data.remote.model.toAnimeDto
 import com.ivor.openstream.domain.model.DownloadTarget
 import com.ivor.openstream.domain.model.MediaIdentity
+import com.ivor.openstream.domain.model.StreamQuality
 import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.domain.repository.AnimeRepository
@@ -792,10 +793,20 @@ class PlayerViewModel @Inject constructor(
                     listOf(adopted) + progress.servers.filterNot { it.id == adopted.id }
                 } ?: progress.servers
                 val healthyServers = candidates.filterNot { it.id in failedServerIds }
-                val active = healthyServers.firstOrNull { it.id == targetServerId }
-                    ?: _activeServer.value?.takeIf { current -> healthyServers.any { it.id == current.id } }
+                // The list is ranked best-first, so an uncapped default always landed on the
+                // 4K entry. Prefer the highest-ranked server inside the user's quality cap;
+                // if nothing is labelled within it (or the cap is off), fall back to the top.
+                val capped = playbackSession.heightCap()
+                val withinCap = if (capped == Int.MAX_VALUE) {
+                    healthyServers
+                } else {
+                    healthyServers.filter { it.quality.fitsHeightCap(capped) }
+                }
+                val ordered = if (withinCap.isEmpty()) healthyServers else withinCap
+                val active = ordered.firstOrNull { it.id == targetServerId }
+                    ?: _activeServer.value?.takeIf { current -> ordered.any { it.id == current.id } }
                     ?: _activeServer.value?.takeIf { current -> targetServerId != null && current.id == targetServerId }
-                    ?: healthyServers.firstOrNull()
+                    ?: ordered.firstOrNull()
                 _activeServer.value = active
 
                 _serversState.value = when {

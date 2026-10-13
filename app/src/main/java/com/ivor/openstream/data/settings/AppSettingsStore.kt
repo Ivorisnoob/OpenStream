@@ -60,8 +60,13 @@ data class AppSettings(
     val seekStepSeconds: Int = 10,
     /** Speed every title starts at. */
     val defaultSpeed: Float = 1f,
-    /** Count down into the next episode when one ends. */
-    val autoPlayNext: Boolean = true,
+    /** Count down into the next episode when one ends. Off by default: an unasked-for
+     *  auto-advance reads as the app skipping ahead on its own. */
+    val autoPlayNext: Boolean = false,
+    /** Tallest rendition playback starts at, on any network; 0 means the source's best.
+     *  1080p by default because the previous behaviour auto-selected the highest-ranked
+     *  server, so a 4K adaptive stream was what you got before touching anything. */
+    val streamMaxHeight: Int = 1080,
     /** Offer the skip intro / recap / credits button over the video. */
     val showSkipButton: Boolean = true,
     /** Tallest rendition a download picks from a master playlist. */
@@ -104,6 +109,8 @@ data class AppSettings(
         val SMART_AHEAD_OPTIONS = listOf(1, 2, 3)
         /** Quality caps offered for metered networks: 720p, 480p and no limit. */
         val METERED_CAPS = listOf(720, 480, 0)
+        /** Streaming quality caps on any network: 1080p, 720p, 4K and no limit. */
+        val STREAM_CAPS = listOf(1080, 720, 2160, 0)
         val SMOOTH_MOTION_FPS_OPTIONS = listOf(60, 120)
         val VOLUME_BOOST_PRESETS = listOf(100, 125, 150, 200, 250, 300)
     }
@@ -143,6 +150,7 @@ class AppSettingsStore @Inject constructor(
             .putInt(KEY_SEEK_STEP, updated.seekStepSeconds)
             .putFloat(KEY_DEFAULT_SPEED, updated.defaultSpeed)
             .putBoolean(KEY_AUTO_PLAY_NEXT, updated.autoPlayNext)
+            .putInt(KEY_STREAM_HEIGHT, updated.streamMaxHeight)
             .putBoolean(KEY_SHOW_SKIP_BUTTON, updated.showSkipButton)
             .putInt(KEY_DOWNLOAD_HEIGHT, updated.downloadMaxHeight)
             .putString(KEY_PIP_LEFT, updated.pipLeftAction.name)
@@ -176,6 +184,8 @@ class AppSettingsStore @Inject constructor(
             defaultSpeed = prefs.getFloat(KEY_DEFAULT_SPEED, defaults.defaultSpeed)
                 .takeIf { it in AppSettings.DEFAULT_SPEEDS } ?: defaults.defaultSpeed,
             autoPlayNext = prefs.getBoolean(KEY_AUTO_PLAY_NEXT, defaults.autoPlayNext),
+            streamMaxHeight = prefs.getInt(KEY_STREAM_HEIGHT, defaults.streamMaxHeight)
+                .takeIf { it in AppSettings.STREAM_CAPS } ?: defaults.streamMaxHeight,
             showSkipButton = prefs.getBoolean(KEY_SHOW_SKIP_BUTTON, defaults.showSkipButton),
             downloadMaxHeight = prefs.getInt(KEY_DOWNLOAD_HEIGHT, defaults.downloadMaxHeight)
                 .takeIf { it in AppSettings.DOWNLOAD_HEIGHTS } ?: defaults.downloadMaxHeight,
@@ -220,6 +230,10 @@ class AppSettingsStore @Inject constructor(
     /** 0 clears the cap, so metered networks stream at the source's best quality. */
     fun setMeteredMaxHeight(height: Int) =
         update { it.copy(meteredMaxHeight = height.takeIf { it in AppSettings.METERED_CAPS } ?: 0) }
+
+    /** 0 clears the cap, so any network streams at the source's best quality. */
+    fun setStreamMaxHeight(height: Int) =
+        update { it.copy(streamMaxHeight = height.takeIf { it in AppSettings.STREAM_CAPS } ?: 1080) }
 
     fun setSmoothMotionEnabled(enabled: Boolean) = update { it.copy(smoothMotionEnabled = enabled) }
 
@@ -282,6 +296,7 @@ class AppSettingsStore @Inject constructor(
         const val KEY_SEEK_STEP = "app_seek_step_seconds"
         const val KEY_DEFAULT_SPEED = "app_default_speed"
         const val KEY_AUTO_PLAY_NEXT = "app_auto_play_next"
+        const val KEY_STREAM_HEIGHT = "app_stream_max_height"
         const val KEY_SHOW_SKIP_BUTTON = "app_show_skip_button"
         const val KEY_DOWNLOAD_HEIGHT = "app_download_max_height"
         const val KEY_ACTIVE_PROFILE = "app_active_profile_id"

@@ -32,5 +32,32 @@ enum class StreamQuality(val label: String, @StringRes val labelRes: Int?, val r
                 else -> UNKNOWN
             }
         }
+
+        /**
+         * The highest rank a rendition may carry to sit inside a [heightPx] cap.
+         *
+         * Ranks are not heights, so the cap has to be translated through the enum: a 1080p
+         * cap admits ranks up to [Q1080], a 2160p cap admits everything, and a 0 or
+         * negative cap means "no limit" and also admits everything.
+         */
+        fun maxRankForHeight(heightPx: Int): Int = when {
+            heightPx <= 0 -> Int.MAX_VALUE
+            heightPx >= 2160 -> Int.MAX_VALUE
+            heightPx >= 1440 -> Q1440.rank
+            heightPx >= 1080 -> Q1080.rank
+            heightPx >= 720 -> Q720.rank
+            heightPx >= 480 -> Q480.rank
+            else -> Q360.rank
+        }
     }
+
+    /**
+     * Whether a server labelled with this quality may be picked while a [heightPx] cap applies.
+     *
+     * [UNKNOWN] is always admitted: it is an adaptive master playlist whose actual renditions
+     * are bounded by the track-selection cap, not by the label, so excluding it would strand
+     * a source that is perfectly capable of playing inside the cap.
+     */
+    fun fitsHeightCap(heightPx: Int): Boolean =
+        this == UNKNOWN || rank <= StreamQuality.maxRankForHeight(heightPx)
 }

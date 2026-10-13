@@ -746,12 +746,16 @@
     <string name="li_sort_az">A–Z</string>
 
     <!-- Micro-batch: late discoveries -->
+    <string name="details_seasons">Seasons</string>
     <string name="details_seasons_failed">Couldn\'t load %1$d season(s). Check your connection and try again.</string>
     <string name="details_marked_episodes_one">Marked 1 episode watched</string>
     <string name="details_marked_episodes_other">Marked %1$d episodes watched</string>
     <string name="misc_a_subtitle">a subtitle</string>
     <string name="misc_download_failed">download failed</string>
     <string name="st_group_sources">Sources</string>
+    <string name="st_seek_step">Seek step</string>
+    <string name="st_sources_hint">Manage streaming sources and addons</string>
+    <string name="st_group_stream_quality">Streaming quality</string>
     <string name="st_group_pip">Picture-in-picture</string>
     <string name="st_pip_footer">Play/pause always sits in the middle. Android shows three buttons at most.</string>
     <string name="st_crash_include_other">Includes %1$d crash reports</string>
@@ -891,6 +895,11 @@
     <string name="st_background_playback_hint">Playback carries on when you leave the app, with controls in the notification and on the lock screen.</string>
     <string name="st_notification_channel">Now playing</string>
     <string name="st_notification_channel_hint">Controls for what\'s playing</string>
+
+    <!-- Streaming quality -->
+    <string name="st_stream_cap">Streaming quality</string>
+    <string name="st_stream_cap_hint">Playback starts at or below this quality. Pick 4K or No limit if you want the highest a source offers.</string>
+    <string name="st_stream_cap_none">No limit</string>
 
     <!-- Streaming on mobile data -->
     <string name="st_data_mobile">Mobile data streaming</string>

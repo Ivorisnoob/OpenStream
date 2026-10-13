@@ -809,10 +809,23 @@ fun ExoPlayerView(
         }
     }
 
-    // Auto-hide controls
-    LaunchedEffect(areControlsVisible, isPlaying) {
+    // Bumped on every D-pad press so the chrome's auto-hide timer restarts.
+    var dpadKeyNudge by remember { mutableIntStateOf(0) }
+
+    // Auto-hide controls. On TV the timeout is much longer, and a D-pad press resets it:
+// at 3s the chrome vanished mid-navigation, so the viewer pressed a key and the
+    // control they were aiming at disappeared before OK could land on it.
+    LaunchedEffect(areControlsVisible, isPlaying, dpadControls) {
         if (areControlsVisible && isPlaying) {
-            delay(3000)
+            delay(if (dpadControls) 12_000L else 3000L)
+            areControlsVisible = false
+        }
+    }
+    // Any D-pad navigation re-arms the timeout, so moving through the HUD never
+    // races the auto-hide away.
+    LaunchedEffect(dpadKeyNudge) {
+        if (dpadControls && dpadKeyNudge > 0) {
+            delay(12_000L)
             areControlsVisible = false
         }
     }
@@ -937,6 +950,7 @@ fun ExoPlayerView(
             .onFocusChanged { videoHasFocus.value = it.hasFocus }
             .focusable()
             .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown) dpadKeyNudge++
                 if (!videoHasFocus.value) return@onPreviewKeyEvent false
                 handleDpadKey(event)
             }    } else {
@@ -1567,6 +1581,11 @@ fun ExoPlayerView(
             isFullscreen = isFullscreen,
             initialPage = settingsInitialPage,
             onDismiss = { showSettingsDialog = false },
+            // On TV the panel must take focus when it opens. Otherwise the D-pad is
+            // still parked on the HUD chip that opened it, inside the control group
+            // that is animating away, so the quality and source rows below could not
+            // be reached at all.
+            autoFocus = dpadControls,
             model = PlayerSettingsModel(
                 sourceLabel = sourceLabel,
                 sourceSummary = sourceSummary,

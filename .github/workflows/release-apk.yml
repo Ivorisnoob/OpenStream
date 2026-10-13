@@ -1,0 +1,213 @@
+name: Release APK
+
+# Builds a signed, installable APK on demand and on release tags.
+#
+# `build.yml` already produces artifacts for every push and PR. This workflow
+# exists for the one case that job does not cover cleanly: cutting a single
+# universal APK that can be sideloaded onto a TV, and attaching it to a GitHub
+# Release when a tag is pushed. The same keystore secrets are reused, so an APK
+# from here upgrades an install from build.yml in place rather than forcing a
+# reinstall.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish the release under (e.g. v2.3). Leave empty for a build-only run.'
+        required: false
+        type: string
+      publish:
+        description: 'Publish a GitHub Release for this tag'
+        required: false
+        default: false
+        type: boolean
+
+# Least privilege by default. contents: write is only granted to the publishing
+# job, and only when it actually publishes.
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-release-apk:
+    name: Build release APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Restore release keystore
+        shell: bash
+        env:
+          OPENSTREAM_KEYSTORE_BASE64: ${{ secrets.OPENSTREAM_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$OPENSTREAM_KEYSTORE_BASE64" ]]; then
+            echo "Missing required GitHub Actions secret: OPENSTREAM_KEYSTORE_BASE64" >&2
+            exit 1
+          fi
+          printf '%s' "$OPENSTREAM_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/openstream-release.jks"
+
+      - name: Verify signing secrets are present
+        shell: bash
+        env:
+          OPENSTREAM_KEYSTORE_PASSWORD: ${{ secrets.OPENSTREAM_KEYSTORE_PASSWORD }}
+          OPENSTREAM_KEY_ALIAS: ${{ secrets.OPENSTREAM_KEY_ALIAS }}
+          OPENSTREAM_KEY_PASSWORD: ${{ secrets.OPENSTREAM_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          # Checked up front so a missing secret fails in one clear line instead
+          # of as a keystore decode error deep inside Gradle.
+          for variable in \
+            OPENSTREAM_KEYSTORE_PASSWORD \
+            OPENSTREAM_KEY_ALIAS \
+            OPENSTREAM_KEY_PASSWORD
+          do
+            if [[ -z "${!variable}" ]]; then
+              echo "Missing required GitHub Actions secret: $variable" >&2
+              exit 1
+            fi
+          done
+
+      - name: Build signed universal release APK
+        shell: bash
+        env:
+          OPENSTREAM_KEYSTORE_PATH: ${{ runner.temp }}/openstream-release.jks
+          OPENSTREAM_KEYSTORE_PASSWORD: ${{ secrets.OPENSTREAM_KEYSTORE_PASSWORD }}
+          OPENSTREAM_KEY_ALIAS: ${{ secrets.OPENSTREAM_KEY_ALIAS }}
+          OPENSTREAM_KEY_PASSWORD: ${{ secrets.OPENSTREAM_KEY_PASSWORD }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Collect the universal APK
+        id: collect
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/release/*universal*.apk)
+          if [[ ${#apks[@]} -eq 0 ]]; then
+            echo "No universal release APK was produced" >&2
+            ls -R app/build/outputs/apk/release >&2 || true
+            exit 1
+          fi
+          apk="${apks[0]}"
+          version=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          # Renamed to the version so a downloaded file says what it is and two
+          # releases can sit side by side in a downloads folder.
+          out="openstream-v${version}-universal.apk"
+          cp "$apk" "$RUNNER_TEMP/$out"
+          echo "name=$out" >> "$GITHUB_OUTPUT"
+          echo "path=$RUNNER_TEMP/$out" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Summarise
+        shell: bash
+        env:
+          APK_NAME: ${{ steps.collect.outputs.name }}
+          APK_PATH: ${{ steps.collect.outputs.path }}
+          VERSION: ${{ steps.collect.outputs.version }}
+        run: |
+          set -euo pipefail
+          size=$(du -h "$APK_PATH" | cut -f1)
+          {
+            echo "### Release APK"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Version | \`v${VERSION}\` |"
+            echo "| File | \`${APK_NAME}\` |"
+            echo "| Size | ${size} |"
+            echo "| ABI | universal (armeabi-v7a, arm64-v8a) |"
+            echo ""
+            echo "Signed with the repository release key, so it installs over any other"
+            echo "signed build. Sideload it on the TV with an unknown-sources file manager"
+            echo "or \`adb install -r\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: openstream-release-apk
+          path: ${{ steps.collect.outputs.path }}
+          if-no-files-found: error
+          retention-days: 90
+
+      # R8 mapping for this exact build: a stack trace from this APK is only
+      # readable against the mapping of the version that produced it.
+      - name: Upload R8 mapping
+        uses: actions/upload-artifact@v7
+        with:
+          name: openstream-release-mapping
+          path: app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
+          retention-days: 90
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: build-release-apk
+    # Only a tag push publishes. workflow_dispatch has to opt in explicitly, so
+    # a test run cannot cut a release by accident.
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+      || (github.event_name == 'workflow_dispatch'
+          && inputs.publish == true
+          && inputs.tag != '')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download the APK
+        uses: actions/download-artifact@v6
+        with:
+          name: openstream-release-apk
+          path: dist
+
+      - name: Check out the tagged source for its version
+        uses: actions/checkout@v7
+        with:
+          # The version lives in build.gradle.kts, so the publishing job needs the
+          # source. `ref` is the tag being released, not the default branch.
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          persist-credentials: false
+
+      - name: Read the version from the build file
+        id: version
+        run: |
+          echo "value=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)" >> "$GITHUB_OUTPUT"
+
+      - name: Create the release
+        uses: softprops/action-gh-release@v2
+        with:
+          # A tag push already carries the ref; a manual run names its own tag.
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          name: OpenStream ${{ steps.version.outputs.value }}
+          body: |
+            Signed universal APK (armeabi-v7a + arm64-v8a).
+
+            Installs over any other signed OpenStream build. On a TV, sideload the
+            APK with a file manager that allows unknown sources, or over ADB:
+
+            ```
+            adb install -r openstream.apk
+            ```
+          files: dist/*.apk
+          fail_on_unmatched_files: true

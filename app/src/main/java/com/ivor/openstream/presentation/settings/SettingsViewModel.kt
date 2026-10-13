@@ -183,6 +183,8 @@ class SettingsViewModel @Inject constructor(
     fun setAutoPlayNext(enabled: Boolean) = appSettingsStore.update { it.copy(autoPlayNext = enabled) }
     fun setShowSkipButton(enabled: Boolean) = appSettingsStore.update { it.copy(showSkipButton = enabled) }
 
+    fun setStreamMaxHeight(height: Int) = appSettingsStore.setStreamMaxHeight(height)
+
     fun setDownloadMaxHeight(height: Int) = appSettingsStore.update { it.copy(downloadMaxHeight = height) }
 
     fun setPipLeftAction(action: PipAction) = appSettingsStore.update { it.copy(pipLeftAction = action) }

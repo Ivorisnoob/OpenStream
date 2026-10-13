@@ -230,9 +230,16 @@ fun PlayerSettingsHost(
     initialPage: PlayerSettingsPage,
     model: PlayerSettingsModel,
     actions: PlayerSettingsActions,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** TV: take focus when the panel opens so the D-pad can reach its rows. */
+    autoFocus: Boolean = false
 ) {
-    PlayerPanelHost(visible = visible, isFullscreen = isFullscreen, onDismiss = onDismiss) { listModifier, onClose ->
+    PlayerPanelHost(
+        visible = visible,
+        isFullscreen = isFullscreen,
+        onDismiss = onDismiss,
+        autoFocus = autoFocus
+    ) { listModifier, onClose ->
         SettingsContent(
             initialPage = initialPage,
             model = model,

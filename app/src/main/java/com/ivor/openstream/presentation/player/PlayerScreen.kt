@@ -372,8 +372,11 @@ fun PlayerScreen(
         if (tvControls && videoUrl != null && !isFullscreen) enterFullscreen()
     }
 
-    // Handle back press in fullscreen -- exit fullscreen instead of navigating back
-    BackHandler(enabled = isFullscreen) {
+    // Handle back press in fullscreen -- exit fullscreen instead of navigating back.
+    // A TV is always immersive, so it skips this and lets Back leave the player: the
+    // old behaviour swallowed the first press to "exit" a state it never left, which
+    // is what made the back button look stuck.
+    BackHandler(enabled = isFullscreen && !tvControls) {
         exitFullscreen()
     }
 

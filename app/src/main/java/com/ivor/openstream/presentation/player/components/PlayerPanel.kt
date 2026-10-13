@@ -10,8 +10,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -48,10 +49,14 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -71,23 +76,33 @@ fun PlayerPanelHost(
     visible: Boolean,
     isFullscreen: Boolean,
     onDismiss: () -> Unit,
+    /** Pulls focus into the panel when it opens. Required on TV, where nothing else
+     *  would: the D-pad had focus on the HUD chip that opened the panel, and that chip
+     *  lives in the group animating away, so every key after that went nowhere and the
+     *  quality/source rows were unreachable. */
+    autoFocus: Boolean = false,
     content: @Composable ColumnScope.(listModifier: Modifier, onClose: (() -> Unit)?) -> Unit
 ) {
     if (isFullscreen) {
         // Panel motion follows the theme (instant with reduced motion).
         val panelFade = ExpressiveMotion.finiteEffectsSpec()
         val panelSlide = ExpressiveMotion.finiteSpatialSpec()
+        val panelFocusRequester = remember { FocusRequester() }
+        LaunchedEffect(visible, autoFocus) {
+            if (visible && autoFocus) runCatching { panelFocusRequester.requestFocus() }
+        }
         Box(modifier = Modifier.fillMaxSize()) {
             AnimatedVisibility(visible = visible, enter = fadeIn(panelFade), exit = fadeOut(panelFade)) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onDismiss
-                        )
+                        // Taps dismiss, but this is deliberately NOT focusable: as a focus
+                        // node it rendered no indication, so a remote that landed on it
+                        // looked completely dead.
+                        .pointerInput(onDismiss) {
+                            detectTapGestures(onTap = { onDismiss() })
+                        }
                 )
             }
             AnimatedVisibility(
@@ -109,6 +124,12 @@ fun PlayerPanelHost(
                 ) {
                     Column(
                         modifier = Modifier
+                            // Focus target for the panel as a whole. A focus group plus
+                            // one requester means D-pad traversal starts inside the panel
+                            // and stays there, rather than escaping back to the video.
+                            .focusRequester(panelFocusRequester)
+                            .focusGroup()
+                            .focusable()
                             .windowInsetsPadding(
                                 WindowInsets.safeDrawing.only(WindowInsetsSides.End + WindowInsetsSides.Vertical)
                             )

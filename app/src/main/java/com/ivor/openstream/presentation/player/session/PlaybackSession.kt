@@ -302,17 +302,30 @@ class PlaybackSession @Inject constructor(
      */
     fun applyNetworkConstraints() {
         if (!localPlayerCreated) return
-        val cap = meteredHeightCap()
+        val cap = heightCap()
         player.trackSelectionParameters = player.trackSelectionParameters
             .buildUpon()
-            .setMaxVideoSize(Int.MAX_VALUE, if (cap > 0) cap else Int.MAX_VALUE)
+            .setMaxVideoSize(Int.MAX_VALUE, if (cap != Int.MAX_VALUE) cap else Int.MAX_VALUE)
             .build()
     }
 
-    /** Tallest rendition allowed right now: the metered cap, or the source's best (0). */
-    fun meteredHeightCap(): Int {
-        if (!streamDataGuard.meteredNow) return Int.MAX_VALUE
-        return appSettingsStore.current.meteredMaxHeight.takeIf { it > 0 } ?: Int.MAX_VALUE
+    /**
+     * Tallest rendition allowed right now.
+     *
+     * The stricter of the two caps wins: [AppSettings.streamMaxHeight] applies on every network
+     * (it is why playback no longer starts on a 4K rendition without being asked), and
+     * [AppSettings.meteredMaxHeight] applies on top of it while on mobile data. Either being 0
+     * means "no limit", so a source with only 4K still plays rather than refusing to start.
+     */
+    fun heightCap(): Int {
+        val always = appSettingsStore.current.streamMaxHeight
+        val metered = if (streamDataGuard.meteredNow) {
+            appSettingsStore.current.meteredMaxHeight
+        } else {
+            0
+        }
+        val caps = listOf(always, metered).filter { it > 0 }
+        return caps.minOrNull() ?: Int.MAX_VALUE
     }
 
     /** Applies a one-off cap for this playback, for example after the user chose 480p. */
@@ -329,8 +342,8 @@ class PlaybackSession @Inject constructor(
         .setSelectUndeterminedTextLanguage(true)
         // No HEVC decoder: prefer H.264 variants so a source never picks an unplayable track.
         .apply { if (!deviceDecoders.supportsHevc) setPreferredVideoMimeType(MimeTypes.VIDEO_H264) }
-        // Mobile data: start inside the cap straight away, not only after a network change.
-        .apply { meteredHeightCap().takeIf { it != Int.MAX_VALUE }?.let { setMaxVideoSize(Int.MAX_VALUE, it) } }
+        // Start inside the cap straight away, not only after a network or settings change.
+        .apply { heightCap().takeIf { it != Int.MAX_VALUE }?.let { setMaxVideoSize(Int.MAX_VALUE, it) } }
         .build()
 
     // endregion

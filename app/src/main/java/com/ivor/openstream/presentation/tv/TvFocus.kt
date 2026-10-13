@@ -5,41 +5,68 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonColors
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Shared TV focus treatment (M3 Expressive for the 10-foot screen):
- * focused items grow with a spring and gain a primary glow ring + elevation,
- * so the remote's position is unmistakable from the couch.
+ * The 10-foot focus system.
+ *
+ * Everything here exists because of one rule of D-pad navigation: **the remote
+ * must always be somewhere obvious.** Three failures follow from breaking it,
+ * and all three were reported against the old code:
+ *
+ * - *No initial focus.* A screen entered with nothing focused looks identical to
+ *   a broken one: the D-pad goes nowhere because there is no focused node to
+ *   move. Screens request focus on entry (see `TvFocusTarget`).
+ * - *No focus visual.* M3's plain `clickable` only ripples on press. A focused
+ *   result card looked exactly like an unfocused one, so the highlight
+ *   "did not go anywhere". Every component below draws a ring.
+ * - *A second focusable node.* Two focus targets on one control means D-pad OK
+ *   lands on the decoration, which has no click action and does nothing. The
+ *   helpers below only ever *observe* focus; the host control stays the single
+ *   focusable node.
  */
+
+/** True when the system animator scale is on, so focus motion can be skipped. */
 @Composable
 fun rememberTvAnimated(): Boolean {
     val context = LocalContext.current
@@ -47,8 +74,11 @@ fun rememberTvAnimated(): Boolean {
 }
 
 /**
- * Observes focus on an already-focusable (clickable) element. Never adds another focusable
- * node: a second target makes D-pad OK land on something with no click action.
+ * Observes focus on an already-focusable element.
+ *
+ * Never adds another focusable node: a second target makes D-pad OK land on
+ * something with no click action, which is exactly the "presses OK and nothing
+ * happens" bug.
  */
 fun Modifier.tvFocusable(
     focusRequester: FocusRequester? = null,
@@ -57,63 +87,44 @@ fun Modifier.tvFocusable(
 ): Modifier {
     var modifier: Modifier = this
     if (focusRequester != null) modifier = modifier.focusRequester(focusRequester)
-    return modifier
-        .onFocusChanged {
-            if (it.isFocused) onFocused() else onBlurred()
-        }
+    return modifier.onFocusChanged {
+        if (it.isFocused) onFocused() else onBlurred()
+    }
 }
-
-/** Scale applied to a focused TV element (1x when unfocused or motion is off: the ring and
- * elevation carry focus alone under reduced motion). */
 
 /**
- * Universal TV focus highlight modifier for remote navigation.
- * Scales the element smoothly, adds a prominent primary focus border, and tracks focus.
+ * The focus ring plus a small spring scale.
+ *
+ * Scale alone is not enough (6% on a dark card is nearly invisible) and a
+ * border alone is not enough (it reads as part of the artwork), so the ring is
+ * the primary signal and the scale reinforces it.
  */
-fun Modifier.tvFocusHighlight(
-    shape: Shape = CircleShape,
-    borderWidth: Dp = 3.dp,
-    focusedBorderColor: Color? = null,
-    scaleWhenFocused: Boolean = true,
-    focusRequester: FocusRequester? = null,
-    onFocused: (() -> Unit)? = null,
-    onBlurred: (() -> Unit)? = null
-): Modifier = composed {
-    var isFocused by remember { mutableStateOf(false) }
+@Composable
+private fun Modifier.tvFocusTreatment(shape: Shape): Modifier {
+    val dimens = LocalTvDimens.current
     val animated = rememberTvAnimated()
-    val scale = if (scaleWhenFocused) tvFocusScale(isFocused, animated) else 1f
-    val borderColor = focusedBorderColor ?: MaterialTheme.colorScheme.primary
-
-    var mod = this
-    if (focusRequester != null) {
-        mod = mod.focusRequester(focusRequester)
-    }
-    mod
-        .then(if (scaleWhenFocused) Modifier.scale(scale) else Modifier)
-        .onFocusChanged { state ->
-            val focused = state.isFocused || state.hasFocus
-            if (focused != isFocused) {
-                isFocused = focused
-                if (focused) onFocused?.invoke() else onBlurred?.invoke()
-            }
-        }
-        .then(
-            if (isFocused) {
-                Modifier.border(borderWidth, borderColor, shape)
-            } else {
-                Modifier
-            }
-        )
+    val scale by animateFloatAsState(
+        targetValue = if (animated) dimens.focusScale else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "tvFocusScale"
+    )
+    return this
+        .scale(scale)
+        .border(dimens.focusRingWidth, MaterialTheme.colorScheme.primary, shape)
 }
 
-/** Scale applied to a focused TV element: animated spring when motion is on. */
+/** Spring scale for a focused element; 1x when motion is off. */
 @Composable
 fun tvFocusScale(focused: Boolean, animated: Boolean): Float {
     if (!animated) return 1f
+    val dimens = LocalTvDimens.current
     val scale by animateFloatAsState(
-        targetValue = if (focused) 1.07f else 1f,
+        targetValue = if (focused) dimens.focusScale else 1f,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
+            dampingRatio = Spring.DampingRatioLowBouncy,
             stiffness = Spring.StiffnessMedium
         ),
         label = "tvFocusScale"
@@ -121,7 +132,12 @@ fun tvFocusScale(focused: Boolean, animated: Boolean): Float {
     return scale
 }
 
-/** A TV card: surface that lifts, glows and scales when the remote lands on it. */
+/**
+ * A TV card: surface that rings, lifts and scales when the remote lands on it.
+ *
+ * [focused] is driven by the caller's focus observation so a rail can scroll
+ * itself when an item takes focus.
+ */
 @Composable
 fun TvCard(
     focused: Boolean,
@@ -134,15 +150,18 @@ fun TvCard(
     shape: Shape = MaterialTheme.shapes.extraLarge,
     content: @Composable () -> Unit
 ) {
+    val dimens = LocalTvDimens.current
     val scale = tvFocusScale(focused, animated)
     Surface(
         onClick = onClick,
         shape = shape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        border = if (focused) {
-            BorderStroke(3.dp, MaterialTheme.colorScheme.primary)
-        } else null,
-        shadowElevation = if (focused) 16.dp else 0.dp,
+        color = if (focused) {
+            MaterialTheme.colorScheme.surfaceContainerHighest
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        },
+        border = if (focused) BorderStroke(dimens.focusRingWidth, MaterialTheme.colorScheme.primary) else null,
+        shadowElevation = if (focused) 12.dp else 0.dp,
         modifier = modifier
             .scale(scale)
             .tvFocusable(focusRequester = focusRequester, onFocused = onFocused, onBlurred = onBlurred)
@@ -152,8 +171,8 @@ fun TvCard(
 }
 
 /**
- * TV button with unmistakable remote focus: expands with a spring, displays a vibrant
- * primary border, elevated shadow, and high-contrast color scheme when selected.
+ * A button sized for a remote: never below [TvDimens.minTarget] tall, with a
+ * ring and a container swap on focus so the selection reads from the couch.
  */
 @Composable
 fun TvButton(
@@ -163,47 +182,39 @@ fun TvButton(
     shape: Shape = CircleShape,
     focusRequester: FocusRequester? = null,
     colors: ButtonColors = ButtonDefaults.buttonColors(
-        containerColor = MaterialTheme.colorScheme.secondary,
-        contentColor = MaterialTheme.colorScheme.onSecondary
+        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
     ),
     focusedColors: ButtonColors = ButtonDefaults.buttonColors(
         containerColor = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary
     ),
-    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
     content: @Composable RowScope.() -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
-    val animated = rememberTvAnimated()
-    val scale = tvFocusScale(isFocused, animated)
-    val highlightBorder = if (isFocused) {
-        BorderStroke(3.dp, MaterialTheme.colorScheme.primary)
-    } else null
-
+    val dimens = LocalTvDimens.current
     var buttonModifier = modifier
-    if (focusRequester != null) {
-        buttonModifier = buttonModifier.focusRequester(focusRequester)
-    }
+    if (focusRequester != null) buttonModifier = buttonModifier.focusRequester(focusRequester)
 
     Button(
         onClick = onClick,
         enabled = enabled,
         shape = shape,
-        border = highlightBorder,
-        elevation = if (isFocused) ButtonDefaults.buttonElevation(defaultElevation = 8.dp) else null,
+        border = if (isFocused) BorderStroke(dimens.focusRingWidth, MaterialTheme.colorScheme.primary) else null,
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
         colors = if (isFocused) focusedColors else colors,
         contentPadding = contentPadding,
         modifier = buttonModifier
-            .scale(scale)
+            .height(dimens.buttonHeight)
+            .tvFocusTreatment(shape)
             .onFocusChanged { isFocused = it.isFocused }
     ) {
         content()
     }
 }
 
-/**
- * TV outlined button with high-contrast remote focus ring and container fill on focus.
- */
+/** TV outlined button: transparent until focused, then a ring and a fill. */
 @Composable
 fun TvOutlinedButton(
     onClick: () -> Unit,
@@ -217,30 +228,24 @@ fun TvOutlinedButton(
         containerColor = MaterialTheme.colorScheme.secondaryContainer,
         contentColor = MaterialTheme.colorScheme.onSecondaryContainer
     ),
-    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
     content: @Composable RowScope.() -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
-    val animated = rememberTvAnimated()
-    val scale = tvFocusScale(isFocused, animated)
-    val highlightBorder = if (isFocused) {
-        BorderStroke(3.dp, MaterialTheme.colorScheme.primary)
-    } else border
-
+    val dimens = LocalTvDimens.current
     var buttonModifier = modifier
-    if (focusRequester != null) {
-        buttonModifier = buttonModifier.focusRequester(focusRequester)
-    }
+    if (focusRequester != null) buttonModifier = buttonModifier.focusRequester(focusRequester)
 
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
         shape = shape,
-        border = highlightBorder,
+        border = if (isFocused) BorderStroke(dimens.focusRingWidth, MaterialTheme.colorScheme.primary) else border,
         colors = if (isFocused) focusedColors else colors,
         contentPadding = contentPadding,
         modifier = buttonModifier
-            .scale(scale)
+            .height(dimens.buttonHeight)
+            .tvFocusTreatment(shape)
             .onFocusChanged { isFocused = it.isFocused }
     ) {
         content()
@@ -248,8 +253,94 @@ fun TvOutlinedButton(
 }
 
 /**
- * TV icon button with scale and primary ring when remote focuses on it.
+ * The standard TV list row (settings, sources, episodes, downloads).
+ *
+ * Full width, remote-sized, ringed when focused, filled when selected. Rows
+ * are what makes a TV screen scannable from the couch: one line, one decision.
  */
+@Composable
+fun TvListRow(
+    onClick: () -> Unit,
+    title: String,
+    modifier: Modifier = Modifier,
+    supporting: String? = null,
+    leading: ImageVector? = null,
+    selected: Boolean = false,
+    enabled: Boolean = true,
+    focusRequester: FocusRequester? = null,
+    trailingText: String? = null,
+    trailing: (@Composable () -> Unit)? = null
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val dimens = LocalTvDimens.current
+    var rowModifier = modifier
+    if (focusRequester != null) rowModifier = rowModifier.focusRequester(focusRequester)
+
+    val highlighted = isFocused || selected
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = MaterialTheme.shapes.large,
+        color = if (highlighted) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        },
+        contentColor = if (highlighted) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        },
+        border = if (isFocused) BorderStroke(dimens.focusRingWidth, MaterialTheme.colorScheme.primary) else null,
+        modifier = rowModifier
+            .height(dimens.listRowHeight)
+            .tvFocusTreatment(MaterialTheme.shapes.large)
+            .onFocusChanged { isFocused = it.isFocused }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = dimens.paddingMedium),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            leading?.let {
+                Icon(it, contentDescription = null)
+                Spacer(Modifier.width(dimens.paddingMedium))
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = if (highlighted) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                supporting?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            trailingText?.let {
+                Spacer(Modifier.width(dimens.paddingMedium))
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
+            trailing?.let {
+                Spacer(Modifier.width(dimens.paddingSmall))
+                it()
+            }
+        }
+    }
+}
+
+/** TV icon button with a ring and a container swap when focused. */
 @Composable
 fun TvIconButton(
     onClick: () -> Unit,
@@ -260,33 +351,99 @@ fun TvIconButton(
     content: @Composable () -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
-    val animated = rememberTvAnimated()
-    val scale = tvFocusScale(isFocused, animated)
-
+    val dimens = LocalTvDimens.current
     var iconModifier = modifier
-    if (focusRequester != null) {
-        iconModifier = iconModifier.focusRequester(focusRequester)
-    }
+    if (focusRequester != null) iconModifier = iconModifier.focusRequester(focusRequester)
 
     IconButton(
         onClick = onClick,
         enabled = enabled,
         colors = colors,
         modifier = iconModifier
-            .scale(scale)
+            .height(dimens.minTarget)
+            .width(dimens.minTarget)
+            .tvFocusTreatment(CircleShape)
             .onFocusChanged { isFocused = it.isFocused }
-            .then(
-                if (isFocused) {
-                    Modifier.border(2.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                } else Modifier
-            )
     ) {
         content()
     }
 }
 
-/** Local focus holder so rails/rows can react when the remote lands on a child. */
+/**
+ * A selectable chip (season, filter, quality).
+ *
+ * Chips on TV need a *filled* selected state: at a distance an outline-only
+ * difference between "this season" and "that season" is invisible, and the
+ * remote lands on the wrong one.
+ */
 @Composable
-fun rememberTvFocused(initial: Boolean = false): MutableState<Boolean> {
-    return remember { mutableStateOf(initial) }
+fun TvChoiceChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    focusRequester: FocusRequester? = null,
+    leading: ImageVector? = null
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val dimens = LocalTvDimens.current
+    var chipModifier = modifier
+    if (focusRequester != null) chipModifier = chipModifier.focusRequester(focusRequester)
+
+    val highlighted = isFocused || selected
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = when {
+            highlighted -> MaterialTheme.colorScheme.primary
+            else -> MaterialTheme.colorScheme.surfaceContainerHigh
+        },
+        contentColor = when {
+            highlighted -> MaterialTheme.colorScheme.onPrimary
+            else -> MaterialTheme.colorScheme.onSurface
+        },
+        border = if (isFocused) {
+            BorderStroke(dimens.focusRingWidth, MaterialTheme.colorScheme.onPrimary)
+        } else {
+            null
+        },
+        modifier = chipModifier
+            .height(dimens.chipHeight)
+            .tvFocusTreatment(CircleShape)
+            .onFocusChanged { isFocused = it.isFocused }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = dimens.paddingMedium),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            leading?.let {
+                Icon(it, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = if (highlighted) FontWeight.Bold else FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
 }
+
+/** Local focus holder so rails and rows can react when the remote lands on a child. */
+@Composable
+fun rememberTvFocused(initial: Boolean = false): MutableState<Boolean> =
+    remember { mutableStateOf(initial) }
+
+/**
+ * The focus ring colour, exposed so TV screens painting custom chrome (cards,
+ * navigation rails) match the buttons instead of inventing their own.
+ */
+val tvFocusColor: Color
+    @Composable get() = MaterialTheme.colorScheme.primary
+
+/** Convenience for the many "does this row have focus" paddings. */
+@Composable
+fun Modifier.focusRingIf(focused: Boolean, shape: Shape, width: Dp = LocalTvDimens.current.focusRingWidth): Modifier =
+    if (focused) this.border(width, tvFocusColor, shape) else this
