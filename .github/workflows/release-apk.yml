@@ -35,6 +35,9 @@ jobs:
   build-release-apk:
     name: Build release APK
     runs-on: ubuntu-latest
+    # R8 plus resource shrinking takes ~10-20 min. Bounded so a hung runner
+    # cannot burn the default six-hour job allowance.
+    timeout-minutes: 45
     permissions:
       contents: read
     steps:
