@@ -343,9 +343,14 @@
     <string name="st_history_cleared">Verlauf und Fortschritt gelöscht</string>
     <string name="st_clear_crash">Absturzberichte löschen</string>
     <string name="st_crash_cleared">Absturzberichte gelöscht</string>
-    <string name="st_clear_cache">Bild-Cache leeren</string>
-    <string name="st_cache_cleared">Bild-Cache geleert</string>
-    <string name="st_cache_size">%1$s an Artworks</string>
+    <string name="st_clear_all_cache">Cache leeren</string>
+    <string name="st_cache_used">%1$s für Artworks und Titelinfos belegt</string>
+    <string name="st_cache_hint">Artworks und Titelinfos werden gespeichert, damit Seiten schneller öffnen</string>
+    <string name="st_cache_cleared_all">Cache geleert</string>
+    <string name="st_cache_limit">Cache-Größe</string>
+    <string name="st_cache_limit_hint">Platz für Artworks und Titelinfos. Gilt ab dem nächsten App-Start.</string>
+    <string name="st_preload_artwork">Artworks vorladen</string>
+    <string name="st_preload_artwork_hint">Im WLAN Poster für Reihen laden, bevor du dorthin scrollst</string>
     <string name="st_show_hidden">Ausgeblendete Titel anzeigen</string>
     <string name="st_backup">Mediathek sichern</string>
     <string name="st_backup_hint">Später ansehen, Listen, Verlauf und ausgeblendete Titel jedes Profils, plus Einstellungen</string>
@@ -379,7 +384,6 @@
     <string name="st_allow_install_note">Erlauben Sie OpenStream zuerst, Updates zu installieren, und tippen Sie dann zurück hier auf Installieren.</string>
     <string name="st_storage_help">Speicher und Hilfe</string>
     <string name="st_on_device">Auf diesem Gerät</string>
-    <string name="st_posters_cache">Poster und Hintergründe für schnelleres Laden gespeichert</string>
     <string name="st_crash_include">Enthält %1$d Absturzbericht</string>
     <string name="st_repo_data_note">Repositories liefern Daten, keinen Code</string>
     <string name="st_repo_data_body">Eine Erweiterung wählt und konfiguriert nur einen Resolver, der bereits in OpenStream enthalten ist, sodass eine Drittanbieter-Liste keinen eigenen Code auf Ihrem Gerät ausführen kann.</string>
@@ -817,4 +821,67 @@
     <string name="match_rail">Top-Treffer für Sie</string>
     <string name="match_percent">%1$d%% Treffer</string>
     <string name="match_because">Weil Ihnen %1$s gefallen hat</string>
+    <string name="st_save_to_storage">Downloads im Speicher sichern</string>
+    <string name="st_save_to_storage_summary">Jeden fertigen Download nach Downloads/Openstream kopieren, wo andere Apps ihn öffnen können</string>
+    <string name="dl_tab_downloads">Downloads</string>
+    <string name="dl_tab_local_files">Lokale Dateien</string>
+    <string name="dl_save_to_storage">Im Speicher sichern</string>
+    <string name="dl_saved_to_storage">In Downloads/Openstream gesichert</string>
+    <string name="dl_save_to_storage_failed">Konnte nicht im Speicher gesichert werden</string>
+    <string name="local_import_files">Videos importieren</string>
+    <string name="local_no_files_title">Keine lokalen Videos</string>
+    <string name="local_no_files_body">Importiere Videodateien von deinem Gerät, um sie in OpenStream anzusehen</string>
+    <string name="local_file">Lokales Video</string>
+    <string name="local_delete_confirm_title">Lokales Video entfernen?</string>
+    <string name="local_delete_confirm_body">Es verschwindet nur aus dieser Liste. Die Datei bleibt auf deinem Gerät.</string>
+    <string name="local_search_hint">Lokale Videos durchsuchen</string>
+    <string name="sort_name_asc">Name (A–Z)</string>
+    <string name="sort_name_desc">Name (Z–A)</string>
+    <string name="sort_date_added_desc">Zuletzt hinzugefügt</string>
+    <string name="sort_date_added_asc">Zuerst hinzugefügt</string>
+    <string name="sort_size_desc">Größte zuerst</string>
+    <string name="sort_size_asc">Kleinste zuerst</string>
+    <string name="sort_duration_desc">Längste zuerst</string>
+    <string name="sort_duration_asc">Kürzeste zuerst</string>
+    <string name="dl_save_in_progress">Wird bereits in Downloads gesichert</string>
+    <string name="dl_storage_permission_needed">Erlaube den Speicherzugriff, um Videos in deinem Download-Ordner zu sichern</string>
+    <string name="dl_save_unsupported">Dieser Download lässt sich nicht als einzelne Videodatei sichern</string>
+    <string name="dl_save_protected">Dieser Stream ist geschützt und lässt sich nur in OpenStream abspielen</string>
+    <plurals name="local_import_success">
+        <item quantity="one">%1$d Video importiert</item>
+        <item quantity="other">%1$d Videos importiert</item>
+    </plurals>
+    <string name="dl_delete_confirm">Download löschen?</string>
+    <string name="dl_delete_body">%1$s von diesem Gerät entfernen? Zum Offline-Ansehen musst du es erneut herunterladen.</string>
+    <string name="dl_cancel_confirm">Download abbrechen?</string>
+    <string name="dl_cancel_body">Download von %1$s stoppen? Die unvollständige Datei wird entfernt.</string>
+    <string name="action_keep">Behalten</string>
+    <string name="season_episode_format">Staffel %1$d, Folge %2$d</string>
+    <string name="dl_pick_source_title">Download-Quelle wählen</string>
+    <string name="dl_pick_source_hint">Wähle, wovon heruntergeladen wird.</string>
+    <string name="dl_pick_batch_hint">Wir nutzen den Anbieter und die Qualität, die du antippst, für jede Folge, wo verfügbar.</string>
+    <string name="dl_batch_queued">%1$d Folgen werden heruntergeladen… Du findest sie unter Downloads.</string>
+    <string name="dl_season_already">Alle Folgen hier sind bereits heruntergeladen oder werden geladen</string>
+    <string name="dl_hold_options">Halten, um die Quelle zu wählen</string>
+    <string name="dl_hold_tip">Tipp: Halte Download gedrückt, um Quelle und Qualität zu wählen.</string>
+    <string name="dl_choose_source">Download-Quelle wählen</string>
+    <string name="dl_no_quality_match">Noch keine Quellen in dieser Qualität.</string>
+    <string name="action_show_all">Alle zeigen</string>
+    <plurals name="dl_delete_group_body">
+        <item quantity="one">%1$d Folge von %2$s von diesem Gerät entfernen? Zum Offline-Ansehen musst du sie erneut herunterladen.</item>
+        <item quantity="other">%1$d Folgen von %2$s von diesem Gerät entfernen? Zum Offline-Ansehen musst du sie erneut herunterladen.</item>
+    </plurals>
+    <plurals name="dl_delete_episodes">
+        <item quantity="one">1 Folge löschen?</item>
+        <item quantity="other">%1$d Folgen löschen?</item>
+    </plurals>
+    <plurals name="dl_batch_count">
+        <item quantity="one">%1$d Folge</item>
+        <item quantity="other">%1$d Folgen</item>
+    </plurals>
+
+    <string name="sheet_volume_boost">Lautstärke-Boost</string>
+    <string name="sheet_volume_boost_desc">Macht leise Videos lauter. Ein Limiter verhindert, dass laute Stellen verzerren. Gilt für alles, was du abspielst, bis du wieder Normal wählst.</string>
+    <string name="sheet_external_player">Externer Player</string>
+    <string name="action_open_external_player">In externem Player öffnen</string>
 </resources>

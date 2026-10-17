@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.media.MediaMetadataRetriever
 import android.net.Uri
-import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import com.ivor.openstream.data.local.dao.LocalMediaDao
 import com.ivor.openstream.data.local.entity.LocalMediaEntity
@@ -129,20 +128,16 @@ class LocalMediaRepository @Inject constructor(
         }
     }
 
-    suspend fun delete(id: Long) = dao.deleteById(id)
-
-    suspend fun deleteWithFile(id: Long) = withContext(Dispatchers.IO) {
+    /**
+     * Takes a file off the list and gives back the read access kept for it (Android allows an app
+     * only so many). The file itself is never deleted: it belongs to the user.
+     */
+    suspend fun remove(id: Long) = withContext(Dispatchers.IO) {
         val item = dao.getLocalMediaById(id) ?: return@withContext
         val uri = Uri.parse(item.uri)
-        if (uri.scheme == "file") {
-            uri.path?.let { runCatching { File(it).delete() } }
-        } else if (uri.scheme == "content") {
+        if (uri.scheme == "content") {
             runCatching {
-                if (DocumentsContract.isDocumentUri(context, uri)) {
-                    DocumentsContract.deleteDocument(context.contentResolver, uri)
-                } else {
-                    context.contentResolver.delete(uri, null, null)
-                }
+                context.contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
         }
         dao.deleteById(id)

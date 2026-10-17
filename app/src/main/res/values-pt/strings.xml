@@ -343,9 +343,14 @@
     <string name="st_history_cleared">Histórico e progresso apagados</string>
     <string name="st_clear_crash">Limpar relatórios de crash</string>
     <string name="st_crash_cleared">Relatórios de crash apagados</string>
-    <string name="st_clear_cache">Limpar cache de imagens</string>
-    <string name="st_cache_cleared">Cache de imagens limpo</string>
-    <string name="st_cache_size">%1$s de artes</string>
+    <string name="st_clear_all_cache">Limpar cache</string>
+    <string name="st_cache_used">%1$s usados por artes e informações dos títulos</string>
+    <string name="st_cache_hint">Artes e informações dos títulos guardadas para abrir páginas mais rápido</string>
+    <string name="st_cache_cleared_all">Cache limpo</string>
+    <string name="st_cache_limit">Tamanho do cache</string>
+    <string name="st_cache_limit_hint">Espaço que as artes e informações dos títulos podem usar. Aplica-se na próxima abertura da app.</string>
+    <string name="st_preload_artwork">Pré-carregar artes</string>
+    <string name="st_preload_artwork_hint">No Wi-Fi, carrega os posters das filas antes de lá chegar</string>
     <string name="st_show_hidden">Mostrar títulos ocultos</string>
     <string name="st_backup">Backup da biblioteca</string>
     <string name="st_backup_hint">Ver mais tarde, listas, histórico e ocultos de cada perfil, mais ajustes</string>
@@ -379,7 +384,6 @@
     <string name="st_allow_install_note">Permita ao OpenStream instalar atualizações, volte e toque em Instalar.</string>
     <string name="st_storage_help">Armazenamento e ajuda</string>
     <string name="st_on_device">Neste dispositivo</string>
-    <string name="st_posters_cache">Posters e fundos guardados para carregar rápido</string>
     <string name="st_crash_include">Inclui %1$d relatório de crash</string>
     <string name="st_repo_data_note">Repositórios trazem dados, não código</string>
     <string name="st_repo_data_body">Extensão só escolhe e configura um resolvedor que já vem no OpenStream, então lista de terceiros não roda código no aparelho.</string>
@@ -817,4 +821,71 @@
     <string name="match_rail">Melhores para você</string>
     <string name="match_percent">%1$d%% de compatibilidade</string>
     <string name="match_because">Porque você gostou de %1$s</string>
+    <string name="st_save_to_storage">Guardar transferências no armazenamento</string>
+    <string name="st_save_to_storage_summary">Copia cada transferência terminada para Downloads/Openstream, onde outras apps a podem abrir</string>
+    <string name="dl_tab_downloads">Transferências</string>
+    <string name="dl_tab_local_files">Ficheiros locais</string>
+    <string name="dl_save_to_storage">Guardar no armazenamento</string>
+    <string name="dl_saved_to_storage">Guardado em Downloads/Openstream</string>
+    <string name="dl_save_to_storage_failed">Não foi possível guardar no armazenamento</string>
+    <string name="local_import_files">Importar vídeos</string>
+    <string name="local_no_files_title">Sem vídeos locais</string>
+    <string name="local_no_files_body">Importe ficheiros de vídeo do dispositivo para os ver no OpenStream</string>
+    <string name="local_file">Vídeo local</string>
+    <string name="local_delete_confirm_title">Remover vídeo local?</string>
+    <string name="local_delete_confirm_body">Sai apenas desta lista. O ficheiro continua no dispositivo.</string>
+    <string name="local_search_hint">Pesquisar vídeos locais</string>
+    <string name="sort_name_asc">Nome (A–Z)</string>
+    <string name="sort_name_desc">Nome (Z–A)</string>
+    <string name="sort_date_added_desc">Adicionados recentemente</string>
+    <string name="sort_date_added_asc">Adicionados primeiro</string>
+    <string name="sort_size_desc">Maiores</string>
+    <string name="sort_size_asc">Mais pequenos</string>
+    <string name="sort_duration_desc">Mais longos</string>
+    <string name="sort_duration_asc">Mais curtos</string>
+    <string name="dl_save_in_progress">Já está a ser guardado em Transferências</string>
+    <string name="dl_storage_permission_needed">Permita o acesso ao armazenamento para guardar vídeos na pasta de transferências</string>
+    <string name="dl_save_unsupported">Esta transferência não pode ser guardada como um único ficheiro de vídeo</string>
+    <string name="dl_save_protected">Esta transmissão está protegida e só pode ser vista no OpenStream</string>
+    <plurals name="local_import_success">
+        <item quantity="one">%1$d vídeo importado</item>
+        <item quantity="many">%1$d vídeos importados</item>
+        <item quantity="other">%1$d vídeos importados</item>
+    </plurals>
+    <string name="dl_delete_confirm">Eliminar transferência?</string>
+    <string name="dl_delete_body">Remover %1$s deste dispositivo? Terá de transferir de novo para ver offline.</string>
+    <string name="dl_cancel_confirm">Cancelar transferência?</string>
+    <string name="dl_cancel_body">Parar a transferência de %1$s? O ficheiro parcial será removido.</string>
+    <string name="action_keep">Manter</string>
+    <string name="season_episode_format">Temporada %1$d, episódio %2$d</string>
+    <string name="dl_pick_source_title">Escolher a origem da transferência</string>
+    <string name="dl_pick_source_hint">Escolha de onde transferir.</string>
+    <string name="dl_pick_batch_hint">Vamos usar o fornecedor e a qualidade que tocar para cada episódio, quando existirem.</string>
+    <string name="dl_batch_queued">A transferir %1$d episódios… Encontre-os em Transferências.</string>
+    <string name="dl_season_already">Todos os episódios aqui já foram transferidos ou estão a ser transferidos</string>
+    <string name="dl_hold_options">Mantenha premido para escolher a origem</string>
+    <string name="dl_hold_tip">Dica: mantenha premido Transferir para escolher origem e qualidade.</string>
+    <string name="dl_choose_source">Escolher a origem da transferência</string>
+    <string name="dl_no_quality_match">Ainda não há origens nesta qualidade.</string>
+    <string name="action_show_all">Mostrar tudo</string>
+    <plurals name="dl_delete_group_body">
+        <item quantity="one">Remover %1$d episódio de %2$s deste dispositivo? Terá de o transferir de novo para ver offline.</item>
+        <item quantity="many">Remover %1$d episódios de %2$s deste dispositivo? Terá de os transferir de novo para ver offline.</item>
+        <item quantity="other">Remover %1$d episódios de %2$s deste dispositivo? Terá de os transferir de novo para ver offline.</item>
+    </plurals>
+    <plurals name="dl_delete_episodes">
+        <item quantity="one">Eliminar 1 episódio?</item>
+        <item quantity="many">Eliminar %1$d episódios?</item>
+        <item quantity="other">Eliminar %1$d episódios?</item>
+    </plurals>
+    <plurals name="dl_batch_count">
+        <item quantity="one">%1$d episódio</item>
+        <item quantity="many">%1$d episódios</item>
+        <item quantity="other">%1$d episódios</item>
+    </plurals>
+
+    <string name="sheet_volume_boost">Aumento de volume</string>
+    <string name="sheet_volume_boost_desc">Torna mais altos os vídeos baixos. Um limitador evita que as partes altas distorçam. Aplica-se a tudo o que reproduzir até voltar a Normal.</string>
+    <string name="sheet_external_player">Leitor externo</string>
+    <string name="action_open_external_player">Abrir num leitor externo</string>
 </resources>

@@ -2,23 +2,17 @@ package com.ivor.openstream.data.playback
 
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 
-/**
- * Metadata for a subtitle track forwarded to an external video player.
- */
+/** A subtitle file handed to another player along with the stream. */
 data class ExternalSubtitle(
     val uri: Uri,
-    val name: String,
-    val isDefault: Boolean = false
+    val name: String
 )
 
-/**
- * Playback request packaged for external media players (VLC, Just Player, MPV, Nova, MX Player).
- */
+/** What another player app needs to play the current stream: where, from when, and how. */
 data class ExternalPlayerRequest(
     val mediaUri: Uri,
     val title: String,
@@ -28,129 +22,58 @@ data class ExternalPlayerRequest(
 )
 
 /**
- * Handles intent creation and coordination for launching streams in external Android players.
+ * Hands a stream to another player app through the system chooser.
  *
- * Implements standard intent protocols accepted across the Android media ecosystem:
- * - Title: "title"
- * - Resume position: "position" (int ms) and "extra_position" (long ms)
- * - Result callback: "return_result" = true
- * - Headers: "android.media.intent.extra.HTTP_HEADERS" (Bundle), "headers" (String[]), "User-Agent"
- * - Subtitles: "subs" (Uri[]), "subs.name" (String[]), "subs.filename", "subs.enable", "subtitles_location"
+ * The extras follow MX Player's public intent API, which Just Player, mpv and Nova also read:
+ * `title`, `position` (int ms), `headers` (a flat String[] of name, value, name, value...),
+ * `subs` / `subs.name` (Uri[] / String[]). VLC reads `title`, `position` and
+ * `subtitles_location`. None of this is a formal contract; a player that ignores an extra simply
+ * plays without it (for example without the Referer some hosts need).
  */
 object ExternalPlayer {
     private const val TAG = "ExternalPlayer"
 
-    // Recognized player package names
-    const val PACKAGE_VLC = "org.videolan.vlc"
-    const val PACKAGE_JUST_PLAYER = "com.brouken.player"
-    const val PACKAGE_MPV = "is.xyz.mpv"
-    const val PACKAGE_MX_PLAYER_FREE = "com.mxtech.videoplayer.ad"
-    const val PACKAGE_MX_PLAYER_PRO = "com.mxtech.videoplayer.pro"
-    const val PACKAGE_NOVA = "org.courville.nova"
+    private val SUBTITLE_EXTENSIONS = setOf("srt", "vtt", "ass", "ssa")
 
-    /**
-     * Builds an [Intent.ACTION_VIEW] intent configured with all stream headers, subtitles,
-     * and start positions.
-     */
-    fun createIntent(request: ExternalPlayerRequest, targetPackage: String? = null): Intent {
-        return Intent(Intent.ACTION_VIEW).apply {
+    /** Other apps can only open plain subtitle files on the web, not zips or this app's files. */
+    fun canOpenSubtitle(url: String): Boolean {
+        val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return false
+        if (uri.scheme != "http" && uri.scheme != "https") return false
+        val extension = uri.lastPathSegment?.substringAfterLast('.', "")?.lowercase()
+        return extension in SUBTITLE_EXTENSIONS
+    }
+
+    fun createIntent(request: ExternalPlayerRequest): Intent =
+        Intent(Intent.ACTION_VIEW).apply {
             setDataAndTypeAndNormalize(request.mediaUri, "video/*")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-
-            if (!targetPackage.isNullOrBlank()) {
-                setPackage(targetPackage)
-            }
-
-            // Title
             putExtra("title", request.title)
+            val position = request.positionMs.coerceIn(0L, Int.MAX_VALUE.toLong())
+            putExtra("position", position.toInt())
+            putExtra("extra_position", position)
 
-            // Start position & request result return
-            val posInt = request.positionMs.coerceAtLeast(0L).toInt()
-            putExtra("position", posInt)
-            putExtra("extra_position", request.positionMs.coerceAtLeast(0L))
-            putExtra("return_result", true)
-
-            // Headers
             if (request.headers.isNotEmpty()) {
-                val headerBundle = Bundle().apply {
-                    request.headers.forEach { (key, value) -> putString(key, value) }
-                }
-                putExtra("android.media.intent.extra.HTTP_HEADERS", headerBundle)
-
-                val headerStrings = request.headers.map { "${it.key}: ${it.value}" }.toTypedArray()
-                putExtra("headers", headerStrings)
-
-                request.headers["User-Agent"]?.let { userAgent ->
-                    putExtra("User-Agent", userAgent)
-                    putExtra("http-user-agent", userAgent)
-                }
+                putExtra("headers", request.headers.flatMap { (name, value) -> listOf(name, value) }.toTypedArray())
+                putExtra(
+                    "android.media.intent.extra.HTTP_HEADERS",
+                    Bundle().apply { request.headers.forEach { (name, value) -> putString(name, value) } }
+                )
             }
 
-            // Subtitles
             if (request.subtitles.isNotEmpty()) {
-                val subUris = request.subtitles.map { it.uri }.toTypedArray()
-                val subNames = request.subtitles.map { it.name }.toTypedArray()
-
-                putExtra("subs", subUris)
-                putExtra("subs.name", subNames)
-                putExtra("subs.filename", subNames)
-
-                val enabledSubs = request.subtitles.filter { it.isDefault }.map { it.uri }.toTypedArray()
-                if (enabledSubs.isNotEmpty()) {
-                    putExtra("subs.enable", enabledSubs)
-                }
-
-                // VLC single subtitle compatibility
-                putExtra("subtitles_location", request.subtitles.first().uri)
+                putExtra("subs", request.subtitles.map { it.uri }.toTypedArray())
+                putExtra("subs.name", request.subtitles.map { it.name }.toTypedArray())
+                putExtra("subtitles_location", request.subtitles.first().uri.toString())
             }
         }
-    }
 
-    /**
-     * Builds a system chooser intent to allow the user to pick an installed video player.
-     */
-    fun createChooserIntent(request: ExternalPlayerRequest, chooserTitle: CharSequence): Intent {
-        val baseIntent = createIntent(request)
-        return Intent.createChooser(baseIntent, chooserTitle).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-    }
-
-    /**
-     * Launches the playback request using the system app chooser.
-     * Returns true if an activity was found and started successfully.
-     */
-    fun launch(context: Context, request: ExternalPlayerRequest, chooserTitle: CharSequence): Boolean {
-        return runCatching {
-            val chooser = createChooserIntent(request, chooserTitle)
+    /** True when the chooser opened; the user may still back out of it. */
+    fun launch(context: Context, request: ExternalPlayerRequest, chooserTitle: CharSequence): Boolean =
+        runCatching {
+            val chooser = Intent.createChooser(createIntent(request), chooserTitle)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(chooser)
             true
         }.onFailure { error ->
-            Log.w(TAG, "Failed to launch external player chooser: ${error.message}")
+            Log.w(TAG, "Could not open the external player chooser: ${error.message}")
         }.getOrDefault(false)
-    }
-
-    /**
-     * Checks if a specific media player package is installed on the device.
-     */
-    fun isPackageInstalled(context: Context, packageName: String): Boolean {
-        return runCatching {
-            context.packageManager.getPackageInfo(packageName, 0)
-            true
-        }.getOrDefault(false)
-    }
-
-    /**
-     * Extracts returned playback position (in milliseconds) from an external player's result intent.
-     * Returns 0L or positive timestamp if available.
-     */
-    fun parseResultPosition(resultIntent: Intent?): Long {
-        if (resultIntent == null) return 0L
-        val posLong = resultIntent.getLongExtra("extra_position", -1L)
-        if (posLong > 0L) return posLong
-        val posInt = resultIntent.getIntExtra("position", -1)
-        if (posInt > 0) return posInt.toLong()
-        return 0L
-    }
 }

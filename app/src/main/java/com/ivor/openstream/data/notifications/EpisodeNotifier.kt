@@ -67,7 +67,7 @@ class EpisodeNotifier @Inject constructor(
             currentCoroutineContext().ensureActive()
             if (posted >= MAX_NOTIFICATIONS_PER_RUN) break
             val episode = runCatching {
-                animeRepository.getMediaDetails(tmdbId, "tv").getOrNull()?.nextEpisodeToAir
+                animeRepository.getMediaDetails(tmdbId, "tv", fresh = true).getOrNull()?.nextEpisodeToAir
             }.getOrNull() ?: continue
             val airDate = episode.airDate ?: continue
             // Lexicographic compare works on ISO-8601 dates.
@@ -94,7 +94,7 @@ class EpisodeNotifier @Inject constructor(
         for (reminder in reminders) {
             currentCoroutineContext().ensureActive()
             try {
-                val details = animeRepository.getMediaDetails(reminder.tmdbId, reminder.mediaType)
+                val details = animeRepository.getMediaDetails(reminder.tmdbId, reminder.mediaType, fresh = true)
                     .getOrNull() ?: continue
                 val season = reminder.season
                 val episode = reminder.episode
@@ -119,7 +119,7 @@ class EpisodeNotifier @Inject constructor(
 
     private suspend fun seasonEpisodeAired(tmdbId: Int, season: Int, episode: Int): Boolean {
         val episodes = runCatching {
-            animeRepository.getSeasonDetails(tmdbId, season).getOrNull()?.episodes
+            animeRepository.getSeasonDetails(tmdbId, season, fresh = true).getOrNull()?.episodes
         }.getOrNull() ?: return false
         val airDate = episodes.firstOrNull { it.episodeNumber == episode }?.airDate
             ?: return false

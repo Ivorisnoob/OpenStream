@@ -23,6 +23,12 @@ interface StreamingRepository {
     fun rememberServer(identity: MediaIdentity, server: VideoServer)
     fun getRememberedServerId(identity: MediaIdentity): String?
 
+    /** A stream [resolveServers] handed out for [identity] failed: search afresh next time. */
+    fun forgetResolvedServers(identity: MediaIdentity)
+
+    /** Drops every remembered search result ("Clear cache"). */
+    fun clearResolvedServers()
+
     /** [server] actually played: its source is the one [resolveServers] can ask first next time. */
     fun rememberWorkingSource(identity: MediaIdentity, server: VideoServer)
 }

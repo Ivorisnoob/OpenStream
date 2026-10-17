@@ -364,9 +364,14 @@
     <string name="st_history_cleared">시청 기록과 진행 상태가 지워졌어요</string>
     <string name="st_clear_crash">충돌 보고서 지우기</string>
     <string name="st_crash_cleared">충돌 보고서가 지워졌어요</string>
-    <string name="st_clear_cache">이미지 캐시 지우기</string>
-    <string name="st_cache_cleared">이미지 캐시가 지워졌어요</string>
-    <string name="st_cache_size">아트워크 %1$s</string>
+    <string name="st_clear_all_cache">캐시 지우기</string>
+    <string name="st_cache_used">아트워크와 작품 정보에 %1$s 사용 중</string>
+    <string name="st_cache_hint">페이지가 빨리 열리도록 아트워크와 작품 정보를 보관해요</string>
+    <string name="st_cache_cleared_all">캐시가 지워졌어요</string>
+    <string name="st_cache_limit">캐시 크기</string>
+    <string name="st_cache_limit_hint">아트워크와 작품 정보가 사용할 수 있는 공간이에요. 다음에 앱을 열 때 적용돼요.</string>
+    <string name="st_preload_artwork">아트워크 미리 불러오기</string>
+    <string name="st_preload_artwork_hint">Wi-Fi에서는 스크롤하기 전에 줄의 포스터를 미리 불러와요</string>
     <string name="st_show_hidden">숨긴 작품 표시</string>
     <string name="st_backup">라이브러리 백업</string>
     <string name="st_backup_hint">모든 프로필의 나중에 보기, 목록, 기록, 숨긴 작품 및 설정</string>
@@ -400,7 +405,6 @@
     <string name="st_allow_install_note">먼저 OpenStream의 업데이트 설치를 허용한 뒤 돌아와 설치를 탭하세요.</string>
     <string name="st_storage_help">저장 공간 및 도움말</string>
     <string name="st_on_device">이 기기에서</string>
-    <string name="st_posters_cache">빠른 로딩을 위해 포스터와 배경화면 보관</string>
     <string name="st_crash_include">충돌 보고서 %1$d개 포함</string>
     <string name="st_repo_data_note">리포지토리는 코드가 아닌 데이터를 제공해요</string>
     <string name="st_repo_data_body">확장 프로그램은 OpenStream에 내장된 확인자를 선택·설정할 뿐이므로 타사 목록이 기기에서 코드를 실행할 수 없어요.</string>
@@ -858,4 +862,63 @@
     <string name="match_rail">나를 위한 추천작</string>
     <string name="match_percent">%1$d%% 일치</string>
     <string name="match_because">%1$s을(를) 좋아해서</string>
+    <string name="st_save_to_storage">다운로드를 저장소에 저장</string>
+    <string name="st_save_to_storage_summary">완료된 다운로드를 Downloads/Openstream에 복사해 다른 앱에서도 열 수 있게 해요</string>
+    <string name="dl_tab_downloads">다운로드</string>
+    <string name="dl_tab_local_files">로컬 파일</string>
+    <string name="dl_save_to_storage">저장소에 저장</string>
+    <string name="dl_saved_to_storage">Downloads/Openstream에 저장했어요</string>
+    <string name="dl_save_to_storage_failed">저장소에 저장하지 못했어요</string>
+    <string name="local_import_files">동영상 가져오기</string>
+    <string name="local_no_files_title">로컬 동영상이 없어요</string>
+    <string name="local_no_files_body">기기의 동영상 파일을 가져와 OpenStream에서 보세요</string>
+    <string name="local_file">로컬 동영상</string>
+    <string name="local_delete_confirm_title">로컬 동영상을 삭제할까요?</string>
+    <string name="local_delete_confirm_body">이 목록에서만 빠져요. 파일은 기기에 그대로 있어요.</string>
+    <string name="local_search_hint">로컬 동영상 검색</string>
+    <string name="sort_name_asc">이름 (A–Z)</string>
+    <string name="sort_name_desc">이름 (Z–A)</string>
+    <string name="sort_date_added_desc">최근 추가순</string>
+    <string name="sort_date_added_asc">오래된 추가순</string>
+    <string name="sort_size_desc">큰 크기순</string>
+    <string name="sort_size_asc">작은 크기순</string>
+    <string name="sort_duration_desc">긴 재생 시간순</string>
+    <string name="sort_duration_asc">짧은 재생 시간순</string>
+    <string name="dl_save_in_progress">이미 다운로드 폴더에 저장 중이에요</string>
+    <string name="dl_storage_permission_needed">다운로드 폴더에 동영상을 저장하려면 저장소 접근을 허용해 주세요</string>
+    <string name="dl_save_unsupported">이 다운로드는 하나의 동영상 파일로 저장할 수 없어요</string>
+    <string name="dl_save_protected">보호된 스트림이라 OpenStream 안에서만 재생할 수 있어요</string>
+    <plurals name="local_import_success">
+        <item quantity="other">동영상 %1$d개를 가져왔어요</item>
+    </plurals>
+    <string name="dl_delete_confirm">다운로드를 삭제할까요?</string>
+    <string name="dl_delete_body">이 기기에서 %1$s을(를) 삭제할까요? 오프라인으로 보려면 다시 다운로드해야 해요.</string>
+    <string name="dl_cancel_confirm">다운로드를 취소할까요?</string>
+    <string name="dl_cancel_body">%1$s 다운로드를 중지할까요? 일부만 받은 파일은 삭제돼요.</string>
+    <string name="action_keep">유지</string>
+    <string name="season_episode_format">시즌 %1$d, %2$d화</string>
+    <string name="dl_pick_source_title">다운로드 소스 선택</string>
+    <string name="dl_pick_source_hint">다운로드할 곳을 선택하세요.</string>
+    <string name="dl_pick_batch_hint">가능한 경우 모든 에피소드에 탭한 제공자와 화질을 사용해요.</string>
+    <string name="dl_batch_queued">에피소드 %1$d개 다운로드 중… 다운로드에서 확인하세요.</string>
+    <string name="dl_season_already">여기 있는 에피소드는 모두 이미 다운로드했거나 다운로드 중이에요</string>
+    <string name="dl_hold_options">길게 눌러 소스 선택</string>
+    <string name="dl_hold_tip">팁: 다운로드를 길게 누르면 소스와 화질을 선택할 수 있어요.</string>
+    <string name="dl_choose_source">다운로드 소스 선택</string>
+    <string name="dl_no_quality_match">이 화질의 소스가 아직 없어요.</string>
+    <string name="action_show_all">모두 보기</string>
+    <plurals name="dl_delete_group_body">
+        <item quantity="other">이 기기에서 %2$s의 에피소드 %1$d개를 삭제할까요? 오프라인으로 보려면 다시 다운로드해야 해요.</item>
+    </plurals>
+    <plurals name="dl_delete_episodes">
+        <item quantity="other">에피소드 %1$d개를 삭제할까요?</item>
+    </plurals>
+    <plurals name="dl_batch_count">
+        <item quantity="other">에피소드 %1$d개</item>
+    </plurals>
+
+    <string name="sheet_volume_boost">볼륨 부스트</string>
+    <string name="sheet_volume_boost_desc">소리가 작은 영상을 더 크게 들려줘요. 리미터가 큰 소리가 찌그러지지 않게 막아요. 보통으로 되돌릴 때까지 모든 재생에 적용돼요.</string>
+    <string name="sheet_external_player">외부 플레이어</string>
+    <string name="action_open_external_player">외부 플레이어로 열기</string>
 </resources>

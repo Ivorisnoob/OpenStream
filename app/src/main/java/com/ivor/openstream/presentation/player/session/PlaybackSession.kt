@@ -41,6 +41,7 @@ import com.ivor.openstream.data.cast.CastMediaItemConverter
 import com.ivor.openstream.data.cast.CastMediaProxy
 import com.ivor.openstream.data.playback.DeviceDecoders
 import com.ivor.openstream.data.playback.StreamDataGuard
+import com.ivor.openstream.data.local.entity.LOCAL_MEDIA_TYPE
 import com.ivor.openstream.data.playback.VolumeBooster
 import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.data.settings.AppSettingsStore
@@ -585,8 +586,12 @@ class PlaybackSession @Inject constructor(
             player.stop()
         }
         val remote = castPlayer
-        if (remote?.currentMediaItem?.mediaId == item.key && castRequestedUri == item.mediaUri) {
-            // Rejoined a session already playing this: keep going.
+        val remoteItem = remote?.currentMediaItem
+        val sameStreamOnTv = remoteItem?.mediaId == item.key &&
+            remoteItem?.mediaMetadata?.extras?.getString(EXTRA_SOURCE_URI) == item.mediaUri
+        if (sameStreamOnTv) {
+            // Rejoined a session already playing this stream: keep going. A different server
+            // picked on the phone meanwhile falls through and is loaded instead.
             castRequestedKey = item.key
             castRequestedUri = item.mediaUri
             return
@@ -968,6 +973,9 @@ class PlaybackSession @Inject constructor(
 
     private fun saveProgress(item: NowPlaying, position: Long, duration: Long, force: Boolean) {
         if (position < WatchProgress.MIN_SAVED_POSITION_MS) return
+        // An imported file is not a title: it would show up in Continue Watching and History with
+        // nothing to open.
+        if (item.mediaType == LOCAL_MEDIA_TYPE) return
 
         val key = item.key
         val completed = position.toFloat() / duration >= WatchProgress.COMPLETION_FRACTION

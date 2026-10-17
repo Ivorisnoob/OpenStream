@@ -51,6 +51,20 @@ enum class SourceSearchMode(val label: String, @StringRes val labelRes: Int) {
     IN_ORDER("In my order", R.string.sheet_search_in_order)
 }
 
+/**
+ * How much disk the caches may use: artwork (Coil) and title info (TMDB answers). Read when the
+ * app starts, since both caches fix their size when they open.
+ */
+enum class CacheSize(val imageBytes: Long, val metadataBytes: Long) {
+    SMALL(imageBytes = 100L * MB, metadataBytes = 25L * MB),
+    STANDARD(imageBytes = 250L * MB, metadataBytes = 50L * MB),
+    LARGE(imageBytes = 600L * MB, metadataBytes = 100L * MB);
+
+    val totalBytes: Long get() = imageBytes + metadataBytes
+}
+
+private const val MB = 1024L * 1024L
+
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,
@@ -60,13 +74,8 @@ data class AppSettings(
     val seekStepSeconds: Int = 10,
     /** Speed every title starts at. */
     val defaultSpeed: Float = 1f,
-    /** Count down into the next episode when one ends. Off by default: an unasked-for
-     *  auto-advance reads as the app skipping ahead on its own. */
-    val autoPlayNext: Boolean = false,
-    /** Tallest rendition playback starts at, on any network; 0 means the source's best.
-     *  1080p by default because the previous behaviour auto-selected the highest-ranked
-     *  server, so a 4K adaptive stream was what you got before touching anything. */
-    val streamMaxHeight: Int = 1080,
+    /** Count down into the next episode when one ends. */
+    val autoPlayNext: Boolean = true,
     /** Offer the skip intro / recap / credits button over the video. */
     val showSkipButton: Boolean = true,
     /** Tallest rendition a download picks from a master playlist. */
@@ -100,7 +109,11 @@ data class AppSettings(
     /** Automatically export completed downloads to device storage under Downloads/Openstream. */
     val autoExportDownloadsToStorage: Boolean = false,
     /** Hardware volume boost percentage via LoudnessEnhancer (100% = normal / 0 dB, up to 300%). */
-    val volumeBoostPercent: Int = 100
+    val volumeBoostPercent: Int = 100,
+    /** Disk budget for artwork and title info; takes effect on the next start. */
+    val cacheSize: CacheSize = CacheSize.STANDARD,
+    /** Load artwork for rows not on screen yet, only on unmetered networks. */
+    val preloadArtwork: Boolean = true
 ) {
     companion object {
         val SEEK_STEPS = listOf(5, 10, 15, 30)
@@ -109,10 +122,7 @@ data class AppSettings(
         val SMART_AHEAD_OPTIONS = listOf(1, 2, 3)
         /** Quality caps offered for metered networks: 720p, 480p and no limit. */
         val METERED_CAPS = listOf(720, 480, 0)
-        /** Streaming quality caps on any network: 1080p, 720p, 4K and no limit. */
-        val STREAM_CAPS = listOf(1080, 720, 2160, 0)
         val SMOOTH_MOTION_FPS_OPTIONS = listOf(60, 120)
-        val VOLUME_BOOST_PRESETS = listOf(100, 125, 150, 200, 250, 300)
     }
 }
 
@@ -150,7 +160,6 @@ class AppSettingsStore @Inject constructor(
             .putInt(KEY_SEEK_STEP, updated.seekStepSeconds)
             .putFloat(KEY_DEFAULT_SPEED, updated.defaultSpeed)
             .putBoolean(KEY_AUTO_PLAY_NEXT, updated.autoPlayNext)
-            .putInt(KEY_STREAM_HEIGHT, updated.streamMaxHeight)
             .putBoolean(KEY_SHOW_SKIP_BUTTON, updated.showSkipButton)
             .putInt(KEY_DOWNLOAD_HEIGHT, updated.downloadMaxHeight)
             .putString(KEY_PIP_LEFT, updated.pipLeftAction.name)
@@ -169,6 +178,8 @@ class AppSettingsStore @Inject constructor(
             .putInt(KEY_SMOOTH_MOTION_MAX_FPS, updated.smoothMotionMaxFps)
             .putBoolean(KEY_AUTO_EXPORT_DOWNLOADS_TO_STORAGE, updated.autoExportDownloadsToStorage)
             .putInt(KEY_VOLUME_BOOST, updated.volumeBoostPercent)
+            .putString(KEY_CACHE_SIZE, updated.cacheSize.name)
+            .putBoolean(KEY_PRELOAD_ARTWORK, updated.preloadArtwork)
             .apply()
     }
 
@@ -184,8 +195,6 @@ class AppSettingsStore @Inject constructor(
             defaultSpeed = prefs.getFloat(KEY_DEFAULT_SPEED, defaults.defaultSpeed)
                 .takeIf { it in AppSettings.DEFAULT_SPEEDS } ?: defaults.defaultSpeed,
             autoPlayNext = prefs.getBoolean(KEY_AUTO_PLAY_NEXT, defaults.autoPlayNext),
-            streamMaxHeight = prefs.getInt(KEY_STREAM_HEIGHT, defaults.streamMaxHeight)
-                .takeIf { it in AppSettings.STREAM_CAPS } ?: defaults.streamMaxHeight,
             showSkipButton = prefs.getBoolean(KEY_SHOW_SKIP_BUTTON, defaults.showSkipButton),
             downloadMaxHeight = prefs.getInt(KEY_DOWNLOAD_HEIGHT, defaults.downloadMaxHeight)
                 .takeIf { it in AppSettings.DOWNLOAD_HEIGHTS } ?: defaults.downloadMaxHeight,
@@ -210,9 +219,15 @@ class AppSettingsStore @Inject constructor(
                 .takeIf { it in AppSettings.SMOOTH_MOTION_FPS_OPTIONS } ?: defaults.smoothMotionMaxFps,
             autoExportDownloadsToStorage = prefs.getBoolean(KEY_AUTO_EXPORT_DOWNLOADS_TO_STORAGE, defaults.autoExportDownloadsToStorage),
             volumeBoostPercent = prefs.getInt(KEY_VOLUME_BOOST, defaults.volumeBoostPercent)
-                .coerceIn(VolumeBooster.MIN_PERCENT, VolumeBooster.MAX_PERCENT)
+                .coerceIn(VolumeBooster.MIN_PERCENT, VolumeBooster.MAX_PERCENT),
+            cacheSize = enumOrDefault(prefs.getString(KEY_CACHE_SIZE, null), defaults.cacheSize),
+            preloadArtwork = prefs.getBoolean(KEY_PRELOAD_ARTWORK, defaults.preloadArtwork)
         )
     }
+
+    fun setCacheSize(size: CacheSize) = update { it.copy(cacheSize = size) }
+
+    fun setPreloadArtwork(enabled: Boolean) = update { it.copy(preloadArtwork = enabled) }
 
     fun setAppLanguage(tag: String?) = update { it.copy(appLanguage = tag) }
 
@@ -230,10 +245,6 @@ class AppSettingsStore @Inject constructor(
     /** 0 clears the cap, so metered networks stream at the source's best quality. */
     fun setMeteredMaxHeight(height: Int) =
         update { it.copy(meteredMaxHeight = height.takeIf { it in AppSettings.METERED_CAPS } ?: 0) }
-
-    /** 0 clears the cap, so any network streams at the source's best quality. */
-    fun setStreamMaxHeight(height: Int) =
-        update { it.copy(streamMaxHeight = height.takeIf { it in AppSettings.STREAM_CAPS } ?: 1080) }
 
     fun setSmoothMotionEnabled(enabled: Boolean) = update { it.copy(smoothMotionEnabled = enabled) }
 
@@ -289,6 +300,8 @@ class AppSettingsStore @Inject constructor(
         const val KEY_SMOOTH_MOTION_ENABLED = "app_smooth_motion_enabled"
         const val KEY_SMOOTH_MOTION_MAX_FPS = "app_smooth_motion_max_fps"
         const val KEY_VOLUME_BOOST = "app_volume_boost_percent"
+        const val KEY_CACHE_SIZE = "app_cache_size"
+        const val KEY_PRELOAD_ARTWORK = "app_preload_artwork"
         const val KEY_THEME = "app_theme_mode"
         const val KEY_DYNAMIC_COLOR = "app_dynamic_color"
         const val KEY_DNS = "app_dns_provider"
@@ -296,7 +309,6 @@ class AppSettingsStore @Inject constructor(
         const val KEY_SEEK_STEP = "app_seek_step_seconds"
         const val KEY_DEFAULT_SPEED = "app_default_speed"
         const val KEY_AUTO_PLAY_NEXT = "app_auto_play_next"
-        const val KEY_STREAM_HEIGHT = "app_stream_max_height"
         const val KEY_SHOW_SKIP_BUTTON = "app_show_skip_button"
         const val KEY_DOWNLOAD_HEIGHT = "app_download_max_height"
         const val KEY_ACTIVE_PROFILE = "app_active_profile_id"

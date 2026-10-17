@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ivor.openstream.R
+import com.ivor.openstream.data.images.ArtworkPrefetcher
+import com.ivor.openstream.data.images.TmdbImages
 import com.ivor.openstream.data.local.entity.TitleRatingEntity
 import com.ivor.openstream.data.local.entity.WatchLaterEntity
 import com.ivor.openstream.data.remote.model.AnimeDto
@@ -82,6 +84,7 @@ class HomeViewModel @Inject constructor(
     private val ratingRepository: TitleRatingRepository,
     private val listRepository: CustomListRepository,
     private val watchLaterRepository: WatchLaterRepository,
+    private val artworkPrefetcher: ArtworkPrefetcher,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -257,15 +260,34 @@ class HomeViewModel @Inject constructor(
                 HomeRail("anime-movies", context.getString(R.string.home_anime_movies), RailStyle.POSTER, catalogs.getValue(AnimeCatalog.ANIME_MOVIES))
             ).filter { it.items.isNotEmpty() }
 
-            _uiState.value = HomeUiState.Success(
+            val success = HomeUiState.Success(
                 hero = trending.filter { it.posterPath != null }.take(8),
                 rails = rails
             )
+            _uiState.value = success
+            prefetchArtwork(success)
         }
+    }
+
+    /** The rows below the fold, in the sizes HomeScreen draws them, so scrolling finds them ready. */
+    private fun prefetchArtwork(state: HomeUiState.Success) {
+        val hero = state.hero.map { TmdbImages.url("w780", it.posterPath) }
+        val rails = state.rails.flatMap { rail ->
+            rail.items.take(PREFETCH_PER_RAIL).map { item ->
+                when (rail.style) {
+                    RailStyle.LANDSCAPE -> TmdbImages.url("w780", item.backdropPath)
+                    RailStyle.RANKED, RailStyle.POSTER -> TmdbImages.url("w342", item.posterPath)
+                }
+            }
+        }
+        artworkPrefetcher.prefetch(hero + rails)
     }
 }
 
 private val AnimeDto.homeMediaType: String get() = if (isMovie) "movie" else "tv"
+
+/** Rails show 20 titles; the first screenfuls of each are worth having ready. */
+private const val PREFETCH_PER_RAIL = 12
 
 private fun HomeUiState.Success.without(hidden: Set<String>): HomeUiState.Success {
     fun List<AnimeDto>.visible() = filterNot { HiddenTitlesRepository.key(it.homeMediaType, it.id) in hidden }

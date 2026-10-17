@@ -364,9 +364,14 @@
     <string name="st_history_cleared">देखने का इतिहास और प्रगति साफ़ हो गई</string>
     <string name="st_clear_crash">क्रैश रिपोर्ट साफ़ करें</string>
     <string name="st_crash_cleared">क्रैश रिपोर्ट साफ़ हो गईं</string>
-    <string name="st_clear_cache">छवि कैश साफ़ करें</string>
-    <string name="st_cache_cleared">छवि कैश साफ़ हो गया</string>
-    <string name="st_cache_size">%1$s आर्टवर्क</string>
+    <string name="st_clear_all_cache">कैश साफ़ करें</string>
+    <string name="st_cache_used">आर्टवर्क और टाइटल जानकारी के लिए %1$s इस्तेमाल हुआ</string>
+    <string name="st_cache_hint">पेज जल्दी खुलें, इसलिए आर्टवर्क और टाइटल जानकारी रखी जाती है</string>
+    <string name="st_cache_cleared_all">कैश साफ़ हो गया</string>
+    <string name="st_cache_limit">कैश का आकार</string>
+    <string name="st_cache_limit_hint">आर्टवर्क और टाइटल जानकारी कितनी जगह ले सकती है। ऐप अगली बार खुलने पर लागू होगा।</string>
+    <string name="st_preload_artwork">आर्टवर्क पहले से लोड करें</string>
+    <string name="st_preload_artwork_hint">Wi-Fi पर, स्क्रॉल करने से पहले ही पंक्तियों के पोस्टर लोड करें</string>
     <string name="st_show_hidden">छिपे टाइटल दिखाएं</string>
     <string name="st_backup">लाइब्रेरी बैकअप लें</string>
     <string name="st_backup_hint">हर प्रोफ़ाइल का बाद में देखें, सूचियां, इतिहास और छिपे टाइटल, तथा सेटिंग</string>
@@ -400,7 +405,6 @@
     <string name="st_allow_install_note">पहले OpenStream को अपडेट इंस्टॉल करने दें, फिर वापस आकर इंस्टॉल पर टैप करें।</string>
     <string name="st_storage_help">संग्रहण और सहायता</string>
     <string name="st_on_device">इस डिवाइस पर</string>
-    <string name="st_posters_cache">तेज़ लोडिंग के लिए रखे गए पोस्टर और बैकड्रॉप</string>
     <string name="st_crash_include">%1$d क्रैश रिपोर्ट सहित</string>
     <string name="st_repo_data_note">रिपॉज़िटरी कोड नहीं, डेटा देती हैं</string>
     <string name="st_repo_data_body">एक्सटेंशन केवल ऐसा रिज़ॉल्वर चुनता और कॉन्फ़िगर करता है जो OpenStream में पहले से है, इसलिए कोई तृतीय-पक्ष सूची आपके डिवाइस पर अपना कोड नहीं चला सकती।</string>
@@ -858,4 +862,67 @@
     <string name="match_rail">आपके लिए टॉप मैच</string>
     <string name="match_percent">%1$d%% मैच</string>
     <string name="match_because">क्योंकि आपको %1$s पसंद आया</string>
+    <string name="st_save_to_storage">डाउनलोड स्टोरेज में सेव करें</string>
+    <string name="st_save_to_storage_summary">हर पूरा डाउनलोड Downloads/Openstream में कॉपी करें, जहाँ दूसरे ऐप इसे खोल सकें</string>
+    <string name="dl_tab_downloads">डाउनलोड</string>
+    <string name="dl_tab_local_files">लोकल फ़ाइलें</string>
+    <string name="dl_save_to_storage">स्टोरेज में सेव करें</string>
+    <string name="dl_saved_to_storage">Downloads/Openstream में सेव हुआ</string>
+    <string name="dl_save_to_storage_failed">स्टोरेज में सेव नहीं हो सका</string>
+    <string name="local_import_files">वीडियो इंपोर्ट करें</string>
+    <string name="local_no_files_title">कोई लोकल वीडियो नहीं</string>
+    <string name="local_no_files_body">OpenStream में देखने के लिए अपने डिवाइस से वीडियो फ़ाइलें इंपोर्ट करें</string>
+    <string name="local_file">लोकल वीडियो</string>
+    <string name="local_delete_confirm_title">लोकल वीडियो हटाएँ?</string>
+    <string name="local_delete_confirm_body">यह सिर्फ़ इस सूची से हटेगा। फ़ाइल आपके डिवाइस पर रहेगी।</string>
+    <string name="local_search_hint">लोकल वीडियो खोजें</string>
+    <string name="sort_name_asc">नाम (A–Z)</string>
+    <string name="sort_name_desc">नाम (Z–A)</string>
+    <string name="sort_date_added_desc">हाल में जोड़े गए</string>
+    <string name="sort_date_added_asc">पहले जोड़े गए</string>
+    <string name="sort_size_desc">सबसे बड़े</string>
+    <string name="sort_size_asc">सबसे छोटे</string>
+    <string name="sort_duration_desc">सबसे लंबे</string>
+    <string name="sort_duration_asc">सबसे छोटे (अवधि)</string>
+    <string name="dl_save_in_progress">यह पहले से डाउनलोड में सेव हो रहा है</string>
+    <string name="dl_storage_permission_needed">वीडियो को डाउनलोड फ़ोल्डर में सेव करने के लिए स्टोरेज की अनुमति दें</string>
+    <string name="dl_save_unsupported">यह डाउनलोड एक वीडियो फ़ाइल के रूप में सेव नहीं हो सकता</string>
+    <string name="dl_save_protected">यह स्ट्रीम सुरक्षित है, इसलिए यह सिर्फ़ OpenStream में चल सकती है</string>
+    <plurals name="local_import_success">
+        <item quantity="one">%1$d वीडियो इंपोर्ट हुआ</item>
+        <item quantity="other">%1$d वीडियो इंपोर्ट हुए</item>
+    </plurals>
+    <string name="dl_delete_confirm">डाउनलोड हटाएँ?</string>
+    <string name="dl_delete_body">%1$s को इस डिवाइस से हटाएँ? ऑफ़लाइन देखने के लिए इसे फिर से डाउनलोड करना होगा।</string>
+    <string name="dl_cancel_confirm">डाउनलोड रद्द करें?</string>
+    <string name="dl_cancel_body">%1$s का डाउनलोड रोकें? अधूरी फ़ाइल हटा दी जाएगी।</string>
+    <string name="action_keep">रखें</string>
+    <string name="season_episode_format">सीज़न %1$d, एपिसोड %2$d</string>
+    <string name="dl_pick_source_title">डाउनलोड स्रोत चुनें</string>
+    <string name="dl_pick_source_hint">चुनें कि कहाँ से डाउनलोड करना है।</string>
+    <string name="dl_pick_batch_hint">जहाँ उपलब्ध हो, हर एपिसोड के लिए वही प्रोवाइडर और क्वालिटी इस्तेमाल होगी जिसे आप टैप करेंगे।</string>
+    <string name="dl_batch_queued">%1$d एपिसोड डाउनलोड हो रहे हैं… इन्हें डाउनलोड में देखें।</string>
+    <string name="dl_season_already">यहाँ के सभी एपिसोड पहले से डाउनलोड हैं या हो रहे हैं</string>
+    <string name="dl_hold_options">स्रोत चुनने के लिए दबाकर रखें</string>
+    <string name="dl_hold_tip">टिप: स्रोत और क्वालिटी चुनने के लिए डाउनलोड को दबाकर रखें।</string>
+    <string name="dl_choose_source">डाउनलोड स्रोत चुनें</string>
+    <string name="dl_no_quality_match">इस क्वालिटी में अभी कोई स्रोत नहीं है।</string>
+    <string name="action_show_all">सभी दिखाएँ</string>
+    <plurals name="dl_delete_group_body">
+        <item quantity="one">%2$s का %1$d एपिसोड इस डिवाइस से हटाएँ? ऑफ़लाइन देखने के लिए इसे फिर से डाउनलोड करना होगा।</item>
+        <item quantity="other">%2$s के %1$d एपिसोड इस डिवाइस से हटाएँ? ऑफ़लाइन देखने के लिए इन्हें फिर से डाउनलोड करना होगा।</item>
+    </plurals>
+    <plurals name="dl_delete_episodes">
+        <item quantity="one">1 एपिसोड हटाएँ?</item>
+        <item quantity="other">%1$d एपिसोड हटाएँ?</item>
+    </plurals>
+    <plurals name="dl_batch_count">
+        <item quantity="one">%1$d एपिसोड</item>
+        <item quantity="other">%1$d एपिसोड</item>
+    </plurals>
+
+    <string name="sheet_volume_boost">वॉल्यूम बूस्ट</string>
+    <string name="sheet_volume_boost_desc">धीमी आवाज़ वाले वीडियो को तेज़ करता है। लिमिटर तेज़ हिस्सों को बिगड़ने नहीं देता। सामान्य पर वापस करने तक हर वीडियो पर लागू रहता है।</string>
+    <string name="sheet_external_player">बाहरी प्लेयर</string>
+    <string name="action_open_external_player">बाहरी प्लेयर में खोलें</string>
 </resources>

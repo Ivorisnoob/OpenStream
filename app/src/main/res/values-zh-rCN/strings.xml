@@ -343,9 +343,14 @@
     <string name="st_history_cleared">观看历史和进度已清除</string>
     <string name="st_clear_crash">清除崩溃报告</string>
     <string name="st_crash_cleared">崩溃报告已清除</string>
-    <string name="st_clear_cache">清除图片缓存</string>
-    <string name="st_cache_cleared">图片缓存已清除</string>
-    <string name="st_cache_size">封面占用 %1$s</string>
+    <string name="st_clear_all_cache">清除缓存</string>
+    <string name="st_cache_used">封面和影片信息占用 %1$s</string>
+    <string name="st_cache_hint">保留封面和影片信息，让页面打开更快</string>
+    <string name="st_cache_cleared_all">缓存已清除</string>
+    <string name="st_cache_limit">缓存大小</string>
+    <string name="st_cache_limit_hint">封面和影片信息可占用的空间。下次启动应用时生效。</string>
+    <string name="st_preload_artwork">预加载封面</string>
+    <string name="st_preload_artwork_hint">连接 Wi-Fi 时，在你滚动到之前预先加载各行的海报</string>
     <string name="st_show_hidden">显示已隐藏的标题</string>
     <string name="st_backup">备份媒体库</string>
     <string name="st_backup_hint">包含每个用户的稍后观看、列表、历史记录、已隐藏标题及设置</string>
@@ -379,7 +384,6 @@
     <string name="st_allow_install_note">请先允许 OpenStream 安装更新，然后返回并轻触“安装”。</string>
     <string name="st_storage_help">存储与帮助</string>
     <string name="st_on_device">在此设备上</string>
-    <string name="st_posters_cache">缓存海报和背景图以加快加载</string>
     <string name="st_crash_include">包含 %1$d 份崩溃报告</string>
     <string name="st_repo_data_note">仓库仅提供数据，不含代码</string>
     <string name="st_repo_data_body">扩展仅选用并配置 OpenStream 内置的解析器，第三方列表无法在您的设备上运行代码。</string>
@@ -817,4 +821,63 @@
     <string name="match_rail">最匹配你的推荐</string>
     <string name="match_percent">%1$d%% 匹配</string>
     <string name="match_because">因为你喜欢 %1$s</string>
+    <string name="st_save_to_storage">将下载内容保存到存储空间</string>
+    <string name="st_save_to_storage_summary">把每个已完成的下载复制到 Downloads/Openstream，方便其他应用打开</string>
+    <string name="dl_tab_downloads">下载</string>
+    <string name="dl_tab_local_files">本地文件</string>
+    <string name="dl_save_to_storage">保存到存储空间</string>
+    <string name="dl_saved_to_storage">已保存到 Downloads/Openstream</string>
+    <string name="dl_save_to_storage_failed">无法保存到存储空间</string>
+    <string name="local_import_files">导入视频</string>
+    <string name="local_no_files_title">没有本地视频</string>
+    <string name="local_no_files_body">从设备导入视频文件，在 OpenStream 中观看</string>
+    <string name="local_file">本地视频</string>
+    <string name="local_delete_confirm_title">移除本地视频？</string>
+    <string name="local_delete_confirm_body">只会从此列表移除，文件仍保留在设备上。</string>
+    <string name="local_search_hint">搜索本地视频</string>
+    <string name="sort_name_asc">名称 (A–Z)</string>
+    <string name="sort_name_desc">名称 (Z–A)</string>
+    <string name="sort_date_added_desc">最近添加</string>
+    <string name="sort_date_added_asc">最早添加</string>
+    <string name="sort_size_desc">最大</string>
+    <string name="sort_size_asc">最小</string>
+    <string name="sort_duration_desc">时长最长</string>
+    <string name="sort_duration_asc">时长最短</string>
+    <string name="dl_save_in_progress">正在保存到“下载”文件夹</string>
+    <string name="dl_storage_permission_needed">请允许存储访问权限，以便将视频保存到“下载”文件夹</string>
+    <string name="dl_save_unsupported">此下载无法保存为单个视频文件</string>
+    <string name="dl_save_protected">此视频流受保护，只能在 OpenStream 中播放</string>
+    <plurals name="local_import_success">
+        <item quantity="other">已导入 %1$d 个视频</item>
+    </plurals>
+    <string name="dl_delete_confirm">删除下载？</string>
+    <string name="dl_delete_body">要从此设备移除 %1$s 吗？离线观看需要重新下载。</string>
+    <string name="dl_cancel_confirm">取消下载？</string>
+    <string name="dl_cancel_body">停止下载 %1$s？未完成的文件将被删除。</string>
+    <string name="action_keep">保留</string>
+    <string name="season_episode_format">第 %1$d 季第 %2$d 集</string>
+    <string name="dl_pick_source_title">选择下载来源</string>
+    <string name="dl_pick_source_hint">选择从哪里下载。</string>
+    <string name="dl_pick_batch_hint">在可用时，每一集都会使用你点选的提供方和画质。</string>
+    <string name="dl_batch_queued">正在下载 %1$d 集… 可在“下载”中查看。</string>
+    <string name="dl_season_already">这里的所有剧集都已下载或正在下载</string>
+    <string name="dl_hold_options">长按以选择来源</string>
+    <string name="dl_hold_tip">提示：长按“下载”可选择来源和画质。</string>
+    <string name="dl_choose_source">选择下载来源</string>
+    <string name="dl_no_quality_match">此画质暂无来源。</string>
+    <string name="action_show_all">显示全部</string>
+    <plurals name="dl_delete_group_body">
+        <item quantity="other">要从此设备移除 %2$s 的 %1$d 集吗？离线观看需要重新下载。</item>
+    </plurals>
+    <plurals name="dl_delete_episodes">
+        <item quantity="other">删除 %1$d 集？</item>
+    </plurals>
+    <plurals name="dl_batch_count">
+        <item quantity="other">%1$d 集</item>
+    </plurals>
+
+    <string name="sheet_volume_boost">音量增强</string>
+    <string name="sheet_volume_boost_desc">让声音偏小的视频更响。限幅器可防止大声部分失真。在你改回“正常”之前，对所有播放内容生效。</string>
+    <string name="sheet_external_player">外部播放器</string>
+    <string name="action_open_external_player">在外部播放器中打开</string>
 </resources>

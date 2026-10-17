@@ -343,9 +343,14 @@
     <string name="st_history_cleared">視聴履歴と進行状況をクリアしました</string>
     <string name="st_clear_crash">クラッシュレポートをクリア</string>
     <string name="st_crash_cleared">クラッシュレポートをクリアしました</string>
-    <string name="st_clear_cache">画像キャッシュをクリア</string>
-    <string name="st_cache_cleared">画像キャッシュをクリアしました</string>
-    <string name="st_cache_size">アートワーク%1$s</string>
+    <string name="st_clear_all_cache">キャッシュをクリア</string>
+    <string name="st_cache_used">アートワークと作品情報で%1$s使用中</string>
+    <string name="st_cache_hint">ページをすばやく開くためアートワークと作品情報を保持</string>
+    <string name="st_cache_cleared_all">キャッシュをクリアしました</string>
+    <string name="st_cache_limit">キャッシュサイズ</string>
+    <string name="st_cache_limit_hint">アートワークと作品情報が使える容量。次回アプリ起動時に反映されます。</string>
+    <string name="st_preload_artwork">アートワークを先読み</string>
+    <string name="st_preload_artwork_hint">Wi-Fi接続時、スクロールする前に各列のポスターを読み込みます</string>
     <string name="st_show_hidden">非表示のタイトルを表示</string>
     <string name="st_backup">ライブラリをバックアップ</string>
     <string name="st_backup_hint">各プロフィールの「後で見る」、リスト、履歴、非表示タイトル、設定</string>
@@ -379,7 +384,6 @@
     <string name="st_allow_install_note">先にOpenStreamのインストールを許可してから、戻ってインストールをタップしてください。</string>
     <string name="st_storage_help">ストレージとヘルプ</string>
     <string name="st_on_device">このデバイス上</string>
-    <string name="st_posters_cache">高速読み込みのためポスターと背景を保持</string>
     <string name="st_crash_include">%1$d件のクラッシュレポートを含みます</string>
     <string name="st_repo_data_note">リポジトリはコードではなくデータを提供します</string>
     <string name="st_repo_data_body">拡張機能はOpenStream内蔵のリゾルバーを選択・設定するだけで、第三者のリストがデバイス上でコードを実行することはありません。</string>
@@ -817,4 +821,63 @@
     <string name="match_rail">あなたへのトップマッチ</string>
     <string name="match_percent">%1$d%%マッチ</string>
     <string name="match_because">%1$sがお好きなので</string>
+    <string name="st_save_to_storage">ダウンロードをストレージに保存</string>
+    <string name="st_save_to_storage_summary">完了したダウンロードを Downloads/Openstream にコピーし、他のアプリでも開けるようにします</string>
+    <string name="dl_tab_downloads">ダウンロード</string>
+    <string name="dl_tab_local_files">ローカルファイル</string>
+    <string name="dl_save_to_storage">ストレージに保存</string>
+    <string name="dl_saved_to_storage">Downloads/Openstream に保存しました</string>
+    <string name="dl_save_to_storage_failed">ストレージに保存できませんでした</string>
+    <string name="local_import_files">動画をインポート</string>
+    <string name="local_no_files_title">ローカル動画はありません</string>
+    <string name="local_no_files_body">端末の動画ファイルをインポートして OpenStream で再生できます</string>
+    <string name="local_file">ローカル動画</string>
+    <string name="local_delete_confirm_title">ローカル動画を削除しますか？</string>
+    <string name="local_delete_confirm_body">このリストから外すだけです。ファイルは端末に残ります。</string>
+    <string name="local_search_hint">ローカル動画を検索</string>
+    <string name="sort_name_asc">名前 (A–Z)</string>
+    <string name="sort_name_desc">名前 (Z–A)</string>
+    <string name="sort_date_added_desc">追加日が新しい順</string>
+    <string name="sort_date_added_asc">追加日が古い順</string>
+    <string name="sort_size_desc">サイズが大きい順</string>
+    <string name="sort_size_asc">サイズが小さい順</string>
+    <string name="sort_duration_desc">再生時間が長い順</string>
+    <string name="sort_duration_asc">再生時間が短い順</string>
+    <string name="dl_save_in_progress">すでにダウンロードフォルダに保存中です</string>
+    <string name="dl_storage_permission_needed">ダウンロードフォルダに動画を保存するには、ストレージへのアクセスを許可してください</string>
+    <string name="dl_save_unsupported">このダウンロードは1つの動画ファイルとして保存できません</string>
+    <string name="dl_save_protected">このストリームは保護されているため、OpenStream 内でのみ再生できます</string>
+    <plurals name="local_import_success">
+        <item quantity="other">%1$d 本の動画をインポートしました</item>
+    </plurals>
+    <string name="dl_delete_confirm">ダウンロードを削除しますか？</string>
+    <string name="dl_delete_body">%1$sをこの端末から削除しますか？オフラインで見るには再度ダウンロードが必要です。</string>
+    <string name="dl_cancel_confirm">ダウンロードをキャンセルしますか？</string>
+    <string name="dl_cancel_body">%1$sのダウンロードを停止しますか？途中までのファイルは削除されます。</string>
+    <string name="action_keep">残す</string>
+    <string name="season_episode_format">シーズン%1$d、第%2$d話</string>
+    <string name="dl_pick_source_title">ダウンロード元を選択</string>
+    <string name="dl_pick_source_hint">ダウンロード元を選んでください。</string>
+    <string name="dl_pick_batch_hint">利用できる場合、各エピソードにタップしたプロバイダと画質を使います。</string>
+    <string name="dl_batch_queued">%1$d話をダウンロード中… ダウンロードで確認できます。</string>
+    <string name="dl_season_already">ここのエピソードはすべてダウンロード済みかダウンロード中です</string>
+    <string name="dl_hold_options">長押しでダウンロード元を選択</string>
+    <string name="dl_hold_tip">ヒント: ダウンロードを長押しすると、ダウンロード元と画質を選べます。</string>
+    <string name="dl_choose_source">ダウンロード元を選択</string>
+    <string name="dl_no_quality_match">この画質のソースはまだありません。</string>
+    <string name="action_show_all">すべて表示</string>
+    <plurals name="dl_delete_group_body">
+        <item quantity="other">%2$sの%1$d話をこの端末から削除しますか？オフラインで見るには再度ダウンロードが必要です。</item>
+    </plurals>
+    <plurals name="dl_delete_episodes">
+        <item quantity="other">%1$d話を削除しますか？</item>
+    </plurals>
+    <plurals name="dl_batch_count">
+        <item quantity="other">%1$d話</item>
+    </plurals>
+
+    <string name="sheet_volume_boost">音量ブースト</string>
+    <string name="sheet_volume_boost_desc">音の小さい動画を大きくします。リミッターで大きな音の歪みを防ぎます。通常に戻すまで、再生するすべての動画に適用されます。</string>
+    <string name="sheet_external_player">外部プレーヤー</string>
+    <string name="action_open_external_player">外部プレーヤーで開く</string>
 </resources>

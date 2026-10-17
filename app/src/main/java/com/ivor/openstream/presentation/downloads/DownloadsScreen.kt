@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.downloads
 
+import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -60,6 +61,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
@@ -74,6 +76,12 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LinearWavyProgressIndicator
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -90,7 +98,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -123,7 +130,27 @@ fun DownloadsScreen(
     var pendingDeleteId by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingGroupKey by rememberSaveable { mutableStateOf<String?>(null) }
     var subtitlesForId by rememberSaveable { mutableStateOf<String?>(null) }
-    var localMediaToDelete by rememberSaveable { mutableStateOf<LocalMediaEntity?>(null) }
+    // The id, not the row: rememberSaveable can only keep saveable values.
+    var localMediaToDeleteId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val localMediaToDelete = localMediaToDeleteId?.let { id -> state.localFiles.firstOrNull { it.id == id } }
+
+    // Android 9 and older need the storage permission before saving to Downloads.
+    var pendingExport by remember { mutableStateOf<DownloadEntity?>(null) }
+    val storagePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val download = pendingExport
+        pendingExport = null
+        if (download != null) {
+            if (granted) viewModel.exportToStorage(download) else viewModel.onStoragePermissionDenied()
+        }
+    }
+    val exportToStorage: (DownloadEntity) -> Unit = { download ->
+        if (viewModel.storageExporter.needsStoragePermission()) {
+            pendingExport = download
+            storagePermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        } else {
+            viewModel.exportToStorage(download)
+        }
+    }
     val subtitlesViewModel: DownloadSubtitlesViewModel = hiltViewModel()
     val subtitlesFor = subtitlesForId?.let { id -> state.library.flatMap { it.items }.firstOrNull { it.downloadId == id } }
     val pendingDelete = pendingDeleteId?.let { id ->
@@ -161,13 +188,46 @@ fun DownloadsScreen(
             title = { Text(stringResource(R.string.dl_delete_all_confirm)) },
             text = { Text(stringResource(R.string.dl_delete_all_body)) },
             confirmButton = {
-                TextButton(onClick = {
-                    confirmDeleteAll = false
-                    viewModel.removeAll()
-                }) { Text(stringResource(R.string.action_delete_all), color = MaterialTheme.colorScheme.error) }
+                TextButton(
+                    onClick = {
+                        confirmDeleteAll = false
+                        viewModel.removeAll()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text(stringResource(R.string.action_delete_all)) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmDeleteAll = false }) { Text(stringResource(R.string.action_cancel)) }
+            }
+        )
+    }
+
+    if (localMediaToDelete != null) {
+        val target = localMediaToDelete
+        AlertDialog(
+            onDismissRequest = { localMediaToDeleteId = null },
+            title = { Text(stringResource(R.string.local_delete_confirm_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.local_delete_confirm_body))
+                    if (target != null) {
+                        Text(
+                            text = target.displayName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val media = localMediaToDelete
+                    localMediaToDeleteId = null
+                    if (media != null) viewModel.removeLocalMedia(media.id)
+                }) { Text(stringResource(R.string.action_remove), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { localMediaToDeleteId = null }) { Text(stringResource(R.string.action_cancel)) }
             }
         )
     }
@@ -229,8 +289,9 @@ fun DownloadsScreen(
             },
             text = {
                 Text(
-                    stringResource(
-                        R.string.dl_delete_group_body,
+                    pluralStringResource(
+                        R.plurals.dl_delete_group_body,
+                        pendingGroup.items.size,
                         pendingGroup.items.size,
                         pendingGroup.title
                     )
@@ -252,38 +313,6 @@ fun DownloadsScreen(
         )
     }
 
-    if (localMediaToDelete != null) {
-        val target = localMediaToDelete
-        AlertDialog(
-            onDismissRequest = { localMediaToDelete = null },
-            title = { Text(stringResource(R.string.local_delete_confirm_title)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(stringResource(R.string.local_delete_confirm_body))
-                    if (target != null) {
-                        Text(
-                            text = target.displayName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val media = localMediaToDelete
-                    localMediaToDelete = null
-                    if (media != null) {
-                        viewModel.deleteLocalMedia(media.id, alsoDeleteFile = false)
-                    }
-                }) { Text(stringResource(R.string.action_remove), color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { localMediaToDelete = null }) { Text(stringResource(R.string.action_cancel)) }
-            }
-        )
-    }
-
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -295,7 +324,7 @@ fun DownloadsScreen(
                 onBackClick = onBackClick,
                 onTabSelect = viewModel::setSelectedTab,
                 onLocalMediaClick = onLocalMediaClick,
-                onDeleteMedia = { localMediaToDelete = it },
+                onDeleteMedia = { localMediaToDeleteId = it.id },
                 onImportClick = { openDocumentLauncher.launch(arrayOf("video/*")) },
                 onSearchChange = viewModel::setSearchQuery,
                 onSortChange = viewModel::setSortOrder
@@ -308,10 +337,10 @@ fun DownloadsScreen(
                 onTabSelect = viewModel::setSelectedTab,
                 onDownloadClick = onDownloadClick,
                 onDeleteAll = { confirmDeleteAll = true },
-                onDelete = { pendingDeleteId = it.downloadId },
-                onDeleteGroup = { pendingGroupKey = it.key },
                 onSubtitles = { subtitlesForId = it.downloadId },
-                onExport = viewModel::exportToStorage
+                onExport = exportToStorage,
+                onDelete = { pendingDeleteId = it.downloadId },
+                onDeleteGroup = { pendingGroupKey = it.key }
             )
         } else {
             CenteredListBox(Modifier.fillMaxSize(), minGutter = 16.dp) { gutter ->
@@ -319,7 +348,7 @@ fun DownloadsScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(MaterialTheme.colorScheme.background),
-                    contentPadding = PaddingValues(start = gutter, end = gutter, bottom = bottomContentPadding),
+                    contentPadding = PaddingValues(start = gutter, end = gutter, bottom = 136.dp),
                     verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)
                 ) {
                     item(key = "header") {
@@ -375,7 +404,7 @@ fun DownloadsScreen(
                                 exportStates = state.exportStates,
                                 onPlay = onDownloadClick,
                                 onSubtitles = { subtitlesForId = it.downloadId },
-                                onExport = viewModel::exportToStorage,
+                                onExport = exportToStorage,
                                 onDelete = { pendingDeleteId = it.downloadId },
                                 onDeleteAll = { pendingGroupKey = group.key },
                                 modifier = Modifier
@@ -397,6 +426,7 @@ fun DownloadsScreen(
     }
 }
 
+/** From here Downloads splits into a fixed side column and a library grid. */
 private val WIDE_DOWNLOADS_MIN_WIDTH = 900.dp
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -477,7 +507,7 @@ private fun LocalFilesView(
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background),
-            contentPadding = PaddingValues(start = gutter, end = gutter, bottom = bottomContentPadding),
+            contentPadding = PaddingValues(start = gutter, end = gutter, bottom = 136.dp),
             verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)
         ) {
             item(key = "header") {
@@ -551,7 +581,7 @@ private fun LocalFilesView(
                     }
 
                     if (state.isImporting) {
-                        LinearWavyProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                     }
                 }
             }
@@ -681,6 +711,10 @@ private fun EmptyLocalFiles(onImport: () -> Unit) {
     }
 }
 
+/**
+ * Tablets: storage and anything still downloading stay in view on the left while the library
+ * fills the rest of the screen as a grid of title cards.
+ */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun WideDownloads(
@@ -690,10 +724,10 @@ private fun WideDownloads(
     onTabSelect: (DownloadTab) -> Unit,
     onDownloadClick: (DownloadEntity) -> Unit,
     onDeleteAll: () -> Unit,
-    onDelete: (DownloadEntity) -> Unit,
-    onDeleteGroup: (DownloadGroup) -> Unit,
     onSubtitles: (DownloadEntity) -> Unit,
-    onExport: (DownloadEntity) -> Unit
+    onExport: (DownloadEntity) -> Unit,
+    onDelete: (DownloadEntity) -> Unit,
+    onDeleteGroup: (DownloadGroup) -> Unit
 ) {
     Row(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -745,6 +779,7 @@ private fun WideDownloads(
             verticalItemSpacing = 12.dp
         ) {
             item(key = "library-title", span = StaggeredGridItemSpan.FullLine) {
+                // Lines the title up with "Downloads" in the side column.
                 Box(Modifier.statusBarsPadding().padding(top = 96.dp)) {
                     SectionTitle(if (state.library.isEmpty()) stringResource(R.string.dl_nothing_finished) else stringResource(R.string.st_on_device))
                 }
@@ -993,7 +1028,7 @@ private fun LibraryGroup(
                         IconButton(onClick = { onSubtitles(movie) }) {
                             Icon(Icons.Default.ClosedCaption, contentDescription = stringResource(R.string.cd_subtitles_for, group.title))
                         }
-                        IconButton(onClick = onDeleteAll) {
+                        IconButton(onClick = { onDelete(movie) }) {
                             Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.cd_delete_download))
                         }
                     } else {
@@ -1144,6 +1179,7 @@ private fun EmptyDownloads() {
 private fun DownloadEntity.headline(): String =
     if (mediaType == "movie") displayTitle else "$displayTitle · ${stringResource(R.string.li_episode_code, season, episode)}"
 
+/** Plain words for confirmation dialogs: "Title" or "Title · Season 1, Episode 5". */
 @Composable
 private fun DownloadEntity.describe(): String =
     if (mediaType == "movie") displayTitle

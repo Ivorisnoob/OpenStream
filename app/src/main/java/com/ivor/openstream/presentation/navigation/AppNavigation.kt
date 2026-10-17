@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.navigation
 
+import com.ivor.openstream.data.local.entity.LOCAL_MEDIA_TYPE
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -346,7 +347,7 @@ fun AppNavigation(
                         onLocalMediaClick = { localMedia ->
                             navController.navigate(
                                 Screen.Player.createRoute(
-                                    mediaType = "local",
+                                    mediaType = LOCAL_MEDIA_TYPE,
                                     animeId = localMedia.id.toInt(),
                                     season = 0,
                                     episode = 0,
@@ -538,7 +539,9 @@ fun AppNavigation(
                                 animeId = item.tmdbId,
                                 season = item.season,
                                 episode = item.episode,
-                                downloadId = item.downloadId
+                                downloadId = item.downloadId,
+                                // A local file plays under its row id; reopen it as that file.
+                                localMediaId = item.tmdbId.toLong().takeIf { item.mediaType == LOCAL_MEDIA_TYPE }
                             )
                         ) { launchSingleTop = true }
                     }

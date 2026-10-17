@@ -34,7 +34,9 @@ import javax.inject.Singleton
 class ExtensionStreamProvider(
     val extensionKey: String,
     private val delegate: StreamProvider,
-    override val priority: Int
+    override val priority: Int,
+    /** The extension's manifest version; a different one may find different streams. */
+    val versionCode: Int = 0
 ) : StreamProvider {
     override val id: String = delegate.id
     override val displayName: String = delegate.displayName
@@ -77,7 +79,12 @@ class ExtensionProviderRegistry @Inject constructor(
             }
             .distinctBy { (_, delegate) -> delegate.id }
             .mapIndexed { position, (extension, delegate) ->
-                ExtensionStreamProvider(extensionKey = extension.key, delegate = delegate, priority = position)
+                ExtensionStreamProvider(
+                    extensionKey = extension.key,
+                    delegate = delegate,
+                    priority = position,
+                    versionCode = extension.manifest.versionCode
+                )
             }
 
     fun recordOutcome(provider: ExtensionStreamProvider, success: Boolean) {

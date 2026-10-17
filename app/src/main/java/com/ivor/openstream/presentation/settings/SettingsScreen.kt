@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.settings
 
+import android.Manifest
 import com.ivor.openstream.presentation.components.CenteredListBox
 import com.ivor.openstream.presentation.downloads.formatBytes
 import android.app.Activity
@@ -45,6 +46,7 @@ import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -92,6 +94,7 @@ import com.ivor.openstream.R
 import com.ivor.openstream.data.backup.LibraryBackup
 import com.ivor.openstream.data.settings.AppSettings
 import com.ivor.openstream.data.settings.AppLocale
+import com.ivor.openstream.data.settings.CacheSize
 import com.ivor.openstream.data.settings.DnsProvider
 import com.ivor.openstream.data.settings.ThemeMode
 import com.ivor.openstream.presentation.components.ConnectedChoiceGroup
@@ -112,7 +115,11 @@ fun SettingsScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val appSettings by viewModel.appSettings.collectAsState()
-    val imageCacheBytes by viewModel.imageCacheBytes.collectAsState()
+    val cacheBytes by viewModel.cacheBytes.collectAsState()
+    // Turning on auto-save asks for storage access first where Android needs it (9 and older).
+    val autoExportPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) viewModel.setAutoExportDownloadsToStorage(true)
+    }
     val hiddenTitleCount by viewModel.hiddenTitleCount.collectAsState()
     val crashCount by viewModel.crashCount.collectAsState()
     val isWorking by viewModel.isWorking.collectAsState()
@@ -479,7 +486,13 @@ fun SettingsScreen(
                             title = stringResource(R.string.st_save_to_storage),
                             supporting = stringResource(R.string.st_save_to_storage_summary),
                             checked = appSettings.autoExportDownloadsToStorage,
-                            onCheckedChange = viewModel::setAutoExportDownloadsToStorage
+                            onCheckedChange = { enabled ->
+                                if (enabled && viewModel.storagePermissionNeeded()) {
+                                    autoExportPermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                                } else {
+                                    viewModel.setAutoExportDownloadsToStorage(enabled)
+                                }
+                            }
                         )
                     }
                 }
@@ -569,18 +582,36 @@ fun SettingsScreen(
                 }
 
                 item(key = "storage-help") {
-                    val count = if (crashCount > 0) 3 else 2
+                    val count = if (crashCount > 0) 5 else 4
                     SettingsGroup(title = stringResource(R.string.st_storage_help)) {
                         NavigationRow(
                             index = 0, count = count,
                             icon = Icons.Default.Image,
-                            title = stringResource(R.string.st_clear_cache),
-                            supporting = imageCacheBytes?.let { stringResource(R.string.st_cache_size, Formatter.formatShortFileSize(context, it)) }
-                                ?: stringResource(R.string.st_posters_cache),
-                            onClick = viewModel::clearImageCache
+                            title = stringResource(R.string.st_clear_all_cache),
+                            supporting = cacheBytes?.let { stringResource(R.string.st_cache_used, Formatter.formatShortFileSize(context, it)) }
+                                ?: stringResource(R.string.st_cache_hint),
+                            onClick = viewModel::clearCache
+                        )
+                        ChoiceRow(
+                            index = 1, count = count,
+                            icon = Icons.Default.Storage,
+                            title = stringResource(R.string.st_cache_limit),
+                            supporting = stringResource(R.string.st_cache_limit_hint),
+                            options = CacheSize.entries,
+                            selected = appSettings.cacheSize,
+                            label = { Formatter.formatShortFileSize(context, it.totalBytes) },
+                            onSelect = viewModel::setCacheSize
+                        )
+                        SwitchRow(
+                            index = 2, count = count,
+                            icon = Icons.Default.Wifi,
+                            title = stringResource(R.string.st_preload_artwork),
+                            supporting = stringResource(R.string.st_preload_artwork_hint),
+                            checked = appSettings.preloadArtwork,
+                            onCheckedChange = viewModel::setPreloadArtwork
                         )
                         NavigationRow(
-                            index = 1, count = count,
+                            index = 3, count = count,
                             icon = Icons.Default.BugReport,
                             title = stringResource(R.string.st_export_diag),
                             supporting = when (crashCount) {
@@ -593,7 +624,7 @@ fun SettingsScreen(
                         )
                         if (crashCount > 0) {
                             NavigationRow(
-                                index = 2, count = count,
+                                index = 4, count = count,
                                 icon = Icons.Default.DeleteSweep,
                                 title = stringResource(R.string.st_clear_crash),
                                 supporting = stringResource(R.string.dl_stored_only_device),

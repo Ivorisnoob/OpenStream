@@ -39,7 +39,8 @@ class StreamingRepositoryImpl @Inject constructor(
     private val idMappingService: IdMappingService,
     @Named("StreamingClient") private val client: OkHttpClient,
     private val preferences: SharedPreferences,
-    private val appSettings: AppSettingsStore
+    private val appSettings: AppSettingsStore,
+    private val streamCache: ResolvedStreamCache
 ) : StreamingRepository {
     private val consecutiveFailures = ConcurrentHashMap<String, Int>()
 
@@ -62,6 +63,9 @@ class StreamingRepositoryImpl @Inject constructor(
      * With [preferLastWorking] the source that last played something ([rememberWorkingSource]) is
      * asked first, on its own. If it has streams the search ends there; if it has none, or has not
      * answered within [REMEMBERED_HEAD_START_MS], the search above runs as usual.
+     *
+     * That automatic search (and only that one) answers from [ResolvedStreamCache] when the same
+     * sources found streams for this episode a few minutes ago.
      */
     override fun resolveServers(
         identity: MediaIdentity,
@@ -70,6 +74,32 @@ class StreamingRepositoryImpl @Inject constructor(
     ): Flow<ServerResolution> = channelFlow {
         val installedProviders = withContext(Dispatchers.IO) { providerRegistry.activeProviders() }
         val providerPriorities = installedProviders.associate { it.id to it.priority }
+        val inOrder = appSettings.current.sourceSearchMode == SourceSearchMode.IN_ORDER
+        val cacheable = preferLastWorking && !includeFallbacks
+        val sources = sourcesFingerprint(installedProviders, inOrder)
+        if (cacheable) {
+            streamCache.get(identity, sources)?.let { cached ->
+                // Ranked again: the user may have picked a different server since.
+                send(
+                    cached.copy(
+                        servers = ServerRanker.mergeAndRank(
+                            existing = emptyList(),
+                            incoming = cached.servers,
+                            providerPriorities = providerPriorities,
+                            preferredServerId = preferences.getString(preferenceKey(identity), null),
+                            providerFirst = inOrder
+                        )
+                    )
+                )
+                return@channelFlow
+            }
+        }
+
+        suspend fun publish(resolution: ServerResolution) {
+            if (cacheable) streamCache.put(identity, sources, resolution)
+            send(resolution)
+        }
+
         val installedEnabled = installedProviders.filter { it.isEnabled }
         // Never let the breaker leave nothing to try: then everything gets another go.
         val enabledProviders = installedEnabled.filterNot { isBreakerOpen(it.id) }.ifEmpty { installedEnabled }
@@ -94,7 +124,6 @@ class StreamingRepositoryImpl @Inject constructor(
         } else {
             otherProviders.filter(ExtensionStreamProvider::isFallback)
         }
-        val inOrder = appSettings.current.sourceSearchMode == SourceSearchMode.IN_ORDER
         val firstStageProviders = directProviders.ifEmpty { fallbackProviders }
         val deferredFallbackProviders = fallbackProviders.takeIf { directProviders.isNotEmpty() }.orEmpty()
         // Shown straight away, before the id lookup, so the screen says sources are being searched.
@@ -108,7 +137,7 @@ class StreamingRepositoryImpl @Inject constructor(
             )
         )
         if (remembered == null && firstStageProviders.isEmpty()) {
-            send(ServerResolution(isComplete = true))
+            publish(ServerResolution(isComplete = true))
             return@channelFlow
         }
 
@@ -153,7 +182,7 @@ class StreamingRepositoryImpl @Inject constructor(
             ordered.forEachIndexed { index, provider ->
                 absorb(runProvider(provider, enrichedIdentity))
                 val found = servers.isNotEmpty()
-                send(progress(servers, index + 1, ordered.size, failedProviders, isComplete = found || index == ordered.lastIndex))
+                publish(progress(servers, index + 1, ordered.size, failedProviders, isComplete = found || index == ordered.lastIndex))
                 if (found) return@channelFlow
             }
             return@channelFlow
@@ -224,7 +253,7 @@ class StreamingRepositoryImpl @Inject constructor(
                     }
                     // Direct providers are all done and found nothing: fallbacks are the last hope.
                     if (pending == 0 && servers.isEmpty()) startFallbacks()
-                    send(progress(servers, total - pending, total, failedProviders, isComplete = pending == 0))
+                    publish(progress(servers, total - pending, total, failedProviders, isComplete = pending == 0))
                 }
             }
         }
@@ -309,6 +338,16 @@ class StreamingRepositoryImpl @Inject constructor(
                 }
             }
             server.copy(resolvedAt = System.currentTimeMillis())
+        }
+
+    override fun forgetResolvedServers(identity: MediaIdentity) = streamCache.forget(identity)
+
+    override fun clearResolvedServers() = streamCache.clear()
+
+    /** What a cached resolution must match: the same sources, versions, order and search mode. */
+    private fun sourcesFingerprint(providers: List<ExtensionStreamProvider>, inOrder: Boolean): String =
+        providers.joinToString(separator = "|", postfix = if (inOrder) "#ordered" else "#all") { provider ->
+            "${provider.id}@${provider.versionCode}@${provider.priority}@${provider.isEnabled}@${provider.isFallback}"
         }
 
     override fun rememberServer(identity: MediaIdentity, server: VideoServer) {

@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -70,8 +71,9 @@ fun DownloadOptionsSheet(
         qualityFilter == null || it.quality.name == qualityFilter
     }
     val subtitle = when {
-        state.isBatch -> stringResource(
-            R.string.dl_batch_count,
+        state.isBatch -> pluralStringResource(
+            R.plurals.dl_batch_count,
+            state.episodes.size,
             state.episodes.size
         ).let { "${state.title} · $it" }
         state.episodeLabel != null -> "${state.title} · ${state.episodeLabel}"

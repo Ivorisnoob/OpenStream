@@ -436,8 +436,8 @@ private fun SeekButton(
                 } else Modifier
             ),
         colors = IconButtonDefaults.iconButtonColors(
-            containerColor = if (isFocused) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f),
-            contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.inverseOnSurface
+            containerColor = if (isFocused) MaterialTheme.colorScheme.primaryContainer else Color.Black.copy(alpha = 0.32f),
+            contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimaryContainer else Color.White
         )
     ) {
         Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(metrics.seekIcon))
@@ -564,14 +564,13 @@ private fun HudChip(
         onClick = onClick,
         interactionSource = interactionSource,
         shape = ExpressiveShapes.small,
-        color = if (isFocused) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.14f),
-        contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.inverseOnSurface,
+        color = if (isFocused) MaterialTheme.colorScheme.primaryContainer else Color.White.copy(alpha = 0.14f),
+        contentColor = if (isFocused) MaterialTheme.colorScheme.onPrimaryContainer else Color.White,
         border = if (isFocused) BorderStroke(2.5.dp, MaterialTheme.colorScheme.primary) else null,
         shadowElevation = if (isFocused) 8.dp else 0.dp,
         modifier = Modifier
             .padding(end = 8.dp)
             .widthIn(max = 160.dp)
-            .heightIn(min = 48.dp)
             .then(if (isFocused) Modifier.scale(1.08f) else Modifier)
     ) {
         Row(
@@ -615,7 +614,7 @@ private fun HudIconButton(
         Icon(
             icon,
             contentDescription = contentDescription,
-            tint = if (isFocused) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.inverseOnSurface
+            tint = if (isFocused) MaterialTheme.colorScheme.onPrimaryContainer else Color.White
         )
     }
 }

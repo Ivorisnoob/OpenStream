@@ -12,17 +12,25 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import com.ivor.openstream.domain.model.AnimeCatalog
 import com.ivor.openstream.domain.model.BrowseGenre
+import com.ivor.openstream.di.NetworkModule
 import kotlinx.coroutines.awaitAll
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
+import javax.inject.Named
 
 class AnimeRepositoryImpl @Inject constructor(
     private val api: TmdbApi,
+    /** Checks with TMDB before answering; for pull to refresh. */
+    @Named(NetworkModule.FRESH_TMDB) private val freshApi: TmdbApi,
     private val sharedPreferences: SharedPreferences,
     private val json: Json,
     private val kids: KidsContentFilter
 ) : AnimeRepository {
 
     private val HISTORY_KEY = "watch_history_list"
+
+    /** Home's lists as last built, filtered for the profile; the HTTP cache keeps the raw answers on disk. */
+    private val catalogCache = ConcurrentHashMap<String, CachedCatalog>()
 
     override suspend fun getPopularAnime(page: Int): Result<List<AnimeDto>> = runCatching {
         api.getPopularAnime(page = page).results
@@ -43,27 +51,30 @@ class AnimeRepositoryImpl @Inject constructor(
     override suspend fun getCatalog(catalog: AnimeCatalog, forceRefresh: Boolean): Result<List<AnimeDto>> {
         // Kids profiles get their own filtered copy of each list.
         val key = catalogKey(catalog)
-        val cached = catalogCache[key] ?: readCachedCatalog(key)?.also { catalogCache[key] = it }
-        val isFresh = cached != null && System.currentTimeMillis() - cached.savedAt < CATALOG_TTL_MS
-        if (!forceRefresh && isFresh) return Result.success(cached!!.items)
-        return fetchCatalog(catalog)
+        val cached = catalogCache[key]
+        val age = cached?.let { System.currentTimeMillis() - it.savedAt }
+        if (!forceRefresh && age != null && age in 0L until CATALOG_TTL_MS) return Result.success(cached.items)
+        return fetchCatalog(catalog, if (forceRefresh) freshApi else api)
             .onSuccess { items ->
-                val entry = CachedCatalog(System.currentTimeMillis(), items)
-                catalogCache[key] = entry
-                sharedPreferences.edit().putString(key, json.encodeToString(entry)).apply()
+                catalogCache[key] = CachedCatalog(System.currentTimeMillis(), items)
+                // Lists used to be kept here; the HTTP cache holds them now.
+                if (sharedPreferences.contains(key)) sharedPreferences.edit().remove(key).apply()
             }
-            // Offline or rate limited: an older list beats an empty Home.
-            .recoverCatching { error -> cached?.items ?: throw error }
+            // Offline with nothing in the HTTP cache either: an older list beats an empty Home.
+            .recoverCatching { error -> (cached ?: readLegacyCatalog(key))?.items ?: throw error }
     }
 
-    private fun readCachedCatalog(key: String): CachedCatalog? = runCatching {
+    /** A list saved by an older version, until the first successful load replaces it. */
+    private fun readLegacyCatalog(key: String): CachedCatalog? = runCatching {
         sharedPreferences.getString(key, null)?.let { json.decodeFromString<CachedCatalog>(it) }
     }.getOrNull()
+
+    override fun clearCachedCatalogs() = catalogCache.clear()
 
     private fun catalogKey(catalog: AnimeCatalog) =
         if (kids.isActive) "catalog_cache_kids_${catalog.name}" else "catalog_cache_${catalog.name}"
 
-    private suspend fun fetchCatalog(catalog: AnimeCatalog): Result<List<AnimeDto>> = runCatching {
+    private suspend fun fetchCatalog(catalog: AnimeCatalog, api: TmdbApi): Result<List<AnimeDto>> = runCatching {
         val anime = mapOf(
             "with_genres" to "$ANIMATION_GENRE",
             "with_original_language" to "ja",
@@ -165,8 +176,9 @@ class AnimeRepositoryImpl @Inject constructor(
         api.getMovieDetails(id = id)
     }
 
-    override suspend fun getMediaDetails(id: Int, mediaType: String): Result<AnimeDetailsDto> = runCatching {
-        // Everything the title page shows, in one request.
+    override suspend fun getMediaDetails(id: Int, mediaType: String, fresh: Boolean): Result<AnimeDetailsDto> = runCatching {
+        val api = if (fresh) freshApi else api
+        // Everything the title page shows, in one request (and one cache entry the screens share).
         if (mediaType == "movie") {
             api.getMovieDetails(id = id, appendToResponse = "videos,credits,recommendations")
         } else {
@@ -174,8 +186,8 @@ class AnimeRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getSeasonDetails(animeId: Int, seasonNumber: Int): Result<SeasonDetailsDto> = runCatching {
-        api.getSeasonDetails(id = animeId, seasonNumber = seasonNumber)
+    override suspend fun getSeasonDetails(animeId: Int, seasonNumber: Int, fresh: Boolean): Result<SeasonDetailsDto> = runCatching {
+        (if (fresh) freshApi else api).getSeasonDetails(id = animeId, seasonNumber = seasonNumber)
     }
 
     override suspend fun addToWatchHistory(anime: AnimeDto) {
@@ -199,8 +211,6 @@ class AnimeRepositoryImpl @Inject constructor(
     override suspend fun clearWatchHistory() {
         sharedPreferences.edit().remove(HISTORY_KEY).apply()
     }
-
-    private val catalogCache = java.util.concurrent.ConcurrentHashMap<String, CachedCatalog>()
 
     @kotlinx.serialization.Serializable
     private data class CachedCatalog(val savedAt: Long, val items: List<AnimeDto>)

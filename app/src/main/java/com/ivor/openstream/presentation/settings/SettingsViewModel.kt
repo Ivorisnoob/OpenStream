@@ -9,9 +9,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.DownloadManager
-import coil3.SingletonImageLoader
 import com.ivor.openstream.data.backup.BackupFormatException
 import com.ivor.openstream.data.backup.LibraryBackup
+import com.ivor.openstream.data.cache.AppCaches
+import com.ivor.openstream.data.downloads.DownloadStorageExporter
 import com.ivor.openstream.data.downloads.SmartDownloads
 import com.ivor.openstream.data.playback.StreamDataGuard
 import com.ivor.openstream.data.notifications.EpisodeAlarm
@@ -19,6 +20,7 @@ import com.ivor.openstream.data.diagnostics.Diagnostics
 import com.ivor.openstream.data.repository.HiddenTitlesRepository
 import com.ivor.openstream.data.settings.AppSettings
 import com.ivor.openstream.data.settings.AppSettingsStore
+import com.ivor.openstream.data.settings.CacheSize
 import com.ivor.openstream.data.settings.DnsProvider
 import com.ivor.openstream.data.settings.PipAction
 import com.ivor.openstream.data.settings.ThemeMode
@@ -62,6 +64,8 @@ class SettingsViewModel @Inject constructor(
     private val libraryBackup: LibraryBackup,
     private val diagnostics: Diagnostics,
     private val smartDownloads: SmartDownloads,
+    private val appCaches: AppCaches,
+    private val storageExporter: DownloadStorageExporter,
     val streamDataGuard: StreamDataGuard
 ) : ViewModel() {
 
@@ -83,8 +87,9 @@ class SettingsViewModel @Inject constructor(
     val hiddenTitleCount: StateFlow<Int> = hiddenTitlesRepository.count
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    private val _imageCacheBytes = MutableStateFlow<Long?>(null)
-    val imageCacheBytes: StateFlow<Long?> = _imageCacheBytes.asStateFlow()
+    /** Artwork plus title info on disk; null until measured. */
+    private val _cacheBytes = MutableStateFlow<Long?>(null)
+    val cacheBytes: StateFlow<Long?> = _cacheBytes.asStateFlow()
 
     private val _crashCount = MutableStateFlow(0)
     val crashCount: StateFlow<Int> = _crashCount.asStateFlow()
@@ -97,7 +102,7 @@ class SettingsViewModel @Inject constructor(
     val messages: SharedFlow<String> = _messages.asSharedFlow()
 
     init {
-        refreshImageCacheSize()
+        refreshCacheSize()
         viewModelScope.launch { _crashCount.value = withContext(Dispatchers.IO) { diagnostics.crashCount } }
     }
 
@@ -221,17 +226,20 @@ class SettingsViewModel @Inject constructor(
 
     fun setAutoExportDownloadsToStorage(enabled: Boolean) = appSettingsStore.setAutoExportDownloadsToStorage(enabled)
 
-    fun clearImageCache() {
+    /** Saving to the public Downloads folder needs a permission on Android 9 and older. */
+    fun storagePermissionNeeded(): Boolean = storageExporter.needsStoragePermission()
+
+    fun clearCache() {
         viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                val loader = SingletonImageLoader.get(context)
-                loader.memoryCache?.clear()
-                loader.diskCache?.clear()
-            }
-            refreshImageCacheSize()
-            _messages.tryEmit(context.getString(R.string.st_cache_cleared))
+            appCaches.clearAll()
+            refreshCacheSize()
+            _messages.tryEmit(context.getString(R.string.st_cache_cleared_all))
         }
     }
+
+    fun setCacheSize(size: CacheSize) = appSettingsStore.setCacheSize(size)
+
+    fun setPreloadArtwork(enabled: Boolean) = appSettingsStore.setPreloadArtwork(enabled)
 
     fun clearWatchHistory() {
         viewModelScope.launch {
@@ -247,11 +255,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private fun refreshImageCacheSize() {
-        viewModelScope.launch {
-            _imageCacheBytes.value = withContext(Dispatchers.IO) {
-                runCatching { SingletonImageLoader.get(context).diskCache?.size }.getOrNull()
-            }
-        }
+    private fun refreshCacheSize() {
+        viewModelScope.launch { _cacheBytes.value = appCaches.sizeBytes() }
     }
 }

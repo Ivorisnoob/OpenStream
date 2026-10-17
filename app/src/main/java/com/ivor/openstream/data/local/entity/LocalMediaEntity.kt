@@ -4,6 +4,9 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
+/** NowPlaying/route media type for an imported file: it has no TMDB title behind it. */
+const val LOCAL_MEDIA_TYPE = "local"
+
 @Entity(
     tableName = "local_media",
     indices = [Index(value = ["uri"], unique = true)]

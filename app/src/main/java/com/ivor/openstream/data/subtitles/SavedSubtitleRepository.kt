@@ -246,6 +246,10 @@ class SavedSubtitleRepository @Inject constructor(
         if (!temp.renameTo(File(dir, INDEX_FILE))) throw IOException(context.getString(R.string.dl_could_not_update_saved))
     }
 
+    /** Where [saved] is stored on the device. */
+    fun fileFor(mediaType: String, tmdbId: Int, season: Int, episode: Int, saved: SavedSubtitle): File =
+        File(directory(mediaType, tmdbId, season, episode), saved.fileName)
+
     private fun directory(mediaType: String, tmdbId: Int, season: Int, episode: Int) =
         File(rootDirectory(context), keyFor(mediaType, tmdbId, season, episode))
 

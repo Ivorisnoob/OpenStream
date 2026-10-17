@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.player
 
+import com.ivor.openstream.data.local.entity.LOCAL_MEDIA_TYPE
 import com.ivor.openstream.data.local.entity.LocalMediaEntity
 import com.ivor.openstream.data.repository.LocalMediaRepository
 
@@ -8,8 +9,6 @@ import android.net.Uri
 import com.ivor.openstream.data.playback.ExternalPlayer
 import com.ivor.openstream.data.playback.ExternalPlayerRequest
 import com.ivor.openstream.data.playback.ExternalSubtitle
-import com.ivor.openstream.data.downloads.ExternalDownloader
-import com.ivor.openstream.data.downloads.ExternalDownloadInfo
 import com.ivor.openstream.R
 import com.ivor.openstream.data.local.entity.CustomListItemEntity
 import com.ivor.openstream.data.local.dao.CustomListSummary
@@ -27,7 +26,6 @@ import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.data.remote.model.toAnimeDto
 import com.ivor.openstream.domain.model.DownloadTarget
 import com.ivor.openstream.domain.model.MediaIdentity
-import com.ivor.openstream.domain.model.StreamQuality
 import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.domain.repository.AnimeRepository
@@ -152,63 +150,36 @@ class PlayerViewModel @Inject constructor(
     fun setVolumeBoostPercent(percent: Int) = appSettingsStore.setVolumeBoostPercent(percent)
 
     /**
-     * Pauses internal playback and hands the active stream off to an external player
-     * (Just Player, VLC, mpv, MX Player, Nova) via Android intent.
+     * Pauses playback and hands the playing stream to another player app (VLC, mpv, MX Player,
+     * Just Player, Nova) through the system chooser. Only for streams: a download lives in this
+     * app's cache, which other apps can't read. Returns false when nothing could be handed over.
      */
     fun openInExternalPlayer(context: Context): Boolean {
-        val streamUri = activeServer.value?.url ?: _mediaUri.value?.first ?: return false
+        val server = activeServer.value ?: return false
         val details = _mediaDetails.value
         val episode = _currentEpisode.value
         val title = when {
-            details != null && episode != null ->
-                "${details.name} - S${episode.seasonNumber}E${episode.episodeNumber}"
-            details != null ->
-                details.name.ifBlank { "Video" }
-            else -> "Video"
+            details != null && episode != null && _mediaType.value != "movie" ->
+                "${details.name} S${episode.seasonNumber}E${episode.episodeNumber}"
+            else -> details?.name?.takeIf { it.isNotBlank() } ?: server.name
         }
-        val headers = activeServer.value?.headers.orEmpty()
-        val positionMs = player.currentPosition.coerceAtLeast(0L)
-        val subs = remoteSubtitles.value.mapNotNull { sub ->
-            runCatching {
-                ExternalSubtitle(
-                    uri = Uri.parse(sub.url),
-                    name = sub.display ?: sub.language ?: "Subtitle",
-                    isDefault = false
-                )
-            }.getOrNull()
-        }
-
-        player.pause()
-
+        // The stream's own subtitles first; other apps can only open plain files on the web.
+        val candidates = server.subtitles.map { it.url to it.label } +
+            remoteSubtitles.value.map { it.url to (it.display ?: it.language ?: "Subtitle") }
+        val subtitles = candidates
+            .distinctBy { it.first }
+            .filter { (url, _) -> ExternalPlayer.canOpenSubtitle(url) }
+            .map { (url, name) -> ExternalSubtitle(uri = Uri.parse(url), name = name) }
         val request = ExternalPlayerRequest(
-            mediaUri = Uri.parse(streamUri),
+            mediaUri = Uri.parse(server.url),
             title = title,
-            positionMs = positionMs,
-            headers = headers,
-            subtitles = subs
+            positionMs = player.currentPosition.coerceAtLeast(0L),
+            headers = server.headers,
+            subtitles = subtitles
         )
-        return ExternalPlayer.launch(context, request, context.getString(R.string.sheet_external_player))
-    }
-
-    /**
-     * Gathers stream metadata and headers for external download utilities (1DM, ADM, aria2, curl).
-     */
-    fun getExternalDownloadInfo(): ExternalDownloadInfo? {
-        val streamUrl = activeServer.value?.url ?: _mediaUri.value?.first ?: return null
-        val details = _mediaDetails.value
-        val episode = _currentEpisode.value
-        val title = when {
-            details != null && episode != null ->
-                "${details.name} - S${episode.seasonNumber}E${episode.episodeNumber}"
-            details != null ->
-                details.name.ifBlank { "Video" }
-            else -> "Video"
-        }
-        return ExternalDownloadInfo(
-            url = streamUrl,
-            title = title,
-            headers = activeServer.value?.headers.orEmpty()
-        )
+        val launched = ExternalPlayer.launch(context, request, context.getString(R.string.sheet_external_player))
+        if (launched) player.pause()
+        return launched
     }
 
     fun applyRequestHeaders(headers: Map<String, String>) = playbackSession.setRequestHeaders(headers)
@@ -267,6 +238,9 @@ class PlayerViewModel @Inject constructor(
     /** A stream still playing from the mini player that this screen should continue, not reload. */
     private var adoptedServer: VideoServer? = null
     private var userChosenServerId: String? = null
+
+    /** Set once the current stream has played; from then on a late answer never swaps servers. */
+    private var playbackStarted = false
 
 
     private val _captionSettings = MutableStateFlow(loadCaptionSettings())
@@ -459,7 +433,7 @@ class PlayerViewModel @Inject constructor(
     fun loadLocalMedia(id: Long) {
         loadJob?.cancel()
         resolutionJob?.cancel()
-        _mediaType.value = "local"
+        _mediaType.value = LOCAL_MEDIA_TYPE
         currentSeason = 1
         currentEpisodeNumber = 1
         viewModelScope.launch {
@@ -578,6 +552,7 @@ class PlayerViewModel @Inject constructor(
             ?.takeIf { it.matches(mediaType, tmdbId, seasonNumber, currentEpisodeNumber) }
         adoptedServer = continuing?.server?.takeIf { continuing.downloadId == null }
         userChosenServerId = adoptedServer?.id
+        playbackStarted = adoptedServer != null
         adoptedServer?.let { _activeServer.value = it }
 
         loadJob = viewModelScope.launch {
@@ -713,13 +688,12 @@ class PlayerViewModel @Inject constructor(
         automaticFailovers = 0
         _activeServer.value = server
         setActiveId(serverId)
-        currentIdentity?.let { identity ->
-            streamingRepository.rememberServer(identity, server)
-            streamingRepository.rememberWorkingSource(identity, server)
-        }
+        // Remembered as working only once it plays (onPlaybackReady).
+        currentIdentity?.let { streamingRepository.rememberServer(it, server) }
     }
 
     fun onPlaybackReady() {
+        playbackStarted = true
         val identity = currentIdentity ?: return
         val server = _activeServer.value ?: return
         streamingRepository.rememberServer(identity, server)
@@ -729,6 +703,8 @@ class PlayerViewModel @Inject constructor(
     fun onPlaybackError(error: PlaybackException? = null) {
         val failed = _activeServer.value ?: return
         failedServerIds += failed.id
+        // Its links may have expired: the next open of this episode searches the sources again.
+        currentIdentity?.let(streamingRepository::forgetResolvedServers)
         // A source the user picked by hand (often a dub) failed: go back to what was playing rather
         // than jumping to an arbitrary server. Some dub hosts lock links to Vidking's own servers.
         val previous = switchedFrom?.takeIf { it.id !in failedServerIds }
@@ -785,28 +761,18 @@ class PlayerViewModel @Inject constructor(
                 includeFallbacks,
                 preferLastWorking = !includeFallbacks
             ).collect { progress ->
-                // Keep the stream the mini player is already playing at the top of the list.
+                // The server the user picked (or last picked for this episode) wins when it shows
+                // up, but only before playback starts: switching later would restart the video.
                 val rememberedId = currentIdentity?.let { streamingRepository.getRememberedServerId(it) }
-                val targetServerId = userChosenServerId ?: rememberedId
+                val targetServerId = (userChosenServerId ?: rememberedId).takeUnless { playbackStarted }
                 // Keep the stream the mini player is already playing at the top of the list.
                 val candidates = adoptedServer?.let { adopted ->
                     listOf(adopted) + progress.servers.filterNot { it.id == adopted.id }
                 } ?: progress.servers
                 val healthyServers = candidates.filterNot { it.id in failedServerIds }
-                // The list is ranked best-first, so an uncapped default always landed on the
-                // 4K entry. Prefer the highest-ranked server inside the user's quality cap;
-                // if nothing is labelled within it (or the cap is off), fall back to the top.
-                val capped = playbackSession.heightCap()
-                val withinCap = if (capped == Int.MAX_VALUE) {
-                    healthyServers
-                } else {
-                    healthyServers.filter { it.quality.fitsHeightCap(capped) }
-                }
-                val ordered = if (withinCap.isEmpty()) healthyServers else withinCap
-                val active = ordered.firstOrNull { it.id == targetServerId }
-                    ?: _activeServer.value?.takeIf { current -> ordered.any { it.id == current.id } }
-                    ?: _activeServer.value?.takeIf { current -> targetServerId != null && current.id == targetServerId }
-                    ?: ordered.firstOrNull()
+                val active = healthyServers.firstOrNull { it.id == targetServerId }
+                    ?: _activeServer.value?.takeIf { current -> healthyServers.any { it.id == current.id } }
+                    ?: healthyServers.firstOrNull()
                 _activeServer.value = active
 
                 _serversState.value = when {

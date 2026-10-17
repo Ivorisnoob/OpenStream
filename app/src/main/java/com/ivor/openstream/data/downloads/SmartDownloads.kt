@@ -112,7 +112,7 @@ class SmartDownloads @Inject constructor(
     }
 
     private suspend fun reconcileShow(tmdbId: Int, rows: List<WatchProgress>, keepAhead: Int) {
-        val details = animeRepository.getMediaDetails(tmdbId, "tv").getOrNull() ?: return
+        val details = animeRepository.getMediaDetails(tmdbId, "tv", fresh = true).getOrNull() ?: return
         val current = rows.maxByOrNull { it.updatedAt } ?: return
         val (curS, curE) = current.season to current.episode
 
@@ -136,7 +136,7 @@ class SmartDownloads @Inject constructor(
         val targets = mutableListOf<Pair<Int, EpisodeDto>>()
         var season = curS
         while (targets.size < keepAhead) {
-            val episodes = animeRepository.getSeasonDetails(tmdbId, season).getOrNull()?.episodes.orEmpty()
+            val episodes = animeRepository.getSeasonDetails(tmdbId, season, fresh = true).getOrNull()?.episodes.orEmpty()
                 .filter { isReleased(it.airDate) }
                 .filter { if (season == curS) it.episodeNumber > curE else true }
                 .sortedBy { it.episodeNumber }

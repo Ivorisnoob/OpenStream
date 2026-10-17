@@ -604,7 +604,12 @@ fun PlayerScreen(
                             keepPlayingInBackground = appSettings.keepPlayingInBackground,
                             volumeBoostPercent = appSettings.volumeBoostPercent,
                             onVolumeBoostChange = viewModel::setVolumeBoostPercent,
-                            onOpenExternalPlayer = { viewModel.openInExternalPlayer(context) },
+                            // Downloads and local files have no stream another app could open.
+                            onOpenExternalPlayer = if (activeServer != null) {
+                                { viewModel.openInExternalPlayer(context) }
+                            } else {
+                                null
+                            },
                             dpadControls = tvControls,
                             artworkUri = (currentEpisode?.stillPath ?: mediaDetails?.backdropPath)
                                 ?.let { "https://image.tmdb.org/t/p/w1280$it" },
