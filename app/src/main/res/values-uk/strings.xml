@@ -892,4 +892,8 @@
     <string name="sheet_volume_boost_desc">Робить тихі відео гучнішими. Лімітер не дає гучним місцям спотворюватися. Діє для всього, що ви дивитеся, доки не повернете «Звичайна».</string>
     <string name="sheet_external_player">Зовнішній плеєр</string>
     <string name="action_open_external_player">Відкрити в зовнішньому плеєрі</string>
+
+    <string name="st_stream_cap">Обмеження якості</string>
+    <string name="st_stream_cap_hint">Найвища якість, яку може використовувати потік. Типово 1080p.</string>
+    <string name="st_stream_cap_none">Без обмежень</string>
 </resources>

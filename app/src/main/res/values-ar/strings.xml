@@ -941,4 +941,8 @@
     <string name="sheet_volume_boost_desc">يرفع صوت الفيديوهات الهادئة. يمنع المحدِّد تشوّه الأجزاء العالية. يسري على كل ما تشغّله حتى تعيده إلى عادي.</string>
     <string name="sheet_external_player">مشغّل خارجي</string>
     <string name="action_open_external_player">فتح في مشغّل خارجي</string>
+
+    <string name="st_stream_cap">حد الجودة</string>
+    <string name="st_stream_cap_hint">أعلى جودة يمكن أن يستخدمها البث. الافتراضي 1080p.</string>
+    <string name="st_stream_cap_none">بلا حد</string>
 </resources>

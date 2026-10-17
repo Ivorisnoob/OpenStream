@@ -80,6 +80,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ivor.openstream.presentation.player.CaptionStyleSettings
@@ -230,9 +236,16 @@ fun PlayerSettingsHost(
     initialPage: PlayerSettingsPage,
     model: PlayerSettingsModel,
     actions: PlayerSettingsActions,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** True on TV: render the side panel, never a ModalBottomSheet. */
+    tvControls: Boolean = false
 ) {
-    PlayerPanelHost(visible = visible, isFullscreen = isFullscreen, onDismiss = onDismiss) { listModifier, onClose ->
+    PlayerPanelHost(
+        visible = visible,
+        isFullscreen = isFullscreen,
+        onDismiss = onDismiss,
+        tvControls = tvControls
+    ) { listModifier, onClose ->
         SettingsContent(
             initialPage = initialPage,
             model = model,
@@ -1008,7 +1021,31 @@ private fun LabeledSlider(
     range: ClosedFloatingPointRange<Float>,
     onChange: (Float) -> Unit
 ) {
-    Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+            // TV: a Slider alone is a touch control. Giving the row focus and letting
+            // the D-pad step the value makes the same control remote-operable on a
+            // TV, without changing how it behaves under touch on a phone.
+            .focusable()
+            .onKeyEvent { event ->
+                val step = (range.endInclusive - range.start) / 40f
+                when (event.type) {
+                    KeyEventType.KeyDown -> when (event.key) {
+                        Key.DirectionRight -> {
+                            onChange((value + step).coerceIn(range.start, range.endInclusive))
+                            true
+                        }
+                        Key.DirectionLeft -> {
+                            onChange((value - step).coerceIn(range.start, range.endInclusive))
+                            true
+                        }
+                        else -> false
+                    }
+                    else -> false
+                }
+            }
+    ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             Text(label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             Text(

@@ -892,4 +892,8 @@
     <string name="sheet_volume_boost_desc">Делает тихие видео громче. Лимитер не даёт громким местам искажаться. Действует для всего, что вы смотрите, пока не вернёте «Обычная».</string>
     <string name="sheet_external_player">Внешний плеер</string>
     <string name="action_open_external_player">Открыть во внешнем плеере</string>
+
+    <string name="st_stream_cap">Ограничение качества</string>
+    <string name="st_stream_cap_hint">Максимальное качество потока. По умолчанию 1080p.</string>
+    <string name="st_stream_cap_none">Без ограничения</string>
 </resources>

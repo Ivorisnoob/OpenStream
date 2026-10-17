@@ -1,6 +1,5 @@
 package com.ivor.openstream.presentation.tv
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,25 +11,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -41,16 +34,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -58,22 +45,16 @@ import coil3.compose.AsyncImage
 import com.ivor.openstream.R
 import com.ivor.openstream.data.remote.model.AnimeDto
 import com.ivor.openstream.domain.model.WatchProgress
+import com.ivor.openstream.presentation.home.HomeRail
 import com.ivor.openstream.presentation.home.HomeUiState
 import com.ivor.openstream.presentation.home.HomeViewModel
-import com.ivor.openstream.ui.theme.ExpressiveShapes
+import com.ivor.openstream.presentation.home.RailStyle
 import kotlinx.coroutines.launch
+import java.util.Locale
 
-private const val IMAGE_BASE = "https://image.tmdb.org/t/p/w780"
+private const val IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
 private const val HERO_IMAGE_BASE = "https://image.tmdb.org/t/p/w1280"
 
-/** Overscan-safe frame for the 10-foot screen: nothing focusable near the edges. */
-internal val TvFramePadding = PaddingValues(horizontal = 56.dp, vertical = 32.dp)
-
-/**
- * Leanback home: menu row, cinematic hero and landscape rails, all remote driven.
- * One hero moment (the featured backdrop); everything else stays calm and legible.
- */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun TvHomeScreen(
     onOpenTitle: (mediaType: String, id: Int) -> Unit,
@@ -81,11 +62,13 @@ fun TvHomeScreen(
     onProviders: () -> Unit,
     onSearch: () -> Unit,
     onSettings: () -> Unit,
+    modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val continueWatching by viewModel.continueWatching.collectAsState()
     val animated = rememberTvAnimated()
+    val dimens = LocalTvDimens.current
 
     fun AnimeDto.tvMediaType(): String = mediaType ?: if (isMovie) "movie" else "tv"
 
@@ -94,67 +77,30 @@ fun TvHomeScreen(
     val heroProgress: WatchProgress? = heroItem?.let { hero ->
         continueWatching.firstOrNull { it.tmdbId == hero.id && !it.isMovie }
     }
-    val playRequester = remember { FocusRequester() }
-    val detailsRequester = remember { FocusRequester() }
-    LaunchedEffect(heroItem?.id) {
-        // Land the remote on Play when there is something to resume, else Details.
-        (if (heroProgress != null) playRequester else detailsRequester).requestFocus()
+
+    val playRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+    val railRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(heroItem?.id, uiState) {
+        runCatching { playRequester.requestFocus() }
+            .recoverCatching { railRequester.requestFocus() }
     }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .padding(bottom = dimens.paddingMedium)
     ) {
-        // Menu row: brand + providers + search + settings, all D-pad reachable.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(TvFramePadding)
-                .padding(bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = stringResource(R.string.app_name),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Black,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.weight(1f))
-            TvMenuChip(
-                icon = Icons.Default.Extension,
-                label = stringResource(R.string.mk_title),
-                onClick = onProviders
-            )
-            Spacer(Modifier.width(16.dp))
-            TvMenuChip(
-                icon = Icons.Default.Search,
-                label = stringResource(R.string.nav_search),
-                onClick = onSearch
-            )
-            Spacer(Modifier.width(16.dp))
-            TvMenuChip(
-                icon = Icons.Default.Settings,
-                label = stringResource(R.string.st_title),
-                onClick = onSettings
-            )
-        }
-
         when (val state = uiState) {
-            HomeUiState.Loading -> Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) { LoadingIndicator() }
+            HomeUiState.Loading -> TvLoading()
 
-            is HomeUiState.Error -> TvErrorState(
-                onRetry = { viewModel.refresh() }
-            )
+            is HomeUiState.Error -> TvErrorState(onRetry = viewModel::refresh)
 
             is HomeUiState.Success -> {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 48.dp),
-                    verticalArrangement = Arrangement.spacedBy(28.dp)
+                    contentPadding = PaddingValues(bottom = dimens.paddingLarge),
+                    verticalArrangement = Arrangement.spacedBy(dimens.rowGap)
                 ) {
                     if (heroItem != null) {
                         item(key = "hero") {
@@ -163,7 +109,6 @@ fun TvHomeScreen(
                                 progress = heroProgress,
                                 animated = animated,
                                 playRequester = playRequester,
-                                detailsRequester = detailsRequester,
                                 onResume = { heroProgress?.let(onResume) },
                                 onOpenDetails = { onOpenTitle(heroItem.tvMediaType(), heroItem.id) }
                             )
@@ -171,67 +116,32 @@ fun TvHomeScreen(
                     }
                     if (continueWatching.isNotEmpty()) {
                         item(key = "continue") {
-                            TvContinueRail(
-                                items = continueWatching,
-                                animated = animated,
-                                onResume = onResume,
-                                onOpenDetails = { onOpenTitle(it.mediaType, it.tmdbId) }
-                            )
+                            Column {
+                                TvProgressRail(
+                                    title = stringResource(R.string.home_continue_watching),
+                                    items = continueWatching,
+                                    animated = animated,
+                                    firstItemRequester = railRequester,
+                                    onOpen = { onResume(it) }
+                                )
+                            }
                         }
                     }
-                    items(
-                        items = state.rails,
-                        key = { "rail:${it.key}" }
-                    ) { rail ->
+                    items(state.rails, key = { "rail:${it.key}" }) { rail ->
                         if (rail.items.isNotEmpty()) {
-                            TvRail(
-                                title = rail.title,
-                                animated = animated,
-                                onOpen = { onOpenTitle(it.tvMediaType(), it.id) },
-                                items = rail.items
-                            )
+                            Column {
+                                TvAnimeRail(
+                                    title = rail.title,
+                                    style = rail.style,
+                                    items = rail.items,
+                                    animated = animated,
+                                    onOpen = { onOpenTitle(it.tvMediaType(), it.id) }
+                                )
+                            }
                         }
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun TvMenuChip(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    onClick: () -> Unit
-) {
-    val focused = rememberTvFocused()
-    val scale = tvFocusScale(focused.value, rememberTvAnimated())
-    Surface(
-        onClick = onClick,
-        shape = CircleShape,
-        color = if (focused.value) MaterialTheme.colorScheme.primaryContainer
-        else MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentColor = if (focused.value) MaterialTheme.colorScheme.onPrimaryContainer
-        else MaterialTheme.colorScheme.onSurface,
-        border = if (focused.value) {
-            BorderStroke(3.dp, MaterialTheme.colorScheme.primary)
-        } else null,
-        shadowElevation = if (focused.value) 8.dp else 0.dp,
-        modifier = Modifier
-            .scale(scale)
-            .onFocusChanged { focused.value = it.isFocused }
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = if (focused.value) FontWeight.Bold else FontWeight.Normal
-            )
         }
     }
 }
@@ -241,136 +151,112 @@ private fun TvHero(
     item: AnimeDto,
     progress: WatchProgress?,
     animated: Boolean,
-    playRequester: FocusRequester,
-    detailsRequester: FocusRequester,
+    playRequester: androidx.compose.ui.focus.FocusRequester,
     onResume: () -> Unit,
     onOpenDetails: () -> Unit
 ) {
+    val dimens = LocalTvDimens.current
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(420.dp)
-            .padding(TvFramePadding)
+            .height(dimens.heroHeight)
+            .padding(horizontal = dimens.gutter)
+            .clip(MaterialTheme.shapes.extraLarge)
     ) {
         AsyncImage(
-            model = "$HERO_IMAGE_BASE${item.backdropPath}",
+            model = item.backdropPath?.let { "$HERO_IMAGE_BASE$it" },
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxSize()
-                .clip(ExpressiveShapes.extraLarge)
+            modifier = Modifier.fillMaxSize()
         )
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .clip(ExpressiveShapes.extraLarge)
                 .background(
                     Brush.horizontalGradient(
-                        0f to Color.Transparent,
-                        0.45f to MaterialTheme.colorScheme.scrim.copy(alpha = 0.55f),
-                        1f to MaterialTheme.colorScheme.scrim.copy(alpha = 0.88f)
+                        0f to MaterialTheme.colorScheme.scrim.copy(alpha = 0.9f),
+                        0.5f to MaterialTheme.colorScheme.scrim.copy(alpha = 0.55f),
+                        1f to Color.Transparent
                     )
                 )
         )
         Column(
             modifier = Modifier
-                .align(Alignment.CenterEnd)
+                .align(Alignment.CenterStart)
                 .fillMaxWidth(0.52f)
-                .padding(36.dp),
-            verticalArrangement = Arrangement.Bottom
+                .padding(dimens.paddingLarge),
+            verticalArrangement = Arrangement.Center
         ) {
             Text(
                 text = item.name,
                 style = MaterialTheme.typography.displaySmall,
-                fontWeight = FontWeight.Black,
-                color = MaterialTheme.colorScheme.inverseOnSurface,
+                color = Color.White,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             item.voteAverage?.takeIf { it > 0 }?.let { rating ->
-                Text(
-                    text = String.format(java.util.Locale.US, "★ %.1f", rating),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.85f),
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-            Row(modifier = Modifier.padding(top = 20.dp)) {
-                if (progress != null) {
-                    TvButton(
-                        onClick = onResume,
-                        focusRequester = playRequester,
-                        modifier = Modifier.height(60.dp)
-                    ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = stringResource(R.string.cd_resume),
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    }
-                    Spacer(Modifier.width(16.dp))
-                }
-                TvOutlinedButton(
-                    onClick = onOpenDetails,
-                    focusRequester = detailsRequester,
-                    modifier = Modifier.height(60.dp)
+                Row(
+                    modifier = Modifier.padding(top = dimens.paddingSmall),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Icon(
+                        Icons.Default.Star,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.height(dimens.gutterTight / 2)
+                    )
                     Text(
-                        text = stringResource(R.string.st_details),
-                        style = MaterialTheme.typography.titleMedium
+                        text = String.format(Locale.US, " %.1f", rating),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White.copy(alpha = 0.85f)
                     )
                 }
             }
+            Row(modifier = Modifier.padding(top = dimens.paddingMedium)) {
+                if (progress != null) {
+                    TvButton(onClick = onResume, focusRequester = playRequester) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null)
+                        Spacer(Modifier.width(dimens.paddingSmall))
+                        Text(stringResource(R.string.cd_resume), style = MaterialTheme.typography.titleMedium)
+                    }
+                    Spacer(Modifier.width(dimens.paddingSmall))
+                }
+                TvOutlinedButton(onClick = onOpenDetails) {
+                    Text(stringResource(R.string.st_details), style = MaterialTheme.typography.titleMedium)
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun TvContinueRail(
+private fun TvProgressRail(
+    title: String,
     items: List<WatchProgress>,
     animated: Boolean,
-    onResume: (WatchProgress) -> Unit,
-    onOpenDetails: (WatchProgress) -> Unit
+    firstItemRequester: androidx.compose.ui.focus.FocusRequester,
+    onOpen: (WatchProgress) -> Unit
 ) {
-    TvRailHeader(title = stringResource(R.string.home_continue_watching))
+    TvRailHeader(title)
     LazyRow(
-        contentPadding = PaddingValues(horizontal = 56.dp),
-        horizontalArrangement = Arrangement.spacedBy(20.dp)
+        contentPadding = PaddingValues(horizontal = LocalTvDimens.current.gutter, vertical = LocalTvDimens.current.paddingSmall),
+        horizontalArrangement = Arrangement.spacedBy(LocalTvDimens.current.railGap)
     ) {
-        items(items, key = { "cw:${it.mediaType}:${it.tmdbId}:${it.season}:${it.episode}" }) { item ->
+        itemsIndexed(
+            items,
+            key = { _, item -> "cw:${item.mediaType}:${item.tmdbId}:${item.season}:${item.episode}" }
+        ) { index, item ->
             TvLandscapeCard(
                 imageUrl = item.backdropPath?.let { "$IMAGE_BASE$it" },
                 title = item.title,
-                subtitle = if (item.isMovie) null else "S${item.season} · E${item.episode}",
+                subtitle = if (item.isMovie) {
+                    null
+                } else {
+                    stringResource(R.string.li_episode_code, item.season, item.episode)
+                },
                 progress = item.fraction.takeIf { it > 0f },
                 animated = animated,
-                onClick = { onResume(item) }
-            )
-        }
-    }
-}
-
-@Composable
-internal fun TvRail(
-    title: String,
-    items: List<AnimeDto>,
-    animated: Boolean,
-    onOpen: (AnimeDto) -> Unit
-) {
-    TvRailHeader(title = title)
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 56.dp),
-        horizontalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
-        items(items, key = { "rail:${it.id}" }) { item ->
-            TvLandscapeCard(
-                imageUrl = item.backdropPath?.let { "$IMAGE_BASE$it" }
-                    ?: item.posterPath?.let { "$IMAGE_BASE$it" },
-                title = item.name,
-                subtitle = item.date.take(4).takeIf { it.length == 4 },
-                progress = null,
-                animated = animated,
+                focusRequester = if (index == 0) firstItemRequester else null,
                 onClick = { onOpen(item) }
             )
         }
@@ -378,15 +264,51 @@ internal fun TvRail(
 }
 
 @Composable
-private fun TvRailHeader(title: String) {
+internal fun TvAnimeRail(
+    title: String,
+    style: RailStyle,
+    items: List<AnimeDto>,
+    animated: Boolean,
+    onOpen: (AnimeDto) -> Unit
+) {
+    val dimens = LocalTvDimens.current
+    TvRailHeader(title)
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = dimens.gutter, vertical = dimens.paddingSmall),
+        horizontalArrangement = Arrangement.spacedBy(dimens.railGap)
+    ) {
+        items(items, key = { "rail:${it.mediaType}:${it.id}" }) { item ->
+            when (style) {
+                RailStyle.LANDSCAPE -> TvLandscapeCard(
+                    imageUrl = item.backdropPath?.let { "$IMAGE_BASE$it" }
+                        ?: item.posterPath?.let { "$IMAGE_BASE$it" },
+                    title = item.name,
+                    subtitle = item.date.take(4).takeIf { it.length == 4 },
+                    progress = null,
+                    animated = animated,
+                    onClick = { onOpen(item) }
+                )
+
+                else -> TvPosterCard(
+                    imageUrl = item.posterPath?.let { "$IMAGE_BASE$it" }
+                        ?: item.backdropPath?.let { "$IMAGE_BASE$it" },
+                    title = item.name,
+                    animated = animated,
+                    onClick = { onOpen(item) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun TvRailHeader(title: String) {
+    val dimens = LocalTvDimens.current
     Text(
         text = title,
-        style = MaterialTheme.typography.headlineSmall,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier
-            .padding(horizontal = 56.dp)
-            .padding(bottom = 12.dp)
-            .semantics { heading() }
+        style = MaterialTheme.typography.titleLarge,
+        color = MaterialTheme.colorScheme.onBackground,
+        modifier = Modifier.padding(horizontal = dimens.gutter)
     )
 }
 
@@ -397,32 +319,34 @@ private fun TvLandscapeCard(
     subtitle: String?,
     progress: Float?,
     animated: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    focusRequester: androidx.compose.ui.focus.FocusRequester? = null
 ) {
+    val dimens = LocalTvDimens.current
     val focused = rememberTvFocused()
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val scope = rememberCoroutineScope()
-    Column(
-        modifier = Modifier
-            .width(264.dp)
-            .bringIntoViewRequester(bringIntoViewRequester)
+
+    TvCard(
+        focused = focused.value,
+        animated = animated,
+        onClick = onClick,
+        focusRequester = focusRequester,
+        onFocused = {
+            focused.value = true
+            scope.launch { runCatching { bringIntoViewRequester.bringIntoView() } }
+        },
+        onBlurred = { focused.value = false }
     ) {
-        TvCard(
-            focused = focused.value,
-            animated = animated,
-            onClick = onClick,
-            onFocused = {
-                focused.value = true
-                scope.launch {
-                    runCatching { bringIntoViewRequester.bringIntoView() }
-                }
-            },
-            onBlurred = { focused.value = false }
+        Column(
+            modifier = Modifier
+                .width(dimens.landscapeCardWidth)
+                .bringIntoViewRequester(bringIntoViewRequester)
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(148.dp)
+                    .height(dimens.landscapeCardHeight)
             ) {
                 if (imageUrl != null) {
                     AsyncImage(
@@ -433,30 +357,82 @@ private fun TvLandscapeCard(
                     )
                 }
                 if (progress != null) {
-                    androidx.compose.material3.LinearWavyProgressIndicator(
+                    LinearProgressIndicator(
                         progress = { progress.coerceIn(0f, 1f) },
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
+                            .height(dimens.progressBarHeight)
                     )
                 }
             }
-        }
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp)
-        )
-        subtitle?.let {
             Text(
-                text = it,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 4.dp, end = 4.dp)
+                modifier = Modifier.padding(top = dimens.paddingSmall / 2)
+            )
+            subtitle?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TvPosterCard(
+    imageUrl: String?,
+    title: String,
+    animated: Boolean,
+    onClick: () -> Unit
+) {
+    val dimens = LocalTvDimens.current
+    val focused = rememberTvFocused()
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+
+    TvCard(
+        focused = focused.value,
+        animated = animated,
+        onClick = onClick,
+        onFocused = {
+            focused.value = true
+            scope.launch { runCatching { bringIntoViewRequester.bringIntoView() } }
+        },
+        onBlurred = { focused.value = false }
+    ) {
+        Column(
+            modifier = Modifier
+                .width(dimens.posterCardWidth)
+                .bringIntoViewRequester(bringIntoViewRequester)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(dimens.posterCardHeight)
+            ) {
+                if (imageUrl != null) {
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = dimens.paddingSmall / 2)
             )
         }
     }
@@ -464,8 +440,11 @@ private fun TvLandscapeCard(
 
 @Composable
 internal fun TvErrorState(onRetry: () -> Unit) {
+    val dimens = LocalTvDimens.current
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(dimens.gutter),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -473,18 +452,15 @@ internal fun TvErrorState(onRetry: () -> Unit) {
             text = stringResource(R.string.st_could_not_catalog),
             style = MaterialTheme.typography.headlineSmall
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(dimens.paddingSmall))
         Text(
             text = stringResource(R.string.home_check_connection),
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(Modifier.height(20.dp))
-        TvButton(onClick = onRetry, modifier = Modifier.height(56.dp)) {
-            Text(
-                text = stringResource(R.string.action_try_again),
-                style = MaterialTheme.typography.titleMedium
-            )
+        Spacer(Modifier.height(dimens.paddingLarge))
+        TvButton(onClick = onRetry) {
+            Text(stringResource(R.string.action_try_again), style = MaterialTheme.typography.titleMedium)
         }
     }
 }

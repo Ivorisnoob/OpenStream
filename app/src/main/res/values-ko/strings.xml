@@ -921,4 +921,8 @@
     <string name="sheet_volume_boost_desc">소리가 작은 영상을 더 크게 들려줘요. 리미터가 큰 소리가 찌그러지지 않게 막아요. 보통으로 되돌릴 때까지 모든 재생에 적용돼요.</string>
     <string name="sheet_external_player">외부 플레이어</string>
     <string name="action_open_external_player">외부 플레이어로 열기</string>
+
+    <string name="st_stream_cap">화질 제한</string>
+    <string name="st_stream_cap_hint">스트림이 사용할 수 있는 최고 화질입니다. 기본값은 1080p입니다.</string>
+    <string name="st_stream_cap_none">제한 없음</string>
 </resources>

@@ -888,4 +888,8 @@
     <string name="sheet_volume_boost_desc">Torna mais altos os vídeos baixos. Um limitador evita que as partes altas distorçam. Aplica-se a tudo o que reproduzir até voltar a Normal.</string>
     <string name="sheet_external_player">Leitor externo</string>
     <string name="action_open_external_player">Abrir num leitor externo</string>
+
+    <string name="st_stream_cap">Limite de qualidade</string>
+    <string name="st_stream_cap_hint">Qualidade máxima que uma transmissão pode usar. Padrão: 1080p.</string>
+    <string name="st_stream_cap_none">Sem limite</string>
 </resources>

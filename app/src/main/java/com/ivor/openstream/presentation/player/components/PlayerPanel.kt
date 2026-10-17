@@ -72,9 +72,16 @@ fun PlayerPanelHost(
     visible: Boolean,
     isFullscreen: Boolean,
     onDismiss: () -> Unit,
+    /**
+     * True on TV: a remote cannot dismiss a [ModalBottomSheet] window (its scrim
+     * is a touch-dismiss target and its drag handle is a touch gesture), so the
+     * panel always renders as the inline side panel, which is entirely navigable
+     * with the D-pad.
+     */
+    tvControls: Boolean = false,
     content: @Composable ColumnScope.(listModifier: Modifier, onClose: (() -> Unit)?) -> Unit
 ) {
-    if (isFullscreen) {
+    if (isFullscreen || tvControls) {
         // Panel motion follows the theme (instant with reduced motion).
         val panelFade = ExpressiveMotion.finiteEffectsSpec()
         val panelSlide = ExpressiveMotion.finiteSpatialSpec()
@@ -123,6 +130,8 @@ fun PlayerPanelHost(
             BackHandler(enabled = visible, onBack = onDismiss)
         }
     } else if (visible) {
+        // Phone only: a TV always takes the branch above (tvControls = true),
+        // so this ModalBottomSheet is unreachable from TvNavigation.
         ModalBottomSheet(
             onDismissRequest = onDismiss,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),

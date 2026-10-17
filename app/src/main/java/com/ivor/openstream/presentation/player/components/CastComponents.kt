@@ -107,7 +107,7 @@ fun CastPlaybackView(
     onChooseSource: (() -> Unit)?,
     onNextClick: (() -> Unit)?,
     onBackClick: () -> Unit,
-    onCastClick: () -> Unit,
+    onCastClick: (() -> Unit)?,
     onPlaybackEnded: () -> Unit,
     onPlaybackReady: () -> Unit,
     modifier: Modifier = Modifier
@@ -206,6 +206,9 @@ fun CastPlaybackView(
                     )
                 }
                 if (subtitles.options.isNotEmpty()) {
+                    // Phone only in practice: casting on TV can't start because the
+                    // cast sheet is guarded with tvControls. Even if reached, every
+                    // DropdownMenuItem is focusable, so the remote can traverse it.
                     Box {
                         IconButton(onClick = { showSubtitleMenu = true }) {
                             Icon(
@@ -228,8 +231,10 @@ fun CastPlaybackView(
                         }
                     }
                 }
-                IconButton(onClick = onCastClick) {
-                    Icon(Icons.Default.CastConnected, contentDescription = stringResource(R.string.cd_cast_device, deviceName), tint = MaterialTheme.colorScheme.inverseOnSurface)
+                if (onCastClick != null) {
+                    IconButton(onClick = onCastClick) {
+                        Icon(Icons.Default.CastConnected, contentDescription = stringResource(R.string.cd_cast_device, deviceName), tint = MaterialTheme.colorScheme.inverseOnSurface)
+                    }
                 }
             }
 
@@ -407,6 +412,9 @@ fun CastDeviceSheet(
         onDispose { router.removeCallback(callback) }
     }
 
+    // Phone only: on TV the cast sheet is never opened (its only triggers are
+    // guarded by tvControls in PlayerScreen), so this ModalBottomSheet is
+    // unreachable from TvNavigation.
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)

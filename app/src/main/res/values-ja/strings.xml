@@ -880,4 +880,8 @@
     <string name="sheet_volume_boost_desc">音の小さい動画を大きくします。リミッターで大きな音の歪みを防ぎます。通常に戻すまで、再生するすべての動画に適用されます。</string>
     <string name="sheet_external_player">外部プレーヤー</string>
     <string name="action_open_external_player">外部プレーヤーで開く</string>
+
+    <string name="st_stream_cap">画質の上限</string>
+    <string name="st_stream_cap_hint">ストリームが使用できる最高画質。初期設定は1080pです。</string>
+    <string name="st_stream_cap_none">上限なし</string>
 </resources>

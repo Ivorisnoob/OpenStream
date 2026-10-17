@@ -169,10 +169,16 @@ Rules:
   in `filesDir/crashes`, recorder installed in `OpenStreamApp`) back the Settings entries.
 - **Deep links.** `MainActivity` is `singleTask`; `DeepLinks` turns TMDB links (VIEW or shared text)
   into Details, `AppShortcut` handles launcher shortcuts.
-- **TV.** `TvDimens` (derived from `LocalWindowInfo`/`LocalConfiguration` against a 960x540 dp
-  reference canvas, clamped) plus `TvTheme` (10-foot type scale, pinned fontScale) wrap the whole
-  TV shell in `TvNavigation` (permanent nav rail, one Back rule). `StreamQuality` cap
-  (`streamMaxHeight`, default 1080p) lives in `AppSettingsStore`. Phone paths are untouched.
+- **TV.** `TvDimens` (gutter = 5% of window width per side, poster rail = 6 cards +
+  a 0.4-card peek, landscape rail = 4 + peek, hero = 55–60% of window height, focus
+  scale 1.09) plus `TvTheme` (10-foot type scale, pinned fontScale) wrap the whole
+  TV shell in `TvNavigation` (permanent nav rail, one Back rule). Every TV screen is
+  a real D-pad surface: Home/Details/Search/Saved/Downloads/Sources/Settings all
+  request initial focus, confirm deletions in place (no dialogs/sheets/dropdowns),
+  and route their ViewModels from the phone feature packages unchanged. `StreamQuality`
+  cap (`streamMaxHeight`, default 1080p) lives in `AppSettingsStore`. Phone paths are
+  untouched; phone-only affordances (document pickers, typed text, cast sheet) are
+  guarded by `tvControls` in the shared player components.
 - **Downloads.** Everything goes through Media3's `DownloadManager` (`DownloadRepositoryImpl`):
   queue resolves sources in the app scope, live progress from the manager, pause/resume/retry,
   one rendition up to 1080p from master playlists. Offline playback reads the same cache.

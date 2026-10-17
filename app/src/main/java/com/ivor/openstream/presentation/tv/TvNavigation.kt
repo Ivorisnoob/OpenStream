@@ -22,12 +22,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.ivor.openstream.presentation.downloads.DownloadsScreen
-import com.ivor.openstream.presentation.marketplace.MarketplaceScreen
 import com.ivor.openstream.presentation.player.PlayerScreen
-import com.ivor.openstream.presentation.search.SearchScreen
-import com.ivor.openstream.presentation.settings.SettingsScreen
-import com.ivor.openstream.presentation.watch_later.WatchLaterScreen
 
 private object TvRoutes {
     const val DETAILS = "tv_details/{mediaType}/{animeId}"
@@ -127,27 +122,24 @@ private fun TvAppScaffold(navController: NavHostController) {
                 }
 
                 composable(TvDestination.SEARCH.route) {
-                    SearchScreen(
-                        onBackClick = { navController.popBackStack() },
-                        onAnimeClick = { animeId, mediaType ->
+                    TvSearchScreen(
+                        onTitleClick = { animeId, mediaType ->
                             navController.navigate(TvRoutes.details(mediaType, animeId))
                         }
                     )
                 }
 
                 composable(TvDestination.SAVED.route) {
-                    WatchLaterScreen(
-                        onBackClick = { navController.popBackStack() },
-                        onAnimeClick = { animeId, mediaType ->
+                    TvSavedScreen(
+                        onOpenTitle = { animeId, mediaType ->
                             navController.navigate(TvRoutes.details(mediaType, animeId))
                         }
                     )
                 }
 
                 composable(TvDestination.DOWNLOADS.route) {
-                    DownloadsScreen(
-                        onBackClick = { navController.popBackStack() },
-                        onDownloadClick = { download ->
+                    TvDownloadsScreen(
+                        onPlay = { download ->
                             navController.navigate(
                                 TvRoutes.player(download.mediaType, download.tmdbId, download.season, download.episode)
                             )
@@ -156,13 +148,12 @@ private fun TvAppScaffold(navController: NavHostController) {
                 }
 
                 composable(TvDestination.EXTENSIONS.route) {
-                    MarketplaceScreen(onBackClick = { navController.popBackStack() })
+                    TvExtensionsScreen()
                 }
 
                 composable(TvDestination.SETTINGS.route) {
-                    SettingsScreen(
-                        onBackClick = { navController.popBackStack() },
-                        onOpenMarketplace = { navController.navigate(TvDestination.EXTENSIONS.route) }
+                    TvSettingsScreen(
+                        onOpenExtensions = { navController.navigate(TvDestination.EXTENSIONS.route) }
                     )
                 }
 

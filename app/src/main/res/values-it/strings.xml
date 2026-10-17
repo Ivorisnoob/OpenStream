@@ -888,4 +888,8 @@
     <string name="sheet_volume_boost_desc">Rende più forti i video troppo bassi. Un limitatore evita che le parti forti distorcano. Vale per tutto ciò che riproduci finché non torni su Normale.</string>
     <string name="sheet_external_player">Lettore esterno</string>
     <string name="action_open_external_player">Apri in un lettore esterno</string>
+
+    <string name="st_stream_cap">Limite di qualità</string>
+    <string name="st_stream_cap_hint">Qualità massima che uno stream può usare. Predefinito 1080p.</string>
+    <string name="st_stream_cap_none">Nessun limite</string>
 </resources>

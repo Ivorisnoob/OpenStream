@@ -63,9 +63,16 @@ fun SourcesPanel(
     isFullscreen: Boolean,
     state: ServersState,
     actions: SourcesPageActions,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** True on TV: render the side panel, never a ModalBottomSheet. */
+    tvControls: Boolean = false
 ) {
-    PlayerPanelHost(visible = visible, isFullscreen = isFullscreen, onDismiss = onDismiss) { listModifier, onClose ->
+    PlayerPanelHost(
+        visible = visible,
+        isFullscreen = isFullscreen,
+        onDismiss = onDismiss,
+        tvControls = tvControls
+    ) { listModifier, onClose ->
         val filter = rememberSourceFilter()
         PanelHeader(
             title = stringResource(R.string.sheet_sources),

@@ -925,4 +925,8 @@
     <string name="sheet_volume_boost_desc">धीमी आवाज़ वाले वीडियो को तेज़ करता है। लिमिटर तेज़ हिस्सों को बिगड़ने नहीं देता। सामान्य पर वापस करने तक हर वीडियो पर लागू रहता है।</string>
     <string name="sheet_external_player">बाहरी प्लेयर</string>
     <string name="action_open_external_player">बाहरी प्लेयर में खोलें</string>
+
+    <string name="st_stream_cap">गुणवत्ता सीमा</string>
+    <string name="st_stream_cap_hint">स्ट्रीम जिस उच्चतम गुणवत्ता तक उपयोग कर सकती है। डिफ़ॉल्ट 1080p.</string>
+    <string name="st_stream_cap_none">कोई सीमा नहीं</string>
 </resources>

@@ -1569,6 +1569,9 @@ fun ExoPlayerView(
         PlayerSettingsHost(
             visible = showSettingsDialog,
             isFullscreen = isFullscreen,
+            // TV: the D-pad variant renders the settings/side panel even before the
+            // stream goes fullscreen, so no ModalBottomSheet is ever reachable there.
+            tvControls = dpadControls,
             initialPage = settingsInitialPage,
             onDismiss = { showSettingsDialog = false },
             model = PlayerSettingsModel(

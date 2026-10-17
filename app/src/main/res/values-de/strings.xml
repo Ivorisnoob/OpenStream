@@ -884,4 +884,8 @@
     <string name="sheet_volume_boost_desc">Macht leise Videos lauter. Ein Limiter verhindert, dass laute Stellen verzerren. Gilt für alles, was du abspielst, bis du wieder Normal wählst.</string>
     <string name="sheet_external_player">Externer Player</string>
     <string name="action_open_external_player">In externem Player öffnen</string>
+
+    <string name="st_stream_cap">Qualitätslimit</string>
+    <string name="st_stream_cap_hint">Höchste Qualität, die ein Stream nutzen darf. Standard: 1080p.</string>
+    <string name="st_stream_cap_none">Ohne Limit</string>
 </resources>

@@ -888,4 +888,8 @@
     <string name="sheet_volume_boost_desc">Rend les vidéos trop faibles plus fortes. Un limiteur évite que les passages forts saturent. S’applique à tout ce que vous lisez jusqu’à ce que vous repassiez sur Normale.</string>
     <string name="sheet_external_player">Lecteur externe</string>
     <string name="action_open_external_player">Ouvrir dans un lecteur externe</string>
+
+    <string name="st_stream_cap">Limite de qualité</string>
+    <string name="st_stream_cap_hint">Qualité maximale qu\'un flux peut utiliser. Par défaut 1080p.</string>
+    <string name="st_stream_cap_none">Sans limite</string>
 </resources>

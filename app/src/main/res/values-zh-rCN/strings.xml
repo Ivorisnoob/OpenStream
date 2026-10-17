@@ -880,4 +880,8 @@
     <string name="sheet_volume_boost_desc">让声音偏小的视频更响。限幅器可防止大声部分失真。在你改回“正常”之前，对所有播放内容生效。</string>
     <string name="sheet_external_player">外部播放器</string>
     <string name="action_open_external_player">在外部播放器中打开</string>
+
+    <string name="st_stream_cap">画质上限</string>
+    <string name="st_stream_cap_hint">流媒体可使用的最高画质。默认 1080p。</string>
+    <string name="st_stream_cap_none">不限制</string>
 </resources>

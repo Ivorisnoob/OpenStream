@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -70,6 +71,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
+import com.ivor.openstream.presentation.tv.TvButton
+import com.ivor.openstream.presentation.tv.TvOutlinedButton
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
@@ -412,7 +415,62 @@ fun PlayerScreen(
         }
     }
     if (showDataWarning) {
-        AlertDialog(
+        if (tvControls) {
+            // TV: the same question as an in-place overlay with a focus ring on each
+            // answer, instead of an AlertDialog — a remote cannot dismiss a dialog
+            // window, and focus would be trapped behind the video surface.
+            val dataWarningTitle = stringResource(R.string.st_data_mobile_now)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.65f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.widthIn(max = 520.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(28.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.DataUsage,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Text(dataWarningTitle, style = MaterialTheme.typography.headlineSmall)
+                        }
+                        Text(dataWarningMessage, style = MaterialTheme.typography.bodyMedium)
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            TvButton(onClick = {
+                                viewModel.markDataWarningAnswered()
+                                showDataWarning = false
+                            }) {
+                                Text(stringResource(R.string.action_continue_anyway))
+                            }
+                            TvOutlinedButton(onClick = {
+                                // Lower the ceiling for this playback and stop asking on this network.
+                                viewModel.markDataWarningAnswered()
+                                viewModel.setWarnBeforeMeteredStream(false)
+                                viewModel.capVideoHeight(480)
+                                showDataWarning = false
+                            }) {
+                                Text(stringResource(R.string.action_play_small, 480))
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // Phone only (guarded above by the tvControls branch): an AlertDialog
+            // window works under touch, and a TV never reaches this branch.
+            AlertDialog(
             onDismissRequest = { viewModel.markDataWarningAnswered(); showDataWarning = false },
             icon = { Icon(Icons.Default.DataUsage, contentDescription = null) },
             title = { Text(stringResource(R.string.st_data_mobile_now)) },
@@ -433,6 +491,7 @@ fun PlayerScreen(
                 }) { Text(stringResource(R.string.action_play_small, 480)) }
             }
         )
+        }
     }
 
     val sourceActions = SourcesPageActions(
@@ -521,7 +580,7 @@ fun PlayerScreen(
                         onChooseSource = { showServerPicker = true }.takeIf { !isLocalOrDownloaded },
                         onNextClick = onNextClick,
                         onBackClick = onBackClick,
-                        onCastClick = { showCastSheet = true },
+                        onCastClick = { showCastSheet = true }.takeIf { !tvControls },
                         onPlaybackEnded = {
                             val stoppedBySleepTimer = viewModel.consumeEndedBySleepTimer()
                             showUpNext = nextEpisode != null && appSettings.autoPlayNext && !stoppedBySleepTimer
@@ -599,7 +658,9 @@ fun PlayerScreen(
                                 }
                             },
                             onPlaybackReady = viewModel::onPlaybackReady,
-                            onCastClick = { showCastSheet = true }.takeIf { castStatus.supported },
+                            // TV: no cast sheet (a ModalBottomSheet a remote cannot operate);
+                            // casting starts on the phone, and ''play here'' is the TV answer.
+                            onCastClick = { showCastSheet = true }.takeIf { castStatus.supported && !tvControls },
                             onPictureInPictureClick = enterPictureInPicture,
                             loadSubtitleText = viewModel::loadSubtitleText,
                             keepPlayingInBackground = appSettings.keepPlayingInBackground,
@@ -774,6 +835,8 @@ fun PlayerScreen(
                 // While casting there is no in-player settings panel, so sources open here too.
                 visible = showServerPicker && (videoUrl == null || isCasting) && !isLocalOrDownloaded,
                 isFullscreen = isFullscreen,
+                // TV: the side-panel rendering instead of a ModalBottomSheet.
+                tvControls = tvControls,
                 state = serversState,
                 actions = sourceActions,
                 onDismiss = { showServerPicker = false }
@@ -809,7 +872,11 @@ fun PlayerScreen(
                         onPlayEpisode = onEpisodeClick,
                         onDownload = { activeServer?.let(viewModel::downloadVideo) },
                         onRemoveDownload = { currentDownload?.let { viewModel.removeDownload(it.downloadId) } },
-                        onSave = { showListSheet = true },
+                        onSave = {
+                            // TV: the tile toggles saved in place; the "Save to" sheet
+                            // (a ModalBottomSheet) is a phone affordance.
+                            if (tvControls) viewModel.toggleSaved() else showListSheet = true
+                        },
                         onOpenDetails = { onOpenDetails(mediaType, tmdbId) },
                         onOpenTitle = onOpenTitle,
                         sections = sections
