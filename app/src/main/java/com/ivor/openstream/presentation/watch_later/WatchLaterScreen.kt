@@ -3,6 +3,8 @@ package com.ivor.openstream.presentation.watch_later
 import com.ivor.openstream.ui.theme.onScrim
 import com.ivor.openstream.presentation.components.bottomContentPadding
 import com.ivor.openstream.R
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.CalendarMonth
 import com.ivor.openstream.presentation.components.byWidth
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -88,6 +90,7 @@ fun WatchLaterScreen(
     onBackClick: () -> Unit,
     onAnimeClick: (Int, String) -> Unit,
     onOpenList: (listId: Long) -> Unit = {},
+    onOpenCalendar: () -> Unit = {},
     viewModel: WatchLaterViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -156,6 +159,37 @@ fun WatchLaterScreen(
                         }
                     }
                 )
+            }
+
+            item(key = "calendar", span = fullWidth) {
+                Surface(
+                    onClick = onOpenCalendar,
+                    shape = ExpressiveShapes.large,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Icon(Icons.Default.CalendarMonth, contentDescription = null)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.calendar_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = stringResource(R.string.calendar_subtitle),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                    }
+                }
             }
 
             // The user's own lists sit above Watch Later; the row ends with "New list".

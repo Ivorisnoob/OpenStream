@@ -949,4 +949,20 @@
     <string name="tv_st_storage">التخزين</string>
     <string name="tv_hold_to_remove">اضغط مطولًا على OK للإزالة</string>
     <string name="tv_key_space">مسافة</string>
+
+    <!-- Calendar -->
+    <string name="calendar_title">القادم</string>
+    <string name="calendar_subtitle">حلقات وأفلام جديدة مما تتابعه</string>
+    <string name="calendar_next_up">التالي</string>
+    <string name="calendar_out_now">متاح الآن</string>
+    <string name="calendar_new_badge">جديد</string>
+    <string name="calendar_watch_now_cd">شاهد %1$s الآن</string>
+    <string name="calendar_day_cd">%1$s، المجدول: %2$d</string>
+    <string name="calendar_empty_title">لا يوجد شيء في التقويم بعد</string>
+    <string name="calendar_empty_body">احفظ مسلسلًا أو ابدأ مشاهدته، وستظهر حلقاته الجديدة هنا.</string>
+    <string name="calendar_nothing_scheduled">لم يتم إعلان مواعيد لما تتابعه.</string>
+    <string name="calendar_nothing_filter">لا يوجد شيء بهذا الفلتر.</string>
+    <string name="calendar_suggestions">يُعرض هذا الأسبوع</string>
+    <string name="calendar_some_failed">تعذر فحص بعض العناوين. اسحب لأسفل للمحاولة مرة أخرى.</string>
+    <string name="calendar_error">تعذر تحميل التقويم</string>
 </resources>

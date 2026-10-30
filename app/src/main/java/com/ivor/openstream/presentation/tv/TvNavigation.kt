@@ -151,6 +151,16 @@ private fun TvAppScaffold(navController: NavHostController) {
                 )
             }
 
+            composable(TvDestination.CALENDAR.route) {
+                TvCalendarScreen(
+                    onOpenDetails = { id, type -> navController.navigate(TvRoutes.details(type, id)) },
+                    onPlay = { item ->
+                        navController.navigate(
+                            TvRoutes.player(item.mediaType, item.tmdbId, item.season ?: 0, item.episode ?: 0)
+                        )
+                    }
+                )
+            }
             composable(TvDestination.DOWNLOADS.route) {
                 TvDownloadsScreen(
                     onPlay = { download ->

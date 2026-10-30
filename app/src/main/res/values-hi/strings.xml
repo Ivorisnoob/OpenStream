@@ -933,4 +933,20 @@
     <string name="tv_st_storage">स्टोरेज</string>
     <string name="tv_hold_to_remove">हटाने के लिए OK दबाकर रखें</string>
     <string name="tv_key_space">स्पेस</string>
+
+    <!-- Calendar -->
+    <string name="calendar_title">आने वाले</string>
+    <string name="calendar_subtitle">आपके फ़ॉलो किए गए शीर्षकों के नए एपिसोड और फ़िल्में</string>
+    <string name="calendar_next_up">आगे</string>
+    <string name="calendar_out_now">अभी उपलब्ध</string>
+    <string name="calendar_new_badge">नया</string>
+    <string name="calendar_watch_now_cd">%1$s अभी देखें</string>
+    <string name="calendar_day_cd">%1$s, निर्धारित: %2$d</string>
+    <string name="calendar_empty_title">कैलेंडर में अभी कुछ नहीं है</string>
+    <string name="calendar_empty_body">कोई शो सहेजें या देखना शुरू करें, उसके नए एपिसोड यहां दिखेंगे।</string>
+    <string name="calendar_nothing_scheduled">आपके फ़ॉलो किए गए शीर्षकों की कोई तारीख घोषित नहीं हुई है।</string>
+    <string name="calendar_nothing_filter">इस फ़िल्टर में कुछ नहीं है।</string>
+    <string name="calendar_suggestions">इस हफ़्ते प्रसारित</string>
+    <string name="calendar_some_failed">कुछ शीर्षक जांचे नहीं जा सके। फिर कोशिश करने के लिए नीचे खींचें।</string>
+    <string name="calendar_error">कैलेंडर लोड नहीं हो सका</string>
 </resources>

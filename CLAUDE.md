@@ -165,6 +165,10 @@ Rules:
   `include_adult=false` is added to every TMDB request.
 - **Lists.** Watch Later plus user lists (`CustomListRepository`, `custom_lists` tables); Details has
   "Add to list" and "Mark all watched", the Saved tab shows the lists.
+- **Calendar.** `UpcomingRepository` builds a schedule from Watch Later and shows with progress:
+  each title's next and last episode, their season lists, and saved films. TMDB dates carry no air
+  time, so everything stops at the day. `CalendarScreen` (opened from Saved) and `TvCalendarScreen`
+  (a drawer entry) share `CalendarViewModel`; relative dates come from the system (`CalendarFormat`).
 - **Backup / diagnostics.** `LibraryBackup` (JSON, merge on restore) and `Diagnostics` (crash files
   in `filesDir/crashes`, recorder installed in `OpenStreamApp`) back the Settings entries.
 - **Deep links.** `MainActivity` is `singleTask`; `DeepLinks` turns TMDB links (VIEW or shared text)
@@ -182,6 +186,9 @@ Rules:
 - **Downloads.** Everything goes through Media3's `DownloadManager` (`DownloadRepositoryImpl`):
   queue resolves sources in the app scope, live progress from the manager, pause/resume/retry,
   one rendition up to 1080p from master playlists. Offline playback reads the same cache.
+  `DownloadBackgroundGate` pauses the manager while the app is in the background and downloads are
+  waiting (for Wi-Fi, or after a sticky restart): Android 12+ forbids the foreground start they would
+  need, and Media3 cannot catch that failure. They resume when the app comes to the foreground.
 
 ## Known external constraints
 

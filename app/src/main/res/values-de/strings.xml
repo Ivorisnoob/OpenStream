@@ -892,4 +892,20 @@
     <string name="tv_st_storage">Speicher</string>
     <string name="tv_hold_to_remove">OK gedrückt halten zum Entfernen</string>
     <string name="tv_key_space">Leerzeichen</string>
+
+    <!-- Calendar -->
+    <string name="calendar_title">Demnächst</string>
+    <string name="calendar_subtitle">Neue Folgen und Filme von dem, was du verfolgst</string>
+    <string name="calendar_next_up">Als Nächstes</string>
+    <string name="calendar_out_now">Jetzt verfügbar</string>
+    <string name="calendar_new_badge">Neu</string>
+    <string name="calendar_watch_now_cd">%1$s jetzt ansehen</string>
+    <string name="calendar_day_cd">%1$s, geplant: %2$d</string>
+    <string name="calendar_empty_title">Noch nichts im Kalender</string>
+    <string name="calendar_empty_body">Speichere eine Serie oder schau sie an, dann erscheinen neue Folgen hier.</string>
+    <string name="calendar_nothing_scheduled">Für deine Titel sind keine Termine angekündigt.</string>
+    <string name="calendar_nothing_filter">Mit diesem Filter gibt es nichts.</string>
+    <string name="calendar_suggestions">Diese Woche im Programm</string>
+    <string name="calendar_some_failed">Einige Titel konnten nicht geprüft werden. Zum Wiederholen nach unten ziehen.</string>
+    <string name="calendar_error">Kalender konnte nicht geladen werden</string>
 </resources>

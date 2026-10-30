@@ -896,4 +896,20 @@
     <string name="tv_st_storage">Archiviazione</string>
     <string name="tv_hold_to_remove">Tieni premuto OK per rimuovere</string>
     <string name="tv_key_space">Spazio</string>
+
+    <!-- Calendar -->
+    <string name="calendar_title">In arrivo</string>
+    <string name="calendar_subtitle">Nuovi episodi e film da ciò che segui</string>
+    <string name="calendar_next_up">Prossimo</string>
+    <string name="calendar_out_now">Disponibile ora</string>
+    <string name="calendar_new_badge">Nuovo</string>
+    <string name="calendar_watch_now_cd">Guarda %1$s ora</string>
+    <string name="calendar_day_cd">%1$s, in programma: %2$d</string>
+    <string name="calendar_empty_title">Ancora niente in calendario</string>
+    <string name="calendar_empty_body">Salva una serie o inizia a guardarla e i nuovi episodi appariranno qui.</string>
+    <string name="calendar_nothing_scheduled">Nessuna data annunciata per ciò che segui.</string>
+    <string name="calendar_nothing_filter">Niente con questo filtro.</string>
+    <string name="calendar_suggestions">In onda questa settimana</string>
+    <string name="calendar_some_failed">Non è stato possibile controllare alcuni titoli. Trascina in basso per riprovare.</string>
+    <string name="calendar_error">Impossibile caricare il calendario</string>
 </resources>
