@@ -64,6 +64,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -253,15 +254,17 @@ private fun HeroSection(
                         HeroCard(anime = items[index], rank = index + 1, onClick = { onOpen(items[index]) })
                     }
                 } else {
-                    // Tablets: several phone-sized poster cards side by side, not one huge banner.
+                    // Tablets and landscape phones: several poster cards side by side, not one huge
+                    // banner, and short enough that the title stays on a landscape phone's screen.
+                    val heroHeight = minOf(440.dp, LocalConfiguration.current.screenHeightDp.dp * 0.72f)
                     HorizontalMultiBrowseCarousel(
                         state = rememberCarouselState { items.size },
-                        preferredItemWidth = 320.dp,
+                        preferredItemWidth = heroHeight * 0.727f,
                         itemSpacing = 8.dp,
                         contentPadding = PaddingValues(horizontal = 16.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(440.dp)
+                            .height(heroHeight)
                     ) { index ->
                         HeroCard(anime = items[index], rank = index + 1, onClick = { onOpen(items[index]) })
                     }

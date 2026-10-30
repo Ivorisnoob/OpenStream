@@ -242,7 +242,7 @@ fun AppNavigation(
                     val selected = screen.route == lastTabRoute
                     WideNavigationRailItem(
                         selected = selected,
-                        railExpanded = windowSizeClass == WindowWidthSizeClass.Expanded,
+                        railExpanded = false,
                         onClick = {
                             if (selected && screen.route == Screen.Search.route) {
                                 navController.currentBackStackEntry?.savedStateHandle?.set(
