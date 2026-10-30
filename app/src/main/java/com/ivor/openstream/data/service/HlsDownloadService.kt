@@ -25,6 +25,15 @@ class HlsDownloadService : DownloadService(
     @Inject
     lateinit var notificationHelper: androidx.media3.exoplayer.offline.DownloadNotificationHelper
 
+    @Inject
+    lateinit var backgroundGate: DownloadBackgroundGate
+
+    override fun onCreate() {
+        super.onCreate()
+        // After super: creating the service is what resumes the DownloadManager.
+        backgroundGate.onServiceCreated()
+    }
+
     override fun getDownloadManager(): DownloadManager = media3DownloadManager
 
     override fun getScheduler(): Scheduler? = null

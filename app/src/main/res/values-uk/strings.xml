@@ -900,4 +900,20 @@
     <string name="tv_st_storage">Сховище</string>
     <string name="tv_hold_to_remove">Утримуйте OK, щоб прибрати</string>
     <string name="tv_key_space">Пробіл</string>
+
+    <!-- Calendar -->
+    <string name="calendar_title">Незабаром</string>
+    <string name="calendar_subtitle">Нові серії та фільми з того, що ви дивитеся</string>
+    <string name="calendar_next_up">Далі</string>
+    <string name="calendar_out_now">Уже вийшло</string>
+    <string name="calendar_new_badge">Нове</string>
+    <string name="calendar_watch_now_cd">Дивитися %1$s зараз</string>
+    <string name="calendar_day_cd">%1$s, заплановано: %2$d</string>
+    <string name="calendar_empty_title">У календарі поки порожньо</string>
+    <string name="calendar_empty_body">Збережіть серіал або почніть його дивитися, і нові серії з’являться тут.</string>
+    <string name="calendar_nothing_scheduled">Для ваших тайтлів дати не оголошено.</string>
+    <string name="calendar_nothing_filter">З цим фільтром нічого немає.</string>
+    <string name="calendar_suggestions">Виходить цього тижня</string>
+    <string name="calendar_some_failed">Не вдалося перевірити деякі тайтли. Потягніть униз, щоб повторити.</string>
+    <string name="calendar_error">Не вдалося завантажити календар</string>
 </resources>

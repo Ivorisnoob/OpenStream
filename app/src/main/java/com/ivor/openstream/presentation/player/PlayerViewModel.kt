@@ -47,6 +47,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapLatest
@@ -749,6 +750,8 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun onPlaybackError(error: PlaybackException? = null) {
+        // A connection drop mid-episode: the session is reconnecting to this same stream.
+        if (playbackSession.isRecoveringFromNetworkDrop) return
         val failed = _activeServer.value ?: return
         failedServerIds += failed.id
         // Its links may have expired: the next open of this episode searches the sources again.
@@ -808,7 +811,12 @@ class PlayerViewModel @Inject constructor(
                 identity,
                 includeFallbacks,
                 preferLastWorking = !includeFallbacks
-            ).collect { progress ->
+            ).catch { error ->
+                // The search itself broke, as opposed to sources finding nothing. Say so through
+                // the same state, so the screen offers a retry instead of spinning or crashing.
+                android.util.Log.w("PlayerViewModel", "Source search failed", error)
+                _serversState.value = ServersState.Empty(emptyList())
+            }.collect { progress ->
                 // The server the user picked (or last picked for this episode) wins when it shows
                 // up, but only before playback starts: switching later would restart the video.
                 val rememberedId = currentIdentity?.let { streamingRepository.getRememberedServerId(it) }

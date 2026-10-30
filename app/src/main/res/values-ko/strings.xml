@@ -929,4 +929,20 @@
     <string name="tv_st_storage">저장공간</string>
     <string name="tv_hold_to_remove">OK를 길게 눌러 제거</string>
     <string name="tv_key_space">스페이스</string>
+
+    <!-- Calendar -->
+    <string name="calendar_title">공개 예정</string>
+    <string name="calendar_subtitle">팔로우한 작품의 새 에피소드와 영화</string>
+    <string name="calendar_next_up">다음 공개</string>
+    <string name="calendar_out_now">지금 공개</string>
+    <string name="calendar_new_badge">새로운</string>
+    <string name="calendar_watch_now_cd">지금 %1$s 보기</string>
+    <string name="calendar_day_cd">%1$s, 예정: %2$d</string>
+    <string name="calendar_empty_title">아직 캘린더에 아무것도 없습니다</string>
+    <string name="calendar_empty_body">프로그램을 저장하거나 시청을 시작하면 새 에피소드가 여기에 표시됩니다.</string>
+    <string name="calendar_nothing_scheduled">팔로우한 작품의 공개일이 발표되지 않았습니다.</string>
+    <string name="calendar_nothing_filter">이 필터에 해당하는 항목이 없습니다.</string>
+    <string name="calendar_suggestions">이번 주 방영</string>
+    <string name="calendar_some_failed">일부 작품을 확인하지 못했습니다. 아래로 당겨 다시 시도하세요.</string>
+    <string name="calendar_error">캘린더를 불러올 수 없습니다</string>
 </resources>

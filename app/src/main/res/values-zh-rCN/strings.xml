@@ -888,4 +888,20 @@
     <string name="tv_st_storage">存储</string>
     <string name="tv_hold_to_remove">长按 OK 键移除</string>
     <string name="tv_key_space">空格</string>
+
+    <!-- Calendar -->
+    <string name="calendar_title">即将上线</string>
+    <string name="calendar_subtitle">你关注内容的新剧集和电影</string>
+    <string name="calendar_next_up">下一个</string>
+    <string name="calendar_out_now">现已上线</string>
+    <string name="calendar_new_badge">新</string>
+    <string name="calendar_watch_now_cd">立即观看%1$s</string>
+    <string name="calendar_day_cd">%1$s，已排期：%2$d</string>
+    <string name="calendar_empty_title">日历中还没有内容</string>
+    <string name="calendar_empty_body">保存剧集或开始观看，新剧集就会显示在这里。</string>
+    <string name="calendar_nothing_scheduled">你关注的内容尚未公布日期。</string>
+    <string name="calendar_nothing_filter">此筛选条件下没有内容。</string>
+    <string name="calendar_suggestions">本周播出</string>
+    <string name="calendar_some_failed">部分作品无法检查。下拉重试。</string>
+    <string name="calendar_error">无法加载日历</string>
 </resources>

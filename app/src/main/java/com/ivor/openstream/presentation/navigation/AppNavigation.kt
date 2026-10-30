@@ -119,6 +119,7 @@ sealed class Screen(
     data object Settings : Screen("settings")
     data object VideoShaders : Screen("video_shaders")
     data object Marketplace : Screen("marketplace")
+    data object Calendar : Screen("calendar")
     data object Person : Screen("person/{personId}") {
         fun createRoute(personId: Int) = "person/$personId"
     }
@@ -242,7 +243,7 @@ fun AppNavigation(
                     val selected = screen.route == lastTabRoute
                     WideNavigationRailItem(
                         selected = selected,
-                        railExpanded = windowSizeClass == WindowWidthSizeClass.Expanded,
+                        railExpanded = false,
                         onClick = {
                             if (selected && screen.route == Screen.Search.route) {
                                 navController.currentBackStackEntry?.savedStateHandle?.set(
@@ -316,6 +317,26 @@ fun AppNavigation(
                         },
                         onOpenList = { listId ->
                             navController.navigate(Screen.CustomList.createRoute(listId))
+                        },
+                        onOpenCalendar = { navController.navigate(Screen.Calendar.route) }
+                    )
+                }
+
+                composable(Screen.Calendar.route) {
+                    com.ivor.openstream.presentation.calendar.CalendarScreen(
+                        onBackClick = { navController.popBackStack() },
+                        onOpenDetails = { id, type ->
+                            navController.navigate(Screen.Details.createRoute(type, id))
+                        },
+                        onPlay = { item ->
+                            navController.navigate(
+                                Screen.Player.createRoute(
+                                    mediaType = item.mediaType,
+                                    animeId = item.tmdbId,
+                                    season = item.season ?: 0,
+                                    episode = item.episode ?: 0
+                                )
+                            )
                         }
                     )
                 }

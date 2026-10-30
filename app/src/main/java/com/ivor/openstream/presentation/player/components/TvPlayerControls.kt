@@ -218,6 +218,31 @@ fun TvPlayerControls(
     }
 }
 
+/** Skip intro, recap or credits: a stop of its own, so the remote can reach it without the chrome. */
+@Composable
+fun TvSkipButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.height(48.dp),
+        contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
+        colors = ButtonDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            focusedContainerColor = Color.White,
+            focusedContentColor = Color.Black
+        )
+    ) {
+        Icon(Icons.Default.SkipNext, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+        androidx.tv.material3.Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1
+        )
+    }
+}
+
 /** The progress bar as one stop in the focus order: thicker with a thumb while focused. */
 @Composable
 private fun SeekBar(

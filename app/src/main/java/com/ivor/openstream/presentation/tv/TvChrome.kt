@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Home
@@ -64,13 +65,14 @@ enum class TvDestination(
     HOME("tv_home", Icons.Default.Home, R.string.nav_home),
     SEARCH("tv_search", Icons.Default.Search, R.string.nav_search),
     SAVED("tv_saved", Icons.Default.Bookmark, R.string.nav_saved),
+    CALENDAR("tv_calendar", Icons.Default.CalendarMonth, R.string.calendar_title),
     DOWNLOADS("tv_downloads", Icons.Default.Download, R.string.nav_downloads),
     EXTENSIONS("tv_extensions", Icons.Default.Extension, R.string.mk_title),
     SETTINGS("tv_settings", Icons.Default.Settings, R.string.st_title);
 
     companion object {
         /** Bottom-bar style destinations, in order. */
-        val topLevel: List<TvDestination> = listOf(HOME, SEARCH, SAVED, DOWNLOADS, EXTENSIONS, SETTINGS)
+        val topLevel: List<TvDestination> = listOf(HOME, SEARCH, SAVED, CALENDAR, DOWNLOADS, EXTENSIONS, SETTINGS)
     }
 }
 

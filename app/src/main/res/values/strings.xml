@@ -1087,4 +1087,20 @@
     <string name="tv_st_storage">Storage</string>
     <string name="tv_hold_to_remove">Hold OK to remove</string>
     <string name="tv_key_space">Space</string>
+
+    <!-- Calendar -->
+    <string name="calendar_title">Upcoming</string>
+    <string name="calendar_subtitle">New episodes and films from what you follow</string>
+    <string name="calendar_next_up">Next up</string>
+    <string name="calendar_out_now">Out now</string>
+    <string name="calendar_new_badge">New</string>
+    <string name="calendar_watch_now_cd">Watch %1$s now</string>
+    <string name="calendar_day_cd">%1$s, %2$d scheduled</string>
+    <string name="calendar_empty_title">Nothing on the calendar yet</string>
+    <string name="calendar_empty_body">Save a show or start watching one, and its new episodes show up here.</string>
+    <string name="calendar_nothing_scheduled">No dates announced for what you follow.</string>
+    <string name="calendar_nothing_filter">Nothing here with this filter.</string>
+    <string name="calendar_suggestions">Airing this week</string>
+    <string name="calendar_some_failed">Some titles could not be checked. Pull down to try again.</string>
+    <string name="calendar_error">Could not load the calendar</string>
 </resources>

@@ -327,7 +327,7 @@ class StreamingRepositoryImpl @Inject constructor(
     override suspend fun getServers(identity: MediaIdentity): List<VideoServer> =
         resolveServers(identity).last().servers
 
-    override suspend fun refreshServer(server: VideoServer): Result<VideoServer> =
+    override suspend fun refreshServer(server: VideoServer): Result<VideoServer> = withContext(Dispatchers.IO) {
         runCatching {
             val request = Request.Builder()
                 .url(server.url)
@@ -341,6 +341,7 @@ class StreamingRepositoryImpl @Inject constructor(
             }
             server.copy(resolvedAt = System.currentTimeMillis())
         }
+    }
 
     override fun forgetResolvedServers(identity: MediaIdentity) = streamCache.forget(identity)
 

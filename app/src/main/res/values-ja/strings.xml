@@ -888,4 +888,20 @@
     <string name="tv_st_storage">ストレージ</string>
     <string name="tv_hold_to_remove">OKを長押しで削除</string>
     <string name="tv_key_space">スペース</string>
+
+    <!-- Calendar -->
+    <string name="calendar_title">配信予定</string>
+    <string name="calendar_subtitle">フォロー中の新着エピソードと映画</string>
+    <string name="calendar_next_up">次の配信</string>
+    <string name="calendar_out_now">配信中</string>
+    <string name="calendar_new_badge">新着</string>
+    <string name="calendar_watch_now_cd">%1$sを今すぐ見る</string>
+    <string name="calendar_day_cd">%1$s、予定: %2$d</string>
+    <string name="calendar_empty_title">カレンダーにはまだ何もありません</string>
+    <string name="calendar_empty_body">番組を保存するか視聴を始めると、新しいエピソードがここに表示されます。</string>
+    <string name="calendar_nothing_scheduled">フォロー中の作品に発表された日程はありません。</string>
+    <string name="calendar_nothing_filter">このフィルターに該当するものはありません。</string>
+    <string name="calendar_suggestions">今週放送</string>
+    <string name="calendar_some_failed">一部の作品を確認できませんでした。下に引いて再試行してください。</string>
+    <string name="calendar_error">カレンダーを読み込めませんでした</string>
 </resources>
