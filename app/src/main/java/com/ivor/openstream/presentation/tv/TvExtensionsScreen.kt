@@ -2,6 +2,8 @@ package com.ivor.openstream.presentation.tv
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,8 +17,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,12 +32,14 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SystemUpdateAlt
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -45,6 +51,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -58,6 +66,7 @@ import androidx.tv.material3.Switch
 import androidx.tv.material3.Text
 import com.ivor.openstream.R
 import com.ivor.openstream.data.settings.SourceSearchMode
+import com.ivor.openstream.domain.model.ExtensionRepo
 import com.ivor.openstream.domain.model.MarketplaceExtension
 import com.ivor.openstream.presentation.marketplace.MarketplaceViewModel
 import com.ivor.openstream.presentation.marketplace.extensionSubtitle
@@ -65,8 +74,9 @@ import com.ivor.openstream.presentation.marketplace.extensionSubtitle
 /**
  * Sources as a list and a detail pane. The list on the left switches between what is installed
  * (in search order, with the search mode above it) and the whole catalog; focusing a source shows
- * it on the right with its actions. Removing asks first in a centred panel. Adding a repository by
- * URL and searching need typed text and stay on the phone.
+ * it on the right with its actions. Removing asks first in a centred panel. Repositories are a third
+ * list; adding one opens a panel so the on-screen keyboard only comes up when it was asked for.
+ * Searching needs typed text and stays on the phone.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -76,23 +86,43 @@ fun TvExtensionsScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val searchMode by viewModel.searchMode.collectAsState()
-    var showInstalled by remember { mutableStateOf(true) }
+    var tab by remember { mutableStateOf(TvSourcesTab.INSTALLED) }
+    val showInstalled = tab == TvSourcesTab.INSTALLED
+    val showRepos = tab == TvSourcesTab.REPOSITORIES
+    var selectedRepoId by remember { mutableStateOf<String?>(null) }
+    var pendingRepoRemove by remember { mutableStateOf<ExtensionRepo?>(null) }
+    var addingRepo by remember { mutableStateOf(false) }
     var selectedKey by remember { mutableStateOf<String?>(null) }
     var pendingRemove by remember { mutableStateOf<MarketplaceExtension?>(null) }
     var detailHasFocus by remember { mutableStateOf(false) }
 
-    val visible = if (showInstalled) state.installed else state.catalog.extensions
+    val visible = when (tab) {
+        TvSourcesTab.INSTALLED -> state.installed
+        TvSourcesTab.BROWSE -> state.catalog.extensions
+        TvSourcesTab.REPOSITORIES -> emptyList()
+    }
+    val repos = state.catalog.repos
+    val selectedRepo = repos.firstOrNull { it.id == selectedRepoId } ?: repos.firstOrNull()
+    val addRepoRow = remember { FocusRequester() }
     val selected = visible.firstOrNull { it.key == selectedKey } ?: visible.firstOrNull()
     val rowRequesters = remember { mutableMapOf<String, FocusRequester>() }
     fun rowRequester(key: String) = rowRequesters.getOrPut(key) { FocusRequester() }
     val firstPill = remember { FocusRequester() }
 
-    LaunchedEffect(showInstalled, visible.isEmpty()) {
+    LaunchedEffect(tab, visible.isEmpty()) {
+        if (showRepos) return@LaunchedEffect
         val first = visible.firstOrNull()
         runCatching { if (first != null) rowRequester(first.key).requestFocus() else firstPill.requestFocus() }
     }
+    // The panels and the removed row take the focus with them, so it comes back to the list.
+    LaunchedEffect(showRepos, addingRepo, pendingRepoRemove, repos.size) {
+        if (showRepos && !addingRepo && pendingRepoRemove == null) runCatching { addRepoRow.requestFocus() }
+    }
     BackHandler(enabled = detailHasFocus && pendingRemove == null && selected != null) {
         runCatching { rowRequester(selected!!.key).requestFocus() }
+    }
+    BackHandler(enabled = detailHasFocus && showRepos && !addingRepo && pendingRepoRemove == null) {
+        runCatching { addRepoRow.requestFocus() }
     }
 
     Box(
@@ -147,7 +177,7 @@ fun TvExtensionsScreen(
                             TvPill(
                                 label = stringResource(R.string.mk_tab_installed) + " (${state.installed.size})",
                                 selected = showInstalled,
-                                onClick = { showInstalled = true },
+                                onClick = { tab = TvSourcesTab.INSTALLED },
                                 modifier = Modifier.focusRequester(firstPill)
                             )
                         }
@@ -155,7 +185,14 @@ fun TvExtensionsScreen(
                             TvPill(
                                 label = stringResource(R.string.mk_tab_browse) + " (${state.catalog.extensions.size})",
                                 selected = !showInstalled,
-                                onClick = { showInstalled = false }
+                                onClick = { tab = TvSourcesTab.BROWSE }
+                            )
+                        }
+                        item {
+                            TvPill(
+                                label = stringResource(R.string.mk_tab_repositories) + " (${repos.size})",
+                                selected = showRepos,
+                                onClick = { tab = TvSourcesTab.REPOSITORIES }
                             )
                         }
                     }
@@ -175,7 +212,37 @@ fun TvExtensionsScreen(
                             }
                         }
                     }
-                    if (visible.isEmpty()) {
+                    if (showRepos) {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                            contentPadding = PaddingValues(top = 4.dp, bottom = 32.dp)
+                        ) {
+                            item(key = "add") {
+                                ListItem(
+                                    selected = false,
+                                    onClick = { addingRepo = true },
+                                    headlineContent = { Text(stringResource(R.string.st_add_repository)) },
+                                    leadingContent = {
+                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    },
+                                    modifier = Modifier.focusRequester(addRepoRow)
+                                )
+                            }
+                            items(repos, key = { it.id }) { repo ->
+                                ListItem(
+                                    selected = repo.id == selectedRepo?.id,
+                                    onClick = { },
+                                    headlineContent = {
+                                        Text(repo.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    },
+                                    supportingContent = {
+                                        Text(repo.url, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    },
+                                    modifier = Modifier.onFocusChanged { if (it.isFocused) selectedRepoId = repo.id }
+                                )
+                            }
+                        }
+                    } else if (visible.isEmpty()) {
                         androidx.compose.material3.Text(
                             text = stringResource(if (showInstalled) R.string.mk_no_sources else R.string.st_pull_repo_hint),
                             style = MaterialTheme.typography.bodyLarge,
@@ -226,7 +293,11 @@ fun TvExtensionsScreen(
                         .onFocusChanged { detailHasFocus = it.hasFocus }
                         .padding(start = 32.dp, end = TvLayout.ContentEnd, top = 28.dp)
                 ) {
-                    if (selected != null) {
+                    if (showRepos) {
+                        selectedRepo?.let { repo ->
+                            RepoDetail(repo = repo, onRemove = { pendingRepoRemove = repo })
+                        }
+                    } else if (selected != null) {
                         val position = state.installed.indexOfFirst { it.key == selected.key }
                         ExtensionDetail(
                             extension = selected,
@@ -254,6 +325,148 @@ fun TvExtensionsScreen(
                 },
                 onCancel = { pendingRemove = null }
             )
+        }
+
+        pendingRepoRemove?.let { repo ->
+            TvConfirmPanel(
+                title = stringResource(R.string.action_remove) + "?",
+                message = repo.name,
+                confirmLabel = stringResource(R.string.action_remove),
+                onConfirm = {
+                    viewModel.removeRepo(repo.id)
+                    pendingRepoRemove = null
+                },
+                onCancel = { pendingRepoRemove = null }
+            )
+        }
+
+        if (addingRepo) {
+            AddRepoPanel(
+                onAdd = { url ->
+                    viewModel.addRepo(url)
+                    addingRepo = false
+                },
+                onCancel = { addingRepo = false }
+            )
+        }
+    }
+}
+
+private enum class TvSourcesTab { INSTALLED, BROWSE, REPOSITORIES }
+
+@Composable
+private fun RepoDetail(repo: ExtensionRepo, onRemove: () -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        androidx.compose.material3.Text(
+            text = repo.name,
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.semantics { heading() }
+        )
+        Spacer(Modifier.height(4.dp))
+        androidx.compose.material3.Text(
+            text = repo.url,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (repo.description.isNotBlank()) {
+            Spacer(Modifier.height(12.dp))
+            androidx.compose.material3.Text(
+                text = repo.description,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 5,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        repo.error?.let { error ->
+            Spacer(Modifier.height(12.dp))
+            androidx.compose.material3.Text(
+                text = error,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(Modifier.height(20.dp))
+        if (repo.isBuiltIn) {
+            androidx.compose.material3.Text(
+                text = stringResource(R.string.st_official_cannot_remove),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            OutlinedButton(
+                onClick = onRemove,
+                contentPadding = ButtonDefaults.ButtonWithIconContentPadding
+            ) {
+                Icon(Icons.Outlined.DeleteOutline, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                Text(stringResource(R.string.action_remove))
+            }
+        }
+    }
+}
+
+/** Takes a link typed on the TV's keyboard; the field gets the focus, which brings the keyboard up. */
+@Composable
+private fun AddRepoPanel(onAdd: (String) -> Unit, onCancel: () -> Unit) {
+    var url by rememberSaveable { mutableStateOf("") }
+    val field = remember { FocusRequester() }
+    BackHandler(onBack = onCancel)
+    LaunchedEffect(Unit) { runCatching { field.requestFocus() } }
+    fun submit() {
+        if (url.isNotBlank()) onAdd(url.trim())
+    }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.7f)),
+        contentAlignment = Alignment.Center
+    ) {
+        androidx.compose.material3.Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.widthIn(max = 560.dp)
+        ) {
+            Column(Modifier.padding(32.dp)) {
+                androidx.compose.material3.Text(
+                    text = stringResource(R.string.st_add_repo_hint),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.semantics { heading() }
+                )
+                Spacer(Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    singleLine = true,
+                    placeholder = { androidx.compose.material3.Text(stringResource(R.string.st_repo_example)) },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Uri,
+                        autoCorrectEnabled = false,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { submit() }),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(field)
+                )
+                Spacer(Modifier.height(24.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(onClick = ::submit, enabled = url.isNotBlank()) {
+                        Text(stringResource(R.string.st_add_repository))
+                    }
+                    OutlinedButton(onClick = onCancel) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                }
+            }
         }
     }
 }

@@ -4,6 +4,8 @@ import android.app.Activity
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.animation.core.animateDpAsState
 import com.ivor.openstream.presentation.player.session.SleepTimer
 import com.ivor.openstream.domain.model.SkipSegment
 import com.ivor.openstream.data.remote.model.EpisodeDto
@@ -211,6 +213,8 @@ fun ExoPlayerView(
     /** Intro/recap/credits times from AniSkip; empty falls back to a manual skip early on. */
     skipSegments: List<SkipSegment> = emptyList(),
     showSkipButton: Boolean = true,
+    /** Up Next is on screen: it takes the skip button's corner and, on a TV, the focus. */
+    upNextVisible: Boolean = false,
     /** Leave the player screen with playback continuing in the mini player (swipe down inline). */
     onMinimize: () -> Unit = onBackClick,
     /** This season's episodes; a swipe up in fullscreen opens them. */
@@ -1127,12 +1131,42 @@ fun ExoPlayerView(
             areControlsVisible = true
         }
     }
-    // Controls showing on a TV hands the focus to the control bar so D-pad navigates it.
-    // Hidden again, the focus returns to the video so the next key press still reaches the player.
-    LaunchedEffect(areControlsVisible, dpadControls, showSettingsDialog) {
-        if (!dpadControls || showSettingsDialog) return@LaunchedEffect
+    // Skip intro / recap / credits. AniSkip segments show whenever playback is inside one; without
+    // them, a manual jump is offered early in the video while the controls are up.
+    var manualSkipUsed by remember(videoUrl) { mutableStateOf(false) }
+    val fittingSegments = remember(skipSegments, totalTime / 10_000) { skipSegments.forDuration(totalTime) }
+    val activeSegment = fittingSegments.firstOrNull { currentTime >= it.startMs && currentTime < it.endMs - 1_000 }
+    val offerManualSkip = skipSegments.isEmpty() && !manualSkipUsed && areControlsVisible &&
+        totalTime > MANUAL_SKIP_MS * 4 && currentTime in 5_000L..MANUAL_SKIP_WINDOW_MS
+    val skipVisible = showSkipButton && (activeSegment != null || offerManualSkip) && !isLocked &&
+        !isInPictureInPicture && !showSettingsDialog && !upNextVisible
+    val skipFocusRequester = remember { FocusRequester() }
+    var skipFocused by remember { mutableStateOf(false) }
+    // Controls showing on a TV hands the focus to the control bar so D-pad navigates it. Hidden
+    // again, it goes to the skip button if there is one, otherwise back to the video so the next key
+    // press still reaches the player. Up Next, when it shows, holds the focus itself.
+    LaunchedEffect(areControlsVisible, dpadControls, showSettingsDialog, upNextVisible) {
+        if (!dpadControls || showSettingsDialog || upNextVisible) return@LaunchedEffect
+        withFrameNanos { }
         runCatching {
-            if (areControlsVisible) controlsFocusRequester.requestFocus() else videoFocusRequester.requestFocus()
+            when {
+                areControlsVisible -> controlsFocusRequester.requestFocus()
+                skipVisible -> skipFocusRequester.requestFocus()
+                else -> videoFocusRequester.requestFocus()
+            }
+        }
+    }
+    // A skip button appearing takes the focus only from the bare video, never from a control being
+    // used, where Up from the progress bar reaches it. Leaving, it hands back the focus it held.
+    LaunchedEffect(skipVisible, dpadControls) {
+        if (!dpadControls || showSettingsDialog || upNextVisible) return@LaunchedEffect
+        withFrameNanos { }
+        runCatching {
+            when {
+                skipVisible && !areControlsVisible -> skipFocusRequester.requestFocus()
+                !skipVisible && skipFocused && areControlsVisible -> controlsFocusRequester.requestFocus()
+                !skipVisible && skipFocused -> videoFocusRequester.requestFocus()
+            }
         }
     }
 
@@ -1591,7 +1625,7 @@ fun ExoPlayerView(
         }
 
         if (dpadControls) TvPlayerControls(
-            isVisible = areControlsVisible && !isInPictureInPicture,
+            isVisible = areControlsVisible && !isInPictureInPicture && !upNextVisible,
             isPlaying = isPlaying,
             isBuffering = isBuffering,
             title = title,
@@ -1909,39 +1943,52 @@ fun ExoPlayerView(
             )
         }
 
-        // Skip intro / recap / credits. AniSkip segments show whenever playback is inside one; without
-        // them, a manual jump is offered early in the video while the controls are up.
-        var manualSkipUsed by remember(videoUrl) { mutableStateOf(false) }
-        val fittingSegments = remember(skipSegments, totalTime / 10_000) { skipSegments.forDuration(totalTime) }
-        val activeSegment = fittingSegments.firstOrNull { currentTime >= it.startMs && currentTime < it.endMs - 1_000 }
-        val offerManualSkip = skipSegments.isEmpty() && !manualSkipUsed && areControlsVisible &&
-            totalTime > MANUAL_SKIP_MS * 4 && currentTime in 5_000L..MANUAL_SKIP_WINDOW_MS
         val skipLabel = activeSegment?.let { stringResource(it.type.labelRes) } ?: stringResource(R.string.player_skip_seconds, MANUAL_SKIP_MS / 1_000)
+        val onSkip = {
+            val target = activeSegment?.endMs ?: (exoPlayer.currentPosition + MANUAL_SKIP_MS)
+            exoPlayer.seekTo(target)
+            currentTime = target
+            if (activeSegment == null) manualSkipUsed = true
+        }
+        // On a TV it sits clear of the control bar, which fills the bottom of the screen.
+        val tvSkipBottom by animateDpAsState(if (areControlsVisible) 244.dp else 48.dp, label = "tvSkipBottom")
         AnimatedVisibility(
-            visible = showSkipButton && (activeSegment != null || offerManualSkip) && !isLocked &&
-                !isInPictureInPicture && !showSettingsDialog,
+            visible = skipVisible,
             enter = slideInHorizontally { it / 2 } + fadeIn(),
             exit = slideOutHorizontally { it / 2 } + fadeOut(),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = if (isFullscreen) 24.dp else 12.dp, bottom = if (isFullscreen) 88.dp else 56.dp)
-        ) {
-            Button(
-                onClick = {
-                    val target = activeSegment?.endMs ?: (exoPlayer.currentPosition + MANUAL_SKIP_MS)
-                    exoPlayer.seekTo(target)
-                    currentTime = target
-                    if (activeSegment == null) manualSkipUsed = true
-                },
-                shape = ExpressiveShapes.medium,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
+                .padding(
+                    end = if (dpadControls) 56.dp else if (isFullscreen) 24.dp else 12.dp,
+                    bottom = if (dpadControls) tvSkipBottom else if (isFullscreen) 88.dp else 56.dp
                 )
-            ) {
-                Icon(Icons.Default.SkipNext, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(skipLabel, fontWeight = FontWeight.Bold)
+        ) {
+            if (dpadControls) {
+                TvSkipButton(
+                    label = skipLabel,
+                    onClick = onSkip,
+                    modifier = Modifier
+                        .focusRequester(skipFocusRequester)
+                        .onFocusChanged { skipFocused = it.isFocused }
+                        // With the chrome hidden this is the only stop, so the other keys do what
+                        // they do on the bare video: seek, or bring the controls up.
+                        .onPreviewKeyEvent { event ->
+                            if (areControlsVisible || event.isConfirmKey()) false else handleDpadKey(event)
+                        }
+                )
+            } else {
+                Button(
+                    onClick = onSkip,
+                    shape = ExpressiveShapes.medium,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                ) {
+                    Icon(Icons.Default.SkipNext, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(skipLabel, fontWeight = FontWeight.Bold)
+                }
             }
         }
 
@@ -2400,6 +2447,13 @@ private fun SubtitleDto.isSideloadOnly(): Boolean =
 private const val PIP_CAPTION_SCALE = 0.55f
 
 /** A remote's playback keys, which reach the player wherever the focus is. */
+private fun KeyEvent.isConfirmKey(): Boolean = when (nativeKeyEvent.keyCode) {
+    android.view.KeyEvent.KEYCODE_DPAD_CENTER,
+    android.view.KeyEvent.KEYCODE_ENTER,
+    android.view.KeyEvent.KEYCODE_NUMPAD_ENTER -> true
+    else -> false
+}
+
 private fun KeyEvent.isMediaKey(): Boolean = when (nativeKeyEvent.keyCode) {
     android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
     android.view.KeyEvent.KEYCODE_MEDIA_PLAY,

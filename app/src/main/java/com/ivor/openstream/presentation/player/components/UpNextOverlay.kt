@@ -6,6 +6,9 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,11 +31,20 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -55,8 +67,17 @@ fun UpNextOverlay(
     onPlayNow: () -> Unit,
     onCancel: () -> Unit,
     autoAdvance: Boolean = true,
+    /** A TV: Play takes the focus on arrival and the focus stays here until this closes. */
+    dpadControls: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val playFocus = remember { FocusRequester() }
+    if (dpadControls) {
+        LaunchedEffect(target) {
+            withFrameNanos { }
+            runCatching { playFocus.requestFocus() }
+        }
+    }
     val latestPlayNow by rememberUpdatedState(onPlayNow)
     val countdown = remember(target) { Animatable(1f) }
     // Same 8s timing with reduced motion, but the ring jumps instead of sweeping.
@@ -74,7 +95,17 @@ fun UpNextOverlay(
     }
 
     Surface(
-        modifier = modifier.widthIn(max = 360.dp),
+        modifier = modifier
+            .widthIn(max = 360.dp)
+            .then(
+                if (dpadControls) {
+                    Modifier
+                        .focusProperties { onExit = { cancelFocusChange() } }
+                        .focusGroup()
+                } else {
+                    Modifier
+                }
+            ),
         shape = ExpressiveShapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.94f),
         tonalElevation = 6.dp,
@@ -121,7 +152,9 @@ fun UpNextOverlay(
                 }
                 TextButton(
                     onClick = onCancel,
-                    modifier = Modifier.padding(top = 2.dp)
+                    modifier = Modifier
+                        .padding(top = 2.dp)
+                        .tvFocusRing(dpadControls, MaterialTheme.colorScheme.onSurface, ExpressiveShapes.medium)
                 ) {
                     Text(stringResource(R.string.action_cancel))
                 }
@@ -137,7 +170,10 @@ fun UpNextOverlay(
                 )
                 FilledIconButton(
                     onClick = onPlayNow,
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier
+                        .size(48.dp)
+                        .focusRequester(playFocus)
+                        .tvFocusRing(dpadControls, MaterialTheme.colorScheme.onSurface, CircleShape),
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary
@@ -148,4 +184,13 @@ fun UpNextOverlay(
             }
         }
     }
+}
+
+/** A remote has no pointer, so its position has to be drawn; the stock focus tint is too faint. */
+@Composable
+private fun Modifier.tvFocusRing(enabled: Boolean, color: Color, shape: Shape): Modifier {
+    if (!enabled) return this
+    var focused by remember { mutableStateOf(false) }
+    return onFocusChanged { focused = it.isFocused }
+        .border(if (focused) 3.dp else 0.dp, if (focused) color else Color.Transparent, shape)
 }

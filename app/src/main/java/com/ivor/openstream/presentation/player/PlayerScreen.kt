@@ -658,6 +658,7 @@ fun PlayerScreen(
                             // Times from the source itself beat AniSkip's crowd-sourced ones.
                             skipSegments = activeServer?.skipSegments?.takeIf { it.isNotEmpty() } ?: skipSegments,
                             showSkipButton = appSettings.showSkipButton,
+                            upNextVisible = showUpNext && nextEpisode != null,
                             episodes = if (mediaType == "movie") emptyList() else seasonEpisodes,
                             currentEpisodeNumber = episode,
                             episodeProgress = episodeProgress,
@@ -889,6 +890,8 @@ fun PlayerScreen(
             }
             val target = nextEpisode
             if (showUpNext && target != null && !isInPictureInPicture) {
+                // Composed after the player's own handler, so Back dismisses this first.
+                BackHandler(enabled = tvControls) { showUpNext = false }
                 UpNextOverlay(
                     target = target,
                     onPlayNow = {
@@ -897,6 +900,7 @@ fun PlayerScreen(
                     },
                     onCancel = { showUpNext = false },
                     autoAdvance = !tvControls,
+                    dpadControls = tvControls,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(if (isFullscreen) 32.dp else 12.dp)
