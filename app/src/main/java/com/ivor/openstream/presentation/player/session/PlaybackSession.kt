@@ -162,6 +162,9 @@ class PlaybackSession @Inject constructor(
     private val appSettingsStore: AppSettingsStore
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var streamHasPlayed = false
+    private var reconnectAttempts = 0
+    private var reconnectJob: Job? = null
 
     /** Headers the current stream needs (Referer, Origin...). Applied to every request it makes. */
     @Volatile
@@ -522,6 +525,7 @@ class PlaybackSession @Inject constructor(
 
     /** Ends the session: saves where the user stopped and unloads the stream (on the TV too). */
     fun stop() {
+        reconnectJob?.cancel()
         setSleepTimer(null)
         recordProgress(force = true)
         if (castConnected) {
@@ -926,6 +930,21 @@ class PlaybackSession @Inject constructor(
 
     // endregion
 
+    /**
+     * True while a stream that was playing is being reconnected after its connection dropped. A
+     * link that never played is not given this: that is a dead source, and failing over is the cure.
+     * The player keeps its position in the error state, so prepare() carries on from the same spot.
+     */
+    val isRecoveringFromNetworkDrop: Boolean
+        get() = reconnectJob?.isActive == true
+
+    private fun PlaybackException.isConnectionDrop(): Boolean = when (errorCode) {
+        PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+        PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
+        PlaybackException.ERROR_CODE_TIMEOUT -> true
+        else -> false
+    }
+
     private fun buildPlayer(): ExoPlayer {
         val http = DefaultHttpDataSource.Factory()
             .setUserAgent(BROWSER_USER_AGENT)
@@ -1008,7 +1027,30 @@ class PlaybackSession @Inject constructor(
                         if (castConnected) return
                         _isPlaying.value = isPlaying
                         if (!isPlaying) recordProgress(force = true)
-                        if (isPlaying) startPlaybackService()
+                        if (isPlaying) {
+                            streamHasPlayed = true
+                            reconnectAttempts = 0
+                            startPlaybackService()
+                        }
+                    }
+
+                    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                        streamHasPlayed = false
+                        reconnectAttempts = 0
+                        reconnectJob?.cancel()
+                    }
+
+                    // Registered before the screen's listener, so a drop being ridden out is known
+                    // by the time the screen decides whether this source has failed.
+                    override fun onPlayerError(error: PlaybackException) {
+                        if (castConnected || !streamHasPlayed || !error.isConnectionDrop()) return
+                        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) return
+                        reconnectAttempts++
+                        val wait = RECONNECT_STEP_MS * reconnectAttempts
+                        reconnectJob = scope.launch {
+                            delay(wait)
+                            if (playerError != null) prepare()
+                        }
                     }
 
                     override fun onPlaybackStateChanged(playbackState: Int) {
@@ -1117,6 +1159,8 @@ class PlaybackSession @Inject constructor(
         val sessionLock = Any()
         const val TAG = "PlaybackSession"
         const val PROGRESS_TICK_MS = 1_000L
+        const val MAX_RECONNECT_ATTEMPTS = 3
+        const val RECONNECT_STEP_MS = 3_000L
         const val PROGRESS_SAVE_INTERVAL_MS = 10_000L
         /** How long a surface change is given to settle before a paused frame is asked for again. */
         const val GRAPH_REDRAW_SETTLE_MS = 250L
