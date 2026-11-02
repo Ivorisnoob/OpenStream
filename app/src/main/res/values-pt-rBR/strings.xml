@@ -322,6 +322,8 @@
     <string name="st_theme_dark">Escuro</string>
     <string name="st_amoled_black">Preto AMOLED</string>
     <string name="st_amoled_black_hint">Superfícies totalmente pretas quando o app está escuro.</string>
+    <string name="st_floating_nav_bar">Barra de navegação flutuante</string>
+    <string name="st_floating_nav_bar_hint">Desativada, uma barra normal fica fixa embaixo.</string>
     <string name="st_dynamic_color">Cor dinâmica</string>
     <string name="st_dynamic_hint">Cores do seu papel de parede</string>
     <string name="st_language">Idioma</string>

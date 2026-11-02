@@ -343,6 +343,8 @@
     <string name="st_theme_dark">다크</string>
     <string name="st_amoled_black">AMOLED 블랙</string>
     <string name="st_amoled_black_hint">앱이 어두운 동안 순수 검정 표면을 사용합니다.</string>
+    <string name="st_floating_nav_bar">플로팅 탐색 바</string>
+    <string name="st_floating_nav_bar_hint">끄면 화면 하단에 일반 바가 고정됩니다.</string>
     <string name="st_dynamic_color">다이내믹 컬러</string>
     <string name="st_dynamic_hint">배경화면에 맞춰 색상 적용</string>
     <string name="st_language">언어</string>

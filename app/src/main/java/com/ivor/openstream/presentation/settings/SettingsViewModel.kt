@@ -21,6 +21,7 @@ import com.ivor.openstream.data.settings.AppSettings
 import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.settings.CacheSize
 import com.ivor.openstream.data.settings.DnsProvider
+import com.ivor.openstream.data.settings.NavBarStyle
 import com.ivor.openstream.data.settings.PipAction
 import com.ivor.openstream.data.settings.ThemeMode
 import com.ivor.openstream.data.settings.VideoGestureCustomization
@@ -181,6 +182,10 @@ class SettingsViewModel @Inject constructor(
     fun setDynamicColor(enabled: Boolean) = appSettingsStore.update { it.copy(dynamicColor = enabled) }
 
     fun setAmoledBlack(enabled: Boolean) = appSettingsStore.update { it.copy(amoledBlack = enabled) }
+
+    fun setFloatingNavBar(floating: Boolean) = appSettingsStore.update {
+        it.copy(navBarStyle = if (floating) NavBarStyle.FLOATING else NavBarStyle.DOCKED)
+    }
 
     fun setDnsProvider(provider: DnsProvider) = appSettingsStore.update { it.copy(dnsProvider = provider) }
 

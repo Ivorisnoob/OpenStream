@@ -35,6 +35,15 @@ enum class DnsProvider(
     GOOGLE("Google", R.string.dns_name_google, "https://dns.google/dns-query", listOf("8.8.8.8", "8.8.4.4"))
 }
 
+/** How the phone's tab bar is drawn. Tablets always use the side rail. */
+enum class NavBarStyle {
+    /** The expressive toolbar floating above the content, with drag-to-switch. */
+    FLOATING,
+
+    /** A standard navigation bar docked to the bottom edge, with labels under the icons. */
+    DOCKED
+}
+
 /** A button in the picture-in-picture window, beside play/pause. */
 enum class PipAction(val label: String, @StringRes val labelRes: Int) {
     REWIND("Back", R.string.pip_back),
@@ -71,6 +80,7 @@ data class AppSettings(
     val dynamicColor: Boolean = true,
     /** Dark theme with true-black surfaces, so OLED pixels can switch off. */
     val amoledBlack: Boolean = false,
+    val navBarStyle: NavBarStyle = NavBarStyle.FLOATING,
     val dnsProvider: DnsProvider = DnsProvider.ADGUARD,
     val wifiOnlyDownloads: Boolean = false,
     /** Seconds per double-tap or seek button press. */
@@ -168,6 +178,7 @@ class AppSettingsStore @Inject constructor(
             .putString(KEY_THEME, updated.themeMode.name)
             .putBoolean(KEY_DYNAMIC_COLOR, updated.dynamicColor)
             .putBoolean(KEY_AMOLED_BLACK, updated.amoledBlack)
+            .putString(KEY_NAV_BAR_STYLE, updated.navBarStyle.name)
             .putString(KEY_DNS, updated.dnsProvider.name)
             .putBoolean(KEY_WIFI_ONLY, updated.wifiOnlyDownloads)
             .putInt(KEY_SEEK_STEP, updated.seekStepSeconds)
@@ -204,6 +215,7 @@ class AppSettingsStore @Inject constructor(
             themeMode = enumOrDefault(prefs.getString(KEY_THEME, null), defaults.themeMode),
             dynamicColor = prefs.getBoolean(KEY_DYNAMIC_COLOR, defaults.dynamicColor),
             amoledBlack = prefs.getBoolean(KEY_AMOLED_BLACK, defaults.amoledBlack),
+            navBarStyle = enumOrDefault(prefs.getString(KEY_NAV_BAR_STYLE, null), defaults.navBarStyle),
             dnsProvider = enumOrDefault(prefs.getString(KEY_DNS, null), defaults.dnsProvider),
             wifiOnlyDownloads = prefs.getBoolean(KEY_WIFI_ONLY, defaults.wifiOnlyDownloads),
             seekStepSeconds = prefs.getInt(KEY_SEEK_STEP, defaults.seekStepSeconds)
@@ -342,6 +354,7 @@ class AppSettingsStore @Inject constructor(
         const val KEY_THEME = "app_theme_mode"
         const val KEY_DYNAMIC_COLOR = "app_dynamic_color"
         const val KEY_AMOLED_BLACK = "app_amoled_black"
+        const val KEY_NAV_BAR_STYLE = "app_nav_bar_style"
         const val KEY_DNS = "app_dns_provider"
         const val KEY_WIFI_ONLY = "app_wifi_only_downloads"
         const val KEY_SEEK_STEP = "app_seek_step_seconds"

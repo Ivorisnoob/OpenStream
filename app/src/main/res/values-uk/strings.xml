@@ -322,6 +322,8 @@
     <string name="st_theme_dark">Темна</string>
     <string name="st_amoled_black">AMOLED-чорний</string>
     <string name="st_amoled_black_hint">Справжній чорний фон, коли застосунок темний.</string>
+    <string name="st_floating_nav_bar">Плаваюча панель навігації</string>
+    <string name="st_floating_nav_bar_hint">Якщо вимкнути, внизу буде звичайна закріплена панель.</string>
     <string name="st_dynamic_color">Динамічні кольори</string>
     <string name="st_dynamic_hint">Кольори під шпалери</string>
     <string name="st_language">Мова</string>

@@ -322,6 +322,8 @@
     <string name="st_theme_dark">深色</string>
     <string name="st_amoled_black">AMOLED 纯黑</string>
     <string name="st_amoled_black_hint">深色模式下使用纯黑背景。</string>
+    <string name="st_floating_nav_bar">悬浮导航栏</string>
+    <string name="st_floating_nav_bar_hint">关闭后改用固定在底部的标准导航栏。</string>
     <string name="st_dynamic_color">动态配色</string>
     <string name="st_dynamic_hint">跟随壁纸配色</string>
     <string name="st_language">语言</string>

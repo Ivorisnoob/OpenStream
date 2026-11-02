@@ -15,6 +15,7 @@ import com.ivor.openstream.data.repository.ProfileRepository
 import com.ivor.openstream.data.settings.AppSettings
 import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.settings.DnsProvider
+import com.ivor.openstream.data.settings.NavBarStyle
 import com.ivor.openstream.data.settings.PipAction
 import com.ivor.openstream.data.settings.SourceSearchMode
 import com.ivor.openstream.data.settings.ThemeMode
@@ -263,6 +264,7 @@ private data class BackupSettings(
     val themeMode: String? = null,
     val dynamicColor: Boolean? = null,
     val amoledBlack: Boolean? = null,
+    val navBarStyle: String? = null,
     val dnsProvider: String? = null,
     val wifiOnlyDownloads: Boolean? = null,
     val seekStepSeconds: Int? = null,
@@ -284,6 +286,7 @@ private data class BackupSettings(
         themeMode = ThemeMode.entries.firstOrNull { it.name == themeMode } ?: current.themeMode,
         dynamicColor = dynamicColor ?: current.dynamicColor,
         amoledBlack = amoledBlack ?: current.amoledBlack,
+        navBarStyle = NavBarStyle.entries.firstOrNull { it.name == navBarStyle } ?: current.navBarStyle,
         dnsProvider = DnsProvider.entries.firstOrNull { it.name == dnsProvider } ?: current.dnsProvider,
         wifiOnlyDownloads = wifiOnlyDownloads ?: current.wifiOnlyDownloads,
         seekStepSeconds = seekStepSeconds?.takeIf { it in AppSettings.SEEK_STEPS } ?: current.seekStepSeconds,
@@ -307,6 +310,7 @@ private fun AppSettings.toBackup() = BackupSettings(
     themeMode = themeMode.name,
     dynamicColor = dynamicColor,
     amoledBlack = amoledBlack,
+    navBarStyle = navBarStyle.name,
     dnsProvider = dnsProvider.name,
     wifiOnlyDownloads = wifiOnlyDownloads,
     seekStepSeconds = seekStepSeconds,
