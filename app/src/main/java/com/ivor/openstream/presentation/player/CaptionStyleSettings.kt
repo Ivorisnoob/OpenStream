@@ -7,15 +7,20 @@ import kotlinx.serialization.Serializable
 /**
  * User-configurable caption (subtitle) appearance.
  *
- * Kept intentionally small ("basic" controls): text size and the opacity of the
- * background pill drawn behind the text. Persisted as JSON in SharedPreferences.
+ * Kept intentionally small ("basic" controls): text size, the opacity of the background pill
+ * drawn behind the text, its colour and how high it sits. Persisted as JSON in SharedPreferences.
  */
 @Serializable
 data class CaptionStyleSettings(
     val textSizeSp: Float = DEFAULT_TEXT_SIZE_SP,
     val backgroundOpacity: Float = DEFAULT_BACKGROUND_OPACITY,
     /** The text's own colour; the plate behind it is what keeps either one readable. */
-    val textColor: CaptionTextColor = CaptionTextColor.WHITE
+    val textColor: CaptionTextColor = CaptionTextColor.WHITE,
+    /**
+     * How far captions are raised above their default spot, as a fraction of the player's height.
+     * 0 keeps the default position; raising them clears subtitles burnt into the video.
+     */
+    val verticalOffset: Float = DEFAULT_VERTICAL_OFFSET
 ) {
     companion object {
         const val DEFAULT_TEXT_SIZE_SP = 16f
@@ -23,6 +28,12 @@ data class CaptionStyleSettings(
 
         const val MIN_TEXT_SIZE_SP = 12f
         const val MAX_TEXT_SIZE_SP = 32f
+
+        const val DEFAULT_VERTICAL_OFFSET = 0f
+        const val MAX_VERTICAL_OFFSET = 0.4f
+
+        /** Slider stops between 0 and the maximum: 0%, 5%, ... 40%. */
+        const val VERTICAL_OFFSET_STEPS = 7
     }
 }
 

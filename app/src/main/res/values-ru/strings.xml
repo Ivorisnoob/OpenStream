@@ -243,6 +243,8 @@
     <string name="sheet_caption_style">Стиль субтитров</string>
     <string name="sheet_text_size">Размер текста</string>
     <string name="sheet_background">Фон</string>
+    <string name="sheet_caption_position">Положение</string>
+    <string name="sheet_caption_position_raised">Выше на %1$d%%</string>
     <string name="sheet_background_opacity">Прозрачность фона</string>
     <string name="sheet_bold">Жирный</string>
     <string name="sheet_source">Источник</string>

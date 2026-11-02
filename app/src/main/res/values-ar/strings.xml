@@ -260,6 +260,8 @@
     <string name="sheet_caption_style">نمط التسميات</string>
     <string name="sheet_text_size">حجم النص</string>
     <string name="sheet_background">الخلفية</string>
+    <string name="sheet_caption_position">الموضع</string>
+    <string name="sheet_caption_position_raised">أعلى بنسبة %1$d%%</string>
     <string name="sheet_background_opacity">شفافية الخلفية</string>
     <string name="sheet_bold">عريض</string>
     <string name="sheet_source">المصدر</string>

@@ -260,6 +260,8 @@
     <string name="sheet_caption_style">자막 스타일</string>
     <string name="sheet_text_size">글자 크기</string>
     <string name="sheet_background">배경</string>
+    <string name="sheet_caption_position">위치</string>
+    <string name="sheet_caption_position_raised">%1$d%% 위로</string>
     <string name="sheet_background_opacity">배경 불투명도</string>
     <string name="sheet_bold">굵게</string>
     <string name="sheet_source">소스</string>

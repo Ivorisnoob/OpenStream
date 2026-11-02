@@ -260,6 +260,8 @@
     <string name="sheet_caption_style">Caption style</string>
     <string name="sheet_text_size">Text size</string>
     <string name="sheet_background">Background</string>
+    <string name="sheet_caption_position">Position</string>
+    <string name="sheet_caption_position_raised">%1$d%% higher</string>
     <string name="sheet_background_opacity">Background opacity</string>
     <string name="sheet_bold">Bold</string>
     <string name="sheet_source">Source</string>

@@ -34,6 +34,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -1580,47 +1581,58 @@ fun ExoPlayerView(
         if (displaySubtitleText.isNotEmpty()) {
             // The PiP window is only a couple hundred dp tall: full-size captions with the
             // controls' clearance would sit mid-frame, so hug the bottom edge and shrink them.
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(
-                        bottom = when {
-                            isInPictureInPicture -> 4.dp
-                            isFullscreen -> 64.dp
-                            else -> 40.dp
-                        },
-                        start = if (isInPictureInPicture) 4.dp else 12.dp,
-                        end = if (isInPictureInPicture) 4.dp else 12.dp
-                    )
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = displaySubtitleText,
-                    style = TextStyle(
-                        color = Color(captionSettings.textColor.argb),
-                        fontSize = if (isInPictureInPicture) {
-                            (captionSettings.textSizeSp * PIP_CAPTION_SCALE).coerceAtLeast(9f).sp
-                        } else {
-                            captionSettings.textSizeSp.sp
-                        },
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center,
-                        shadow = Shadow(
-                            color = Color.Black,
-                            blurRadius = 4f
-                        )
-                    ),
+            // Elsewhere the chosen raise is a share of the player's height, so the same setting
+            // lands in the same place inline, fullscreen and on a TV, whether or not the
+            // controls are showing.
+            BoxWithConstraints(modifier = Modifier.matchParentSize()) {
+                val captionRaise = if (isInPictureInPicture) {
+                    0.dp
+                } else {
+                    maxHeight * captionSettings.verticalOffset
+                        .coerceIn(0f, CaptionStyleSettings.MAX_VERTICAL_OFFSET)
+                }
+                Box(
                     modifier = Modifier
-                        .background(
-                            Color.Black.copy(alpha = captionSettings.backgroundOpacity),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
-                        )
+                        .align(Alignment.BottomCenter)
                         .padding(
-                            horizontal = if (isInPictureInPicture) 4.dp else 12.dp,
-                            vertical = if (isInPictureInPicture) 1.dp else 6.dp
+                            bottom = when {
+                                isInPictureInPicture -> 4.dp
+                                isFullscreen -> 64.dp
+                                else -> 40.dp
+                            } + captionRaise,
+                            start = if (isInPictureInPicture) 4.dp else 12.dp,
+                            end = if (isInPictureInPicture) 4.dp else 12.dp
                         )
-                )
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = displaySubtitleText,
+                        style = TextStyle(
+                            color = Color(captionSettings.textColor.argb),
+                            fontSize = if (isInPictureInPicture) {
+                                (captionSettings.textSizeSp * PIP_CAPTION_SCALE).coerceAtLeast(9f).sp
+                            } else {
+                                captionSettings.textSizeSp.sp
+                            },
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center,
+                            shadow = Shadow(
+                                color = Color.Black,
+                                blurRadius = 4f
+                            )
+                        ),
+                        modifier = Modifier
+                            .background(
+                                Color.Black.copy(alpha = captionSettings.backgroundOpacity),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
+                            )
+                            .padding(
+                                horizontal = if (isInPictureInPicture) 4.dp else 12.dp,
+                                vertical = if (isInPictureInPicture) 1.dp else 6.dp
+                            )
+                    )
+                }
             }
         }
 

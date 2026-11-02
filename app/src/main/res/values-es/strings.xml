@@ -243,6 +243,8 @@
     <string name="sheet_caption_style">Estilo de subtítulos</string>
     <string name="sheet_text_size">Tamaño del texto</string>
     <string name="sheet_background">Fondo</string>
+    <string name="sheet_caption_position">Posición</string>
+    <string name="sheet_caption_position_raised">%1$d%% más arriba</string>
     <string name="sheet_background_opacity">Opacidad del fondo</string>
     <string name="sheet_bold">Negrita</string>
     <string name="sheet_source">Fuente</string>
