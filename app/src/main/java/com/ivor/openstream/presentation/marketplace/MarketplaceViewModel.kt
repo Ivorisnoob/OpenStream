@@ -1,10 +1,12 @@
 package com.ivor.openstream.presentation.marketplace
 
 import android.content.Context
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ivor.openstream.R
 import com.ivor.openstream.data.extensions.MarketplaceRanker
+import com.ivor.openstream.data.extensions.RepoException
 import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.settings.SourceSearchMode
 import com.ivor.openstream.domain.model.ExtensionCatalog
@@ -13,6 +15,7 @@ import com.ivor.openstream.domain.model.MarketplaceSort
 import com.ivor.openstream.domain.repository.ExtensionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -107,8 +110,13 @@ class MarketplaceViewModel @Inject constructor(
 
     fun refresh() {
         viewModelScope.launch {
-            runCatching { repository.refresh(force = true) }
-                .onFailure { message.value = it.message ?: context.getString(R.string.st_could_not_refresh) }
+            try {
+                repository.refresh(force = true)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                message.value = failureMessage(error, R.string.st_could_not_refresh)
+            }
         }
     }
 
@@ -141,7 +149,7 @@ class MarketplaceViewModel @Inject constructor(
         viewModelScope.launch {
             repository.addRepo(url)
                 .onSuccess { message.value = context.getString(R.string.st_repo_added, it.name) }
-                .onFailure { message.value = it.message ?: context.getString(R.string.st_could_not_add_repo) }
+                .onFailure { message.value = failureMessage(it, R.string.st_could_not_add_repo) }
         }
     }
 
@@ -149,11 +157,15 @@ class MarketplaceViewModel @Inject constructor(
         viewModelScope.launch {
             repository.removeRepo(repoId)
                 .onSuccess { message.value = context.getString(R.string.st_repo_removed) }
-                .onFailure { message.value = it.message ?: context.getString(R.string.st_could_not_remove_repo) }
+                .onFailure { message.value = failureMessage(it, R.string.st_could_not_remove_repo) }
         }
     }
 
     fun consumeMessage() {
         message.value = null
     }
+
+    /** Only messages written for people are shown; anything else gets [fallback]. */
+    private fun failureMessage(error: Throwable, @StringRes fallback: Int): String =
+        (error as? RepoException)?.message ?: context.getString(fallback)
 }

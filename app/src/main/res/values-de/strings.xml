@@ -416,6 +416,8 @@
     <string name="st_index_not_json">Repository-Index ist kein JSON-Objekt oder -Array</string>
     <string name="st_repo_lists_unreadable">Repository-Listen konnten nicht gelesen werden</string>
     <string name="st_repo_no_extensions">Repository hat keine Erweiterungen veröffentlicht</string>
+    <string name="st_repo_no_internet">Keine Internetverbindung</string>
+    <string name="st_repo_not_valid">Dieser Link ist kein Repository und kein Stremio-Add-on</string>
     <string name="st_no_catalog">Noch kein Katalog</string>
     <string name="st_pull_repo_hint">Fügen Sie im Tab Repositories ein Repository hinzu oder aktualisieren Sie, um den offiziellen Katalog zu laden.</string>
     <string name="st_official_repo">Offizielle Erweiterung</string>

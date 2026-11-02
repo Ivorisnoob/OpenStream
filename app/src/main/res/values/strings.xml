@@ -437,6 +437,8 @@
     <string name="st_index_not_json">Repository index is not a JSON object or array</string>
     <string name="st_repo_lists_unreadable">Repository lists could not be read</string>
     <string name="st_repo_no_extensions">Repository published no extensions</string>
+    <string name="st_repo_no_internet">No internet connection</string>
+    <string name="st_repo_not_valid">That link is not a repository or a Stremio add-on</string>
     <string name="st_no_catalog">No catalog yet</string>
     <string name="st_pull_repo_hint">Pull a repository in the Repositories tab, or refresh to fetch the official catalog.</string>
     <string name="st_official_repo">Official extension</string>

@@ -416,6 +416,8 @@
     <string name="st_index_not_json">リポジトリのインデックスはJSONオブジェクトまたは配列ではありません</string>
     <string name="st_repo_lists_unreadable">リポジトリのリストを読み取れませんでした</string>
     <string name="st_repo_no_extensions">リポジトリに拡張機能が公開されていません</string>
+    <string name="st_repo_no_internet">インターネットに接続されていません</string>
+    <string name="st_repo_not_valid">このリンクはリポジトリでも Stremio アドオンでもありません</string>
     <string name="st_no_catalog">まだカタログがありません</string>
     <string name="st_pull_repo_hint">リポジトリタブでリポジトリを取り込むか、更新して公式カタログを取得してください。</string>
     <string name="st_official_repo">公式拡張機能</string>

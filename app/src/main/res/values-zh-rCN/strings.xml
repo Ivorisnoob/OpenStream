@@ -416,6 +416,8 @@
     <string name="st_index_not_json">仓库索引不是 JSON 对象或数组</string>
     <string name="st_repo_lists_unreadable">无法读取仓库列表</string>
     <string name="st_repo_no_extensions">该仓库未发布任何扩展</string>
+    <string name="st_repo_no_internet">没有网络连接</string>
+    <string name="st_repo_not_valid">此链接不是仓库，也不是 Stremio 插件</string>
     <string name="st_no_catalog">暂无目录</string>
     <string name="st_pull_repo_hint">在“仓库”选项卡中拉取仓库，或刷新以获取官方目录。</string>
     <string name="st_official_repo">官方扩展</string>

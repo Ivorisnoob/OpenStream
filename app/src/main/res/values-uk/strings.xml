@@ -416,6 +416,8 @@
     <string name="st_index_not_json">Індекс репозиторію — не об’єкт або масив JSON</string>
     <string name="st_repo_lists_unreadable">Не вдалося прочитати списки репозиторію</string>
     <string name="st_repo_no_extensions">Репозиторій не опублікував розширень</string>
+    <string name="st_repo_no_internet">Немає підключення до інтернету</string>
+    <string name="st_repo_not_valid">Це посилання не веде на репозиторій або доповнення Stremio</string>
     <string name="st_no_catalog">Каталогу поки немає</string>
     <string name="st_pull_repo_hint">Додайте репозиторій на вкладці Репозиторії або оновіть для отримання офіційного каталогу.</string>
     <string name="st_official_repo">Офіційне розширення</string>

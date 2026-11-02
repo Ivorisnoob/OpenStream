@@ -437,6 +437,8 @@
     <string name="st_index_not_json">리포지토리 인덱스가 JSON 개체나 배열이 아니에요</string>
     <string name="st_repo_lists_unreadable">리포지토리 목록을 읽지 못했어요</string>
     <string name="st_repo_no_extensions">리포지토리에서 게시한 확장 프로그램이 없어요</string>
+    <string name="st_repo_no_internet">인터넷에 연결되어 있지 않아요</string>
+    <string name="st_repo_not_valid">이 링크는 리포지토리나 Stremio 애드온이 아니에요</string>
     <string name="st_no_catalog">아직 카탈로그가 없어요</string>
     <string name="st_pull_repo_hint">리포지토리 탭에서 리포지토리를 가져오거나 새로고침하여 공식 카탈로그를 받으세요.</string>
     <string name="st_official_repo">공식 확장 프로그램</string>
