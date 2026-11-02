@@ -653,6 +653,7 @@
     <string name="player_rewind_seconds">Retroceder %1$d segundos</string>
     <string name="src_up_to_quality">Hasta %1$s</string>
     <string name="src_adaptive">Adaptativa</string>
+    <string name="src_repo_official">Oficial</string>
     <string name="src_available_count">%1$d disponibles</string>
     <string name="src_progress">%1$s listas · revisadas %2$s de %3$s</string>
     <string name="sub_checking_all">Comprobando la fuente del vídeo, OpenSubtitles y SubSource…</string>

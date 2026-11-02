@@ -43,7 +43,7 @@ import androidx.compose.ui.unit.dp
 import com.ivor.openstream.R
 import com.ivor.openstream.domain.model.StreamQuality
 import com.ivor.openstream.domain.model.VideoServer
-import com.ivor.openstream.presentation.player.sourceSummary
+import com.ivor.openstream.presentation.player.sourceDetails
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 
 /**
@@ -185,7 +185,7 @@ fun DownloadOptionsSheet(
                         colors = ListItemDefaults.segmentedColors(),
                         supportingContent = {
                             Text(
-                                "${server.providerName} · ${server.sourceSummary(context)}",
+                                server.sourceDetails(context),
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                                 style = MaterialTheme.typography.bodySmall

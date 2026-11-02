@@ -653,6 +653,7 @@
     <string name="player_rewind_seconds">%1$d秒戻る</string>
     <string name="src_up_to_quality">最大%1$s</string>
     <string name="src_adaptive">アダプティブ</string>
+    <string name="src_repo_official">公式</string>
     <string name="src_available_count">%1$d件利用可能</string>
     <string name="src_progress">%1$s準備完了・%2$s/%3$sを確認済み</string>
     <string name="sub_checking_all">動画のソース、OpenSubtitles、SubSourceを確認しています…</string>

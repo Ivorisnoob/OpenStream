@@ -69,6 +69,7 @@ import com.ivor.openstream.data.settings.SourceSearchMode
 import com.ivor.openstream.domain.model.ExtensionRepo
 import com.ivor.openstream.domain.model.MarketplaceExtension
 import com.ivor.openstream.presentation.marketplace.MarketplaceViewModel
+import com.ivor.openstream.presentation.marketplace.extensionRepoLabel
 import com.ivor.openstream.presentation.marketplace.extensionSubtitle
 
 /**
@@ -263,7 +264,16 @@ fun TvExtensionsScreen(
                                         Text(extension.manifest.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     },
                                     supportingContent = {
-                                        Text(statusLabel(extension), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        val status = statusLabel(extension)
+                                        Text(
+                                            if (showInstalled) {
+                                                extensionRepoLabel(repos, extension.manifest.repoId) + " · " + status
+                                            } else {
+                                                status
+                                            },
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
                                     },
                                     leadingContent = {
                                         if (showInstalled) {
@@ -301,6 +311,7 @@ fun TvExtensionsScreen(
                         val position = state.installed.indexOfFirst { it.key == selected.key }
                         ExtensionDetail(
                             extension = selected,
+                            repoLabel = extensionRepoLabel(repos, selected.manifest.repoId),
                             canMoveUp = showInstalled && position > 0,
                             canMoveDown = showInstalled && position in 0 until state.installed.lastIndex,
                             onInstall = { viewModel.install(selected) },
@@ -483,6 +494,7 @@ private fun statusLabel(extension: MarketplaceExtension): String = when {
 @Composable
 private fun ExtensionDetail(
     extension: MarketplaceExtension,
+    repoLabel: String,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     onInstall: () -> Unit,
@@ -503,7 +515,7 @@ private fun ExtensionDetail(
         )
         Spacer(Modifier.height(4.dp))
         androidx.compose.material3.Text(
-            text = extensionSubtitle(extension) + "  ·  " + manifest.author,
+            text = extensionSubtitle(extension, repoLabel) + "  ·  " + manifest.author,
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,

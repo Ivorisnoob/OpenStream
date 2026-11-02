@@ -642,7 +642,7 @@ fun PlayerScreen(
                             },
                             sourceSummary = when {
                                 localMediaId != null || downloadId != null -> stringResource(R.string.dl_stored_device)
-                                else -> activeServer?.let { "${it.providerName} · ${it.sourceSummary(LocalContext.current)}" }
+                                else -> activeServer?.sourceDetails(LocalContext.current)
                             },
                             serversState = serversState,
                             canChangeSource = !isLocalOrDownloaded,

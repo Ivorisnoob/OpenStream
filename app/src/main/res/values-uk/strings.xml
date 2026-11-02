@@ -653,6 +653,7 @@
     <string name="player_rewind_seconds">Назад на %1$d с</string>
     <string name="src_up_to_quality">До %1$s</string>
     <string name="src_adaptive">Адаптивна</string>
+    <string name="src_repo_official">Офіційний</string>
     <string name="src_available_count">Доступно: %1$d</string>
     <string name="src_progress">%1$s готово · перевірено %2$s із %3$s</string>
     <string name="sub_checking_all">Перевіряємо джерело відео, OpenSubtitles і SubSource…</string>
