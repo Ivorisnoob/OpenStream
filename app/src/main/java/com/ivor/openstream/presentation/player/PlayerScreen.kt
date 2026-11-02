@@ -190,6 +190,7 @@ fun PlayerScreen(
     val castError by viewModel.castError.collectAsState()
     val castLoading by viewModel.castLoading.collectAsState()
     val castSubtitles by viewModel.castSubtitles.collectAsState()
+    val castStreamOptions by viewModel.castStreamOptions.collectAsState()
     val isCasting = castStatus.isCasting
     var showCastSheet by remember { mutableStateOf(false) }
     val enterPictureInPicture = rememberEnterPictureInPicture()
@@ -597,8 +598,11 @@ fun PlayerScreen(
                         isLoading = castLoading,
                         error = castError,
                         subtitles = castSubtitles,
+                        streamOptions = castStreamOptions,
                         seekStepSeconds = appSettings.seekStepSeconds,
                         onSelectSubtitle = viewModel::selectCastSubtitle,
+                        onSelectQuality = viewModel::selectCastQuality,
+                        onSelectAudio = viewModel::selectCastAudio,
                         onRetry = viewModel::retryCast,
                         onChooseSource = { showServerPicker = true }.takeIf { !isLocalOrDownloaded },
                         onNextClick = onNextClick,

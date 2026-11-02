@@ -40,6 +40,9 @@ import com.ivor.openstream.BuildConfig
 import com.ivor.openstream.MainActivity
 import com.ivor.openstream.data.cast.CastMediaItemConverter
 import com.ivor.openstream.data.cast.CastMediaProxy
+import com.ivor.openstream.data.cast.HlsAudioRendition
+import com.ivor.openstream.data.cast.HlsRenditionSelector
+import com.ivor.openstream.data.cast.HlsSelection
 import com.ivor.openstream.data.playback.DeviceDecoders
 import com.ivor.openstream.data.playback.StreamDataGuard
 import com.ivor.openstream.data.playback.VideoShaderControl
@@ -75,6 +78,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.net.InetAddress
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
@@ -129,6 +133,20 @@ data class CastError(val message: String, val fromStream: Boolean)
 data class CastSubtitleOption(val id: String, val label: String, val language: String?)
 
 data class CastSubtitles(val options: List<CastSubtitleOption> = emptyList(), val activeId: String? = null)
+
+/** An audio rendition of the stream on the TV, by its playlist NAME and LANGUAGE. */
+data class CastAudioOption(val id: String, val label: String, val name: String?, val language: String?)
+
+/**
+ * The renditions the stream on the TV offers and the ones it plays: [qualities] are heights,
+ * tallest first, and a [selectedHeight] of 0 means automatic.
+ */
+data class CastStreamOptions(
+    val qualities: List<Int> = emptyList(),
+    val selectedHeight: Int = 0,
+    val audios: List<CastAudioOption> = emptyList(),
+    val selectedAudioId: String? = null
+)
 
 /** A pending stop: after a set time, or when the current episode or movie ends. */
 sealed interface SleepTimer {
@@ -447,6 +465,15 @@ class PlaybackSession @Inject constructor(
     private val _castSubtitles = MutableStateFlow(CastSubtitles())
     val castSubtitles: StateFlow<CastSubtitles> = _castSubtitles.asStateFlow()
 
+    private val _castStreamOptions = MutableStateFlow(CastStreamOptions())
+    val castStreamOptions: StateFlow<CastStreamOptions> = _castStreamOptions.asStateFlow()
+
+    /**
+     * The quality and audio the TV plays: taken from the phone's player when casting starts, then
+     * changed from the casting screen. Kept across episodes and sources for the whole session.
+     */
+    private var castSelection = HlsSelection()
+
     /** What was last sent to the receiver (NowPlaying.key and source URL). */
     private var castRequestedKey: String? = null
     private var castRequestedUri: String? = null
@@ -536,6 +563,7 @@ class PlaybackSession @Inject constructor(
             castRequestedUri = null
             castLoadedTracks = emptyMap()
             _castSubtitles.value = CastSubtitles()
+            _castStreamOptions.value = CastStreamOptions()
             _castLoading.value = false
             _castError.value = null
         }
@@ -627,6 +655,22 @@ class PlaybackSession @Inject constructor(
     /** Tries the current stream on the TV again, from where it was. */
     fun retryCast() = reloadOnCast(forcedSubtitleId = _castSubtitles.value.activeId)
 
+    /** Plays [height] on the TV (0 for automatic, inside the data cap). */
+    fun selectCastQuality(height: Int) {
+        castSelection = castSelection.copy(
+            height = height.coerceAtLeast(0),
+            maxHeight = heightCap().takeIf { it != Int.MAX_VALUE } ?: 0
+        )
+        reloadOnCast(forcedSubtitleId = _castSubtitles.value.activeId)
+    }
+
+    /** Plays the audio rendition [id] (a [CastAudioOption.id]) on the TV. */
+    fun selectCastAudio(id: String) {
+        val option = _castStreamOptions.value.audios.firstOrNull { it.id == id } ?: return
+        castSelection = castSelection.copy(audioLanguage = option.language, audioName = option.name)
+        reloadOnCast(forcedSubtitleId = _castSubtitles.value.activeId)
+    }
+
     private fun currentCastSession(): CastSession? =
         runCatching { castContext?.sessionManager?.currentCastSession }.getOrNull()
 
@@ -656,6 +700,7 @@ class PlaybackSession @Inject constructor(
             return
         }
         val position = if (localPlayerCreated) player.currentPosition else item.startPositionMs
+        castSelection = localSelection()
         if (localPlayerCreated) {
             player.pause()
             // Keep the item (to resume locally later) but stop buffering it.
@@ -683,6 +728,8 @@ class PlaybackSession @Inject constructor(
         castRequestedUri = null
         castLoadedTracks = emptyMap()
         _castSubtitles.value = CastSubtitles(activeId = null)
+        _castStreamOptions.value = CastStreamOptions()
+        castSelection = HlsSelection()
         _castLoading.value = false
         _castError.value = null
         refreshCastStatus()
@@ -727,16 +774,19 @@ class PlaybackSession @Inject constructor(
         val headers = headersFor(item)
         val subtitles = pickCastSubtitles(forcedSubtitleId)
         val receiver = currentCastSession()?.castDevice?.inetAddress
+        // A download holds one rendition: let the receiver play what is there.
+        val selection = castSelection.takeIf { item.downloadId == null }
         castLoadJob?.cancel()
         castLoadJob = scope.launch {
             val built = withContext(Dispatchers.IO) {
-                runCatching { buildCastItem(item, headers, subtitles.first, subtitles.second, receiver) }
+                runCatching { buildCastItem(item, headers, subtitles.first, subtitles.second, receiver, selection) }
             }
             if (!castConnected || castRequestedKey != item.key) return@launch
-            built.onSuccess { (mediaItem, tracks) ->
+            built.onSuccess { (mediaItem, tracks, probe) ->
                 castLoadedTracks = tracks
                 _castSubtitles.value = _castSubtitles.value.copy(activeId = subtitles.second?.takeIf { it in tracks })
                 updateCastSubtitleOptions()
+                _castStreamOptions.value = if (selection != null) streamOptions(probe, selection) else CastStreamOptions()
                 remote.setMediaItem(mediaItem, startPositionMs.coerceAtLeast(0L))
                 remote.playWhenReady = true
                 remote.prepare()
@@ -775,17 +825,70 @@ class PlaybackSession @Inject constructor(
         _castSubtitles.value = _castSubtitles.value.copy(options = options)
     }
 
+    /**
+     * The quality and audio the phone's player is on: a quality picked by hand (the player pins
+     * its minimum size to it) or automatic under the ceiling it has (none after the user picked
+     * Auto), and the audio it plays, else the audio language the user prefers.
+     */
+    private fun localSelection(): HlsSelection {
+        if (!localPlayerCreated) return HlsSelection(maxHeight = heightCap().takeIf { it != Int.MAX_VALUE } ?: 0)
+        val parameters = player.trackSelectionParameters
+        val pinnedHeight = parameters.minVideoHeight.takeIf { it in 1 until Int.MAX_VALUE } ?: 0
+        val ceiling = parameters.maxVideoHeight.takeIf { it in 1 until Int.MAX_VALUE } ?: 0
+        val audio = player.audioFormat
+        return HlsSelection(
+            height = pinnedHeight,
+            maxHeight = ceiling,
+            audioLanguage = audio?.language ?: parameters.preferredAudioLanguages.firstOrNull(),
+            audioName = audio?.label
+        )
+    }
+
+    private fun streamOptions(probe: CastMediaProxy.StreamProbe, selection: HlsSelection): CastStreamOptions {
+        val audios = probe.audioRenditions.mapIndexed { index, rendition ->
+            CastAudioOption(
+                id = "${rendition.language.orEmpty()}|${rendition.name.orEmpty()}",
+                label = audioLabel(rendition, index),
+                name = rendition.name,
+                language = rendition.language
+            )
+        }
+        val chosen = HlsRenditionSelector.pickAudio(probe.audioRenditions, selection)
+        return CastStreamOptions(
+            qualities = probe.heights,
+            selectedHeight = HlsRenditionSelector.resolveHeight(probe.heights, selection),
+            audios = audios,
+            selectedAudioId = chosen?.let { "${it.language.orEmpty()}|${it.name.orEmpty()}" }
+                ?: audios.firstOrNull()?.id?.takeIf { audios.size == 1 }
+        )
+    }
+
+    private fun audioLabel(rendition: HlsAudioRendition, index: Int): String {
+        val name = rendition.name?.takeIf { it.any(Char::isLetter) }
+        val language = rendition.language
+            ?.let { Locale.forLanguageTag(it.replace('_', '-')).getDisplayLanguage(Locale.getDefault()) }
+            ?.takeIf { it.isNotBlank() && !it.equals(rendition.language, ignoreCase = true) }
+        return name ?: language ?: context.getString(R.string.track_number, index + 1)
+    }
+
+    private data class CastBuild(
+        val mediaItem: MediaItem,
+        val tracks: Map<String, Long>,
+        val probe: CastMediaProxy.StreamProbe
+    )
+
     /** Blocking: probes the stream and builds proxied URLs. Runs on the IO dispatcher. */
     private fun buildCastItem(
         item: NowPlaying,
         headers: Map<String, String>,
         subtitles: List<SubtitleDto>,
         activeSubtitleId: String?,
-        receiver: InetAddress?
-    ): Pair<MediaItem, Map<String, Long>> {
-        val url = castProxy.mediaUrl(item.mediaUri, headers, receiver)
+        receiver: InetAddress?,
+        selection: HlsSelection?
+    ): CastBuild {
+        val url = castProxy.mediaUrl(item.mediaUri, headers, receiver, selection)
             ?: throw IOException(context.getString(R.string.player_cast_same_wifi))
-        val probe = castProxy.probe(item.mediaUri, headers)
+        val probe = castProxy.probe(item.mediaUri, headers, selection)
         val tracks = linkedMapOf<String, Long>()
         val configurations = subtitles.mapNotNull { subtitle ->
             val subtitleUrl = castProxy.subtitleUrl(subtitle.url, headers, receiver) ?: return@mapNotNull null
@@ -836,7 +939,7 @@ class PlaybackSession @Inject constructor(
             .setMediaMetadata(metadata)
             .setSubtitleConfigurations(configurations)
             .build()
-        return mediaItem to tracks
+        return CastBuild(mediaItem, tracks, probe)
     }
 
     /** After an app restart the TV may still be playing: rebuild what's playing from its extras. */

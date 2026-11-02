@@ -24,10 +24,12 @@ import androidx.compose.material.icons.filled.CastConnected
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.ClosedCaptionDisabled
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Button
@@ -37,6 +39,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -80,8 +83,10 @@ import androidx.mediarouter.media.MediaRouteSelector
 import androidx.mediarouter.media.MediaRouter
 import coil3.compose.AsyncImage
 import com.ivor.openstream.presentation.components.ExpressiveBackButton
+import com.ivor.openstream.presentation.player.session.CastAudioOption
 import com.ivor.openstream.presentation.player.session.CastError
 import com.ivor.openstream.presentation.player.session.CastStatus
+import com.ivor.openstream.presentation.player.session.CastStreamOptions
 import com.ivor.openstream.presentation.player.session.CastSubtitleOption
 import com.ivor.openstream.presentation.player.session.CastSubtitles
 import com.ivor.openstream.ui.theme.ExpressiveShapes
@@ -102,8 +107,11 @@ fun CastPlaybackView(
     isLoading: Boolean,
     error: CastError?,
     subtitles: CastSubtitles,
+    streamOptions: CastStreamOptions,
     seekStepSeconds: Int,
     onSelectSubtitle: (CastSubtitleOption?) -> Unit,
+    onSelectQuality: (Int) -> Unit,
+    onSelectAudio: (CastAudioOption) -> Unit,
     onRetry: () -> Unit,
     onChooseSource: (() -> Unit)?,
     onNextClick: (() -> Unit)?,
@@ -121,6 +129,7 @@ fun CastPlaybackView(
     var scrubbing by remember { mutableStateOf(false) }
     var scrubValue by remember { mutableFloatStateOf(0f) }
     var showSubtitleMenu by remember { mutableStateOf(false) }
+    var showStreamMenu by remember { mutableStateOf(false) }
 
     val latestEnded by rememberUpdatedState(onPlaybackEnded)
     val latestReady by rememberUpdatedState(onPlaybackReady)
@@ -219,14 +228,65 @@ fun CastPlaybackView(
                             )
                         }
                         DropdownMenu(expanded = showSubtitleMenu, onDismissRequest = { showSubtitleMenu = false }) {
-                            SubtitleMenuItem(stringResource(R.string.misc_off), selected = subtitles.activeId == null) {
+                            CastMenuItem(stringResource(R.string.misc_off), selected = subtitles.activeId == null) {
                                 showSubtitleMenu = false
                                 onSelectSubtitle(null)
                             }
                             subtitles.options.forEach { option ->
-                                SubtitleMenuItem(option.label, selected = option.id == subtitles.activeId) {
+                                CastMenuItem(option.label, selected = option.id == subtitles.activeId) {
                                     showSubtitleMenu = false
                                     onSelectSubtitle(option)
+                                }
+                            }
+                        }
+                    }
+                }
+                val canPickQuality = streamOptions.qualities.size > 1
+                val canPickAudio = streamOptions.audios.size > 1
+                if (onChooseSource != null || canPickQuality || canPickAudio) {
+                    // Source, quality and audio for the TV. Every item is focusable, like the
+                    // subtitle menu, so a remote can traverse it too.
+                    Box {
+                        IconButton(onClick = { showStreamMenu = true }) {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = stringResource(R.string.player_playback_settings),
+                                tint = MaterialTheme.colorScheme.onScrim
+                            )
+                        }
+                        DropdownMenu(expanded = showStreamMenu, onDismissRequest = { showStreamMenu = false }) {
+                            if (onChooseSource != null) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.sheet_source)) },
+                                    onClick = {
+                                        showStreamMenu = false
+                                        onChooseSource()
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null) }
+                                )
+                            }
+                            if (canPickQuality) {
+                                if (onChooseSource != null) HorizontalDivider()
+                                CastMenuHeader(stringResource(R.string.sheet_quality))
+                                CastMenuItem(stringResource(R.string.sheet_auto), selected = streamOptions.selectedHeight == 0) {
+                                    showStreamMenu = false
+                                    if (streamOptions.selectedHeight != 0) onSelectQuality(0)
+                                }
+                                streamOptions.qualities.forEach { height ->
+                                    CastMenuItem("${height}p", selected = height == streamOptions.selectedHeight) {
+                                        showStreamMenu = false
+                                        if (height != streamOptions.selectedHeight) onSelectQuality(height)
+                                    }
+                                }
+                            }
+                            if (canPickAudio) {
+                                if (onChooseSource != null || canPickQuality) HorizontalDivider()
+                                CastMenuHeader(stringResource(R.string.sheet_audio))
+                                streamOptions.audios.forEach { option ->
+                                    CastMenuItem(option.label, selected = option.id == streamOptions.selectedAudioId) {
+                                        showStreamMenu = false
+                                        if (option.id != streamOptions.selectedAudioId) onSelectAudio(option)
+                                    }
                                 }
                             }
                         }
@@ -371,7 +431,19 @@ fun CastPlaybackView(
 }
 
 @Composable
-private fun SubtitleMenuItem(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun CastMenuHeader(label: String) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .semantics { heading() }
+    )
+}
+
+@Composable
+private fun CastMenuItem(label: String, selected: Boolean, onClick: () -> Unit) {
     DropdownMenuItem(
         text = { Text(label) },
         onClick = onClick,
