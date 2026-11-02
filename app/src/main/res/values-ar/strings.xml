@@ -89,6 +89,7 @@
     <string name="home_recently_watched">شوهد حديثًا</string>
     <string name="home_weekend_movies">أفلام نهاية الأسبوع</string>
     <string name="home_anime_movies">أفلام الأنمي</string>
+    <string name="home_popular_on_service">رائج على %1$s</string>
     <string name="home_critically_acclaimed">نال استحسان النقاد</string>
     <string name="home_top_result">أفضل نتيجة</string>
     <string name="home_rank_this_week">%1$d هذا الأسبوع</string>

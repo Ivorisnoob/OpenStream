@@ -82,6 +82,7 @@
     <string name="home_recently_watched">最近观看</string>
     <string name="home_weekend_movies">周末电影</string>
     <string name="home_anime_movies">动画电影</string>
+    <string name="home_popular_on_service">%1$s 热门</string>
     <string name="home_critically_acclaimed">口碑佳作</string>
     <string name="home_top_result">最佳结果</string>
     <string name="home_rank_this_week">本周第 %1$d 名</string>

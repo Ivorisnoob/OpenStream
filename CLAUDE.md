@@ -163,6 +163,12 @@ Rules:
   filters to discover calls and checks everything else against the US rating (G/PG,
   TV-Y..TV-PG; unrated is hidden); Home hides Settings and leaving takes a hold on the avatar.
   `include_adult=false` is added to every TMDB request.
+- **Home rows.** `AnimeCatalog` lists load first; the per-service rows (`StreamingService`:
+  Netflix, Prime Video, Disney+, Apple TV, HBO Max, Crunchyroll) load after Home is on screen and
+  append below. Each is a movie + series `discover` with `with_watch_providers` (all of a service's
+  regional provider ids), subscription titles only, in the device's country (`watch_region`, from
+  the system locale rather than the app language; US when it has none). A service with nothing in
+  that region gets no row.
 - **Lists.** Watch Later plus user lists (`CustomListRepository`, `custom_lists` tables); Details has
   "Add to list" and "Mark all watched", the Saved tab shows the lists.
 - **Calendar.** `UpcomingRepository` builds a schedule from Watch Later and shows with progress:

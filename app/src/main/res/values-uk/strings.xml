@@ -82,6 +82,7 @@
     <string name="home_recently_watched">Нещодавно переглянуто</string>
     <string name="home_weekend_movies">Фільми на вихідні</string>
     <string name="home_anime_movies">Аніме-фільми</string>
+    <string name="home_popular_on_service">Популярне на %1$s</string>
     <string name="home_critically_acclaimed">Визнання критиків</string>
     <string name="home_top_result">Найкращий результат</string>
     <string name="home_rank_this_week">%1$d цього тижня</string>

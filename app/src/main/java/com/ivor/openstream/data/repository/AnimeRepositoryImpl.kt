@@ -1,6 +1,7 @@
 package com.ivor.openstream.data.repository
 
 import android.content.SharedPreferences
+import android.content.res.Resources
 import com.ivor.openstream.data.remote.TmdbApi
 import com.ivor.openstream.data.remote.model.AnimeDetailsDto
 import com.ivor.openstream.data.remote.model.AnimeDto
@@ -12,8 +13,10 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import com.ivor.openstream.domain.model.AnimeCatalog
 import com.ivor.openstream.domain.model.BrowseGenre
+import com.ivor.openstream.domain.model.StreamingService
 import com.ivor.openstream.di.NetworkModule
 import kotlinx.coroutines.awaitAll
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Named
@@ -114,6 +117,58 @@ class AnimeRepositoryImpl @Inject constructor(
             moviesPreFiltered = moviesPreFiltered
         )
     }
+
+    override suspend fun getServiceCatalog(service: StreamingService, forceRefresh: Boolean): Result<List<AnimeDto>> {
+        val region = watchRegion()
+        val key = (if (kids.isActive) "service_kids_" else "service_") + "${service.name}_$region"
+        val cached = catalogCache[key]
+        if (!forceRefresh && cached != null && System.currentTimeMillis() - cached.savedAt in 0L until CATALOG_TTL_MS) {
+            return Result.success(cached.items)
+        }
+        return fetchServiceCatalog(service, region, if (forceRefresh) freshApi else api)
+            .onSuccess { items -> catalogCache[key] = CachedCatalog(System.currentTimeMillis(), items) }
+            .recoverCatching { error -> cached?.items ?: throw error }
+    }
+
+    private suspend fun fetchServiceCatalog(
+        service: StreamingService,
+        region: String,
+        api: TmdbApi
+    ): Result<List<AnimeDto>> = runCatching {
+        coroutineScope {
+            val common = mapOf(
+                "sort_by" to "popularity.desc",
+                "include_adult" to "false",
+                "watch_region" to region,
+                // Pipe means "any of": the service's ids for every region.
+                "with_watch_providers" to service.providerIds.joinToString("|"),
+                // Included with the subscription, not rented or bought through the service.
+                "with_watch_monetization_types" to "flatrate"
+            )
+            val movies = async {
+                api.discoverMovieWith(common + ("vote_count.gte" to "50") + kids.movieDiscoverParams())
+                    .results.map { it.copy(mediaType = "movie") }
+            }
+            val series = async {
+                api.discoverTvWith(common + ("vote_count.gte" to "30") + kids.tvDiscoverParams())
+                    .results.map { it.copy(mediaType = "tv") }
+            }
+            val combined = (movies.await() + series.await())
+                .filter { it.posterPath != null }
+                // Home's rows key their cards by TMDB id, which a movie and a show can share.
+                .distinctBy { it.id }
+                .sortedByDescending { it.popularity ?: 0.0 }
+                .take(SERVICE_ROW_SIZE)
+            kids.filter(combined, moviesPreFiltered = true)
+        }
+    }
+
+    /** The device's country, not the app language's, for TMDB's `watch_region`; US when there is none. */
+    private fun watchRegion(): String =
+        Resources.getSystem().configuration.locales.get(0)?.country
+            ?.takeIf { it.length == 2 && it.all(Char::isLetter) }
+            ?.uppercase(Locale.ROOT)
+            ?: DEFAULT_WATCH_REGION
 
     override suspend fun discoverByGenre(genre: BrowseGenre, page: Int): Result<List<AnimeDto>> = runCatching {
         coroutineScope {
@@ -218,5 +273,7 @@ class AnimeRepositoryImpl @Inject constructor(
     private companion object {
         const val ANIMATION_GENRE = 16
         const val CATALOG_TTL_MS = 3 * 60 * 60 * 1000L
+        const val SERVICE_ROW_SIZE = 20
+        const val DEFAULT_WATCH_REGION = "US"
     }
 }

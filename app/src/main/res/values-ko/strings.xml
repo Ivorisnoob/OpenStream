@@ -89,6 +89,7 @@
     <string name="home_recently_watched">최근 시청함</string>
     <string name="home_weekend_movies">주말 영화</string>
     <string name="home_anime_movies">애니메이션 영화</string>
+    <string name="home_popular_on_service">%1$s 인기 콘텐츠</string>
     <string name="home_critically_acclaimed">호평받은 작품</string>
     <string name="home_top_result">최고 일치 결과</string>
     <string name="home_rank_this_week">이번 주 %1$d위</string>
