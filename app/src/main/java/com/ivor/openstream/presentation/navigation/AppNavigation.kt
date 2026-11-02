@@ -44,6 +44,7 @@ import com.ivor.openstream.presentation.settings.VideoShaderSettingsScreen
 import com.ivor.openstream.presentation.marketplace.MarketplaceScreen
 import com.ivor.openstream.presentation.player.session.MiniPlayer
 import com.ivor.openstream.presentation.lists.CustomListScreen
+import com.ivor.openstream.data.settings.NavBarStyle
 import com.ivor.openstream.presentation.profiles.ManageProfilesScreen
 import com.ivor.openstream.presentation.profiles.ProfilesViewModel
 import com.ivor.openstream.presentation.profiles.WhoIsWatchingScreen
@@ -83,6 +84,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalFloatingToolbar
+import androidx.compose.material3.ShortNavigationBar
+import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -178,7 +181,10 @@ fun AppNavigation(
     val showLaunchPicker by profilesViewModel.showLaunchPicker.collectAsState()
     var showProfilePicker by rememberSaveable { mutableStateOf(false) }
     val isOnline by appViewModel.isOnline.collectAsState()
+    val navBarStyle by appViewModel.navBarStyle.collectAsState()
+    val dockedNavBar = navBarStyle == NavBarStyle.DOCKED
     var toolbarHeightPx by remember { mutableIntStateOf(0) }
+    var dockedBarHeightPx by remember { mutableIntStateOf(0) }
 
     fun openTab(screen: Screen) {
         navController.navigate(screen.route) {
@@ -546,16 +552,23 @@ fun AppNavigation(
             val toolbarTop = with(LocalDensity.current) {
                 ToolbarBottomOffset + if (toolbarHeightPx > 0) toolbarHeightPx.toDp() else 66.dp
             }
+            // The docked bar's measured height already includes the navigation bar inset.
+            val dockedBarTop = with(LocalDensity.current) { dockedBarHeightPx.toDp() }
+            val miniPlayerOffset = when {
+                showToolbar && dockedNavBar && dockedBarHeightPx > 0 ->
+                    Modifier.padding(bottom = dockedBarTop + 8.dp)
+                showToolbar && dockedNavBar ->
+                    Modifier.navigationBarsPadding().padding(bottom = DockedBarFallbackHeight + 8.dp)
+                showToolbar -> Modifier.padding(bottom = toolbarTop + 12.dp)
+                else -> Modifier.navigationBarsPadding().padding(bottom = 16.dp)
+            }
             androidx.compose.animation.AnimatedVisibility(
                 visible = !isOnPlayer && nowPlaying != null,
                 enter = slideInVertically { it } + fadeIn(),
                 exit = slideOutVertically { it } + fadeOut(),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .then(
-                        if (showToolbar) Modifier.padding(bottom = toolbarTop + 12.dp)
-                        else Modifier.navigationBarsPadding().padding(bottom = 16.dp)
-                    )
+                    .then(miniPlayerOffset)
                     .padding(horizontal = 16.dp)
                     // A phone-width bar on tablets instead of a strip across the whole window.
                     .widthIn(max = 560.dp)
@@ -578,9 +591,42 @@ fun AppNavigation(
                 )
             }
 
+            // Standard bar docked to the bottom edge, chosen in Settings instead of the toolbar.
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showToolbar && dockedNavBar,
+                enter = slideInVertically { it } + fadeIn(),
+                exit = slideOutVertically { it } + fadeOut(),
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                val currentIndex = bottomNavItems.indexOfFirst { screen ->
+                    currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                }
+                ShortNavigationBar(
+                    modifier = Modifier.onSizeChanged { dockedBarHeightPx = it.height }
+                ) {
+                    bottomNavItems.forEachIndexed { index, screen ->
+                        val isSelected = index == currentIndex
+                        ShortNavigationBarItem(
+                            selected = isSelected,
+                            onClick = {
+                                if (isSelected && screen.route == Screen.Search.route) {
+                                    navController.currentBackStackEntry?.savedStateHandle?.set(
+                                        "focusSearch",
+                                        System.currentTimeMillis()
+                                    )
+                                }
+                                openTab(screen)
+                            },
+                            icon = { Icon(screen.icon!!, contentDescription = null) },
+                            label = { Text(screen.labelRes?.let { stringResource(it) } ?: screen.label) }
+                        )
+                    }
+                }
+            }
+
             // Expressive Floating Navigation for Mobile (Compact screens)
             androidx.compose.animation.AnimatedVisibility(
-                visible = showBottomBar && isCompact,
+                visible = showToolbar && !dockedNavBar,
                 enter = slideInVertically { it } + fadeIn(),
                 exit = slideOutVertically { it } + fadeOut(),
                 modifier = Modifier.align(Alignment.BottomCenter)
@@ -684,6 +730,9 @@ fun AppNavigation(
 
 /** Gap between the floating toolbar and the bottom edge of the window. */
 private val ToolbarBottomOffset = 50.dp
+
+/** Height of the docked bar above the navigation bar inset, used until it has been measured. */
+private val DockedBarFallbackHeight = 64.dp
 
 @Composable
 private fun OfflineBanner(showDownloadsAction: Boolean, onOpenDownloads: () -> Unit) {

@@ -326,6 +326,8 @@
     <string name="st_theme_dark">Тёмная</string>
     <string name="st_amoled_black">AMOLED-чёрный</string>
     <string name="st_amoled_black_hint">Чисто чёрные поверхности, когда приложение в тёмной теме.</string>
+    <string name="st_floating_nav_bar">Плавающая панель навигации</string>
+    <string name="st_floating_nav_bar_hint">Если выключить, внизу будет обычная закреплённая панель.</string>
     <string name="st_dynamic_color">Динамические цвета</string>
     <string name="st_dynamic_hint">Цвета под обои</string>
     <string name="st_language">Язык</string>

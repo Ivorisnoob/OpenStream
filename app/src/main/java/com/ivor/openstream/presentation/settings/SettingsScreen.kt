@@ -2,6 +2,7 @@ package com.ivor.openstream.presentation.settings
 
 import android.Manifest
 import com.ivor.openstream.presentation.components.CenteredListBox
+import com.ivor.openstream.presentation.components.isCompactWidth
 import com.ivor.openstream.presentation.downloads.formatBytes
 import android.app.Activity
 import android.os.Build
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.filled.DataUsage
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.CallToAction
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
@@ -101,6 +103,7 @@ import com.ivor.openstream.data.settings.AppSettings
 import com.ivor.openstream.data.settings.AppLocale
 import com.ivor.openstream.data.settings.CacheSize
 import com.ivor.openstream.data.settings.DnsProvider
+import com.ivor.openstream.data.settings.NavBarStyle
 import com.ivor.openstream.data.settings.ThemeMode
 import com.ivor.openstream.data.settings.VideoGestureCustomization
 import com.ivor.openstream.presentation.components.ConnectedChoiceGroup
@@ -259,9 +262,12 @@ fun SettingsScreen(
                     val dynamicAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
                     // AMOLED only changes dark surfaces, so the option hides when Light is forced.
                     val amoledAvailable = appSettings.themeMode != ThemeMode.LIGHT
+                    // Only phones show the bottom bar; wider windows use the side rail.
+                    val navBarAvailable = isCompactWidth
                     val count = 2 +
                         (if (dynamicAvailable) 1 else 0) +
-                        (if (amoledAvailable) 1 else 0)
+                        (if (amoledAvailable) 1 else 0) +
+                        (if (navBarAvailable) 1 else 0)
                     SettingsGroup(title = stringResource(R.string.st_appearance)) {
                         ChoiceRow(
                             index = 0, count = count,
@@ -298,6 +304,16 @@ fun SettingsScreen(
                                 supporting = stringResource(R.string.st_amoled_black_hint),
                                 checked = appSettings.amoledBlack,
                                 onCheckedChange = viewModel::setAmoledBlack
+                            )
+                        }
+                        if (navBarAvailable) {
+                            SwitchRow(
+                                index = count - 1, count = count,
+                                icon = Icons.Default.CallToAction,
+                                title = stringResource(R.string.st_floating_nav_bar),
+                                supporting = stringResource(R.string.st_floating_nav_bar_hint),
+                                checked = appSettings.navBarStyle == NavBarStyle.FLOATING,
+                                onCheckedChange = viewModel::setFloatingNavBar
                             )
                         }
                     }

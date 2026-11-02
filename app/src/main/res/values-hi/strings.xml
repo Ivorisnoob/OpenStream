@@ -347,6 +347,8 @@
     <string name="st_theme_dark">गहरा</string>
     <string name="st_amoled_black">AMOLED काला</string>
     <string name="st_amoled_black_hint">ऐप के गहरे रहने पर पूरी तरह काली सतहें।</string>
+    <string name="st_floating_nav_bar">फ़्लोटिंग नेविगेशन बार</string>
+    <string name="st_floating_nav_bar_hint">बंद होने पर नीचे किनारे पर सामान्य बार दिखता है।</string>
     <string name="st_dynamic_color">डायनामिक रंग</string>
     <string name="st_dynamic_hint">वॉलपेपर से रंग मिलाएं</string>
     <string name="st_language">भाषा</string>

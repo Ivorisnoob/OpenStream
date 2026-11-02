@@ -347,6 +347,8 @@
     <string name="st_theme_dark">Dark</string>
     <string name="st_amoled_black">AMOLED black</string>
     <string name="st_amoled_black_hint">True black surfaces while the app is dark.</string>
+    <string name="st_floating_nav_bar">Floating navigation bar</string>
+    <string name="st_floating_nav_bar_hint">Turn off for a standard bar fixed to the bottom.</string>
     <string name="st_dynamic_color">Dynamic color</string>
     <string name="st_dynamic_hint">Match colors to your wallpaper</string>
     <string name="st_language">Language</string>

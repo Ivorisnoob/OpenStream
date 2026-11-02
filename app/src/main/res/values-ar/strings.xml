@@ -347,6 +347,8 @@
     <string name="st_theme_dark">داكن</string>
     <string name="st_amoled_black">أسود AMOLED</string>
     <string name="st_amoled_black_hint">أسطح سوداء بالكامل عندما يكون التطبيق داكنًا.</string>
+    <string name="st_floating_nav_bar">شريط تنقل عائم</string>
+    <string name="st_floating_nav_bar_hint">عند إيقافه يُثبَّت شريط عادي أسفل الشاشة.</string>
     <string name="st_dynamic_color">لون ديناميكي</string>
     <string name="st_dynamic_hint">مطابقة الألوان مع خلفيتك</string>
     <string name="st_language">اللغة</string>

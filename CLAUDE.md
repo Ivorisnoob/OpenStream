@@ -162,7 +162,8 @@ Rules:
   disk cache for Home rows and Details rails off screen: unmetered network only, not with Data Saver,
   battery saver or on low-RAM devices, two at a time, after a 1.5 s head start, skipping anything
   already on disk. `AppCaches` measures and clears all of it for Settings.
-- **Settings.** `AppSettingsStore` (SharedPreferences) holds theme, dynamic color, DNS,
+- **Settings.** `AppSettingsStore` (SharedPreferences) holds theme, dynamic color, the phone tab bar style
+  (floating toolbar or docked `ShortNavigationBar`), DNS,
   Wi-Fi-only downloads, the subtitle languages saved with downloads, cache size and artwork preload;
   `MainActivity` applies the theme. Cache size and preload are device settings and stay out of
   `LibraryBackup`.
