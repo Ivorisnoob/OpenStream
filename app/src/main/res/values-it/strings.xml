@@ -645,6 +645,7 @@
     <string name="player_rewind_seconds">Indietro di %1$d secondi</string>
     <string name="src_up_to_quality">Fino a %1$s</string>
     <string name="src_adaptive">Adattiva</string>
+    <string name="src_repo_official">Ufficiale</string>
     <string name="src_available_count">%1$d disponibili</string>
     <string name="src_progress">%1$s pronti · controllati %2$s di %3$s</string>
     <string name="sub_checking_all">Controllo la sorgente del video, OpenSubtitles e SubSource…</string>

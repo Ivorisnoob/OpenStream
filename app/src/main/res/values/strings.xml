@@ -700,6 +700,7 @@
     <string name="player_rewind_seconds">Rewind %1$d seconds</string>
     <string name="src_up_to_quality">Up to %1$s</string>
     <string name="src_adaptive">Adaptive</string>
+    <string name="src_repo_official">Official</string>
     <string name="src_available_count">%1$d available</string>
     <string name="src_progress">%1$s ready · checked %2$s of %3$s</string>
 

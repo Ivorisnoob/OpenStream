@@ -645,6 +645,7 @@
     <string name="player_rewind_seconds">Voltar %1$d segundos</string>
     <string name="src_up_to_quality">Até %1$s</string>
     <string name="src_adaptive">Adaptativa</string>
+    <string name="src_repo_official">Oficial</string>
     <string name="src_available_count">%1$d disponíveis</string>
     <string name="src_progress">%1$s prontas · %2$s de %3$s verificadas</string>
     <string name="sub_checking_all">Verificando fonte do vídeo, OpenSubtitles e SubSource…</string>

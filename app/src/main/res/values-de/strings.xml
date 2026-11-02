@@ -645,6 +645,7 @@
     <string name="player_rewind_seconds">%1$d Sekunden zurückspulen</string>
     <string name="src_up_to_quality">Bis zu %1$s</string>
     <string name="src_adaptive">Adaptiv</string>
+    <string name="src_repo_official">Offiziell</string>
     <string name="src_available_count">%1$d verfügbar</string>
     <string name="src_progress">%1$s bereit · %2$s von %3$s geprüft</string>
     <string name="sub_checking_all">Videoquelle, OpenSubtitles und SubSource werden geprüft…</string>

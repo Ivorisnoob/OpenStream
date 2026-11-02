@@ -645,6 +645,7 @@
     <string name="player_rewind_seconds">快退 %1$d 秒</string>
     <string name="src_up_to_quality">最高 %1$s</string>
     <string name="src_adaptive">自适应</string>
+    <string name="src_repo_official">官方</string>
     <string name="src_available_count">%1$d 个可用</string>
     <string name="src_progress">%1$s 就绪 · 已检查 %2$s/%3$s</string>
     <string name="sub_checking_all">正在检查视频来源、OpenSubtitles 和 SubSource…</string>

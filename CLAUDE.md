@@ -94,8 +94,9 @@ Rules:
   (no torrents/debrid). A pasted Stremio `manifest.json` becomes a one-add-on repository
   (`ExtensionIndexParser`), installed right away when it can play.
   `VideoServer` can carry a MIME hint (HLS for URLs without `.m3u8`) and the source's own intro/outro
-  times, which the player prefers over AniSkip. `AnimeEpisodeMapper`
-  maps TMDB season/episode to an AniList episode (ani.zip + AniList GraphQL, both keyless);
+  times, which the player prefers over AniSkip. `ExtensionStreamProvider` stamps each server with its
+  `SourceOrigin` (extension name, repository, official or not), which source lists show.
+  `AnimeEpisodeMapper` maps TMDB season/episode to an AniList episode (ani.zip + AniList GraphQL, both keyless);
   megaplay embeds decrypt with a fixed AES key; `ImagePrefixStrippingDataSource` strips the fake
   PNG header some anime CDNs put before TS segments.
 - **Catalog.** `extensions/index.json` is published; `app/src/main/assets/extensions/official-repo.json`

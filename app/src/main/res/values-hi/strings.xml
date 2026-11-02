@@ -686,6 +686,7 @@
     <string name="player_rewind_seconds">%1$d सेकंड पीछे जाएं</string>
     <string name="src_up_to_quality">%1$s तक</string>
     <string name="src_adaptive">अडैप्टिव</string>
+    <string name="src_repo_official">आधिकारिक</string>
     <string name="src_available_count">%1$d उपलब्ध</string>
     <string name="src_progress">%1$s तैयार · %2$s में से %3$s जांचा गया</string>
     <string name="sub_checking_all">वीडियो के स्रोत, OpenSubtitles और SubSource की जांच हो रही है…</string>

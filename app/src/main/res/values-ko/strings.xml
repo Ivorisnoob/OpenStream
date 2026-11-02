@@ -686,6 +686,7 @@
     <string name="player_rewind_seconds">%1$d초 되감기</string>
     <string name="src_up_to_quality">최대 %1$s</string>
     <string name="src_adaptive">적응형</string>
+    <string name="src_repo_official">공식</string>
     <string name="src_available_count">%1$d개 사용 가능</string>
     <string name="src_progress">%1$s 준비됨 · %2$s/%3$s 확인함</string>
     <string name="sub_checking_all">영상의 소스, OpenSubtitles, SubSource에서 확인 중…</string>

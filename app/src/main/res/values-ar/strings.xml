@@ -686,6 +686,7 @@
     <string name="player_rewind_seconds">إرجاع %1$d ثانية</string>
     <string name="src_up_to_quality">حتى %1$s</string>
     <string name="src_adaptive">تكيّفي</string>
+    <string name="src_repo_official">رسمي</string>
     <string name="src_available_count">%1$d متاح</string>
     <string name="src_progress">%1$s جاهز · تم فحص %2$s من %3$s</string>
     <string name="sub_checking_all">جارٍ الفحص في مصدر الفيديو وOpenSubtitles وSubSource…</string>

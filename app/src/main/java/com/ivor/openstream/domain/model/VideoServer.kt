@@ -17,7 +17,9 @@ data class VideoServer(
     /** Container hint (for example `application/x-mpegURL`) when the URL doesn't say; skips sniffing. */
     val mimeType: String? = null,
     /** Intro/outro times the source itself provides; preferred over AniSkip. */
-    val skipSegments: List<SkipSegment> = emptyList()
+    val skipSegments: List<SkipSegment> = emptyList(),
+    /** The installed extension that found this server and the repository it came from. */
+    val origin: SourceOrigin? = null
 ) {
     val isDub: Boolean
         get() = audio == StreamAudio.DUB
@@ -34,6 +36,15 @@ data class VideoServer(
             else -> "STREAM"
         }
 }
+
+/** Where a server comes from: an installed extension and the repository it was installed from. */
+data class SourceOrigin(
+    val extensionName: String,
+    /** The repository's display name; blank when it is not known. */
+    val repoName: String,
+    /** True for the official repository that ships with the app. */
+    val isOfficial: Boolean
+)
 
 /** Media3's HLS MIME type (MimeTypes.APPLICATION_M3U8), without depending on Media3 here. */
 const val HLS_MIME_TYPE = "application/x-mpegURL"

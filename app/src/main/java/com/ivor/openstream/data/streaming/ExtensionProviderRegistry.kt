@@ -1,5 +1,6 @@
 package com.ivor.openstream.data.streaming
 
+import com.ivor.openstream.data.extensions.BundledExtensionCatalog
 import com.ivor.openstream.data.streaming.anime.AnikotoProvider
 import com.ivor.openstream.data.streaming.anime.AnimeEpisodeMapper
 import com.ivor.openstream.data.streaming.anime.AnimePaheProvider
@@ -21,6 +22,7 @@ import com.ivor.openstream.domain.model.ExtensionEngineType
 import com.ivor.openstream.domain.model.ExtensionManifest
 import com.ivor.openstream.domain.model.MarketplaceExtension
 import com.ivor.openstream.domain.model.MediaIdentity
+import com.ivor.openstream.domain.model.SourceOrigin
 import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.domain.repository.ExtensionRepository
 import kotlinx.serialization.json.Json
@@ -36,15 +38,20 @@ class ExtensionStreamProvider(
     private val delegate: StreamProvider,
     override val priority: Int,
     /** The extension's manifest version; a different one may find different streams. */
-    val versionCode: Int = 0
+    val versionCode: Int = 0,
+    /** Stamped on every server this provider finds, so the player can say where it came from. */
+    val origin: SourceOrigin? = null
 ) : StreamProvider {
     override val id: String = delegate.id
     override val displayName: String = delegate.displayName
     override val isEnabled: Boolean = delegate.isEnabled
     override val isFallback: Boolean = delegate.isFallback
 
-    override suspend fun resolve(identity: MediaIdentity): Result<List<VideoServer>> =
-        delegate.resolve(identity)
+    override suspend fun resolve(identity: MediaIdentity): Result<List<VideoServer>> {
+        val result = delegate.resolve(identity)
+        val stamp = origin ?: return result
+        return result.map { servers -> servers.map { it.copy(origin = stamp) } }
+    }
 }
 
 /**
@@ -71,21 +78,30 @@ class ExtensionProviderRegistry @Inject constructor(
      * In source order. A provider's priority is its position in that order (the user's ranking
      * first, then the catalog's), which is what ranking and "search in my order" go by.
      */
-    fun activeProviders(): List<ExtensionStreamProvider> =
-        extensionRepository.activeExtensions()
+    fun activeProviders(): List<ExtensionStreamProvider> {
+        val repos = extensionRepository.catalog.value.repos.associateBy { it.id }
+        return extensionRepository.activeExtensions()
             .mapNotNull { extension ->
                 val delegate = delegateFor(extension) ?: return@mapNotNull null
                 extension to delegate
             }
             .distinctBy { (_, delegate) -> delegate.id }
             .mapIndexed { position, (extension, delegate) ->
+                val repoId = extension.manifest.repoId
+                val repo = repos[repoId]
                 ExtensionStreamProvider(
                     extensionKey = extension.key,
                     delegate = delegate,
                     priority = position,
-                    versionCode = extension.manifest.versionCode
+                    versionCode = extension.manifest.versionCode,
+                    origin = SourceOrigin(
+                        extensionName = extension.manifest.name,
+                        repoName = repo?.name.orEmpty(),
+                        isOfficial = repo?.isBuiltIn ?: (repoId == BundledExtensionCatalog.OFFICIAL_REPO_ID)
+                    )
                 )
             }
+    }
 
     fun recordOutcome(provider: ExtensionStreamProvider, success: Boolean) {
         extensionRepository.recordOutcome(provider.extensionKey, success)

@@ -134,7 +134,9 @@ fun ExtensionRow(
     /** Installed tab only: move this source up or down the search order (null at either end). */
     onMoveUp: (() -> Unit)? = null,
     onMoveDown: (() -> Unit)? = null,
-    showReorder: Boolean = false
+    showReorder: Boolean = false,
+    /** Installed tab only: the repository the source came from, so the order reads unambiguously. */
+    repoLabel: String? = null
 ) {
     val manifest = extension.manifest
     val rowInteractionSource = remember { MutableInteractionSource() }
@@ -197,7 +199,7 @@ fun ExtensionRow(
                     }
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        text = extensionSubtitle(extension),
+                        text = extensionSubtitle(extension, repoLabel),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -684,13 +686,30 @@ fun EmptyState(icon: ImageVector, title: String, body: String) {
 }
 
 @Composable
-fun extensionSubtitle(extension: MarketplaceExtension): String {
+fun extensionSubtitle(extension: MarketplaceExtension, repoLabel: String? = null): String {
     val manifest = extension.manifest
-    val parts = mutableListOf(manifest.language, "v${manifest.versionName}")
+    val parts = mutableListOf<String>()
+    repoLabel?.takeIf { it.isNotBlank() }?.let { parts += it }
+    parts += manifest.language
+    parts += "v${manifest.versionName}"
     if (manifest.installs > 0) parts += stringResource(R.string.misc_installs, formatCount(manifest.installs))
     extension.usage.successRate?.let { parts += stringResource(R.string.misc_success_rate, (it * 100).roundToInt()) }
     if (manifest.isFallback) parts += stringResource(R.string.mk_fallback_tag)
     return parts.joinToString(" · ")
+}
+
+/**
+ * The repository an extension was installed from, as shown beside it: "Official" for the one that
+ * ships with the app, otherwise the repository's own name.
+ */
+@Composable
+fun extensionRepoLabel(repos: List<ExtensionRepo>, repoId: String): String {
+    val repo = repos.firstOrNull { it.id == repoId }
+    return if (repo?.isBuiltIn == true) {
+        stringResource(R.string.src_repo_official)
+    } else {
+        repo?.name.orEmpty().ifEmpty { stringResource(R.string.st_unknown_repo) }
+    }
 }
 
 @Composable

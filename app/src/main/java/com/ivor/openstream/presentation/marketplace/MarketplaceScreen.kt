@@ -432,7 +432,8 @@ private fun InstalledTab(
                         rank = index + 1,
                         onMoveUp = { viewModel.moveSource(extension, -1) }.takeIf { index > 0 },
                         onMoveDown = { viewModel.moveSource(extension, 1) }.takeIf { index < state.installed.lastIndex },
-                        showReorder = state.installed.size > 1
+                        showReorder = state.installed.size > 1,
+                        repoLabel = extensionRepoLabel(state.catalog.repos, extension.manifest.repoId)
                     )
                 }
             }
