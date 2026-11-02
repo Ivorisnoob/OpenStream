@@ -71,9 +71,11 @@ import com.ivor.openstream.data.settings.VideoShaderCustomization
 import com.ivor.openstream.data.subtitles.SavedSubtitleRepository
 import com.ivor.openstream.data.subtitles.SubtitleFetcher
 import com.ivor.openstream.presentation.player.session.SleepTimer
+import com.ivor.openstream.presentation.player.session.CastAudioOption
 import com.ivor.openstream.presentation.player.session.CastError
 import com.ivor.openstream.presentation.player.session.CastStatus
 import com.ivor.openstream.presentation.player.session.CastSubtitleOption
+import com.ivor.openstream.presentation.player.session.CastStreamOptions
 import com.ivor.openstream.presentation.player.session.CastSubtitles
 import com.ivor.openstream.presentation.player.components.SUBTITLES_OFF
 import androidx.media3.common.Player
@@ -225,6 +227,7 @@ class PlayerViewModel @Inject constructor(
     val castError: StateFlow<CastError?> = playbackSession.castError
     val castLoading: StateFlow<Boolean> = playbackSession.castLoading
     val castSubtitles: StateFlow<CastSubtitles> = playbackSession.castSubtitles
+    val castStreamOptions: StateFlow<CastStreamOptions> = playbackSession.castStreamOptions
 
     /** Plays on the TV while casting. */
     val castPlayer: Player? get() = playbackSession.castPlayer
@@ -246,6 +249,15 @@ class PlayerViewModel @Inject constructor(
             option == null -> setPreferredSubtitleLanguage(SUBTITLES_OFF)
             option.language != null -> setPreferredSubtitleLanguage(option.language)
         }
+    }
+
+    /** Quality picked on the casting screen (0 for automatic). */
+    fun selectCastQuality(height: Int) = playbackSession.selectCastQuality(height)
+
+    /** Audio picked on the casting screen: played on the TV and remembered like in the player. */
+    fun selectCastAudio(option: CastAudioOption) {
+        playbackSession.selectCastAudio(option.id)
+        option.language?.let(::setPreferredAudioLanguage)
     }
 
     private val _mediaUri = MutableStateFlow<Pair<String, String?>?>(null)

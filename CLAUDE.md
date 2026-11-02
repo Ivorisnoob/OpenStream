@@ -122,6 +122,11 @@ Rules:
   stateless URLs carry the target and headers, HLS playlists are rewritten, segments are read through
   the download cache and `ImagePrefixStrippingDataSource`, subtitles are served as WebVTT. The
   phone must stay on the TV's network. `PlayerScreen` swaps `ExoPlayerView` for `CastPlaybackView`.
+  The TV keeps the phone's source, quality and audio: connecting reads the local player's pinned
+  height (or its ceiling on automatic) and audio rendition into an `HlsSelection`, which rides in
+  the master playlist URL's query, and `HlsRenditionSelector` narrows the master to those variants
+  and that audio rendition (DEFAULT=YES) before the receiver sees it. `CastPlaybackView`'s settings
+  menu changes source, quality and audio by reloading at the TV's position. Downloads cast as stored.
 - **Player UI.** Controls in `PlayerControls`; settings and sources share `PlayerPanelHost`
   (bottom sheet inline, in-player side panel in fullscreen so immersive mode survives).
 - **Subtitles.** `CombinedSubtitleRepository`: `OpenSubtitlesRepository` (keyless legacy REST API)
