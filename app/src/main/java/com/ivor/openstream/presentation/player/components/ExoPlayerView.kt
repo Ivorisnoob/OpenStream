@@ -227,7 +227,7 @@ fun ExoPlayerView(
     /** Pops the video out into picture-in-picture; null hides the button. */
     onPictureInPictureClick: (() -> Unit)? = null,
     /** Downloads a sideloaded subtitle as text (gzip/zip handled); throws when it can't. */
-    loadSubtitleText: suspend (url: String, headers: Map<String, String>) -> String = { _, _ -> throw IllegalStateException("No subtitle loader") },
+    loadSubtitleText: suspend (url: String, headers: Map<String, String>, language: String?) -> String = { _, _, _ -> throw IllegalStateException("No subtitle loader") },
     /** Container hint from the source (HLS for hosts whose URLs don't end in .m3u8). */
     mimeType: String? = null,
     /** Playback continues when the app leaves the foreground (the media notification takes over). */
@@ -621,11 +621,12 @@ fun ExoPlayerView(
     LaunchedEffect(selectedSubtitle) { subtitleOffsetMs = 0L }
 
     LaunchedEffect(selectedSubtitle, requestHeaders) {
-        val urlStr = selectedSubtitle?.url
+        val subtitle = selectedSubtitle
+        val urlStr = subtitle?.url
         if (urlStr != null) {
             subtitleLoadingState = SubtitleLoadingState.LOADING
             try {
-                val raw = loadSubtitleText(urlStr, requestHeaders)
+                val raw = loadSubtitleText(urlStr, requestHeaders, subtitle.language)
                 manualCues = withContext(Dispatchers.Default) { parseSubtitles(raw).filterNot { it.text.isSubtitleAd() } }
                 subtitleLoadingState = if (manualCues.isNotEmpty()) SubtitleLoadingState.SUCCESS else SubtitleLoadingState.ERROR
                 Log.i("PlayerSubtitles", "Parsed ${manualCues.size} cues for manual sync")

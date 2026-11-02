@@ -788,7 +788,7 @@ class PlaybackSession @Inject constructor(
         val probe = castProxy.probe(item.mediaUri, headers)
         val tracks = linkedMapOf<String, Long>()
         val configurations = subtitles.mapNotNull { subtitle ->
-            val subtitleUrl = castProxy.subtitleUrl(subtitle.url, headers, receiver) ?: return@mapNotNull null
+            val subtitleUrl = castProxy.subtitleUrl(subtitle.url, headers, receiver, subtitle.language) ?: return@mapNotNull null
             tracks[subtitle.id] = tracks.size + 1L
             MediaItem.SubtitleConfiguration.Builder(Uri.parse(subtitleUrl))
                 .setMimeType("text/vtt")
