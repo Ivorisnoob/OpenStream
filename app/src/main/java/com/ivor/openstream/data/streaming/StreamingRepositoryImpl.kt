@@ -6,6 +6,7 @@ import com.ivor.openstream.domain.model.ServerResolution
 import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.domain.repository.StreamingRepository
 import android.util.Log
+import com.ivor.openstream.data.playback.StreamDataGuard
 import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.settings.SourceSearchMode
 import kotlinx.coroutines.CancellationException
@@ -40,7 +41,8 @@ class StreamingRepositoryImpl @Inject constructor(
     @Named("StreamingClient") private val client: OkHttpClient,
     private val preferences: SharedPreferences,
     private val appSettings: AppSettingsStore,
-    private val streamCache: ResolvedStreamCache
+    private val streamCache: ResolvedStreamCache,
+    private val dataGuard: StreamDataGuard
 ) : StreamingRepository {
     private val consecutiveFailures = ConcurrentHashMap<String, Int>()
 
@@ -60,9 +62,12 @@ class StreamingRepositoryImpl @Inject constructor(
      * first. With [SourceSearchMode.IN_ORDER] providers run one at a time in the user's order and
      * the search stops at the first that finds something ("Find more" then searches the rest).
      *
-     * With [preferLastWorking] the source that last played something ([rememberWorkingSource]) is
-     * asked first, on its own. If it has streams the search ends there; if it has none, or has not
-     * answered within [REMEMBERED_HEAD_START_MS], the search above runs as usual.
+     * With [preferLastWorking] the source that last played this title ([rememberWorkingSource],
+     * kept per movie and per show across its episodes) is asked first, on its own. If it has a
+     * stream at the quality cap the search ends there. If its best is below the cap (or of unknown
+     * quality) its streams are sent straight away and the search above runs as usual for the rest;
+     * with no streams, or no answer within [REMEMBERED_HEAD_START_MS], the search runs as usual too.
+     * A title no source has played yet gets the normal search.
      *
      * That automatic search (and only that one) answers from [ResolvedStreamCache] when the same
      * sources found streams for this episode a few minutes ago.
@@ -149,7 +154,8 @@ class StreamingRepositoryImpl @Inject constructor(
         var servers = emptyList<VideoServer>()
         val failedProviders = mutableListOf<String>()
 
-        fun absorb(outcome: ResolutionEvent.Outcome) {
+        /** Merges [outcome] in; true when it brought streams. */
+        fun absorb(outcome: ResolutionEvent.Outcome): Boolean {
             outcome.result.fold(
                 onSuccess = { incoming ->
                     consecutiveFailures.remove(outcome.provider.id)
@@ -175,15 +181,22 @@ class StreamingRepositoryImpl @Inject constructor(
                     failedProviders += outcome.provider.displayName
                 }
             )
+            return outcome.result.getOrNull().orEmpty().isNotEmpty()
         }
+
+        // The title's own source is enough on its own only when it reaches the quality cap the
+        // player will apply, which on mobile data can be the stricter data-saving one.
+        fun rememberedIsEnough(): Boolean =
+            ServerRanker.reachesQualityCap(servers, effectiveHeightCap())
 
         if (inOrder && !includeFallbacks) {
             // The user's order exactly, fallbacks included wherever they were placed; only the
-            // source that played last time jumps the queue.
+            // source that played this title last time jumps the queue. Below the quality cap it
+            // does not end the search: the first source in order with streams still does.
             val ordered = listOfNotNull(remembered) + otherProviders
             ordered.forEachIndexed { index, provider ->
-                absorb(runProvider(provider, enrichedIdentity))
-                val found = servers.isNotEmpty()
+                val brought = absorb(runProvider(provider, enrichedIdentity))
+                val found = if (provider == remembered) brought && rememberedIsEnough() else brought
                 publish(progress(servers, index + 1, ordered.size, failedProviders, isComplete = found || index == ordered.lastIndex))
                 if (found) return@channelFlow
             }
@@ -248,10 +261,11 @@ class StreamingRepositoryImpl @Inject constructor(
                     pending--
                     absorb(event)
                     if (!searchStarted) {
-                        // The remembered source answered first. With streams that is the whole
-                        // answer (nothing else is pending); with none, everything else is asked.
+                        // The remembered source answered first. At the quality cap that is the
+                        // whole answer (nothing else is pending); otherwise everything else is
+                        // asked, and what it found is sent now so playback can start on it.
                         rememberedDeadline?.cancel()
-                        if (servers.isEmpty()) startSearch()
+                        if (!rememberedIsEnough()) startSearch()
                     }
                     // Direct providers are all done and found nothing: fallbacks are the last hope.
                     if (pending == 0 && servers.isEmpty()) startFallbacks()
@@ -363,18 +377,47 @@ class StreamingRepositoryImpl @Inject constructor(
     private fun preferenceKey(identity: MediaIdentity): String =
         "last_stream_server:${identity.cacheKey}"
 
+    /**
+     * Kept for the [MAX_REMEMBERED_TITLES] titles played most recently; older titles are forgotten
+     * and get the normal search again.
+     */
+    @Synchronized
     override fun rememberWorkingSource(identity: MediaIdentity, server: VideoServer) {
         if (server.providerId.isBlank()) return
-        preferences.edit()
-            .putString("$WORKING_SOURCE_KEY:${identity.tmdbType}", server.providerId)
-            .putString(WORKING_SOURCE_KEY, server.providerId)
-            .apply()
+        val key = workingSourceKey(identity)
+        // Oldest first; this title moves to the end.
+        val order = preferences.getString(WORKING_SOURCE_ORDER_KEY, null)
+            ?.split('\n')
+            ?.filter { it.isNotBlank() && it != key }
+            .orEmpty() + key
+        val editor = preferences.edit()
+            .putString(key, server.providerId)
+            .putString(WORKING_SOURCE_ORDER_KEY, order.takeLast(MAX_REMEMBERED_TITLES).joinToString("\n"))
+            // The old per-type and app-wide entries are no longer read.
+            .remove(LEGACY_WORKING_SOURCE_KEY)
+            .remove("$LEGACY_WORKING_SOURCE_KEY:movie")
+            .remove("$LEGACY_WORKING_SOURCE_KEY:tv")
+        order.dropLast(MAX_REMEMBERED_TITLES).forEach { forgotten -> editor.remove(forgotten) }
+        editor.apply()
     }
 
-    /** The source that last played this kind of title (movie or show), else the last to play anything. */
+    /**
+     * The tallest rendition the player allows right now: the stricter of the quality cap and, on
+     * mobile data, the data-saving cap (as PlaybackSession.heightCap does). 0 means no limit.
+     */
+    private fun effectiveHeightCap(): Int {
+        val settings = appSettings.current
+        val metered = if (dataGuard.meteredNow) settings.meteredMaxHeight else 0
+        return listOf(settings.streamMaxHeight, metered).filter { it > 0 }.minOrNull() ?: 0
+    }
+
+    /** The source that last played this title: the movie, or any episode of the show. */
     private fun lastWorkingSourceId(identity: MediaIdentity): String? =
-        preferences.getString("$WORKING_SOURCE_KEY:${identity.tmdbType}", null)
-            ?: preferences.getString(WORKING_SOURCE_KEY, null)
+        preferences.getString(workingSourceKey(identity), null)
+
+    /** Per title, not per episode: a show keeps the source its earlier episodes played from. */
+    private fun workingSourceKey(identity: MediaIdentity): String =
+        "$WORKING_SOURCE_KEY:${identity.tmdbType}:${identity.tmdbId}"
 
     private sealed interface ResolutionEvent {
         data class Outcome(val provider: ExtensionStreamProvider, val result: Result<List<VideoServer>>) : ResolutionEvent
@@ -396,7 +439,12 @@ class StreamingRepositoryImpl @Inject constructor(
 
         /** How long the source that played last time is waited on before the others start too. */
         const val REMEMBERED_HEAD_START_MS = 10_000L
-        const val WORKING_SOURCE_KEY = "last_working_source"
+        const val WORKING_SOURCE_KEY = "title_working_source"
+        const val LEGACY_WORKING_SOURCE_KEY = "last_working_source"
+
+        /** The remembered titles' keys, oldest first, one per line. */
+        const val WORKING_SOURCE_ORDER_KEY = "title_working_source_order"
+        const val MAX_REMEMBERED_TITLES = 100
         const val CIRCUIT_BREAKER_THRESHOLD = 5
         const val BREAKER_COOLDOWN_MS = 2 * 60_000L
     }

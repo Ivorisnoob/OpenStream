@@ -32,6 +32,20 @@ internal object ServerRanker {
         }
     }
 
+    /**
+     * True when [servers] include one whose stated height is exactly the cap ([qualityCapHeight];
+     * 2160 and up mean 4K). With no cap (0 or less) 1080p or better is enough: almost no source
+     * offers 4K, so asking for it would send nearly every title to a search of every source.
+     * Unknown or vague labels ("Auto", "HD") never count, because nothing says how close to the
+     * cap they are.
+     */
+    fun reachesQualityCap(servers: List<VideoServer>, qualityCapHeight: Int): Boolean {
+        val known = servers.filter { it.quality != StreamQuality.UNKNOWN && it.quality != StreamQuality.HD }
+        if (qualityCapHeight <= 0) return known.any { it.quality.rank >= StreamQuality.Q1080.rank }
+        val capRank = StreamQuality.maxRankForHeight(qualityCapHeight).coerceAtMost(StreamQuality.Q2160.rank)
+        return known.any { it.quality.rank == capRank }
+    }
+
     private fun compare(
         left: VideoServer,
         right: VideoServer,
