@@ -1140,6 +1140,9 @@ fun ExoPlayerView(
     val videoIsFocused = remember { mutableStateOf(false) }
     val videoFocusRequester = remember { FocusRequester() }
     val controlsFocusRequester = remember { FocusRequester() }
+    // Until the viewer touches the remote, the focus is only where the player put it, so a skip
+    // button appearing may take it even from the control bar.
+    var remoteKeyPressed by remember(videoUrl) { mutableStateOf(false) }
     val dpadModifier = if (dpadControls) {
         Modifier
             .focusRequester(videoFocusRequester)
@@ -1150,6 +1153,7 @@ fun ExoPlayerView(
             .focusable()
             .onPreviewKeyEvent { event ->
                 if (!videoHasFocus.value) return@onPreviewKeyEvent false
+                if (event.type == KeyEventType.KeyDown) remoteKeyPressed = true
                 if (!videoIsFocused.value && !event.isMediaKey()) return@onPreviewKeyEvent false
                 handleDpadKey(event)
             }
@@ -1188,14 +1192,15 @@ fun ExoPlayerView(
             }
         }
     }
-    // A skip button appearing takes the focus only from the bare video, never from a control being
-    // used, where Up from the progress bar reaches it. Leaving, it hands back the focus it held.
+    // A skip button appearing takes the focus from the bare video, or from the control bar the
+    // player itself focused before any key was pressed, never from a control being used: there Up
+    // from the progress bar reaches it. Leaving, it hands back the focus it held.
     LaunchedEffect(skipVisible, dpadControls) {
         if (!dpadControls || showSettingsDialog || upNextVisible) return@LaunchedEffect
         withFrameNanos { }
         runCatching {
             when {
-                skipVisible && !areControlsVisible -> skipFocusRequester.requestFocus()
+                skipVisible && (!areControlsVisible || !remoteKeyPressed) -> skipFocusRequester.requestFocus()
                 !skipVisible && skipFocused && areControlsVisible -> controlsFocusRequester.requestFocus()
                 !skipVisible && skipFocused -> videoFocusRequester.requestFocus()
             }
@@ -1716,7 +1721,8 @@ fun ExoPlayerView(
                 }
             },
             onInteraction = { controlsInteraction++ },
-            playFocusRequester = controlsFocusRequester
+            playFocusRequester = controlsFocusRequester,
+            skipFocusRequester = skipFocusRequester.takeIf { skipVisible }
         ) else PlayerControls(
             isVisible = areControlsVisible && !isInPictureInPicture && !isLocked,
             isPlaying = isPlaying,
@@ -2012,10 +2018,18 @@ fun ExoPlayerView(
                     modifier = Modifier
                         .focusRequester(skipFocusRequester)
                         .onFocusChanged { skipFocused = it.isFocused }
-                        // With the chrome hidden this is the only stop, so the other keys do what
-                        // they do on the bare video: seek, or bring the controls up.
+                        // With the chrome up, a press here is the viewer using it, so it stays up.
+                        // With it hidden this is the only stop, so the other keys do what they do
+                        // on the bare video: seek, or bring the controls up.
                         .onPreviewKeyEvent { event ->
-                            if (areControlsVisible || event.isConfirmKey()) false else handleDpadKey(event)
+                            when {
+                                areControlsVisible -> {
+                                    if (event.type == KeyEventType.KeyDown) controlsInteraction++
+                                    false
+                                }
+                                event.isConfirmKey() -> false
+                                else -> handleDpadKey(event)
+                            }
                         }
                 )
             } else {
