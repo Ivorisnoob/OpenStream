@@ -128,6 +128,9 @@ Rules:
   and `SubSourceRepository` (keyless, mirrors subsource.net's own API: IMDb search -> list ->
   download token -> zip), plus any the stream carries. `SubtitleFetcher` downloads and unwraps
   them (gzip, zip, charset) for both the player and the cast proxy; promo cues are stripped.
+  `SubtitleCharset` picks the charset: a BOM, else UTF-16 or valid UTF-8, else the usual Windows
+  codepage of the subtitle's language (Turkish 1254, Cyrillic 1251...; 1252 for Western ones),
+  else, with no language, a guess from the file's high bytes. Text is UTF-8 from there on.
   `SavedSubtitleRepository` keeps subtitles on the device (`filesDir/subtitles/<download id>/`, files
   plus `index.json`), saved from Downloads (any language, or an imported file). Downloads also
   record the stream's own subtitles there (`stream.json`) so the sheet can offer them; older

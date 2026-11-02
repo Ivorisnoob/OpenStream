@@ -133,10 +133,14 @@ class CastMediaProxy @Inject constructor(
         return "$base/m/${encode(target, headers)}/${fileName(target, "media")}"
     }
 
-    /** Like [mediaUrl] for a subtitle file, served as WebVTT whatever its original format. */
-    fun subtitleUrl(target: String, headers: Map<String, String>, receiver: InetAddress?): String? {
+    /**
+     * Like [mediaUrl] for a subtitle file, served as UTF-8 WebVTT whatever its original format and
+     * charset. [language] picks the codepage for files that are not UTF-8.
+     */
+    fun subtitleUrl(target: String, headers: Map<String, String>, receiver: InetAddress?, language: String? = null): String? {
         val base = baseUrl(receiver) ?: return null
-        return "$base/s/${encode(target, headers)}/subtitles.vtt"
+        val query = language?.takeIf { it.isNotBlank() }?.let { "?$LANGUAGE_PARAM=${Uri.encode(it)}" }.orEmpty()
+        return "$base/s/${encode(target, headers)}/subtitles.vtt$query"
     }
 
     /** What a receiver needs to be told up front about a stream: its type and HLS segment format. */
@@ -248,7 +252,7 @@ class CastMediaProxy @Inject constructor(
                 val host = requestHeaders["host"] ?: return
                 when (segments[1]) {
                     "m" -> serveMedia(decoded.first, decoded.second, requestHeaders["range"], method == "HEAD", host, output)
-                    "s" -> serveSubtitle(decoded.first, decoded.second, method == "HEAD", output)
+                    "s" -> serveSubtitle(decoded.first, decoded.second, languageOf(parts[1]), method == "HEAD", output)
                     else -> writeError(output, 404, "Not Found")
                 }
                 output.flush()
@@ -338,11 +342,18 @@ class CastMediaProxy @Inject constructor(
         }
     }
 
-    private fun serveSubtitle(target: String, headers: Map<String, String>, headOnly: Boolean, output: OutputStream) {
-        val body = subtitleCache[target] ?: runCatching { fetchSubtitleAsVtt(target, headers) }
+    private fun serveSubtitle(
+        target: String,
+        headers: Map<String, String>,
+        language: String?,
+        headOnly: Boolean,
+        output: OutputStream
+    ) {
+        val cacheKey = "$target\n$language"
+        val body = subtitleCache[cacheKey] ?: runCatching { fetchSubtitleAsVtt(target, headers, language) }
             .onFailure { Log.w(TAG, "Subtitle conversion failed: ${it.message}") }
             .getOrNull()
-            ?.also { subtitleCache[target] = it }
+            ?.also { subtitleCache[cacheKey] = it }
         if (body == null) {
             writeError(output, 502, "Bad Gateway")
             return
@@ -351,8 +362,8 @@ class CastMediaProxy @Inject constructor(
         if (!headOnly) output.write(body)
     }
 
-    private fun fetchSubtitleAsVtt(target: String, headers: Map<String, String>): ByteArray {
-        val text = runBlocking { subtitleFetcher.fetchText(target, headers) }
+    private fun fetchSubtitleAsVtt(target: String, headers: Map<String, String>, language: String?): ByteArray {
+        val text = runBlocking { subtitleFetcher.fetchText(target, headers, language) }
         val cues = parseSubtitles(text).filterNot { it.text.isSubtitleAd() }
         if (cues.isEmpty()) throw IOException(context.getString(R.string.dl_no_cues))
         return cues.toWebVtt().toByteArray(Charsets.UTF_8)
@@ -433,6 +444,10 @@ class CastMediaProxy @Inject constructor(
         }
         return Base64.encodeToString(payload.toByteArray(Charsets.UTF_8), BASE64_FLAGS)
     }
+
+    /** The subtitle language a [subtitleUrl] carries in its query, if any. */
+    private fun languageOf(path: String): String? =
+        Uri.parse(path).getQueryParameter(LANGUAGE_PARAM)?.takeIf { it.isNotBlank() }
 
     private fun decode(segment: String): Pair<String, Map<String, String>>? = runCatching {
         val lines = Base64.decode(segment, BASE64_FLAGS).toString(Charsets.UTF_8).split('\n')
@@ -533,6 +548,7 @@ class CastMediaProxy @Inject constructor(
         private const val HLS_FMP4 = "fmp4"
         private const val HLS_TS = "mpeg2_ts"
         private const val SNIFF_BYTES = 16
+        private const val LANGUAGE_PARAM = "lang"
         private const val MAX_PLAYLIST_BYTES = 16 * 1024 * 1024
         private const val BASE64_FLAGS = Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
         private val PROXIED_SCHEMES = setOf("http", "https", "content", "file")
