@@ -148,6 +148,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.net.URL
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.roundToInt
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -370,6 +372,36 @@ fun ExoPlayerView(
     var surfaceWidth by remember { mutableIntStateOf(0) }
     var surfaceHeight by remember { mutableIntStateOf(0) }
     val haptics = LocalHapticFeedback.current
+    // Read inside the swipe detectors, which outlive a change of controls.
+    val latestDpadControls by rememberUpdatedState(dpadControls)
+    // Whether the level a brightness or volume swipe is moving already sits at an end, so a finger
+    // held there, or a wobble against it, does not repeat the stop.
+    var levelAtEnd by remember { mutableStateOf(false) }
+
+    /**
+     * The feel of a brightness or volume swipe, mirroring the hold-to-speed-up slide: a light tick
+     * for each tenth the level crosses, and a firmer one where it stops at either end.
+     */
+    fun levelSwipeHaptics(before: Float, after: Float) {
+        // A remote has no finger to feel it, and an unchanged level has nothing to tell.
+        if (latestDpadControls || after == before) return
+        if (after <= 0f || after >= 1f) {
+            if (!levelAtEnd) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            levelAtEnd = true
+            return
+        }
+        // Counted toward the direction of travel, so landing on a tenth ticks once and leaving it
+        // the other way ticks again only at the next one.
+        val crossed = if (after > before) {
+            floor(after * LEVEL_SWIPE_STEPS) != floor(before * LEVEL_SWIPE_STEPS)
+        } else {
+            ceil(after * LEVEL_SWIPE_STEPS) != ceil(before * LEVEL_SWIPE_STEPS)
+        }
+        if (crossed) {
+            levelAtEnd = false
+            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+        }
+    }
 
     fun changeVideoScale(scale: VideoScale, announce: Boolean = true) {
         videoScale = scale
@@ -1246,6 +1278,12 @@ fun ExoPlayerView(
                         }
                         // Start from the screen's real brightness so the first swipe doesn't jump.
                         if (verticalMode == VerticalSwipe.BRIGHTNESS) brightness = currentBrightness(activity)
+                        // A swipe that starts at an end has already been told so.
+                        levelAtEnd = when (verticalMode) {
+                            VerticalSwipe.BRIGHTNESS -> brightness <= 0f || brightness >= 1f
+                            VerticalSwipe.VOLUME -> volume <= 0f || volume >= 1f
+                            else -> false
+                        }
                         if (isLocked) revealUnlockButton()
                     },
                     onDragEnd = {
@@ -1280,7 +1318,9 @@ fun ExoPlayerView(
                             VerticalSwipe.NONE -> Unit
                             VerticalSwipe.FULLSCREEN -> verticalTravel += dragAmount
                             VerticalSwipe.BRIGHTNESS -> {
+                                val before = brightness
                                 brightness = (brightness + delta).coerceIn(0f, 1f)
+                                levelSwipeHaptics(before, brightness)
                                 showBrightnessOverlay = true
                                 showVolumeOverlay = false
                                 activity?.let { act ->
@@ -1291,8 +1331,10 @@ fun ExoPlayerView(
                                 gestureOverlayTimeout = System.currentTimeMillis() + 2000
                             }
                             VerticalSwipe.VOLUME -> {
+                                val before = volume
                                 volume = (volume + delta).coerceIn(0f, 1f)
                                 exoPlayer.volume = volume
+                                levelSwipeHaptics(before, volume)
                                 showVolumeOverlay = true
                                 showBrightnessOverlay = false
                                 gestureOverlayTimeout = System.currentTimeMillis() + 2000
@@ -2362,6 +2404,9 @@ private enum class VerticalSwipe { NONE, BRIGHTNESS, VOLUME, FULLSCREEN }
 
 /** How far (as a share of the player's height) a swipe must travel to go fullscreen, exit or minimize. */
 private const val SWIPE_ACTION_FRACTION = 0.12f
+
+/** Brightness and volume swipes tick at every tenth of their range (10%, 20%, ...). */
+private const val LEVEL_SWIPE_STEPS = 10f
 
 /** -1 for the left 35% of the player, 1 for the right 35%, 0 for the middle. */
 private fun tapZone(x: Float, width: Int): Int = when {
