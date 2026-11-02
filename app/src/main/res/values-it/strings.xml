@@ -82,6 +82,7 @@
     <string name="home_recently_watched">Visti di recente</string>
     <string name="home_weekend_movies">Film per il weekend</string>
     <string name="home_anime_movies">Film anime</string>
+    <string name="home_popular_on_service">Popolari su %1$s</string>
     <string name="home_critically_acclaimed">Acclamati dalla critica</string>
     <string name="home_top_result">Miglior risultato</string>
     <string name="home_rank_this_week">%1$d questa settimana</string>

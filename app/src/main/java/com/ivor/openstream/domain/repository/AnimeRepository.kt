@@ -5,6 +5,7 @@ import com.ivor.openstream.data.remote.model.AnimeDto
 import com.ivor.openstream.data.remote.model.SeasonDetailsDto
 import com.ivor.openstream.domain.model.AnimeCatalog
 import com.ivor.openstream.domain.model.BrowseGenre
+import com.ivor.openstream.domain.model.StreamingService
 
 interface AnimeRepository {
     suspend fun getPopularAnime(page: Int): Result<List<AnimeDto>>
@@ -17,6 +18,12 @@ interface AnimeRepository {
      * stays stable; [forceRefresh] fetches a fresh copy (pull to refresh).
      */
     suspend fun getCatalog(catalog: AnimeCatalog, forceRefresh: Boolean = false): Result<List<AnimeDto>>
+
+    /**
+     * Popular movies and series on [service] in the device's region (US when the device has none),
+     * subscription titles only. Cached like [getCatalog]; empty when the service isn't offered there.
+     */
+    suspend fun getServiceCatalog(service: StreamingService, forceRefresh: Boolean = false): Result<List<AnimeDto>>
 
     /** Forgets the lists [getCatalog] built ("Clear cache"); the next Home load rebuilds them. */
     fun clearCachedCatalogs()

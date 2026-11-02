@@ -89,6 +89,7 @@
     <string name="home_recently_watched">हाल में देखा गया</string>
     <string name="home_weekend_movies">वीकेंड फ़िल्में</string>
     <string name="home_anime_movies">ऐनिमे फ़िल्में</string>
+    <string name="home_popular_on_service">%1$s पर लोकप्रिय</string>
     <string name="home_critically_acclaimed">समालोचकों की पसंद</string>
     <string name="home_top_result">शीर्ष परिणाम</string>
     <string name="home_rank_this_week">इस सप्ताह %1$d</string>

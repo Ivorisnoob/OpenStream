@@ -15,6 +15,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import com.ivor.openstream.domain.model.AnimeCatalog
+import com.ivor.openstream.domain.model.StreamingService
 import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.domain.repository.AnimeRepository
 import com.ivor.openstream.domain.repository.WatchProgressRepository
@@ -23,7 +24,9 @@ import com.ivor.openstream.data.repository.TitleRatingRepository
 import com.ivor.openstream.domain.repository.WatchLaterRepository
 import com.ivor.openstream.domain.matching.TitleMatcher
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +37,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -225,6 +229,9 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { watchProgressRepository.dismiss(item.mediaType, item.tmdbId) }
     }
 
+    /** Loads the per-service rows after the rest of Home is on screen. */
+    private var serviceRowsJob: Job? = null
+
     /** Pull-to-refresh keeps the current feed on screen while the new one loads. */
     fun refresh() {
         val current = _uiState.value
@@ -233,6 +240,7 @@ class HomeViewModel @Inject constructor(
     }
 
     fun loadData(showLoading: Boolean = true, forceRefresh: Boolean = false) {
+        serviceRowsJob?.cancel()
         viewModelScope.launch {
             if (showLoading) _uiState.value = HomeUiState.Loading
             val catalogs = coroutineScope {
@@ -260,19 +268,52 @@ class HomeViewModel @Inject constructor(
                 HomeRail("anime-movies", context.getString(R.string.home_anime_movies), RailStyle.POSTER, catalogs.getValue(AnimeCatalog.ANIME_MOVIES))
             ).filter { it.items.isNotEmpty() }
 
+            // A refresh keeps the service rows on screen until their new copies arrive; a full
+            // reload (a kids profile switch) drops them, since they were filtered for the old profile.
+            val keptServiceRails = if (showLoading) emptyList() else {
+                (_uiState.value as? HomeUiState.Success)?.rails.orEmpty().filter { it.key.startsWith(SERVICE_RAIL_PREFIX) }
+            }
             val success = HomeUiState.Success(
                 hero = trending.filter { it.posterPath != null }.take(8),
-                rails = rails
+                rails = rails + keptServiceRails
             )
             _uiState.value = success
-            prefetchArtwork(success)
+            prefetchArtwork(success.hero, rails)
+            loadServiceRows(forceRefresh)
+        }
+    }
+
+    /**
+     * "Popular on Netflix" and the like, appended below the other rows once they are showing, so
+     * these extra requests never hold up Home's first paint.
+     */
+    private fun loadServiceRows(forceRefresh: Boolean) {
+        serviceRowsJob?.cancel()
+        serviceRowsJob = viewModelScope.launch {
+            val serviceRails = coroutineScope {
+                StreamingService.entries.map { service ->
+                    async { service to repository.getServiceCatalog(service, forceRefresh).getOrDefault(emptyList()) }
+                }.awaitAll()
+            }.map { (service, items) ->
+                HomeRail(
+                    key = SERVICE_RAIL_PREFIX + service.key,
+                    title = context.getString(R.string.home_popular_on_service, service.displayName),
+                    style = RailStyle.POSTER,
+                    items = items
+                )
+            }.filter { it.items.isNotEmpty() }
+            _uiState.update { state ->
+                if (state !is HomeUiState.Success) return@update state
+                state.copy(rails = state.rails.filterNot { it.key.startsWith(SERVICE_RAIL_PREFIX) } + serviceRails)
+            }
+            prefetchArtwork(emptyList(), serviceRails)
         }
     }
 
     /** The rows below the fold, in the sizes HomeScreen draws them, so scrolling finds them ready. */
-    private fun prefetchArtwork(state: HomeUiState.Success) {
-        val hero = state.hero.map { TmdbImages.url("w780", it.posterPath) }
-        val rails = state.rails.flatMap { rail ->
+    private fun prefetchArtwork(heroItems: List<AnimeDto>, railList: List<HomeRail>) {
+        val hero = heroItems.map { TmdbImages.url("w780", it.posterPath) }
+        val rails = railList.flatMap { rail ->
             rail.items.take(PREFETCH_PER_RAIL).map { item ->
                 when (rail.style) {
                     RailStyle.LANDSCAPE -> TmdbImages.url("w780", item.backdropPath)
@@ -285,6 +326,9 @@ class HomeViewModel @Inject constructor(
 }
 
 private val AnimeDto.homeMediaType: String get() = if (isMovie) "movie" else "tv"
+
+/** Keys of the per-service rows, which load after the rest of Home. */
+private const val SERVICE_RAIL_PREFIX = "service-"
 
 /** Rails show 20 titles; the first screenfuls of each are worth having ready. */
 private const val PREFETCH_PER_RAIL = 12
