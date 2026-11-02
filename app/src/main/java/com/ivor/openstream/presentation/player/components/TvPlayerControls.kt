@@ -42,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -70,8 +71,9 @@ import com.ivor.openstream.presentation.components.ExpressiveMotion
  * players do: what is playing, the progress bar, then one row of buttons. There is no back button
  * (the remote has one) and nothing a TV cannot use (lock, rotation, fullscreen, Cast, PiP).
  *
- * Focus starts on Play/Pause. On the progress bar Left and Right seek, OK plays or pauses. Every key
- * press reports [onInteraction] so the chrome stays up while the viewer is moving around it.
+ * Focus starts on Play/Pause. On the progress bar Left and Right seek, OK plays or pauses, and Up
+ * goes to the skip button while [skipFocusRequester] says one is showing. Every key press reports
+ * [onInteraction] so the chrome stays up while the viewer is moving around it.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -100,6 +102,8 @@ fun TvPlayerControls(
     onVideoScaleClick: () -> Unit,
     onInteraction: () -> Unit,
     playFocusRequester: FocusRequester,
+    /** The skip button above the chrome, while it shows; null when there is none. */
+    skipFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier
 ) {
     val chromeFade = ExpressiveMotion.finiteEffectsSpec()
@@ -155,7 +159,8 @@ fun TvPlayerControls(
                     totalTime = totalTime,
                     onRewind = onRewind,
                     onForward = onForward,
-                    onPauseToggle = onPauseToggle
+                    onPauseToggle = onPauseToggle,
+                    upTarget = skipFocusRequester
                 )
                 Spacer(Modifier.height(16.dp))
                 Row(
@@ -250,7 +255,9 @@ private fun SeekBar(
     totalTime: Long,
     onRewind: () -> Unit,
     onForward: () -> Unit,
-    onPauseToggle: () -> Unit
+    onPauseToggle: () -> Unit,
+    /** Where Up goes from here; null leaves it to the geometry. */
+    upTarget: FocusRequester?
 ) {
     val duration = totalTime.coerceAtLeast(0L)
     val progress = if (duration > 0) (currentTime.toFloat() / duration).coerceIn(0f, 1f) else 0f
@@ -276,6 +283,8 @@ private fun SeekBar(
                     else -> false
                 }
             }
+            // The skip button sits off to the side, so Up is pointed at it rather than searched for.
+            .focusProperties { if (upTarget != null) up = upTarget }
             .focusable(interactionSource = interactionSource)
             .semantics {
                 contentDescription = timeLabel
