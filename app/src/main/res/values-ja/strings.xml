@@ -207,6 +207,7 @@
     <string name="player_enter_fullscreen">全画面にする</string>
     <string name="player_exit_fullscreen">全画面を終了</string>
     <string name="player_pip">ピクチャーインピクチャー</string>
+    <string name="player_shader_look">シェーダー効果</string>
     <string name="player_zoom_fill">拡大して画面に合わせる</string>
     <string name="player_playback_settings">再生設定</string>
     <string name="player_waiting_tracks">映像トラックを待機しています</string>

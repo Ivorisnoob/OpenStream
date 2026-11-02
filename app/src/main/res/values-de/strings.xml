@@ -207,6 +207,7 @@
     <string name="player_enter_fullscreen">Vollbild aktivieren</string>
     <string name="player_exit_fullscreen">Vollbild verlassen</string>
     <string name="player_pip">Bild-in-Bild</string>
+    <string name="player_shader_look">Shader-Effekt</string>
     <string name="player_zoom_fill">Zum Füllen zoomen</string>
     <string name="player_playback_settings">Wiedergabe-Einstellungen</string>
     <string name="player_waiting_tracks">Warte auf Videospuren</string>

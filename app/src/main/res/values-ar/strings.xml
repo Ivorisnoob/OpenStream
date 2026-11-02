@@ -222,6 +222,7 @@
     <string name="player_enter_fullscreen">الدخول في ملء الشاشة</string>
     <string name="player_exit_fullscreen">الخروج من ملء الشاشة</string>
     <string name="player_pip">صورة داخل صورة</string>
+    <string name="player_shader_look">تأثير التظليل</string>
     <string name="player_zoom_fill">تكبير للملء</string>
     <string name="player_playback_settings">إعدادات التشغيل</string>
     <string name="player_waiting_tracks">بانتظار مسارات الفيديو</string>

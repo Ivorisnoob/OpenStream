@@ -170,6 +170,7 @@ fun PlayerScreen(
     val currentEpisode by viewModel.currentEpisode.collectAsState()
     val captionSettings by viewModel.captionSettings.collectAsState()
     val videoShaders by viewModel.videoShaders.collectAsState()
+    val videoShaderHidden by viewModel.videoShaderHidden.collectAsState()
     val serversState by viewModel.serversState.collectAsState()
     val activeServer by viewModel.activeServer.collectAsState()
     val currentDownload by viewModel.currentDownload.collectAsState()
@@ -698,6 +699,8 @@ fun PlayerScreen(
                             videoShaders = if (viewModel.shadersApplyNow) videoShaders else videoShaders.copy(masterEnabled = false),
                             onPreviewVideoShaders = viewModel::previewVideoShaders,
                             onVideoShadersChange = viewModel::setVideoShaders,
+                            videoShaderHidden = videoShaderHidden,
+                            onVideoShaderHiddenChange = viewModel::setVideoShaderHidden,
                             videoGestures = appSettings.videoGestures,
                             resumedFromMs = resumedFromMs,
                             onPlayFromStart = {
