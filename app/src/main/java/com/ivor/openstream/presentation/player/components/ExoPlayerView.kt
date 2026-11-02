@@ -246,6 +246,9 @@ fun ExoPlayerView(
     /** A shader slider mid-drag: on the picture now, stored when the finger lifts. */
     onPreviewVideoShaders: (VideoShaderCustomization) -> Unit = {},
     onVideoShadersChange: (VideoShaderCustomization) -> Unit = {},
+    /** The controls' quick toggle has the look off the picture; nothing chosen is changed. */
+    videoShaderHidden: Boolean = false,
+    onVideoShaderHiddenChange: (Boolean) -> Unit = {},
     /** Which of the player's optional gestures are on, and how long the controls stay up. */
     videoGestures: VideoGestureCustomization = VideoGestureCustomization(),
     /**
@@ -1685,6 +1688,14 @@ fun ExoPlayerView(
             qualityLabel = qualityDisplayLabel(selectedQuality, activeVideoHeight),
             hasSubtitles = subtitleOptions.isNotEmpty(),
             subtitlesEnabled = selectedSubtitle?.isDisabled == false,
+            // Only while a look is on the picture, or taken off it by this toggle.
+            onShaderLookToggle = if (videoShaders.isEffectActive) {
+                {
+                    onVideoShaderHiddenChange(!videoShaderHidden)
+                    areControlsVisible = true
+                }
+            } else null,
+            shaderLookShown = !videoShaderHidden,
             currentTime = currentTime,
             totalTime = totalTime,            onPauseToggle = {
                 if (exoPlayer.isPlaying) {

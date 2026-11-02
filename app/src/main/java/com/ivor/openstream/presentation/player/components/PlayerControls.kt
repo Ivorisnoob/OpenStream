@@ -50,12 +50,16 @@ import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.rounded.AutoFixHigh
+import androidx.compose.material.icons.rounded.AutoFixOff
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.IconToggleButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -140,6 +144,10 @@ fun PlayerControls(
     qualityLabel: String = stringResource(R.string.sheet_auto),
     hasSubtitles: Boolean = false,
     subtitlesEnabled: Boolean = false,
+    /** Takes the shader look off the picture and back, to compare; null hides the button. */
+    onShaderLookToggle: (() -> Unit)? = null,
+    /** Whether the shader look is on the picture, which is the toggle's selected state. */
+    shaderLookShown: Boolean = true,
     currentTime: Long,
     totalTime: Long,
     onPauseToggle: () -> Unit,
@@ -206,6 +214,8 @@ fun PlayerControls(
                 qualityLabel = qualityLabel,
                 hasSubtitles = hasSubtitles,
                 subtitlesEnabled = subtitlesEnabled,
+                onShaderLookToggle = onShaderLookToggle,
+                shaderLookShown = shaderLookShown,
                 onBackClick = onBackClick,
                 onSourcesClick = onSourcesClick,
                 onQualityClick = onQualityClick,
@@ -256,6 +266,8 @@ private fun TopBar(
     qualityLabel: String,
     hasSubtitles: Boolean,
     subtitlesEnabled: Boolean,
+    onShaderLookToggle: (() -> Unit)?,
+    shaderLookShown: Boolean,
     onBackClick: () -> Unit,
     onSourcesClick: () -> Unit,
     onQualityClick: () -> Unit,
@@ -323,6 +335,14 @@ private fun TopBar(
                 icon = if (subtitlesEnabled) Icons.Default.ClosedCaption else Icons.Default.ClosedCaptionDisabled,
                 contentDescription = stringResource(R.string.player_subtitles),
                 onClick = onSubtitlesClick
+            )
+        }
+        onShaderLookToggle?.let { toggle ->
+            HudIconToggleButton(
+                icon = if (shaderLookShown) Icons.Rounded.AutoFixHigh else Icons.Rounded.AutoFixOff,
+                contentDescription = stringResource(R.string.player_shader_look),
+                checked = shaderLookShown,
+                onCheckedChange = { toggle() }
             )
         }
         onPictureInPictureClick?.let { HudIconButton(Icons.Default.PictureInPictureAlt, stringResource(R.string.player_pip), it) }
@@ -616,6 +636,48 @@ private fun HudIconButton(
             icon,
             contentDescription = contentDescription,
             tint = if (isFocused) MaterialTheme.colorScheme.onPrimaryContainer else Color.White
+        )
+    }
+}
+
+/**
+ * [HudIconButton] with an on and off state: filled in the theme's container colour while on, so
+ * the state reads at a glance over any picture, and announced as a toggle.
+ */
+@Composable
+private fun HudIconToggleButton(
+    icon: ImageVector,
+    contentDescription: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    IconToggleButton(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        // The container morphs between its off and on shapes, so the state reads in its outline too.
+        shapes = IconButtonDefaults.toggleableShapes(),
+        interactionSource = interactionSource,
+        colors = IconButtonDefaults.iconToggleButtonColors(
+            contentColor = Color.White,
+            checkedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            checkedContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        ),
+        modifier = Modifier
+            .then(
+                if (isFocused) {
+                    Modifier
+                        .scale(1.15f)
+                        .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                        .border(2.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                } else Modifier
+            )
+    ) {
+        Icon(
+            icon,
+            contentDescription = contentDescription,
+            tint = if (isFocused) MaterialTheme.colorScheme.onPrimaryContainer else LocalContentColor.current
         )
     }
 }

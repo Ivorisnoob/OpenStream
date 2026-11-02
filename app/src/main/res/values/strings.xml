@@ -221,6 +221,7 @@
     <string name="player_enter_fullscreen">Enter fullscreen</string>
     <string name="player_exit_fullscreen">Exit fullscreen</string>
     <string name="player_pip">Picture in picture</string>
+    <string name="player_shader_look">Shader look</string>
     <string name="player_zoom_fill">Zoom to fill</string>
     <string name="player_playback_settings">Playback settings</string>
     <string name="player_waiting_tracks">Waiting for video tracks</string>

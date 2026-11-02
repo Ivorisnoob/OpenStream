@@ -206,6 +206,7 @@
     <string name="player_enter_fullscreen">На весь екран</string>
     <string name="player_exit_fullscreen">Вийти з повноекранного режиму</string>
     <string name="player_pip">Картинка в картинці</string>
+    <string name="player_shader_look">Ефект шейдера</string>
     <string name="player_zoom_fill">Масштаб до заповнення</string>
     <string name="player_playback_settings">Налаштування відтворення</string>
     <string name="player_waiting_tracks">Очікування відеодоріжок</string>

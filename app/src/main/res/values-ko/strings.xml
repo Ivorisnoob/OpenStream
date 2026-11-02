@@ -221,6 +221,7 @@
     <string name="player_enter_fullscreen">전체 화면으로 보기</string>
     <string name="player_exit_fullscreen">전체 화면 종료</string>
     <string name="player_pip">PIP(화면 속 화면)</string>
+    <string name="player_shader_look">셰이더 효과</string>
     <string name="player_zoom_fill">화면에 맞게 확대</string>
     <string name="player_playback_settings">재생 설정</string>
     <string name="player_waiting_tracks">비디오 트랙 대기 중</string>

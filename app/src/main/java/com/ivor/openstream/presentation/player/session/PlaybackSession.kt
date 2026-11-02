@@ -207,6 +207,15 @@ class PlaybackSession @Inject constructor(
     /** What the shader stage is drawing from: the switch, the preset and the picture sliders. */
     val videoShaders: StateFlow<VideoShaderCustomization> = _videoShaders.asStateFlow()
 
+    private val _videoShaderHidden = MutableStateFlow(false)
+
+    /**
+     * Whether the player's quick toggle has taken the look off the picture to compare it with the
+     * original. Nothing is stored: the chosen look and its sliders stay as they are, and the look
+     * comes back with the next change to it or the next title.
+     */
+    val videoShaderHidden: StateFlow<Boolean> = _videoShaderHidden.asStateFlow()
+
     private var shaderRedrawJob: Job? = null
 
     private val volumeBooster = VolumeBooster()
@@ -254,10 +263,24 @@ class PlaybackSession @Inject constructor(
         appSettingsStore.setVideoShaders(settings)
     }
 
+    /** Takes the look off the picture, or puts it back, without changing what is chosen. */
+    fun setVideoShaderHidden(hidden: Boolean) {
+        if (hidden == _videoShaderHidden.value) return
+        _videoShaderHidden.value = hidden
+        drawVideoShaders()
+    }
+
     private fun applyVideoShaders(settings: VideoShaderCustomization) {
         if (settings == _videoShaders.value) return
         _videoShaders.value = settings
-        videoShaderControl.settings = settings
+        // A change to the look is made to be seen.
+        _videoShaderHidden.value = false
+        drawVideoShaders()
+    }
+
+    private fun drawVideoShaders() {
+        val settings = _videoShaders.value
+        videoShaderControl.settings = if (_videoShaderHidden.value) settings.copy(masterEnabled = false) else settings
         // A paused player draws nothing new, so a look changed while it is paused would wait for Play.
         redrawPausedFrame()
     }
@@ -488,6 +511,7 @@ class PlaybackSession @Inject constructor(
             lastSavedPositionMs = -1L
             completionRecordedFor = null
             endedBySleepTimer = false
+            setVideoShaderHidden(false)
         }
         _nowPlaying.value = nowPlaying
         refreshSessionActivity()

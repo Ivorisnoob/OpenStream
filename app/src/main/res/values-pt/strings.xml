@@ -206,6 +206,7 @@
     <string name="player_enter_fullscreen">Tela cheia</string>
     <string name="player_exit_fullscreen">Sair da tela cheia</string>
     <string name="player_pip">Picture in picture</string>
+    <string name="player_shader_look">Efeito de shader</string>
     <string name="player_zoom_fill">Zoom para preencher</string>
     <string name="player_playback_settings">Configurações de reprodução</string>
     <string name="player_waiting_tracks">Aguardando faixas de vídeo</string>

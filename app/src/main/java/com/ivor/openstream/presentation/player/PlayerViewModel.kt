@@ -168,6 +168,11 @@ class PlayerViewModel @Inject constructor(
     fun setVideoShaders(settings: VideoShaderCustomization) =
         playbackSession.setVideoShaders(settings)
 
+    /** True while the controls' quick toggle has the look off the picture, for comparison. */
+    val videoShaderHidden: StateFlow<Boolean> = playbackSession.videoShaderHidden
+
+    fun setVideoShaderHidden(hidden: Boolean) = playbackSession.setVideoShaderHidden(hidden)
+
     /**
      * Pauses playback and hands the playing stream to another player app (VLC, mpv, MX Player,
      * Just Player, Nova) through the system chooser. Only for streams: a download lives in this

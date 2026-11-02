@@ -206,6 +206,7 @@
     <string name="player_enter_fullscreen">Passer en plein écran</string>
     <string name="player_exit_fullscreen">Quitter le plein écran</string>
     <string name="player_pip">Image dans l’image</string>
+    <string name="player_shader_look">Effet de shader</string>
     <string name="player_zoom_fill">Zoom pour remplir</string>
     <string name="player_playback_settings">Paramètres de lecture</string>
     <string name="player_waiting_tracks">Attente des pistes vidéo</string>
