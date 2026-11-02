@@ -79,9 +79,11 @@ Rules:
   once (rank by quality, order breaks ties) or in order (one at a time, stop at the first with
   streams; ranking puts the order before quality; "Find more" searches everything).
   The player's automatic search first asks the source that last played this title
-  (`rememberWorkingSource`, kept per movie and per show across its episodes; a title nothing has
-  played yet gets the normal search) on its own, and stops there only when it has a stream at the
-  quality cap (`streamMaxHeight`; "Auto"/"HD" don't count). Below the cap its streams are sent at
+  (`rememberWorkingSource`, kept per movie and per show across its episodes for the 100 titles
+  played most recently; a title nothing has played yet gets the normal search) on its own, and
+  stops there only when it has a stream at the quality cap the player applies (`streamMaxHeight`,
+  or the stricter mobile-data cap; with no cap, 1080p or better; "Auto"/"HD" don't count). Below
+  the cap its streams are sent at
   once and the normal search runs for the rest (in order: up to the first other source with
   streams); with none, or no answer in 10 s, the normal search runs. Downloads and "Find more"
   search everything.

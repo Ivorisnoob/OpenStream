@@ -6,6 +6,7 @@ import com.ivor.openstream.domain.model.ServerResolution
 import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.domain.repository.StreamingRepository
 import android.util.Log
+import com.ivor.openstream.data.playback.StreamDataGuard
 import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.settings.SourceSearchMode
 import kotlinx.coroutines.CancellationException
@@ -40,7 +41,8 @@ class StreamingRepositoryImpl @Inject constructor(
     @Named("StreamingClient") private val client: OkHttpClient,
     private val preferences: SharedPreferences,
     private val appSettings: AppSettingsStore,
-    private val streamCache: ResolvedStreamCache
+    private val streamCache: ResolvedStreamCache,
+    private val dataGuard: StreamDataGuard
 ) : StreamingRepository {
     private val consecutiveFailures = ConcurrentHashMap<String, Int>()
 
@@ -182,9 +184,10 @@ class StreamingRepositoryImpl @Inject constructor(
             return outcome.result.getOrNull().orEmpty().isNotEmpty()
         }
 
-        // The title's own source is enough on its own only when it reaches the quality cap.
+        // The title's own source is enough on its own only when it reaches the quality cap the
+        // player will apply, which on mobile data can be the stricter data-saving one.
         fun rememberedIsEnough(): Boolean =
-            ServerRanker.reachesQualityCap(servers, appSettings.current.streamMaxHeight)
+            ServerRanker.reachesQualityCap(servers, effectiveHeightCap())
 
         if (inOrder && !includeFallbacks) {
             // The user's order exactly, fallbacks included wherever they were placed; only the
@@ -374,15 +377,38 @@ class StreamingRepositoryImpl @Inject constructor(
     private fun preferenceKey(identity: MediaIdentity): String =
         "last_stream_server:${identity.cacheKey}"
 
+    /**
+     * Kept for the [MAX_REMEMBERED_TITLES] titles played most recently; older titles are forgotten
+     * and get the normal search again.
+     */
+    @Synchronized
     override fun rememberWorkingSource(identity: MediaIdentity, server: VideoServer) {
         if (server.providerId.isBlank()) return
-        preferences.edit()
-            .putString(workingSourceKey(identity), server.providerId)
+        val key = workingSourceKey(identity)
+        // Oldest first; this title moves to the end.
+        val order = preferences.getString(WORKING_SOURCE_ORDER_KEY, null)
+            ?.split('\n')
+            ?.filter { it.isNotBlank() && it != key }
+            .orEmpty() + key
+        val editor = preferences.edit()
+            .putString(key, server.providerId)
+            .putString(WORKING_SOURCE_ORDER_KEY, order.takeLast(MAX_REMEMBERED_TITLES).joinToString("\n"))
             // The old per-type and app-wide entries are no longer read.
             .remove(LEGACY_WORKING_SOURCE_KEY)
             .remove("$LEGACY_WORKING_SOURCE_KEY:movie")
             .remove("$LEGACY_WORKING_SOURCE_KEY:tv")
-            .apply()
+        order.dropLast(MAX_REMEMBERED_TITLES).forEach { forgotten -> editor.remove(forgotten) }
+        editor.apply()
+    }
+
+    /**
+     * The tallest rendition the player allows right now: the stricter of the quality cap and, on
+     * mobile data, the data-saving cap (as PlaybackSession.heightCap does). 0 means no limit.
+     */
+    private fun effectiveHeightCap(): Int {
+        val settings = appSettings.current
+        val metered = if (dataGuard.meteredNow) settings.meteredMaxHeight else 0
+        return listOf(settings.streamMaxHeight, metered).filter { it > 0 }.minOrNull() ?: 0
     }
 
     /** The source that last played this title: the movie, or any episode of the show. */
@@ -415,6 +441,10 @@ class StreamingRepositoryImpl @Inject constructor(
         const val REMEMBERED_HEAD_START_MS = 10_000L
         const val WORKING_SOURCE_KEY = "title_working_source"
         const val LEGACY_WORKING_SOURCE_KEY = "last_working_source"
+
+        /** The remembered titles' keys, oldest first, one per line. */
+        const val WORKING_SOURCE_ORDER_KEY = "title_working_source_order"
+        const val MAX_REMEMBERED_TITLES = 100
         const val CIRCUIT_BREAKER_THRESHOLD = 5
         const val BREAKER_COOLDOWN_MS = 2 * 60_000L
     }

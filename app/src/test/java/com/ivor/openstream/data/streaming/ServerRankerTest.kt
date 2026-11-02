@@ -53,7 +53,11 @@ class ServerRankerTest {
         assertTrue(ServerRanker.reachesQualityCap(listOf(sd, fhd), 1080))
         assertTrue(ServerRanker.reachesQualityCap(listOf(sd), 720))
         assertFalse(ServerRanker.reachesQualityCap(listOf(fhd), 2160))
+        assertTrue(ServerRanker.reachesQualityCap(listOf(uhd), 2160))
+        // No cap: 1080p or better is enough, and vague labels still are not.
         assertTrue(ServerRanker.reachesQualityCap(listOf(uhd), 0))
+        assertTrue(ServerRanker.reachesQualityCap(listOf(sd, fhd), 0))
+        assertFalse(ServerRanker.reachesQualityCap(listOf(sd, auto, hd), 0))
         assertFalse(ServerRanker.reachesQualityCap(emptyList(), 1080))
     }
 
