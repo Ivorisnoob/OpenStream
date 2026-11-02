@@ -45,6 +45,7 @@ import com.ivor.openstream.presentation.marketplace.MarketplaceScreen
 import com.ivor.openstream.presentation.player.session.MiniPlayer
 import com.ivor.openstream.presentation.lists.CustomListScreen
 import com.ivor.openstream.data.settings.NavBarStyle
+import com.ivor.openstream.data.settings.StartScreen
 import com.ivor.openstream.presentation.profiles.ManageProfilesScreen
 import com.ivor.openstream.presentation.profiles.ProfilesViewModel
 import com.ivor.openstream.presentation.profiles.WhoIsWatchingScreen
@@ -175,6 +176,16 @@ fun AppNavigation(
     val miniPlayerViewModel: MiniPlayerViewModel = hiltViewModel()
     val nowPlaying by miniPlayerViewModel.session.nowPlaying.collectAsState()
     val appViewModel: AppViewModel = hiltViewModel()
+    // The tab Settings says to open on; fixed for this NavHost, which can't change its start.
+    val startRoute = remember {
+        when (appViewModel.startScreen) {
+            StartScreen.HOME -> Screen.Home.route
+            StartScreen.SEARCH -> Screen.Search.route
+            StartScreen.SAVED -> Screen.WatchLater.route
+            StartScreen.DOWNLOADS -> Screen.Downloads.route
+            StartScreen.HISTORY -> Screen.History.route
+        }
+    }
     val profilesViewModel: ProfilesViewModel = hiltViewModel()
     val profiles by profilesViewModel.profiles.collectAsState()
     val activeProfile by profilesViewModel.activeProfile.collectAsState()
@@ -271,7 +282,7 @@ fun AppNavigation(
         ) {
             NavHost(
                 navController = navController,
-                startDestination = Screen.Home.route,
+                startDestination = startRoute,
                 modifier = Modifier.fillMaxSize(),
                 enterTransition = { with(NavTransitions) { enter(animatedNav) } },
                 exitTransition = { with(NavTransitions) { exit(animatedNav) } },
@@ -297,7 +308,6 @@ fun AppNavigation(
                             navController.navigate(Screen.Details.createRoute(mediaType, id))
                         },
                         onSettingsClick = { navController.navigate(Screen.Settings.route) },
-                        onUpdateClick = { navController.navigate(Screen.Update.route) },
                         profile = activeProfile,
                         onSwitchProfile = { showProfilePicker = true }
                     )
@@ -412,7 +422,8 @@ fun AppNavigation(
                         onBackClick = { navController.popBackStack() },
                         onOpenMarketplace = { navController.navigate(Screen.Marketplace.route) },
                         onOpenProfiles = { navController.navigate(Screen.Profiles.route) },
-                        onOpenVideoShaders = { navController.navigate(Screen.VideoShaders.route) }
+                        onOpenVideoShaders = { navController.navigate(Screen.VideoShaders.route) },
+                        onOpenUpdates = { navController.navigate(Screen.Update.route) }
                     )
                 }
 

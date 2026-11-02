@@ -974,4 +974,22 @@
     <string name="calendar_suggestions">يُعرض هذا الأسبوع</string>
     <string name="calendar_some_failed">تعذر فحص بعض العناوين. اسحب لأسفل للمحاولة مرة أخرى.</string>
     <string name="calendar_error">تعذر تحميل التقويم</string>
+    <string name="st_section_quality">الجودة والبيانات</string>
+    <string name="st_section_network">الشبكة</string>
+    <string name="st_search_hint">البحث في الإعدادات</string>
+    <string name="st_search_none">لا توجد إعدادات تطابق «%1$s»</string>
+    <string name="st_search_none_hint">جرّب كلمة أخرى، مثل المظهر أو الترجمة أو الجودة.</string>
+    <plurals name="st_search_results">
+        <item quantity="zero">لم يتم العثور على إعدادات</item>
+        <item quantity="one">تم العثور على إعداد واحد</item>
+        <item quantity="two">تم العثور على إعدادين</item>
+        <item quantity="few">تم العثور على %1$d إعدادات</item>
+        <item quantity="many">تم العثور على %1$d إعدادًا</item>
+        <item quantity="other">تم العثور على %1$d إعداد</item>
+    </plurals>
+    <string name="st_cat_personalization">التخصيص</string>
+    <string name="st_cat_player">المشغّل والإيماءات</string>
+    <string name="st_cat_library">الملفات الشخصية والمكتبة</string>
+    <string name="st_cat_about">المساعدة والمعلومات</string>
+    <string name="st_group_gestures">الإيماءات</string>
 </resources>

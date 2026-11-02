@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.downloads
 
+import com.ivor.openstream.data.downloads.DownloadStorage
 import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
@@ -77,6 +78,7 @@ class DownloadViewModel @Inject constructor(
     private val repository: DownloadRepository,
     private val localMediaRepository: LocalMediaRepository,
     val storageExporter: DownloadStorageExporter,
+    private val downloadStorage: DownloadStorage,
     savedSubtitles: SavedSubtitleRepository
 ) : ViewModel() {
 
@@ -141,7 +143,8 @@ class DownloadViewModel @Inject constructor(
                 .sortedByDescending { group -> group.items.maxOf { it.dateAdded } },
             completedCount = completed.size,
             storedBytes = completed.sumOf { it.sizeBytes },
-            freeBytes = (context.getExternalFilesDir(null) ?: context.filesDir).usableSpace,
+            // Free space where downloads go: internal storage or the SD card chosen in Settings.
+            freeBytes = downloadStorage.currentRoot().usableSpace,
             subtitleCounts = subtitleCounts,
             selectedTab = filter.tab,
             localFiles = sortedLocal,

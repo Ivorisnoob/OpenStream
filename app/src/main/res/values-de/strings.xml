@@ -917,4 +917,18 @@
     <string name="calendar_suggestions">Diese Woche im Programm</string>
     <string name="calendar_some_failed">Einige Titel konnten nicht geprüft werden. Zum Wiederholen nach unten ziehen.</string>
     <string name="calendar_error">Kalender konnte nicht geladen werden</string>
+    <string name="st_section_quality">Qualität und Daten</string>
+    <string name="st_section_network">Netzwerk</string>
+    <string name="st_search_hint">Einstellungen durchsuchen</string>
+    <string name="st_search_none">Keine Einstellung passt zu „%1$s“</string>
+    <string name="st_search_none_hint">Versuch es mit einem anderen Wort, etwa Design, Untertitel oder Qualität.</string>
+    <plurals name="st_search_results">
+        <item quantity="one">%1$d Einstellung gefunden</item>
+        <item quantity="other">%1$d Einstellungen gefunden</item>
+    </plurals>
+    <string name="st_cat_personalization">Personalisierung</string>
+    <string name="st_cat_player">Player und Gesten</string>
+    <string name="st_cat_library">Profile und Mediathek</string>
+    <string name="st_cat_about">Hilfe und Info</string>
+    <string name="st_group_gestures">Gesten</string>
 </resources>

@@ -12,6 +12,8 @@ import androidx.media3.datasource.cache.NoOpCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.scheduler.Requirements
+import com.ivor.openstream.data.downloads.DownloadStorage
+import com.ivor.openstream.data.settings.AppSettings
 import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.streaming.BROWSER_USER_AGENT
 import com.ivor.openstream.data.streaming.DownloadRequestHeaderStore
@@ -37,9 +39,9 @@ object DownloadModule {
 
     @Provides
     @Singleton
-    fun provideDownloadCache(@ApplicationContext context: Context, databaseProvider: DatabaseProvider): Cache {
-        val downloadDirectory = File(context.getExternalFilesDir(null), "downloads")
-        return SimpleCache(downloadDirectory, NoOpCacheEvictor(), databaseProvider)
+    fun provideDownloadCache(storage: DownloadStorage, databaseProvider: DatabaseProvider): Cache {
+        // On the storage chosen in Settings (internal, or an SD card); see DownloadStorage.
+        return SimpleCache(storage.downloadDirectory(), NoOpCacheEvictor(), databaseProvider)
     }
 
     @Provides
@@ -91,7 +93,7 @@ object DownloadModule {
             dataSourceFactory,
             executor
         )
-        downloadManager.requirements = downloadRequirements(settings.current.wifiOnlyDownloads)
+        downloadManager.requirements = downloadRequirements(settings.current)
         return downloadManager
     }
 
@@ -102,6 +104,12 @@ object DownloadModule {
     }
 }
 
-/** Any network, or only unmetered ones (Wi-Fi) when the user asked for that. */
-fun downloadRequirements(wifiOnly: Boolean): Requirements =
-    Requirements(if (wifiOnly) Requirements.NETWORK_UNMETERED else Requirements.NETWORK)
+/**
+ * What downloads wait for: any network, or only unmetered ones (Wi-Fi) when the user asked for
+ * that, and the charger when downloads are set to run only while charging.
+ */
+fun downloadRequirements(settings: AppSettings): Requirements {
+    val network = if (settings.wifiOnlyDownloads) Requirements.NETWORK_UNMETERED else Requirements.NETWORK
+    val charging = if (settings.chargingOnlyDownloads) Requirements.DEVICE_CHARGING else 0
+    return Requirements(network or charging)
+}

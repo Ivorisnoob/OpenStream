@@ -1,81 +1,95 @@
 package com.ivor.openstream.presentation.settings
 
-import android.Manifest
-import com.ivor.openstream.presentation.components.CenteredListBox
-import com.ivor.openstream.presentation.components.isCompactWidth
-import com.ivor.openstream.presentation.downloads.formatBytes
 import android.app.Activity
 import android.os.Build
 import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.DataUsage
-import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Animation
+import androidx.compose.material.icons.filled.AutoDelete
+import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.FormatColorText
+import androidx.compose.material.icons.filled.FormatSize
+import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.filled.Gavel
+import androidx.compose.material.icons.filled.HistoryToggleOff
+import androidx.compose.material.icons.filled.Launch
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.NewReleases
+import androidx.compose.material.icons.filled.Opacity
+import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.SdCard
+import androidx.compose.material.icons.filled.Smartphone
+import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Subscriptions
+import androidx.compose.material.icons.filled.Subtitles
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Theaters
+import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material.icons.filled.Vibration
+import androidx.compose.material.icons.filled.VerticalAlignTop
+import androidx.compose.ui.platform.LocalUriHandler
+import com.ivor.openstream.data.playback.VolumeBooster
+import com.ivor.openstream.data.settings.AutoDeleteWatched
+import com.ivor.openstream.data.settings.CaptionStyleSettings
+import com.ivor.openstream.data.settings.CaptionTextColor
+import com.ivor.openstream.data.settings.HomeRows
+import com.ivor.openstream.data.settings.PlayerPreferences
+import com.ivor.openstream.data.settings.SourceSearchMode
+import com.ivor.openstream.data.settings.StartScreen
+import com.ivor.openstream.domain.model.StreamingService
 import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CallToAction
+import androidx.compose.material.icons.filled.ClosedCaption
+import androidx.compose.material.icons.filled.Contrast
 import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.DataUsage
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.Forward10
-import androidx.compose.material.icons.filled.ClosedCaption
+import androidx.compose.material.icons.filled.Gesture
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.PictureInPictureAlt
-import com.ivor.openstream.data.settings.PipAction
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Translate
-import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.Update
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material.icons.filled.BrightnessMedium
-import androidx.compose.material.icons.filled.Contrast
-import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Badge
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LargeFlexibleTopAppBar
-import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.LoadingIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedListItem
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -84,43 +98,37 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ivor.openstream.BuildConfig
 import com.ivor.openstream.R
 import com.ivor.openstream.data.backup.LibraryBackup
-import com.ivor.openstream.data.settings.AppSettings
 import com.ivor.openstream.data.settings.AppLocale
+import com.ivor.openstream.data.settings.AppSettings
 import com.ivor.openstream.data.settings.CacheSize
 import com.ivor.openstream.data.settings.DnsProvider
 import com.ivor.openstream.data.settings.NavBarStyle
+import com.ivor.openstream.data.settings.PipAction
 import com.ivor.openstream.data.settings.ThemeMode
 import com.ivor.openstream.data.settings.VideoGestureCustomization
-import com.ivor.openstream.presentation.components.ConnectedChoiceGroup
-import com.ivor.openstream.presentation.components.ExpressiveBackButton
-import com.ivor.openstream.ui.theme.ExpressiveShapes
+import com.ivor.openstream.presentation.components.isCompactWidth
+import com.ivor.openstream.presentation.downloads.formatBytes
 
 /**
- * Settings as grouped segmented lists, one group per topic, with connected button groups for
- * single choices. Sources come first because they decide whether anything plays at all.
+ * Settings: a parent page of categories (Personalization, Playback...), each opening its own page;
+ * see [SettingsLayout]. This function owns the state, the pickers and dialogs, and what every
+ * category holds.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SettingsScreen(
     onBackClick: () -> Unit,
     onOpenMarketplace: () -> Unit,
     onOpenProfiles: () -> Unit = {},
     onOpenVideoShaders: () -> Unit = {},
+    onOpenUpdates: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -129,12 +137,84 @@ fun SettingsScreen(
     val hiddenTitleCount by viewModel.hiddenTitleCount.collectAsState()
     val crashCount by viewModel.crashCount.collectAsState()
     val isWorking by viewModel.isWorking.collectAsState()
+    val dataUsed by viewModel.streamDataGuard.dataUsedBytes.collectAsState()
     val context = LocalContext.current
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val snackbarHostState = remember { SnackbarHostState() }
     var confirmClearHistory by rememberSaveable { mutableStateOf(false) }
     var pickingSubtitleLanguages by rememberSaveable { mutableStateOf(false) }
     var pickingAppLanguage by rememberSaveable { mutableStateOf(false) }
+    val captionStyle by viewModel.captionStyle.collectAsState()
+    val subtitleLanguage by viewModel.subtitleLanguage.collectAsState()
+    val audioLanguage by viewModel.audioLanguage.collectAsState()
+    val hasKidsLock by viewModel.hasKidsLock.collectAsState()
+    val storage by viewModel.storage.collectAsState()
+    val storageMove by viewModel.storageMove.collectAsState()
+    var pickingSubtitleLanguage by rememberSaveable { mutableStateOf(false) }
+    var pickingAudioLanguage by rememberSaveable { mutableStateOf(false) }
+    var editingKidsLock by rememberSaveable { mutableStateOf(false) }
+    var pickingStorage by rememberSaveable { mutableStateOf(false) }
+    var showingLicenses by rememberSaveable { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
+
+    LaunchedEffect(Unit) { viewModel.refreshStorage() }
+
+    if (pickingSubtitleLanguage) {
+        LanguagePickerDialog(
+            title = stringResource(R.string.st_preferred_subtitles),
+            current = subtitleLanguage,
+            allowOff = true,
+            onSelect = {
+                viewModel.setSubtitleLanguage(it)
+                pickingSubtitleLanguage = false
+            },
+            onDismiss = { pickingSubtitleLanguage = false }
+        )
+    }
+
+    if (pickingAudioLanguage) {
+        LanguagePickerDialog(
+            title = stringResource(R.string.st_preferred_audio),
+            current = audioLanguage,
+            allowOff = false,
+            onSelect = {
+                viewModel.setAudioLanguage(it)
+                pickingAudioLanguage = false
+            },
+            onDismiss = { pickingAudioLanguage = false }
+        )
+    }
+
+    if (editingKidsLock) {
+        KidsLockDialog(
+            hasLock = hasKidsLock,
+            onSet = { pin ->
+                viewModel.setKidsLock(pin)
+                editingKidsLock = false
+            },
+            onRemove = {
+                viewModel.clearKidsLock()
+                editingKidsLock = false
+            },
+            onDismiss = { editingKidsLock = false }
+        )
+    }
+
+    // Stays up for the whole move, whoever opened it; the app restarts when it is done.
+    val storageState = storage
+    if ((pickingStorage || storageMove != null) && storageState != null) {
+        StorageLocationDialog(
+            volumes = storageState.volumes,
+            currentRoot = storageState.currentRoot,
+            downloadsBytes = storageState.downloadsBytes,
+            moveProgress = storageMove,
+            onMove = viewModel::moveDownloads,
+            onDismiss = { pickingStorage = false }
+        )
+    }
+
+    if (showingLicenses) {
+        LicensesSheet(onDismiss = { showingLicenses = false })
+    }
 
     if (pickingAppLanguage) {
         AppLanguageDialog(
@@ -190,200 +270,318 @@ fun SettingsScreen(
         )
     }
 
-    Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        // Rows sit on surfaceBright over a surfaceContainer page, as in the system Settings app, so
-        // unselected rows keep a visible edge in light and dark themes.
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            LargeFlexibleTopAppBar(
-                title = { Text(stringResource(R.string.st_title)) },
-                subtitle = { Text(stringResource(R.string.up_version_format, BuildConfig.VERSION_NAME)) },
-                navigationIcon = {
-                    ExpressiveBackButton(onClick = onBackClick, modifier = Modifier.padding(start = 8.dp))
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                ),
-                scrollBehavior = scrollBehavior
-            )
-        }
-    ) { innerPadding ->
-        CenteredListBox(Modifier.fillMaxSize(), minGutter = 16.dp, maxContentWidth = 720.dp) { gutter ->
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    start = gutter,
-                    end = gutter,
-                    top = innerPadding.calculateTopPadding(),
-                    bottom = innerPadding.calculateBottomPadding() + 32.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
-                item(key = "sources") {
-                    val sourceRows = if (state.updateCount > 0) 3 else 2
-                    SettingsGroup(
-                        title = stringResource(R.string.st_group_sources),
-                        footer = stringResource(R.string.st_extensions_data_only)
-                    ) {
-                        NavigationRow(
-                            index = 0, count = sourceRows,
-                            icon = Icons.Default.Storefront,
-                            title = stringResource(R.string.st_extension_marketplace),
-                            supporting = stringResource(
-                                R.string.st_source_summary,
-                                state.enabledCount, state.installedCount, state.availableCount
-                            ),
-                            onClick = onOpenMarketplace
-                        )
-                        NavigationRow(
-                            index = 1, count = sourceRows,
-                            icon = Icons.Default.Public,
-                            title = stringResource(R.string.st_repositories),
-                            supporting = stringResource(R.string.mk_repo_connected, state.repoCount),
-                            onClick = onOpenMarketplace
-                        )
-                        if (state.updateCount > 0) {
-                            NavigationRow(
-                                index = 2, count = sourceRows,
-                                icon = Icons.Default.Update,
-                                title = stringResource(R.string.st_extension_updates),
-                                supporting = stringResource(R.string.st_ready_install),
-                                badge = state.updateCount.toString(),
-                                onClick = onOpenMarketplace
-                            )
-                        }
-                    }
-                }
+    val entry = EntryFactory(on = stringResource(R.string.misc_on), off = stringResource(R.string.misc_off))
+    val gestures = appSettings.videoGestures
+    // AMOLED only changes dark surfaces, so the option hides when Light is forced. Only phones show
+    // the bottom bar; wider windows use the side rail.
+    val dynamicAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val amoledAvailable = appSettings.themeMode != ThemeMode.LIGHT
+    val navBarAvailable = isCompactWidth
 
-                item(key = "appearance") {
-                    val dynamicAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                    // AMOLED only changes dark surfaces, so the option hides when Light is forced.
-                    val amoledAvailable = appSettings.themeMode != ThemeMode.LIGHT
-                    // Only phones show the bottom bar; wider windows use the side rail.
-                    val navBarAvailable = isCompactWidth
-                    val count = 2 +
-                        (if (dynamicAvailable) 1 else 0) +
-                        (if (amoledAvailable) 1 else 0) +
-                        (if (navBarAvailable) 1 else 0)
-                    SettingsGroup(title = stringResource(R.string.st_appearance)) {
-                        ChoiceRow(
-                            index = 0, count = count,
+    val categories = listOf(
+        // How the app looks.
+        SettingsCategory(
+            key = "personalization",
+            title = stringResource(R.string.st_cat_personalization),
+            icon = Icons.Default.Palette,
+            cluster = 0,
+            groups = listOf(
+                SettingsGroupSpec(
+                    key = "look",
+                    entries = listOfNotNull(
+                        entry.choice(
+                            key = "theme",
                             icon = Icons.Default.DarkMode,
                             title = stringResource(R.string.st_theme),
-                            options = ThemeMode.entries,
+                            options = ThemeMode.entries.map { it to stringResource(it.labelRes) },
                             selected = appSettings.themeMode,
-                            label = { stringResource(it.labelRes) },
                             onSelect = viewModel::setThemeMode
-                        )
-                        NavigationRow(
-                            index = 1, count = count,
-                            icon = Icons.Default.Translate,
-                            title = stringResource(R.string.st_language),
-                            supporting = appSettings.appLanguage?.let { AppLocale.autonym(it) }
-                                ?: stringResource(R.string.st_language_system),
-                            onClick = { pickingAppLanguage = true }
-                        )
+                        ),
                         if (dynamicAvailable) {
-                            SwitchRow(
-                                index = 2, count = count,
+                            entry.switch(
+                                key = "dynamic-color",
                                 icon = Icons.Default.AutoAwesome,
                                 title = stringResource(R.string.st_dynamic_color),
-                                supporting = stringResource(R.string.st_dynamic_hint),
+                                summary = stringResource(R.string.st_dynamic_hint),
                                 checked = appSettings.dynamicColor,
                                 onCheckedChange = viewModel::setDynamicColor
                             )
-                        }
+                        } else {
+                            null
+                        },
                         if (amoledAvailable) {
-                            SwitchRow(
-                                index = if (dynamicAvailable) 3 else 2, count = count,
+                            entry.switch(
+                                key = "amoled",
                                 icon = Icons.Default.Contrast,
                                 title = stringResource(R.string.st_amoled_black),
-                                supporting = stringResource(R.string.st_amoled_black_hint),
+                                summary = stringResource(R.string.st_amoled_black_hint),
                                 checked = appSettings.amoledBlack,
                                 onCheckedChange = viewModel::setAmoledBlack
                             )
+                        } else {
+                            null
                         }
+                    )
+                ),
+                SettingsGroupSpec(
+                    key = "app",
+                    entries = listOfNotNull(
+                        entry.navigation(
+                            key = "language",
+                            icon = Icons.Default.Translate,
+                            title = stringResource(R.string.st_language),
+                            summary = appSettings.appLanguage?.let { AppLocale.autonym(it) }
+                                ?: stringResource(R.string.st_language_system),
+                            terms = AppLocale.supportedTags.map { AppLocale.autonym(it) },
+                            onClick = { pickingAppLanguage = true }
+                        ),
+                        entry.switch(
+                            key = "haptics",
+                            icon = Icons.Default.Vibration,
+                            title = stringResource(R.string.st_haptics),
+                            summary = stringResource(R.string.st_haptics_hint),
+                            checked = appSettings.hapticsEnabled,
+                            onCheckedChange = viewModel::setHaptics
+                        ),
                         if (navBarAvailable) {
-                            SwitchRow(
-                                index = count - 1, count = count,
+                            entry.switch(
+                                key = "floating-nav-bar",
                                 icon = Icons.Default.CallToAction,
                                 title = stringResource(R.string.st_floating_nav_bar),
-                                supporting = stringResource(R.string.st_floating_nav_bar_hint),
+                                summary = stringResource(R.string.st_floating_nav_bar_hint),
                                 checked = appSettings.navBarStyle == NavBarStyle.FLOATING,
                                 onCheckedChange = viewModel::setFloatingNavBar
                             )
+                        } else {
+                            null
                         }
-                    }
-                }
+                    )
+                )
+            )
+        ),
 
-                item(key = "playback") {
-                    SettingsGroup(title = stringResource(R.string.st_playback)) {
-                        ChoiceRow(
-                            index = 0, count = 5,
-                            icon = Icons.Default.Forward10,
-                            title = stringResource(R.string.sheet_seek_step),
-                            supporting = stringResource(R.string.player_double_tap),
-                            options = AppSettings.SEEK_STEPS,
-                            selected = appSettings.seekStepSeconds,
-                            label = { "${it}s" },
-                            onSelect = viewModel::setSeekStep
+        // What Home shows and where the app opens.
+        SettingsCategory(
+            key = "home",
+            title = stringResource(R.string.st_cat_home),
+            icon = Icons.Default.Dashboard,
+            cluster = 0,
+            groups = listOf(
+                SettingsGroupSpec(
+                    key = "start",
+                    entries = listOf(
+                        entry.choice(
+                            key = "start-screen",
+                            icon = Icons.Default.Launch,
+                            title = stringResource(R.string.st_start_screen),
+                            summary = stringResource(R.string.st_start_screen_hint),
+                            options = StartScreen.entries.map { it to stringResource(startScreenLabel(it)) },
+                            selected = appSettings.startScreen,
+                            onSelect = viewModel::setStartScreen
                         )
-                        ChoiceRow(
-                            index = 1, count = 5,
+                    )
+                ),
+                SettingsGroupSpec(
+                    key = "home-rows",
+                    title = stringResource(R.string.st_home_rows),
+                    footer = stringResource(R.string.st_home_rows_footer),
+                    entries = homeRowEntries(
+                        order = HomeRows.ordered(appSettings.homeRowOrder),
+                        hidden = appSettings.hiddenHomeRows,
+                        onShownChange = viewModel::setHomeRowShown,
+                        onMove = viewModel::moveHomeRow
+                    )
+                ),
+                SettingsGroupSpec(
+                    key = "home-reset",
+                    entries = listOf(
+                        entry.navigation(
+                            key = "home-reset",
+                            icon = Icons.Default.RestartAlt,
+                            title = stringResource(R.string.st_home_reset),
+                            summary = stringResource(R.string.st_home_reset_hint),
+                            onClick = viewModel::resetHomeRows
+                        )
+                    )
+                )
+            )
+        ),
+
+        // What happens while something plays, and around it.
+        SettingsCategory(
+            key = "playback",
+            title = stringResource(R.string.st_playback),
+            icon = Icons.Default.PlayCircle,
+            cluster = 1,
+            groups = listOfNotNull(
+                SettingsGroupSpec(
+                    key = "playing",
+                    entries = listOf(
+                        entry.choice(
+                            key = "default-speed",
                             icon = Icons.Default.Speed,
                             title = stringResource(R.string.sheet_default_speed),
-                            options = AppSettings.DEFAULT_SPEEDS,
+                            options = AppSettings.DEFAULT_SPEEDS.map { it to "${formatSpeed(it)}×" },
                             selected = appSettings.defaultSpeed,
-                            label = { "${formatSpeed(it)}×" },
                             onSelect = viewModel::setDefaultSpeed
-                        )
-                        SwitchRow(
-                            index = 2, count = 5,
+                        ),
+                        entry.choice(
+                            key = "volume-boost",
+                            icon = Icons.Default.VolumeUp,
+                            title = stringResource(R.string.sheet_volume_boost),
+                            summary = stringResource(R.string.st_volume_boost_hint),
+                            options = VolumeBooster.BOOST_PRESETS.map {
+                                it to if (it == 100) stringResource(R.string.speed_normal) else "$it%"
+                            },
+                            selected = appSettings.volumeBoostPercent,
+                            onSelect = viewModel::setVolumeBoostPercent
+                        ),
+                        entry.switch(
+                            key = "autoplay-next",
                             icon = Icons.Default.SkipNext,
                             title = stringResource(R.string.sheet_autoplay_next),
-                            supporting = stringResource(R.string.player_countdown_next),
+                            summary = stringResource(R.string.player_countdown_next),
                             checked = appSettings.autoPlayNext,
                             onCheckedChange = viewModel::setAutoPlayNext
-                        )
-                        SwitchRow(
-                            index = 3, count = 5,
+                        ),
+                        entry.switch(
+                            key = "skip-button",
                             icon = Icons.Default.FastForward,
                             title = stringResource(R.string.sheet_skip_button),
-                            supporting = stringResource(R.string.player_offer_skip),
+                            summary = stringResource(R.string.player_offer_skip),
                             checked = appSettings.showSkipButton,
                             onCheckedChange = viewModel::setShowSkipButton
-                        )
-                        SwitchRow(
-                            index = 4, count = 5,
+                        ),
+                        entry.switch(
+                            key = "background-playback",
                             icon = Icons.Default.NotificationsActive,
                             title = stringResource(R.string.st_background_playback),
-                            supporting = stringResource(R.string.st_background_playback_hint),
+                            summary = stringResource(R.string.st_background_playback_hint),
                             checked = appSettings.keepPlayingInBackground,
                             onCheckedChange = viewModel::setKeepPlayingInBackground
                         )
-                    }
-                }
+                    )
+                ),
+                if (viewModel.isSmoothMotionSupported) {
+                    SettingsGroupSpec(
+                        key = "smooth-motion",
+                        title = stringResource(R.string.st_smooth_motion),
+                        footer = stringResource(R.string.st_smooth_motion_footer),
+                        entries = listOfNotNull(
+                            entry.switch(
+                                key = "smooth-motion",
+                                icon = Icons.Default.AutoAwesome,
+                                title = stringResource(R.string.st_smooth_motion),
+                                summary = stringResource(R.string.st_smooth_motion_hint),
+                                checked = appSettings.smoothMotionEnabled,
+                                onCheckedChange = viewModel::setSmoothMotionEnabled
+                            ),
+                            if (appSettings.smoothMotionEnabled) {
+                                entry.choice(
+                                    key = "smooth-motion-fps",
+                                    icon = Icons.Default.Speed,
+                                    title = stringResource(R.string.st_smooth_motion_max_fps),
+                                    summary = stringResource(R.string.st_smooth_motion_max_fps_hint),
+                                    options = AppSettings.SMOOTH_MOTION_FPS_OPTIONS.map {
+                                        it to stringResource(R.string.st_smooth_motion_fps_val, it)
+                                    },
+                                    selected = appSettings.smoothMotionMaxFps,
+                                    onSelect = viewModel::setSmoothMotionMaxFps
+                                )
+                            } else {
+                                null
+                            }
+                        )
+                    )
+                } else {
+                    null
+                },
+                SettingsGroupSpec(
+                    key = "pip",
+                    title = stringResource(R.string.st_group_pip),
+                    footer = stringResource(R.string.st_pip_footer),
+                    entries = listOf(
+                        entry.choice(
+                            key = "pip-left",
+                            icon = Icons.Default.PictureInPictureAlt,
+                            title = stringResource(R.string.sheet_left_button),
+                            options = PipAction.entries.map { it to stringResource(it.labelRes) },
+                            selected = appSettings.pipLeftAction,
+                            onSelect = viewModel::setPipLeftAction
+                        ),
+                        entry.choice(
+                            key = "pip-right",
+                            icon = Icons.Default.PictureInPictureAlt,
+                            title = stringResource(R.string.sheet_right_button),
+                            options = PipAction.entries.map { it to stringResource(it.labelRes) },
+                            selected = appSettings.pipRightAction,
+                            onSelect = viewModel::setPipRightAction
+                        )
+                    )
+                )
+            )
+        ),
 
-                item(key = "video-player") {
-                    // The looks, and which of the player's own gestures answer: all of it belongs to
-                    // the picture rather than to the app, so it sits under one heading.
-                    val gestures = appSettings.videoGestures
-                    val holdOn = gestures.holdToSpeedUp
-                    val count = if (holdOn) 6 else 5
-                    val rateIndex = 2
-                    val brightnessIndex = if (holdOn) 3 else 2
-                    SettingsGroup(
-                        title = stringResource(R.string.cz_video_player),
-                        footer = stringResource(R.string.cz_video_gestures_note)
-                    ) {
-                        NavigationRow(
-                            index = 0, count = count,
+        // What every video starts with: caption look, and the languages picked first.
+        SettingsCategory(
+            key = "subtitles",
+            title = stringResource(R.string.st_cat_subtitles),
+            icon = Icons.Default.ClosedCaption,
+            cluster = 1,
+            groups = listOf(
+                SettingsGroupSpec(
+                    key = "languages",
+                    title = stringResource(R.string.st_group_languages),
+                    entries = listOf(
+                        entry.navigation(
+                            key = "subtitle-language",
+                            icon = Icons.Default.Subtitles,
+                            title = stringResource(R.string.st_preferred_subtitles),
+                            summary = when (subtitleLanguage) {
+                                null -> stringResource(R.string.st_lang_auto)
+                                PlayerPreferences.SUBTITLES_OFF -> stringResource(R.string.misc_off)
+                                else -> languageName(subtitleLanguage.orEmpty())
+                            },
+                            terms = listOf(stringResource(R.string.st_preferred_subtitles_hint)),
+                            onClick = { pickingSubtitleLanguage = true }
+                        ),
+                        entry.navigation(
+                            key = "audio-language",
+                            icon = Icons.Default.RecordVoiceOver,
+                            title = stringResource(R.string.st_preferred_audio),
+                            summary = audioLanguage?.let(::languageName) ?: stringResource(R.string.st_lang_auto),
+                            terms = listOf(stringResource(R.string.st_preferred_audio_hint), "dub"),
+                            onClick = { pickingAudioLanguage = true }
+                        )
+                    )
+                ),
+                SettingsGroupSpec(
+                    key = "caption-style",
+                    title = stringResource(R.string.st_group_caption_style),
+                    entries = captionEntries(
+                        style = captionStyle,
+                        onChange = viewModel::setCaptionStyle,
+                        entry = entry
+                    )
+                )
+            )
+        ),
+
+        // The player's screen: its look, and what touches and holds on it do.
+        SettingsCategory(
+            key = "player",
+            title = stringResource(R.string.st_cat_player),
+            icon = Icons.Default.Gesture,
+            cluster = 1,
+            groups = listOf(
+                SettingsGroupSpec(
+                    key = "look",
+                    entries = listOf(
+                        entry.navigation(
+                            key = "video-shaders",
                             icon = Icons.Default.Palette,
                             title = stringResource(R.string.sp_video_shaders),
-                            supporting = stringResource(
+                            summary = stringResource(
                                 if (appSettings.videoShaders.masterEnabled) {
                                     R.string.sp_video_shaders_sub_on
                                 } else {
@@ -391,545 +589,630 @@ fun SettingsScreen(
                                 }
                             ),
                             onClick = onOpenVideoShaders
-                        )
-                        SwitchRow(
-                            index = 1, count = count,
-                            icon = Icons.Default.FastForward,
-                            title = stringResource(R.string.cz_video_hold_speed),
-                            supporting = stringResource(R.string.cz_video_hold_speed_sub),
-                            checked = holdOn,
-                            onCheckedChange = { enabled ->
-                                viewModel.setVideoGestures(gestures.copy(holdToSpeedUp = enabled))
-                            }
-                        )
-                        if (holdOn) {
-                            ChoiceRow(
-                                index = rateIndex, count = count,
-                                icon = Icons.Default.Speed,
-                                title = stringResource(R.string.cz_video_hold_rate),
-                                supporting = stringResource(R.string.cz_video_hold_rate_sub),
-                                options = VideoGestureCustomization.HOLD_SPEEDS,
-                                selected = gestures.holdSpeed,
-                                label = { stringResource(R.string.cz_video_hold_rate_value, it.toInt()) },
-                                onSelect = { speed ->
-                                    viewModel.setVideoGestures(gestures.copy(holdSpeed = speed))
-                                }
-                            )
-                        }
-                        SwitchRow(
-                            index = brightnessIndex, count = count,
-                            icon = Icons.Default.BrightnessMedium,
-                            title = stringResource(R.string.cz_video_brightness),
-                            supporting = stringResource(R.string.cz_video_brightness_sub),
-                            checked = gestures.brightnessSwipe,
-                            onCheckedChange = { enabled ->
-                                viewModel.setVideoGestures(gestures.copy(brightnessSwipe = enabled))
-                            }
-                        )
-                        SwitchRow(
-                            index = brightnessIndex + 1, count = count,
-                            icon = Icons.Default.VolumeUp,
-                            title = stringResource(R.string.cz_video_volume),
-                            supporting = stringResource(R.string.cz_video_volume_sub),
-                            checked = gestures.volumeSwipe,
-                            onCheckedChange = { enabled ->
-                                viewModel.setVideoGestures(gestures.copy(volumeSwipe = enabled))
-                            }
-                        )
-                        ChoiceRow(
-                            index = brightnessIndex + 2, count = count,
+                        ),
+                        entry.choice(
+                            key = "controls-hide",
                             icon = Icons.Default.Visibility,
                             title = stringResource(R.string.cz_video_controls_hide),
-                            supporting = stringResource(R.string.cz_video_controls_hide_sub),
-                            options = VideoGestureCustomization.CONTROLS_HIDE_SECONDS,
+                            summary = stringResource(R.string.cz_video_controls_hide_sub),
+                            options = VideoGestureCustomization.CONTROLS_HIDE_SECONDS.map {
+                                it to stringResource(R.string.cz_video_controls_hide_value, it)
+                            },
                             selected = gestures.controlsHideSeconds,
-                            label = { stringResource(R.string.cz_video_controls_hide_value, it) },
-                            onSelect = { seconds ->
-                                viewModel.setVideoGestures(gestures.copy(controlsHideSeconds = seconds))
-                            }
+                            onSelect = { viewModel.setVideoGestures(gestures.copy(controlsHideSeconds = it)) }
                         )
-                    }
-                }
-
-                if (viewModel.isSmoothMotionSupported) {
-                    item(key = "smooth-motion") {
-                        val smoothMotionCount = if (appSettings.smoothMotionEnabled) 2 else 1
-                        SettingsGroup(
-                            title = stringResource(R.string.st_smooth_motion),
-                            footer = stringResource(R.string.st_smooth_motion_footer)
-                        ) {
-                            SwitchRow(
-                                index = 0, count = smoothMotionCount,
-                                icon = Icons.Default.AutoAwesome,
-                                title = stringResource(R.string.st_smooth_motion),
-                                supporting = stringResource(R.string.st_smooth_motion_hint),
-                                checked = appSettings.smoothMotionEnabled,
-                                onCheckedChange = viewModel::setSmoothMotionEnabled
+                    )
+                ),
+                SettingsGroupSpec(
+                    key = "gestures",
+                    title = stringResource(R.string.st_group_gestures),
+                    footer = stringResource(R.string.cz_video_gestures_note),
+                    entries = listOfNotNull(
+                        entry.choice(
+                            key = "seek-step",
+                            icon = Icons.Default.Forward10,
+                            title = stringResource(R.string.sheet_seek_step),
+                            summary = stringResource(R.string.player_double_tap),
+                            options = AppSettings.SEEK_STEPS.map { it to "${it}s" },
+                            selected = appSettings.seekStepSeconds,
+                            onSelect = viewModel::setSeekStep
+                        ),
+                        entry.switch(
+                            key = "hold-speed",
+                            icon = Icons.Default.FastForward,
+                            title = stringResource(R.string.cz_video_hold_speed),
+                            summary = stringResource(R.string.cz_video_hold_speed_sub),
+                            checked = gestures.holdToSpeedUp,
+                            onCheckedChange = { viewModel.setVideoGestures(gestures.copy(holdToSpeedUp = it)) }
+                        ),
+                        if (gestures.holdToSpeedUp) {
+                            entry.choice(
+                                key = "hold-rate",
+                                icon = Icons.Default.Speed,
+                                title = stringResource(R.string.cz_video_hold_rate),
+                                summary = stringResource(R.string.cz_video_hold_rate_sub),
+                                options = VideoGestureCustomization.HOLD_SPEEDS.map {
+                                    it to stringResource(R.string.cz_video_hold_rate_value, it.toInt())
+                                },
+                                selected = gestures.holdSpeed,
+                                onSelect = { viewModel.setVideoGestures(gestures.copy(holdSpeed = it)) }
                             )
-                            if (appSettings.smoothMotionEnabled) {
-                                ChoiceRow(
-                                    index = 1, count = smoothMotionCount,
-                                    icon = Icons.Default.Speed,
-                                    title = stringResource(R.string.st_smooth_motion_max_fps),
-                                    supporting = stringResource(R.string.st_smooth_motion_max_fps_hint),
-                                    options = AppSettings.SMOOTH_MOTION_FPS_OPTIONS,
-                                    selected = appSettings.smoothMotionMaxFps,
-                                    label = { stringResource(R.string.st_smooth_motion_fps_val, it) },
-                                    onSelect = viewModel::setSmoothMotionMaxFps
-                                )
-                            }
-                        }
-                    }
-                }
+                        } else {
+                            null
+                        },
+                        entry.switch(
+                            key = "brightness-swipe",
+                            icon = Icons.Default.BrightnessMedium,
+                            title = stringResource(R.string.cz_video_brightness),
+                            summary = stringResource(R.string.cz_video_brightness_sub),
+                            checked = gestures.brightnessSwipe,
+                            onCheckedChange = { viewModel.setVideoGestures(gestures.copy(brightnessSwipe = it)) }
+                        ),
+                        entry.switch(
+                            key = "volume-swipe",
+                            icon = Icons.Default.VolumeUp,
+                            title = stringResource(R.string.cz_video_volume),
+                            summary = stringResource(R.string.cz_video_volume_sub),
+                            checked = gestures.volumeSwipe,
+                            onCheckedChange = { viewModel.setVideoGestures(gestures.copy(volumeSwipe = it)) }
+                        )
+                    )
+                )
+            )
+        ),
 
-                item(key = "mobile-data") {
-                    val dataUsed by viewModel.streamDataGuard.dataUsedBytes.collectAsState()
-                    SettingsGroup(
-                        title = stringResource(R.string.st_data_mobile),
-                        footer = stringResource(R.string.st_data_mobile_used, formatBytes(dataUsed))
-                    ) {
-                        SwitchRow(
-                            index = 0, count = 2,
-                            icon = Icons.Default.DataUsage,
-                            title = stringResource(R.string.st_data_mobile_warn),
-                            supporting = stringResource(R.string.st_data_mobile_warn_hint),
-                            checked = appSettings.warnBeforeMeteredStream,
-                            onCheckedChange = viewModel::setWarnBeforeMeteredStream
-                        )
-                        ChoiceRow(
-                            index = 1, count = 2,
-                            icon = Icons.Default.HighQuality,
-                            title = stringResource(R.string.st_data_mobile_cap),
-                            supporting = stringResource(R.string.st_data_mobile_cap_hint),
-                            options = AppSettings.METERED_CAPS,
-                            selected = appSettings.meteredMaxHeight,
-                            label = { if (it == 0) stringResource(R.string.st_data_mobile_remember_none) else "${it}p" },
-                            onSelect = viewModel::setMeteredMaxHeight
-                        )
-                    }
-                }
-
-                item(key = "pip") {
-                    SettingsGroup(
-                        title = stringResource(R.string.st_group_pip),
-                        footer = stringResource(R.string.st_pip_footer)
-                    ) {
-                        ChoiceRow(
-                            index = 0, count = 2,
-                            icon = Icons.Default.PictureInPictureAlt,
-                            title = stringResource(R.string.sheet_left_button),
-                            options = PipAction.entries,
-                            selected = appSettings.pipLeftAction,
-                            label = { stringResource(it.labelRes) },
-                            onSelect = viewModel::setPipLeftAction
-                        )
-                        ChoiceRow(
-                            index = 1, count = 2,
-                            icon = Icons.Default.PictureInPictureAlt,
-                            title = stringResource(R.string.sheet_right_button),
-                            options = PipAction.entries,
-                            selected = appSettings.pipRightAction,
-                            label = { stringResource(it.labelRes) },
-                            onSelect = viewModel::setPipRightAction
-                        )
-                    }
-                }
-
-                item(key = "stream-quality") {
-                    SettingsGroup(title = stringResource(R.string.st_stream_cap)) {
-                        ChoiceRow(
-                            index = 0, count = 1,
+        // How good the picture is, and what it costs on mobile data.
+        SettingsCategory(
+            key = "quality",
+            title = stringResource(R.string.st_section_quality),
+            icon = Icons.Default.HighQuality,
+            cluster = 1,
+            groups = listOf(
+                SettingsGroupSpec(
+                    key = "stream-quality",
+                    entries = listOf(
+                        entry.choice(
+                            key = "stream-cap",
                             icon = Icons.Default.HighQuality,
                             title = stringResource(R.string.st_stream_cap),
-                            supporting = stringResource(R.string.st_stream_cap_hint),
-                            options = AppSettings.STREAM_CAPS,
+                            summary = stringResource(R.string.st_stream_cap_hint),
+                            options = AppSettings.STREAM_CAPS.map {
+                                it to when (it) {
+                                    0 -> stringResource(R.string.st_stream_cap_none)
+                                    2160 -> stringResource(R.string.q_2160p)
+                                    else -> "${it}p"
+                                }
+                            },
                             selected = appSettings.streamMaxHeight,
-                            label = { if (it == 0) stringResource(R.string.st_stream_cap_none) else if (it == 2160) stringResource(R.string.q_2160p) else "${it}p" },
                             onSelect = viewModel::setStreamMaxHeight
                         )
-                    }
-                }
+                    )
+                ),
+                SettingsGroupSpec(
+                    key = "mobile-data",
+                    title = stringResource(R.string.st_data_mobile),
+                    footer = stringResource(R.string.st_data_mobile_used, formatBytes(dataUsed)),
+                    entries = listOf(
+                        entry.switch(
+                            key = "metered-warn",
+                            icon = Icons.Default.DataUsage,
+                            title = stringResource(R.string.st_data_mobile_warn),
+                            summary = stringResource(R.string.st_data_mobile_warn_hint),
+                            checked = appSettings.warnBeforeMeteredStream,
+                            onCheckedChange = viewModel::setWarnBeforeMeteredStream
+                        ),
+                        entry.choice(
+                            key = "metered-cap",
+                            icon = Icons.Default.HighQuality,
+                            title = stringResource(R.string.st_data_mobile_cap),
+                            summary = stringResource(R.string.st_data_mobile_cap_hint),
+                            options = AppSettings.METERED_CAPS.map {
+                                it to if (it == 0) stringResource(R.string.st_data_mobile_remember_none) else "${it}p"
+                            },
+                            selected = appSettings.meteredMaxHeight,
+                            onSelect = viewModel::setMeteredMaxHeight
+                        )
+                    )
+                )
+            )
+        ),
 
-                item(key = "downloads") {
-                    SettingsGroup(title = stringResource(R.string.dl_title)) {
-                        ChoiceRow(
-                            index = 0, count = 5,
+        SettingsCategory(
+            key = "downloads",
+            title = stringResource(R.string.dl_title),
+            icon = Icons.Default.Download,
+            cluster = 2,
+            groups = listOf(
+                SettingsGroupSpec(
+                    key = "downloads",
+                    entries = listOf(
+                        entry.choice(
+                            key = "download-quality",
                             icon = Icons.Default.HighQuality,
                             title = stringResource(R.string.sheet_quality),
-                            supporting = stringResource(R.string.dl_highest_quality),
-                            options = AppSettings.DOWNLOAD_HEIGHTS,
+                            summary = stringResource(R.string.dl_highest_quality),
+                            options = AppSettings.DOWNLOAD_HEIGHTS.map { it to "${it}p" },
                             selected = appSettings.downloadMaxHeight,
-                            label = { "${it}p" },
                             onSelect = viewModel::setDownloadMaxHeight
-                        )
-                        NavigationRow(
-                            index = 1, count = 5,
+                        ),
+                        entry.navigation(
+                            key = "download-subtitles",
                             icon = Icons.Default.ClosedCaption,
                             title = stringResource(R.string.player_subtitles),
-                            supporting = stringResource(
+                            summary = stringResource(
                                 R.string.dl_saved_suffix,
                                 subtitleLanguagesSummary(appSettings.subtitleDownloadLanguages)
                             ),
                             onClick = { pickingSubtitleLanguages = true }
+                        ),
+                        entry.navigation(
+                            key = "storage-location",
+                            icon = if (storage?.volumes?.firstOrNull { it.root.absolutePath == storage?.currentRoot }?.removable == true) {
+                                Icons.Default.SdCard
+                            } else {
+                                Icons.Default.Smartphone
+                            },
+                            title = stringResource(R.string.st_storage_location),
+                            summary = storageSummary(storage),
+                            terms = listOf(stringResource(R.string.st_storage_sd), stringResource(R.string.st_storage_internal)),
+                            enabled = storageMove == null,
+                            onClick = {
+                                viewModel.refreshStorage()
+                                pickingStorage = true
+                            }
                         )
-                        SwitchRow(
-                            index = 2, count = 5,
+                    )
+                ),
+                SettingsGroupSpec(
+                    key = "downloading",
+                    title = stringResource(R.string.st_group_downloading),
+                    entries = listOf(
+                        entry.switch(
+                            key = "wifi-only",
                             icon = Icons.Default.Wifi,
                             title = stringResource(R.string.dl_wifi_only),
-                            supporting = stringResource(R.string.action_wait_for_unmetered),
+                            summary = stringResource(R.string.action_wait_for_unmetered),
                             checked = appSettings.wifiOnlyDownloads,
                             onCheckedChange = viewModel::setWifiOnlyDownloads
+                        ),
+                        entry.switch(
+                            key = "charging-only",
+                            icon = Icons.Default.BatteryChargingFull,
+                            title = stringResource(R.string.st_charging_only),
+                            summary = stringResource(R.string.st_charging_only_hint),
+                            checked = appSettings.chargingOnlyDownloads,
+                            onCheckedChange = viewModel::setChargingOnlyDownloads
                         )
-                        SwitchRow(
-                            index = 3, count = 5,
+                    )
+                ),
+                SettingsGroupSpec(
+                    key = "smart-downloads",
+                    title = stringResource(R.string.st_smart_downloads),
+                    entries = listOf(
+                        entry.switch(
+                            key = "smart-downloads",
                             icon = Icons.Default.Download,
                             title = stringResource(R.string.st_smart_downloads),
-                            supporting = stringResource(R.string.st_smart_hint),
+                            summary = stringResource(R.string.st_smart_hint),
                             checked = appSettings.smartDownloads,
                             onCheckedChange = viewModel::setSmartDownloads
-                        )
-                        ChoiceRow(
-                            index = 4, count = 5,
+                        ),
+                        entry.choice(
+                            key = "smart-ahead",
                             icon = Icons.Default.HighQuality,
                             title = stringResource(R.string.st_smart_ahead),
-                            options = AppSettings.SMART_AHEAD_OPTIONS,
+                            options = AppSettings.SMART_AHEAD_OPTIONS.map { it to it.toString() },
                             selected = appSettings.smartKeepAhead,
-                            label = { it.toString() },
                             onSelect = viewModel::setSmartKeepAhead
                         )
-                    }
-                }
+                    )
+                ),
+                SettingsGroupSpec(
+                    key = "cleanup",
+                    title = stringResource(R.string.st_group_cleanup),
+                    entries = listOf(
+                        entry.choice(
+                            key = "auto-delete",
+                            icon = Icons.Default.AutoDelete,
+                            title = stringResource(R.string.st_auto_delete),
+                            summary = stringResource(R.string.st_auto_delete_hint),
+                            options = AutoDeleteWatched.entries.map { it to stringResource(autoDeleteLabel(it)) },
+                            selected = appSettings.autoDeleteWatched,
+                            onSelect = viewModel::setAutoDeleteWatched
+                        )
+                    )
+                )
+            )
+        ),
 
-                item(key = "network") {
-                    val providers = DnsProvider.entries
-                    SettingsGroup(
-                        title = stringResource(R.string.st_dns),
-                        footer = stringResource(R.string.st_dns_private_hint)
-                    ) {
-                        providers.forEachIndexed { index, provider ->
-                            RadioRow(
-                                index = index, count = providers.size,
-                                icon = if (provider == DnsProvider.SYSTEM) Icons.Default.Dns else Icons.Default.Shield,
-                                title = stringResource(provider.labelRes),
-                                supporting = dnsSupportingText(provider),
-                                selected = appSettings.dnsProvider == provider,
-                                onClick = { viewModel.setDnsProvider(provider) }
+        SettingsCategory(
+            key = "sources",
+            title = stringResource(R.string.st_group_sources),
+            icon = Icons.Default.Storefront,
+            cluster = 2,
+            groups = listOf(
+                SettingsGroupSpec(
+                    key = "sources",
+                    footer = stringResource(R.string.st_extensions_data_only),
+                    entries = listOfNotNull(
+                        entry.navigation(
+                            key = "marketplace",
+                            icon = Icons.Default.Storefront,
+                            title = stringResource(R.string.st_extension_marketplace),
+                            summary = stringResource(
+                                R.string.st_source_summary,
+                                state.enabledCount, state.installedCount, state.availableCount
+                            ),
+                            onClick = onOpenMarketplace
+                        ),
+                        entry.navigation(
+                            key = "repositories",
+                            icon = Icons.Default.Public,
+                            title = stringResource(R.string.st_repositories),
+                            summary = stringResource(R.string.mk_repo_connected, state.repoCount),
+                            onClick = onOpenMarketplace
+                        ),
+                        if (state.updateCount > 0) {
+                            entry.navigation(
+                                key = "extension-updates",
+                                icon = Icons.Default.Update,
+                                title = stringResource(R.string.st_extension_updates),
+                                summary = stringResource(R.string.st_ready_install),
+                                badge = state.updateCount.toString(),
+                                onClick = onOpenMarketplace
                             )
+                        } else {
+                            null
                         }
-                    }
-                }
+                    )
+                ),
+                SettingsGroupSpec(
+                    key = "search-order",
+                    title = stringResource(R.string.sheet_search_order),
+                    entries = listOf(
+                        entry.choice(
+                            key = "search-order",
+                            icon = Icons.Default.Sort,
+                            title = stringResource(R.string.sheet_search_order),
+                            summary = stringResource(
+                                when (appSettings.sourceSearchMode) {
+                                    SourceSearchMode.ALL_AT_ONCE -> R.string.player_search_all_at_once
+                                    SourceSearchMode.IN_ORDER -> R.string.player_search_in_order
+                                }
+                            ),
+                            options = SourceSearchMode.entries.map { it to stringResource(it.labelRes) },
+                            selected = appSettings.sourceSearchMode,
+                            onSelect = viewModel::setSourceSearchMode
+                        )
+                    )
+                )
+            )
+        ),
 
-                item(key = "profiles") {
-                    SettingsGroup(title = stringResource(R.string.st_group_notifications)) {
-                        SwitchRow(
-                            index = 0, count = 1,
+        SettingsCategory(
+            key = "network",
+            title = stringResource(R.string.st_section_network),
+            icon = Icons.Default.Dns,
+            cluster = 2,
+            groups = listOf(
+                SettingsGroupSpec(
+                    key = "dns",
+                    title = stringResource(R.string.st_dns),
+                    footer = stringResource(R.string.st_dns_private_hint),
+                    entries = DnsProvider.entries.map { provider ->
+                        entry.radio(
+                            key = "dns-${provider.name.lowercase()}",
+                            icon = if (provider == DnsProvider.SYSTEM) Icons.Default.Dns else Icons.Default.Shield,
+                            title = stringResource(provider.labelRes),
+                            summary = dnsSupportingText(provider),
+                            selected = appSettings.dnsProvider == provider,
+                            onClick = { viewModel.setDnsProvider(provider) }
+                        )
+                    }
+                )
+            )
+        ),
+
+        SettingsCategory(
+            key = "notifications",
+            title = stringResource(R.string.st_group_notifications),
+            icon = Icons.Default.Notifications,
+            cluster = 3,
+            groups = listOf(
+                SettingsGroupSpec(
+                    key = "notifications",
+                    entries = listOf(
+                        entry.switch(
+                            key = "episode-notifications",
                             icon = Icons.Default.Notifications,
                             title = stringResource(R.string.st_episode_notify),
-                            supporting = stringResource(R.string.st_episode_notify_hint),
+                            summary = stringResource(R.string.st_episode_notify_hint),
                             checked = appSettings.episodeNotifications,
                             onCheckedChange = viewModel::setEpisodeNotifications
                         )
-                    }
-                }
+                    )
+                )
+            )
+        ),
 
-                item(key = "profiles-list") {
-                    SettingsGroup(title = stringResource(R.string.st_profiles)) {
-                        NavigationRow(
-                            index = 0, count = 1,
+        // Who is watching, and what they have kept.
+        SettingsCategory(
+            key = "library",
+            title = stringResource(R.string.st_cat_library),
+            icon = Icons.Default.VideoLibrary,
+            cluster = 3,
+            busy = isWorking,
+            groups = listOf(
+                SettingsGroupSpec(
+                    key = "profiles",
+                    entries = listOf(
+                        entry.navigation(
+                            key = "profiles",
                             icon = Icons.Default.People,
                             title = stringResource(R.string.st_profiles),
-                            supporting = stringResource(R.string.st_profiles_hint),
+                            summary = stringResource(R.string.st_profiles_hint),
                             onClick = onOpenProfiles
+                        ),
+                        entry.navigation(
+                            key = "kids-lock",
+                            icon = Icons.Default.Lock,
+                            title = stringResource(R.string.st_kids_lock),
+                            summary = stringResource(if (hasKidsLock) R.string.st_kids_lock_hint_on else R.string.st_kids_lock_hint_off),
+                            terms = listOf(stringResource(R.string.pf_kids), stringResource(R.string.pin_title)),
+                            onClick = { editingKidsLock = true }
                         )
-                    }
-                }
-
-                item(key = "library") {
-                    val count = if (hiddenTitleCount > 0) 4 else 3
-                    SettingsGroup(title = stringResource(R.string.st_library), busy = isWorking) {
-                        NavigationRow(
-                            index = 0, count = count,
+                    )
+                ),
+                SettingsGroupSpec(
+                    key = "backup",
+                    title = stringResource(R.string.st_library),
+                    entries = listOf(
+                        entry.navigation(
+                            key = "backup",
                             icon = Icons.Default.Backup,
                             title = stringResource(R.string.st_backup),
-                            supporting = stringResource(R.string.st_backup_hint),
+                            summary = stringResource(R.string.st_backup_hint),
                             enabled = !isWorking,
                             onClick = { exportBackup.launch("openstream-backup-${fileDate()}.json") }
-                        )
-                        NavigationRow(
-                            index = 1, count = count,
+                        ),
+                        entry.navigation(
+                            key = "restore",
                             icon = Icons.Default.Restore,
                             title = stringResource(R.string.st_restore),
-                            supporting = stringResource(R.string.st_merge_note),
+                            summary = stringResource(R.string.st_merge_note),
                             enabled = !isWorking,
                             onClick = {
                                 restoreBackup.launch(arrayOf(LibraryBackup.MIME_TYPE, "text/plain", "application/octet-stream"))
                             }
                         )
+                    )
+                ),
+                SettingsGroupSpec(
+                    key = "history",
+                    title = stringResource(R.string.st_history),
+                    entries = listOfNotNull(
+                        entry.switch(
+                            key = "pause-history",
+                            icon = Icons.Default.HistoryToggleOff,
+                            title = stringResource(R.string.st_pause_history),
+                            summary = stringResource(R.string.st_pause_history_hint),
+                            checked = appSettings.pauseWatchHistory,
+                            onCheckedChange = viewModel::setPauseWatchHistory
+                        ),
                         if (hiddenTitleCount > 0) {
-                            NavigationRow(
-                                index = 2, count = count,
+                            entry.navigation(
+                                key = "show-hidden",
                                 icon = Icons.Default.VisibilityOff,
                                 title = stringResource(R.string.st_show_hidden),
-                                supporting = stringResource(R.string.count_hidden, hiddenTitleCount),
+                                summary = stringResource(R.string.count_hidden, hiddenTitleCount),
                                 onClick = viewModel::unhideAllTitles
                             )
-                        }
-                        NavigationRow(
-                            index = count - 1, count = count,
+                        } else {
+                            null
+                        },
+                        entry.navigation(
+                            key = "clear-history",
                             icon = Icons.Default.History,
                             title = stringResource(R.string.st_clear_history),
-                            supporting = stringResource(R.string.pf_this_history),
+                            summary = stringResource(R.string.pf_this_history),
                             onClick = { confirmClearHistory = true }
                         )
-                    }
-                }
+                    )
+                )
+            )
+        ),
 
-                item(key = "storage-help") {
-                    val count = if (crashCount > 0) 5 else 4
-                    SettingsGroup(title = stringResource(R.string.st_storage_help)) {
-                        NavigationRow(
-                            index = 0, count = count,
+        SettingsCategory(
+            key = "storage",
+            title = stringResource(R.string.tv_st_storage),
+            icon = Icons.Default.Storage,
+            cluster = 4,
+            groups = listOf(
+                SettingsGroupSpec(
+                    key = "storage",
+                    entries = listOf(
+                        entry.navigation(
+                            key = "clear-cache",
                             icon = Icons.Default.Image,
                             title = stringResource(R.string.st_clear_all_cache),
-                            supporting = cacheBytes?.let { stringResource(R.string.st_cache_used, Formatter.formatShortFileSize(context, it)) }
-                                ?: stringResource(R.string.st_cache_hint),
+                            summary = cacheBytes?.let {
+                                stringResource(R.string.st_cache_used, Formatter.formatShortFileSize(context, it))
+                            } ?: stringResource(R.string.st_cache_hint),
                             onClick = viewModel::clearCache
-                        )
-                        ChoiceRow(
-                            index = 1, count = count,
+                        ),
+                        entry.choice(
+                            key = "cache-limit",
                             icon = Icons.Default.Storage,
                             title = stringResource(R.string.st_cache_limit),
-                            supporting = stringResource(R.string.st_cache_limit_hint),
-                            options = CacheSize.entries,
+                            summary = stringResource(R.string.st_cache_limit_hint),
+                            options = CacheSize.entries.map { it to Formatter.formatShortFileSize(context, it.totalBytes) },
                             selected = appSettings.cacheSize,
-                            label = { Formatter.formatShortFileSize(context, it.totalBytes) },
                             onSelect = viewModel::setCacheSize
-                        )
-                        SwitchRow(
-                            index = 2, count = count,
+                        ),
+                        entry.switch(
+                            key = "preload-artwork",
                             icon = Icons.Default.Wifi,
                             title = stringResource(R.string.st_preload_artwork),
-                            supporting = stringResource(R.string.st_preload_artwork_hint),
+                            summary = stringResource(R.string.st_preload_artwork_hint),
                             checked = appSettings.preloadArtwork,
                             onCheckedChange = viewModel::setPreloadArtwork
                         )
-                        NavigationRow(
-                            index = 3, count = count,
+                    )
+                )
+            )
+        ),
+
+        SettingsCategory(
+            key = "about",
+            title = stringResource(R.string.st_cat_about),
+            icon = Icons.Default.Info,
+            cluster = 4,
+            groups = listOf(
+                SettingsGroupSpec(
+                    key = "support",
+                    entries = listOf(
+                        entry.navigation(
+                            key = "check-updates",
+                            icon = Icons.Default.SystemUpdate,
+                            title = stringResource(R.string.action_check_for_updates),
+                            summary = stringResource(R.string.st_check_updates_hint, BuildConfig.VERSION_NAME),
+                            onClick = onOpenUpdates
+                        ),
+                        entry.navigation(
+                            key = "report-problem",
+                            icon = Icons.Default.Forum,
+                            title = stringResource(R.string.st_report_problem),
+                            summary = stringResource(R.string.st_report_problem_hint),
+                            terms = listOf("Telegram", "bug", "help"),
+                            onClick = { runCatching { uriHandler.openUri(COMMUNITY_URL) } }
+                        ),
+                        entry.navigation(
+                            key = "licenses",
+                            icon = Icons.Default.Gavel,
+                            title = stringResource(R.string.st_licenses),
+                            summary = stringResource(R.string.st_licenses_hint),
+                            onClick = { showingLicenses = true }
+                        )
+                    )
+                ),
+                SettingsGroupSpec(
+                    key = "diagnostics",
+                    title = stringResource(R.string.st_group_support),
+                    footer = stringResource(R.string.up_version_build, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
+                    entries = listOfNotNull(
+                        entry.navigation(
+                            key = "export-diagnostics",
                             icon = Icons.Default.BugReport,
                             title = stringResource(R.string.st_export_diag),
-                            supporting = when (crashCount) {
+                            summary = when (crashCount) {
                                 0 -> stringResource(R.string.st_diag_hint)
                                 1 -> stringResource(R.string.st_crash_include, 1)
                                 else -> stringResource(R.string.st_crash_include_other, crashCount)
                             },
                             enabled = !isWorking,
-                            onClick = { exportDiagnostics.launch("openstream-diagnostics-${fileDate(withTime = true)}.txt") }
-                        )
+                            onClick = {
+                                exportDiagnostics.launch("openstream-diagnostics-${fileDate(withTime = true)}.txt")
+                            }
+                        ),
                         if (crashCount > 0) {
-                            NavigationRow(
-                                index = 4, count = count,
+                            entry.navigation(
+                                key = "clear-crashes",
                                 icon = Icons.Default.DeleteSweep,
                                 title = stringResource(R.string.st_clear_crash),
-                                supporting = stringResource(R.string.dl_stored_only_device),
+                                summary = stringResource(R.string.dl_stored_only_device),
                                 onClick = viewModel::clearCrashReports
                             )
+                        } else {
+                            null
                         }
-                    }
-                }
-
-                item(key = "version") {
-                    Text(
-                        text = stringResource(R.string.up_version_build, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
                     )
-                }
-            }
-        }
-    }
-}
-
-// region Building blocks
-
-/** A titled group of segmented rows with an optional explanatory footer. */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-internal fun SettingsGroup(
-    title: String,
-    footer: String? = null,
-    busy: Boolean = false,
-    rows: @Composable ColumnScope.() -> Unit
-) {
-    Column {
-        Row(
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .weight(1f)
-                    .semantics { heading() }
-            )
-            if (busy) LoadingIndicator(modifier = Modifier.size(20.dp))
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap), content = rows)
-        footer?.let {
-            Text(
-                text = it,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun settingsRowColors() = ListItemDefaults.segmentedColors(
-    containerColor = MaterialTheme.colorScheme.surfaceBright,
-    selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer
-)
-
-@Composable
-private fun RowIcon(icon: ImageVector) {
-    Surface(
-        shape = ExpressiveShapes.small,
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-    ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.padding(8.dp).size(20.dp))
-    }
-}
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun NavigationRow(
-    index: Int,
-    count: Int,
-    icon: ImageVector,
-    title: String,
-    supporting: String,
-    onClick: () -> Unit,
-    enabled: Boolean = true,
-    badge: String? = null
-) {
-    SegmentedListItem(
-        onClick = onClick,
-        shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
-        enabled = enabled,
-        colors = settingsRowColors(),
-        leadingContent = { RowIcon(icon) },
-        supportingContent = { Text(supporting) },
-        trailingContent = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                badge?.let { Badge { Text(it) } }
-                Icon(
-                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            }
+            )
+        )
+    )
+
+    SettingsLayout(
+        categories = categories,
+        snackbarHostState = snackbarHostState,
+        onBackClick = onBackClick
+    )
+}
+
+/** Builds [SettingEntry]s for the usual kinds of row; [on] and [off] describe a switch's state. */
+private class EntryFactory(private val on: String, private val off: String) {
+
+    fun navigation(
+        key: String,
+        icon: ImageVector,
+        title: String,
+        summary: String,
+        onClick: () -> Unit,
+        enabled: Boolean = true,
+        badge: String? = null,
+        terms: List<String> = emptyList()
+    ) = SettingEntry(key, icon, title, summary, terms = terms) { index, count, modifier, highlight ->
+        NavigationRow(
+            index = index, count = count, icon = icon, title = title, supporting = summary,
+            onClick = onClick, modifier = modifier, enabled = enabled, badge = badge, highlight = highlight
+        )
+    }
+
+    fun switch(
+        key: String,
+        icon: ImageVector,
+        title: String,
+        summary: String,
+        checked: Boolean,
+        onCheckedChange: (Boolean) -> Unit
+    ) = SettingEntry(key, icon, title, summary, value = if (checked) on else off) { index, count, modifier, highlight ->
+        SwitchRow(
+            index = index, count = count, icon = icon, title = title, supporting = summary,
+            checked = checked, onCheckedChange = onCheckedChange, modifier = modifier, highlight = highlight
+        )
+    }
+
+    fun radio(
+        key: String,
+        icon: ImageVector,
+        title: String,
+        summary: String,
+        selected: Boolean,
+        onClick: () -> Unit
+    ) = SettingEntry(key, icon, title, summary, value = if (selected) on else null) { index, count, modifier, highlight ->
+        RadioRow(
+            index = index, count = count, icon = icon, title = title, supporting = summary,
+            selected = selected, onClick = onClick, modifier = modifier, highlight = highlight
+        )
+    }
+
+    /** [options] pairs each choice with its label, already in words. */
+    fun <T> choice(
+        key: String,
+        icon: ImageVector,
+        title: String,
+        options: List<Pair<T, String>>,
+        selected: T,
+        onSelect: (T) -> Unit,
+        summary: String? = null
+    ): SettingEntry {
+        val labels = options.toMap()
+        return SettingEntry(
+            key = key,
+            icon = icon,
+            title = title,
+            summary = summary,
+            value = labels[selected],
+            terms = options.map { it.second }
+        ) { index, count, modifier, highlight ->
+            ChoiceRow(
+                index = index, count = count, icon = icon, title = title,
+                options = options.map { it.first }, selected = selected,
+                label = { labels[it].orEmpty() }, onSelect = onSelect,
+                modifier = modifier, supporting = summary, highlight = highlight
+            )
         }
-    ) {
-        Text(title, fontWeight = FontWeight.SemiBold)
     }
 }
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-internal fun SwitchRow(
-    index: Int,
-    count: Int,
-    icon: ImageVector,
-    title: String,
-    supporting: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    SegmentedListItem(
-        checked = checked,
-        onCheckedChange = onCheckedChange,
-        shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
-        colors = settingsRowColors(),
-        leadingContent = { RowIcon(icon) },
-        supportingContent = { Text(supporting) },
-        // The whole row toggles; the switch only shows the state.
-        trailingContent = { Switch(checked = checked, onCheckedChange = null) }
-    ) {
-        Text(title, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun RadioRow(
-    index: Int,
-    count: Int,
-    icon: ImageVector,
-    title: String,
-    supporting: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    SegmentedListItem(
-        selected = selected,
-        onClick = onClick,
-        shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
-        colors = settingsRowColors(),
-        leadingContent = { RowIcon(icon) },
-        supportingContent = { Text(supporting) },
-        trailingContent = {
-            androidx.compose.material3.RadioButton(selected = selected, onClick = null)
-        }
-    ) {
-        Text(title, fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold)
-    }
-}
-
-/** A row whose choices sit in a connected button group under the title. */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun <T> ChoiceRow(
-    index: Int,
-    count: Int,
-    icon: ImageVector,
-    title: String,
-    options: List<T>,
-    selected: T,
-    label: @Composable (T) -> String,
-    onSelect: (T) -> Unit,
-    supporting: String? = null
-) {
-    SegmentedListItem(
-        shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
-        colors = settingsRowColors(),
-        verticalAlignment = Alignment.Top,
-        leadingContent = { RowIcon(icon) },
-        supportingContent = {
-            Column {
-                supporting?.let { Text(it) }
-                ConnectedChoiceGroup(
-                    options = options,
-                    selected = selected,
-                    label = label,
-                    onSelect = onSelect,
-                    modifier = Modifier.padding(top = 10.dp)
-                )
-            }
-        }
-    ) {
-        Text(title, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-// endregion
 
 @Composable
 private fun dnsSupportingText(provider: DnsProvider): String = when (provider) {
@@ -950,14 +1233,14 @@ private fun AppLanguageDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.st_language)) },
         text = {
-            LazyColumn {
+            LazyColumn(Modifier.selectableGroup()) {
                 item(key = "system") {
                     RadioRow(
                         index = 0,
                         count = AppLocale.supportedTags.size + 1,
                         icon = Icons.Default.Translate,
                         title = stringResource(R.string.st_language_system),
-                        supporting = "",
+                        supporting = null,
                         selected = current == null,
                         onClick = { onSelect(null) }
                     )
@@ -969,7 +1252,7 @@ private fun AppLanguageDialog(
                             count = AppLocale.supportedTags.size + 1,
                             icon = Icons.Default.Translate,
                             title = AppLocale.autonym(tag),
-                            supporting = "",
+                            supporting = null,
                             selected = current == tag,
                             onClick = { onSelect(tag) }
                         )
@@ -991,3 +1274,166 @@ private fun fileDate(withTime: Boolean = false): String =
 
 private fun formatSpeed(speed: Float): String =
     if (speed % 1f == 0f) speed.toInt().toString() else speed.toString().trimEnd('0')
+
+/** The OpenStream community, where problems are reported and answered. */
+private const val COMMUNITY_URL = "https://t.me/ivorisnoob_chat"
+
+private fun startScreenLabel(screen: StartScreen): Int = when (screen) {
+    StartScreen.HOME -> R.string.nav_home
+    StartScreen.SEARCH -> R.string.nav_search
+    StartScreen.SAVED -> R.string.nav_saved
+    StartScreen.DOWNLOADS -> R.string.nav_downloads
+    StartScreen.HISTORY -> R.string.nav_history
+}
+
+private fun autoDeleteLabel(mode: AutoDeleteWatched): Int = when (mode) {
+    AutoDeleteWatched.OFF -> R.string.misc_off
+    AutoDeleteWatched.AFTER_WATCHING -> R.string.st_auto_delete_now
+    AutoDeleteWatched.AFTER_DAY -> R.string.st_auto_delete_day
+    AutoDeleteWatched.AFTER_WEEK -> R.string.st_auto_delete_week
+}
+
+/** Where downloads are now, or a warning when that SD card is out. */
+@Composable
+private fun storageSummary(storage: SettingsViewModel.StorageState?): String {
+    val context = LocalContext.current
+    storage ?: return stringResource(R.string.st_storage_internal)
+    if (storage.chosenMissing) return stringResource(R.string.st_storage_missing)
+    val volume = storage.volumes.firstOrNull { it.root.absolutePath == storage.currentRoot }
+    val name = stringResource(if (volume?.removable == true) R.string.st_storage_sd else R.string.st_storage_internal)
+    return volume?.let {
+        "$name · " + stringResource(R.string.st_storage_free, Formatter.formatShortFileSize(context, it.freeBytes), Formatter.formatShortFileSize(context, it.totalBytes))
+    } ?: name
+}
+
+/** One entry per Home row, in [order], each with its switch and arrows. */
+@Composable
+private fun homeRowEntries(
+    order: List<String>,
+    hidden: Set<String>,
+    onShownChange: (String, Boolean) -> Unit,
+    onMove: (String, Int) -> Unit
+): List<SettingEntry> {
+    val on = stringResource(R.string.misc_on)
+    val off = stringResource(R.string.misc_off)
+    return order.mapIndexed { position, key ->
+        val (icon, title) = homeRowLabel(key)
+        val shown = key !in hidden
+        SettingEntry(
+            key = "home-row:$key",
+            icon = icon,
+            title = title,
+            summary = null,
+            value = if (shown) on else off
+        ) { index, count, modifier, highlight ->
+            HomeRowItem(
+                index = index,
+                count = count,
+                icon = icon,
+                title = title,
+                shown = shown,
+                canMoveUp = position > 0,
+                canMoveDown = position < order.lastIndex,
+                onShownChange = { onShownChange(key, it) },
+                onMove = { delta -> onMove(key, delta) },
+                modifier = modifier,
+                highlight = highlight
+            )
+        }
+    }
+}
+
+@Composable
+private fun homeRowLabel(key: String): Pair<ImageVector, String> = when (key) {
+    HomeRows.CONTINUE_WATCHING -> Icons.Default.History to stringResource(R.string.home_continue_watching)
+    HomeRows.TOP_MATCHES -> Icons.Default.AutoAwesome to stringResource(R.string.match_rail)
+    HomeRows.TOP10 -> Icons.Default.EmojiEvents to stringResource(R.string.home_top10_week)
+    HomeRows.NEW_EPISODES -> Icons.Default.NewReleases to stringResource(R.string.home_new_episodes_week)
+    HomeRows.POPULAR_MOVIES -> Icons.Default.Movie to stringResource(R.string.home_popular_movies)
+    HomeRows.POPULAR_SERIES -> Icons.Default.Tv to stringResource(R.string.home_popular_series)
+    HomeRows.ANIME -> Icons.Default.Animation to stringResource(R.string.home_trending_anime)
+    HomeRows.TOP_RATED -> Icons.Default.Star to stringResource(R.string.home_critically_acclaimed)
+    HomeRows.ANIME_MOVIES -> Icons.Default.Theaters to stringResource(R.string.home_anime_movies)
+    else -> {
+        val service = StreamingService.entries.firstOrNull { HomeRows.serviceKey(it) == key }
+        Icons.Default.Subscriptions to (
+            service?.let { stringResource(R.string.home_popular_on_service, it.displayName) } ?: key
+        )
+    }
+}
+
+/** The caption look: a live preview, then size, plate, colour and position, and a reset. */
+@Composable
+private fun captionEntries(
+    style: CaptionStyleSettings,
+    onChange: (CaptionStyleSettings) -> Unit,
+    entry: EntryFactory
+): List<SettingEntry> {
+    val sizeTitle = stringResource(R.string.st_caption_size)
+    val backgroundTitle = stringResource(R.string.st_caption_background)
+    val positionTitle = stringResource(R.string.st_caption_position)
+    val sizeLabel = stringResource(R.string.st_caption_size_value, style.textSizeSp.toInt())
+    val backgroundLabel = stringResource(R.string.st_caption_background_value, (style.backgroundOpacity * 100).toInt())
+    val raised = (style.verticalOffset * 100).toInt()
+    val positionLabel = if (raised == 0) {
+        stringResource(R.string.sheet_default)
+    } else {
+        stringResource(R.string.sheet_caption_position_raised, raised)
+    }
+    return listOf(
+        SettingEntry(
+            key = "caption-preview",
+            icon = Icons.Default.ClosedCaption,
+            title = stringResource(R.string.sheet_caption_style),
+            summary = stringResource(R.string.st_caption_preview)
+        ) { index, count, modifier, highlight ->
+            CaptionPreviewRow(style, index, count, modifier, highlight)
+        },
+        SettingEntry(key = "caption-size", icon = Icons.Default.FormatSize, title = sizeTitle, summary = null, value = sizeLabel) { index, count, modifier, highlight ->
+            SliderRow(
+                index = index, count = count, icon = Icons.Default.FormatSize, title = sizeTitle, valueLabel = sizeLabel,
+                value = style.textSizeSp,
+                range = CaptionStyleSettings.MIN_TEXT_SIZE_SP..CaptionStyleSettings.MAX_TEXT_SIZE_SP,
+                steps = ((CaptionStyleSettings.MAX_TEXT_SIZE_SP - CaptionStyleSettings.MIN_TEXT_SIZE_SP) / 2f).toInt() - 1,
+                onChange = { onChange(style.copy(textSizeSp = it)) },
+                modifier = modifier, highlight = highlight
+            )
+        },
+        SettingEntry(key = "caption-background", icon = Icons.Default.Opacity, title = backgroundTitle, summary = null, value = backgroundLabel) { index, count, modifier, highlight ->
+            SliderRow(
+                index = index, count = count, icon = Icons.Default.Opacity, title = backgroundTitle, valueLabel = backgroundLabel,
+                value = style.backgroundOpacity,
+                range = 0f..1f,
+                steps = 9,
+                onChange = { onChange(style.copy(backgroundOpacity = it)) },
+                modifier = modifier, highlight = highlight
+            )
+        },
+        entry.choice(
+            key = "caption-color",
+            icon = Icons.Default.FormatColorText,
+            title = stringResource(R.string.sheet_caption_color),
+            options = CaptionTextColor.entries.map { it to stringResource(it.labelRes) },
+            selected = style.textColor,
+            onSelect = { onChange(style.copy(textColor = it)) }
+        ),
+        SettingEntry(key = "caption-position", icon = Icons.Default.VerticalAlignTop, title = positionTitle, summary = null, value = positionLabel) { index, count, modifier, highlight ->
+            SliderRow(
+                index = index, count = count, icon = Icons.Default.VerticalAlignTop, title = positionTitle, valueLabel = positionLabel,
+                value = style.verticalOffset,
+                range = 0f..CaptionStyleSettings.MAX_VERTICAL_OFFSET,
+                steps = CaptionStyleSettings.VERTICAL_OFFSET_STEPS,
+                onChange = { onChange(style.copy(verticalOffset = it)) },
+                modifier = modifier, highlight = highlight
+            )
+        },
+        entry.navigation(
+            key = "caption-reset",
+            icon = Icons.Default.RestartAlt,
+            title = stringResource(R.string.st_caption_reset),
+            summary = stringResource(R.string.st_caption_reset_hint),
+            onClick = { onChange(CaptionStyleSettings()) }
+        )
+    )
+}
+

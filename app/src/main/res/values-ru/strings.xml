@@ -925,4 +925,20 @@
     <string name="calendar_suggestions">Выходит на этой неделе</string>
     <string name="calendar_some_failed">Не удалось проверить некоторые тайтлы. Потяните вниз, чтобы повторить.</string>
     <string name="calendar_error">Не удалось загрузить календарь</string>
+    <string name="st_section_quality">Качество и трафик</string>
+    <string name="st_section_network">Сеть</string>
+    <string name="st_search_hint">Поиск настроек</string>
+    <string name="st_search_none">Нет настроек по запросу «%1$s»</string>
+    <string name="st_search_none_hint">Попробуйте другое слово, например «тема», «субтитры» или «качество».</string>
+    <plurals name="st_search_results">
+        <item quantity="one">Найдена %1$d настройка</item>
+        <item quantity="few">Найдено %1$d настройки</item>
+        <item quantity="many">Найдено %1$d настроек</item>
+        <item quantity="other">Найдено %1$d настройки</item>
+    </plurals>
+    <string name="st_cat_personalization">Персонализация</string>
+    <string name="st_cat_player">Плеер и жесты</string>
+    <string name="st_cat_library">Профили и библиотека</string>
+    <string name="st_cat_about">Помощь и сведения</string>
+    <string name="st_group_gestures">Жесты</string>
 </resources>

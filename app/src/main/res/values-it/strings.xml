@@ -921,4 +921,19 @@
     <string name="calendar_suggestions">In onda questa settimana</string>
     <string name="calendar_some_failed">Non è stato possibile controllare alcuni titoli. Trascina in basso per riprovare.</string>
     <string name="calendar_error">Impossibile caricare il calendario</string>
+    <string name="st_section_quality">Qualità e dati</string>
+    <string name="st_section_network">Rete</string>
+    <string name="st_search_hint">Cerca nelle impostazioni</string>
+    <string name="st_search_none">Nessuna impostazione corrisponde a “%1$s”</string>
+    <string name="st_search_none_hint">Prova un\'altra parola, come tema, sottotitoli o qualità.</string>
+    <plurals name="st_search_results">
+        <item quantity="one">%1$d impostazione trovata</item>
+        <item quantity="many">%1$d impostazioni trovate</item>
+        <item quantity="other">%1$d impostazioni trovate</item>
+    </plurals>
+    <string name="st_cat_personalization">Personalizzazione</string>
+    <string name="st_cat_player">Player e gesti</string>
+    <string name="st_cat_library">Profili e libreria</string>
+    <string name="st_cat_about">Aiuto e informazioni</string>
+    <string name="st_group_gestures">Gesti</string>
 </resources>

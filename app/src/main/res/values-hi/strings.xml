@@ -958,4 +958,18 @@
     <string name="calendar_suggestions">इस हफ़्ते प्रसारित</string>
     <string name="calendar_some_failed">कुछ शीर्षक जांचे नहीं जा सके। फिर कोशिश करने के लिए नीचे खींचें।</string>
     <string name="calendar_error">कैलेंडर लोड नहीं हो सका</string>
+    <string name="st_section_quality">गुणवत्ता और डेटा</string>
+    <string name="st_section_network">नेटवर्क</string>
+    <string name="st_search_hint">सेटिंग खोजें</string>
+    <string name="st_search_none">“%1$s” से कोई सेटिंग मेल नहीं खाती</string>
+    <string name="st_search_none_hint">कोई दूसरा शब्द आज़माएं, जैसे थीम, सबटाइटल या क्वालिटी।</string>
+    <plurals name="st_search_results">
+        <item quantity="one">%1$d सेटिंग मिली</item>
+        <item quantity="other">%1$d सेटिंग मिलीं</item>
+    </plurals>
+    <string name="st_cat_personalization">निजीकरण</string>
+    <string name="st_cat_player">प्लेयर और जेस्चर</string>
+    <string name="st_cat_library">प्रोफ़ाइल और लाइब्रेरी</string>
+    <string name="st_cat_about">मदद और जानकारी</string>
+    <string name="st_group_gestures">जेस्चर</string>
 </resources>

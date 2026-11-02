@@ -114,6 +114,25 @@ fun WhoIsWatchingScreen(
     var lockSeconds by remember { mutableStateOf<Long?>(null) }
     val scope = rememberCoroutineScope()
     val wrongText = stringResource(R.string.pin_wrong)
+
+    // Kids lock: leaving a kids profile for one without its own PIN, or managing profiles, first
+    // asks for the parental PIN set in Settings. A profile's own PIN already keeps a child out.
+    val hasKidsLock by viewModel.hasKidsLock.collectAsState()
+    val kidsLocked = hasKidsLock && profiles.firstOrNull { it.id == activeId }?.isKids == true
+    var afterKidsLock by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var kidsPin by remember { mutableStateOf("") }
+    var kidsPinError by remember { mutableStateOf<String?>(null) }
+    var kidsLockSeconds by remember { mutableStateOf<Long?>(null) }
+    fun guarded(action: () -> Unit) {
+        if (kidsLocked) {
+            kidsPin = ""
+            kidsPinError = null
+            kidsLockSeconds = null
+            afterKidsLock = action
+        } else {
+            action()
+        }
+    }
     Surface(color = MaterialTheme.colorScheme.background, modifier = modifier.fillMaxSize()) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -143,24 +162,69 @@ fun WhoIsWatchingScreen(
                         profile = profile,
                         selected = profile.id == activeId,
                         onClick = {
-                            if (profile.hasPin) {
-                                pendingProfile = profile
-                                pinInput = ""
-                                pinError = null
-                                lockSeconds = null
-                            } else {
-                                onSelect(profile)
+                            when {
+                                profile.hasPin -> {
+                                    pendingProfile = profile
+                                    pinInput = ""
+                                    pinError = null
+                                    lockSeconds = null
+                                }
+                                profile.isKids || profile.id == activeId -> onSelect(profile)
+                                else -> guarded { onSelect(profile) }
                             }
                         }
                     )
                 }
             }
-            OutlinedButton(onClick = onManage, shape = ExpressiveShapes.medium, modifier = Modifier.padding(bottom = 24.dp)) {
+            OutlinedButton(onClick = { guarded(onManage) }, shape = ExpressiveShapes.medium, modifier = Modifier.padding(bottom = 24.dp)) {
                 Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.st_manage_profiles))
             }
         }
+    }
+
+    afterKidsLock?.let { proceed ->
+        PinPadDialog(
+            profileName = "",
+            message = stringResource(R.string.st_kids_lock_enter),
+            lockedSeconds = kidsLockSeconds,
+            error = kidsPinError,
+            pin = kidsPin,
+            onDigit = { digit ->
+                if (kidsLockSeconds == null && kidsPin.length < ProfilePin.MAX_LENGTH && digit.isDigit()) {
+                    kidsPin += digit
+                    kidsPinError = null
+                }
+            },
+            onBackspace = {
+                if (kidsPin.isNotEmpty()) {
+                    kidsPin = kidsPin.dropLast(1)
+                    kidsPinError = null
+                }
+            },
+            onClear = {
+                kidsPin = ""
+                kidsPinError = null
+            },
+            onSubmit = {
+                when (val result = viewModel.checkKidsLock(kidsPin)) {
+                    ProfilesViewModel.PinCheck.Ok -> {
+                        afterKidsLock = null
+                        proceed()
+                    }
+                    ProfilesViewModel.PinCheck.Wrong -> {
+                        kidsPinError = wrongText
+                        kidsPin = ""
+                    }
+                    is ProfilesViewModel.PinCheck.Locked -> {
+                        kidsLockSeconds = result.secondsLeft
+                        kidsPinError = null
+                    }
+                }
+            },
+            onDismiss = { afterKidsLock = null }
+        )
     }
 
     pendingProfile?.let { pending ->
@@ -612,6 +676,8 @@ private fun PinSetDialog(
 @Composable
 private fun PinPadDialog(
     profileName: String,
+    /** Replaces "Enter the PIN for <name>" when the PIN is not a profile's. */
+    message: String? = null,
     lockedSeconds: Long? = null,
     error: String? = null,
     pin: String = "",
@@ -630,7 +696,7 @@ private fun PinPadDialog(
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    stringResource(R.string.pin_for_name, profileName),
+                    message ?: stringResource(R.string.pin_for_name, profileName),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center
                 )

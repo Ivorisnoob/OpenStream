@@ -921,4 +921,19 @@
     <string name="calendar_suggestions">En emisión esta semana</string>
     <string name="calendar_some_failed">No se pudieron comprobar algunos títulos. Desliza hacia abajo para reintentar.</string>
     <string name="calendar_error">No se pudo cargar el calendario</string>
+    <string name="st_section_quality">Calidad y datos</string>
+    <string name="st_section_network">Red</string>
+    <string name="st_search_hint">Buscar ajustes</string>
+    <string name="st_search_none">Ningún ajuste coincide con «%1$s»</string>
+    <string name="st_search_none_hint">Prueba con otra palabra, como tema, subtítulos o calidad.</string>
+    <plurals name="st_search_results">
+        <item quantity="one">%1$d ajuste encontrado</item>
+        <item quantity="many">%1$d ajustes encontrados</item>
+        <item quantity="other">%1$d ajustes encontrados</item>
+    </plurals>
+    <string name="st_cat_personalization">Personalización</string>
+    <string name="st_cat_player">Reproductor y gestos</string>
+    <string name="st_cat_library">Perfiles y biblioteca</string>
+    <string name="st_cat_about">Ayuda e información</string>
+    <string name="st_group_gestures">Gestos</string>
 </resources>

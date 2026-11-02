@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.home
 
+import com.ivor.openstream.data.settings.HomeRows
 import com.ivor.openstream.ui.theme.onScrim
 import com.ivor.openstream.presentation.components.SkeletonBox
 import com.ivor.openstream.presentation.components.AnimeCard
@@ -34,7 +35,6 @@ import androidx.compose.material.icons.filled.Settings
 import com.ivor.openstream.domain.model.Profile
 import com.ivor.openstream.presentation.profiles.ProfileSwitchButton
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -99,7 +99,6 @@ fun HomeScreen(
     onResume: (WatchProgress) -> Unit,
     onOpenDetails: (mediaType: String, id: Int) -> Unit,
     onSettingsClick: () -> Unit,
-    onUpdateClick: () -> Unit = {},
     profile: Profile? = null,
     onSwitchProfile: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
@@ -107,6 +106,7 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val continueWatching by viewModel.continueWatching.collectAsState()
     val matches by viewModel.matches.collectAsState()
+    val rowOrder by viewModel.rowOrder.collectAsState()
     val open: (AnimeDto) -> Unit = { onAnimeClick(it.id, if (it.isMovie) "movie" else "tv") }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -149,7 +149,6 @@ fun HomeScreen(
                             items = state.hero,
                             onOpen = open,
                             onSettingsClick = onSettingsClick,
-                            onUpdateClick = onUpdateClick,
                             profile = profile,
                             onSwitchProfile = onSwitchProfile,
                             onKidsTap = {
@@ -158,32 +157,36 @@ fun HomeScreen(
                         )
                     }
 
-                    if (continueWatching.isNotEmpty()) {
-                        item(key = "continue_watching") {
-                            SectionHeader(title = stringResource(R.string.home_continue_watching))
-                            ContinueWatchingRail(
-                                items = continueWatching,
-                                onResume = onResume,
-                                onOpenDetails = { onOpenDetails(it.mediaType, it.tmdbId) },
-                                onRemove = viewModel::removeFromContinueWatching
-                            )
-                        }
-                    }
-
-                    if (matches.isNotEmpty()) {
-                        item(key = "top-matches") {
-                            SectionHeader(title = stringResource(R.string.match_rail))
-                            MatchRail(matches = matches, onOpen = open)
-                        }
-                    }
-
-                    state.rails.forEach { rail ->
-                        item(key = rail.key) {
-                            SectionHeader(title = rail.title)
-                            when (rail.style) {
-                                RailStyle.RANKED -> RankedRail(rail.items, open, hide)
-                                RailStyle.LANDSCAPE -> LandscapeRail(rail.items, open, hide)
-                                RailStyle.POSTER -> PosterRail(rail.items, open, hide)
+                    // In the order chosen in Settings > Home screen, without the rows turned off there.
+                    val railsByKey = state.rails.associateBy { it.key }
+                    rowOrder.forEach { key ->
+                        when (key) {
+                            HomeRows.CONTINUE_WATCHING -> if (continueWatching.isNotEmpty()) {
+                                item(key = key) {
+                                    SectionHeader(title = stringResource(R.string.home_continue_watching))
+                                    ContinueWatchingRail(
+                                        items = continueWatching,
+                                        onResume = onResume,
+                                        onOpenDetails = { onOpenDetails(it.mediaType, it.tmdbId) },
+                                        onRemove = viewModel::removeFromContinueWatching
+                                    )
+                                }
+                            }
+                            HomeRows.TOP_MATCHES -> if (matches.isNotEmpty()) {
+                                item(key = key) {
+                                    SectionHeader(title = stringResource(R.string.match_rail))
+                                    MatchRail(matches = matches, onOpen = open)
+                                }
+                            }
+                            else -> railsByKey[key]?.let { rail ->
+                                item(key = rail.key) {
+                                    SectionHeader(title = rail.title)
+                                    when (rail.style) {
+                                        RailStyle.RANKED -> RankedRail(rail.items, open, hide)
+                                        RailStyle.LANDSCAPE -> LandscapeRail(rail.items, open, hide)
+                                        RailStyle.POSTER -> PosterRail(rail.items, open, hide)
+                                    }
+                                }
                             }
                         }
                     }
@@ -209,7 +212,6 @@ private fun HeroSection(
     items: List<AnimeDto>,
     onOpen: (AnimeDto) -> Unit,
     onSettingsClick: () -> Unit,
-    onUpdateClick: () -> Unit,
     profile: Profile?,
     onSwitchProfile: () -> Unit,
     onKidsTap: () -> Unit
@@ -228,11 +230,9 @@ private fun HeroSection(
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.weight(1f)
             )
-            // A kids profile keeps Settings and updates out of reach; leaving takes a hold on the avatar.
+            // A kids profile keeps Settings out of reach; leaving takes a hold on the avatar. Updates
+            // are checked from Settings > Help and about.
             if (profile?.isKids != true) {
-                IconButton(onClick = onUpdateClick) {
-                    Icon(Icons.Default.SystemUpdate, contentDescription = stringResource(R.string.action_check_for_updates))
-                }
                 IconButton(onClick = onSettingsClick) {
                     Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.cd_settings))
                 }

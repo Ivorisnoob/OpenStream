@@ -16,6 +16,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import com.ivor.openstream.domain.model.AnimeCatalog
 import com.ivor.openstream.domain.model.StreamingService
+import com.ivor.openstream.data.settings.AppSettingsStore
+import com.ivor.openstream.data.settings.HomeRows
+import kotlinx.coroutines.flow.drop
 import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.domain.repository.AnimeRepository
 import com.ivor.openstream.domain.repository.WatchProgressRepository
@@ -89,6 +92,7 @@ class HomeViewModel @Inject constructor(
     private val listRepository: CustomListRepository,
     private val watchLaterRepository: WatchLaterRepository,
     private val artworkPrefetcher: ArtworkPrefetcher,
+    private val appSettingsStore: AppSettingsStore,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -100,6 +104,18 @@ class HomeViewModel @Inject constructor(
 
     val continueWatching: StateFlow<List<WatchProgress>> = watchProgressRepository.continueWatching()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Home's rows in the order chosen in Settings, without the hidden ones (keys from [HomeRows]). */
+    val rowOrder: StateFlow<List<String>> = appSettingsStore.settings
+        .map { settings -> HomeRows.ordered(settings.homeRowOrder).filterNot { it in settings.hiddenHomeRows } }
+        .distinctUntilChanged()
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            appSettingsStore.current.let { settings ->
+                HomeRows.ordered(settings.homeRowOrder).filterNot { it in settings.hiddenHomeRows }
+            }
+        )
 
     /** Watch Later plus every custom list, as title-key sets for the match engine. */
     private val listKeySets: StateFlow<List<Set<Pair<String, Int>>>> =
@@ -215,6 +231,14 @@ class HomeViewModel @Inject constructor(
                 .distinctUntilChanged()
                 .collect { kids -> if (kids != null) loadData() }
         }
+        // A streaming-service row turned back on in Settings has not been fetched yet.
+        viewModelScope.launch {
+            appSettingsStore.settings
+                .map { it.hiddenHomeRows }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect { if (_uiState.value is HomeUiState.Success) loadServiceRows(forceRefresh = false) }
+        }
     }
 
     fun hideTitle(anime: AnimeDto) {
@@ -291,12 +315,14 @@ class HomeViewModel @Inject constructor(
         serviceRowsJob?.cancel()
         serviceRowsJob = viewModelScope.launch {
             val serviceRails = coroutineScope {
-                StreamingService.entries.map { service ->
+                // Rows turned off in Settings are not fetched at all.
+                val hidden = appSettingsStore.current.hiddenHomeRows
+                StreamingService.entries.filterNot { HomeRows.serviceKey(it) in hidden }.map { service ->
                     async { service to repository.getServiceCatalog(service, forceRefresh).getOrDefault(emptyList()) }
                 }.awaitAll()
             }.map { (service, items) ->
                 HomeRail(
-                    key = SERVICE_RAIL_PREFIX + service.key,
+                    key = HomeRows.serviceKey(service),
                     title = context.getString(R.string.home_popular_on_service, service.displayName),
                     style = RailStyle.POSTER,
                     items = items
@@ -328,7 +354,7 @@ class HomeViewModel @Inject constructor(
 private val AnimeDto.homeMediaType: String get() = if (isMovie) "movie" else "tv"
 
 /** Keys of the per-service rows, which load after the rest of Home. */
-private const val SERVICE_RAIL_PREFIX = "service-"
+private const val SERVICE_RAIL_PREFIX = HomeRows.SERVICE_PREFIX
 
 /** Rails show 20 titles; the first screenfuls of each are worth having ready. */
 private const val PREFETCH_PER_RAIL = 12

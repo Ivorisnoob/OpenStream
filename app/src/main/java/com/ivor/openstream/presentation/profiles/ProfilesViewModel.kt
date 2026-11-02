@@ -100,9 +100,40 @@ class ProfilesViewModel @Inject constructor(
         return if (secondsLeft > 0) PinCheck.Locked(secondsLeft) else PinCheck.Wrong
     }
 
+    /** True when a kids profile needs the parental PIN (set in Settings) to be left. */
+    val hasKidsLock: StateFlow<Boolean> = settings.hasKidsLock
+
+    /**
+     * Checks the parental PIN, with the same lockout as a profile PIN: five wrong tries lock it
+     * for a while, and the count survives restarts.
+     */
+    fun checkKidsLock(pin: String): PinCheck {
+        val now = System.currentTimeMillis()
+        val lockedUntil = settings.pinLockoutUntil(KIDS_LOCK_ID)
+        if (lockedUntil > now) return PinCheck.Locked((lockedUntil - now + 999) / 1000)
+        if (settings.verifyKidsLock(pin)) {
+            settings.clearPinLockout(KIDS_LOCK_ID)
+            return PinCheck.Ok
+        }
+        val attempts = settings.pinAttempts(KIDS_LOCK_ID) + 1
+        return if (attempts >= KIDS_LOCK_MAX_ATTEMPTS) {
+            settings.setPinAttempts(KIDS_LOCK_ID, 0)
+            settings.setPinLockout(KIDS_LOCK_ID, now + KIDS_LOCK_LOCKOUT_MS)
+            PinCheck.Locked(KIDS_LOCK_LOCKOUT_MS / 1000)
+        } else {
+            settings.setPinAttempts(KIDS_LOCK_ID, attempts)
+            PinCheck.Wrong
+        }
+    }
+
     sealed interface PinCheck {
         data object Ok : PinCheck
         data object Wrong : PinCheck
         data class Locked(val secondsLeft: Long) : PinCheck
     }
 }
+
+/** Attempt counting for the parental PIN, kept apart from every real profile id. */
+private const val KIDS_LOCK_ID = -1L
+private const val KIDS_LOCK_MAX_ATTEMPTS = 5
+private const val KIDS_LOCK_LOCKOUT_MS = 60_000L

@@ -925,4 +925,20 @@
     <string name="calendar_suggestions">Виходить цього тижня</string>
     <string name="calendar_some_failed">Не вдалося перевірити деякі тайтли. Потягніть униз, щоб повторити.</string>
     <string name="calendar_error">Не вдалося завантажити календар</string>
+    <string name="st_section_quality">Якість і трафік</string>
+    <string name="st_section_network">Мережа</string>
+    <string name="st_search_hint">Пошук налаштувань</string>
+    <string name="st_search_none">Немає налаштувань за запитом «%1$s»</string>
+    <string name="st_search_none_hint">Спробуйте інше слово, наприклад «тема», «субтитри» або «якість».</string>
+    <plurals name="st_search_results">
+        <item quantity="one">Знайдено %1$d налаштування</item>
+        <item quantity="few">Знайдено %1$d налаштування</item>
+        <item quantity="many">Знайдено %1$d налаштувань</item>
+        <item quantity="other">Знайдено %1$d налаштування</item>
+    </plurals>
+    <string name="st_cat_personalization">Персоналізація</string>
+    <string name="st_cat_player">Плеєр і жести</string>
+    <string name="st_cat_library">Профілі та бібліотека</string>
+    <string name="st_cat_about">Довідка та відомості</string>
+    <string name="st_group_gestures">Жести</string>
 </resources>

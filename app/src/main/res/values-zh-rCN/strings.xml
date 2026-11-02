@@ -913,4 +913,17 @@
     <string name="calendar_suggestions">本周播出</string>
     <string name="calendar_some_failed">部分作品无法检查。下拉重试。</string>
     <string name="calendar_error">无法加载日历</string>
+    <string name="st_section_quality">画质和流量</string>
+    <string name="st_section_network">网络</string>
+    <string name="st_search_hint">搜索设置</string>
+    <string name="st_search_none">没有与“%1$s”匹配的设置</string>
+    <string name="st_search_none_hint">换个词试试，比如主题、字幕或画质。</string>
+    <plurals name="st_search_results">
+        <item quantity="other">找到 %1$d 项设置</item>
+    </plurals>
+    <string name="st_cat_personalization">个性化</string>
+    <string name="st_cat_player">播放器和手势</string>
+    <string name="st_cat_library">个人资料和媒体库</string>
+    <string name="st_cat_about">帮助与关于</string>
+    <string name="st_group_gestures">手势</string>
 </resources>

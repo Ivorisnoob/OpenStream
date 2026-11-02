@@ -7,7 +7,7 @@ import com.ivor.openstream.R
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import com.ivor.openstream.presentation.player.CaptionTextColor
+import com.ivor.openstream.data.settings.CaptionTextColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -96,7 +96,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ivor.openstream.presentation.player.CaptionStyleSettings
+import com.ivor.openstream.data.settings.CaptionStyleSettings
 import com.ivor.openstream.presentation.player.ServersState
 import com.ivor.openstream.presentation.player.session.SleepTimer
 import com.ivor.openstream.data.remote.model.EpisodeDto

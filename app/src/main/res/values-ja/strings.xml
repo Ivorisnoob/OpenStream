@@ -913,4 +913,17 @@
     <string name="calendar_suggestions">今週放送</string>
     <string name="calendar_some_failed">一部の作品を確認できませんでした。下に引いて再試行してください。</string>
     <string name="calendar_error">カレンダーを読み込めませんでした</string>
+    <string name="st_section_quality">画質とデータ</string>
+    <string name="st_section_network">ネットワーク</string>
+    <string name="st_search_hint">設定を検索</string>
+    <string name="st_search_none">「%1$s」に一致する設定はありません</string>
+    <string name="st_search_none_hint">テーマ、字幕、画質など、別の言葉で試してください。</string>
+    <plurals name="st_search_results">
+        <item quantity="other">%1$d 件の設定が見つかりました</item>
+    </plurals>
+    <string name="st_cat_personalization">カスタマイズ</string>
+    <string name="st_cat_player">プレーヤーとジェスチャー</string>
+    <string name="st_cat_library">プロフィールとライブラリ</string>
+    <string name="st_cat_about">ヘルプと情報</string>
+    <string name="st_group_gestures">ジェスチャー</string>
 </resources>

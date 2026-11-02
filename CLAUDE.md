@@ -165,9 +165,16 @@ Rules:
   already on disk. `AppCaches` measures and clears all of it for Settings.
 - **Settings.** `AppSettingsStore` (SharedPreferences) holds theme, dynamic color, the phone tab bar style
   (floating toolbar or docked `ShortNavigationBar`), DNS,
-  Wi-Fi-only downloads, the subtitle languages saved with downloads, cache size and artwork preload;
-  `MainActivity` applies the theme. Cache size and preload are device settings and stay out of
-  `LibraryBackup`.
+  Wi-Fi-only and charging-only downloads, the subtitle languages saved with downloads, cache size and
+  artwork preload, haptics (off: `MainActivity` provides a no-op `LocalHapticFeedback`), paused watch
+  history (`PlaybackSession` records nothing), the start tab, Home's row order and hidden rows
+  (`HomeRows`), and when watched downloads are deleted (`WatchedDownloadCleaner`); plus the kids lock,
+  a parental PIN asked before a kids profile switches to a profile without its own PIN.
+  `PlayerPreferences` keeps caption style and the preferred audio and subtitle language, shared by the
+  player and Settings. `MainActivity` applies the theme. Cache size and preload are device settings
+  and stay out of `LibraryBackup`. The phone screen is a list of categories (`SettingsLayout`: one
+  pane in portrait, list and page side by side when wider) with a search over every setting
+  (`SettingsSearch`) that opens the category and pulses the row; the catalogue is in `SettingsScreen`.
 - **Skip intro.** `SkipTimesRepository`: `AnimeEpisodeMapper` gives the MAL id and the episode within
   that entry (AniList title search only as a fallback), AniSkip v2 gives the intro/recap/credits
   times (anime only), and the player picks the submission timed on the closest file length. All
@@ -207,7 +214,9 @@ Rules:
   guarded by `tvControls` in the shared player components.
 - **Downloads.** Everything goes through Media3's `DownloadManager` (`DownloadRepositoryImpl`):
   queue resolves sources in the app scope, live progress from the manager, pause/resume/retry,
-  one rendition up to 1080p from master playlists. Offline playback reads the same cache.
+  one rendition up to 1080p from master playlists. Offline playback reads the same cache, which lives
+  on internal storage or an SD card (`DownloadStorage`; a move copies, switches, deletes the old copy,
+  then restarts the app because the cache opens its folder once per process).
   `DownloadBackgroundGate` pauses the manager while the app is in the background and downloads are
   waiting (for Wi-Fi, or after a sticky restart): Android 12+ forbids the foreground start they would
   need, and Media3 cannot catch that failure. They resume when the app comes to the foreground.
