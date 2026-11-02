@@ -437,6 +437,8 @@
     <string name="st_index_not_json">فهرس المستودع ليس كائن JSON أو مصفوفة</string>
     <string name="st_repo_lists_unreadable">تعذر قراءة قوائم المستودع</string>
     <string name="st_repo_no_extensions">لم ينشر المستودع أي إضافات</string>
+    <string name="st_repo_no_internet">لا يوجد اتصال بالإنترنت</string>
+    <string name="st_repo_not_valid">هذا الرابط ليس مستودعًا أو إضافة Stremio</string>
     <string name="st_no_catalog">لا يوجد كتالوج بعد</string>
     <string name="st_pull_repo_hint">اسحب مستودعًا في تبويب المستودعات، أو حدّث لجلب الكتالوج الرسمي.</string>
     <string name="st_official_repo">إضافة رسمية</string>

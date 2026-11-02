@@ -416,6 +416,8 @@
     <string name="st_index_not_json">L’index du dépôt n’est pas un objet ou tableau JSON</string>
     <string name="st_repo_lists_unreadable">Les listes du dépôt sont illisibles</string>
     <string name="st_repo_no_extensions">Le dépôt n’a publié aucune extension</string>
+    <string name="st_repo_no_internet">Pas de connexion Internet</string>
+    <string name="st_repo_not_valid">Ce lien n’est ni un dépôt ni un module Stremio</string>
     <string name="st_no_catalog">Pas encore de catalogue</string>
     <string name="st_pull_repo_hint">Ajoutez un dépôt dans l’onglet Dépôts, ou actualisez pour récupérer le catalogue officiel.</string>
     <string name="st_official_repo">Extension officielle</string>

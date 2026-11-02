@@ -416,6 +416,8 @@
     <string name="st_index_not_json">Índice do repositório não é objeto ou array JSON</string>
     <string name="st_repo_lists_unreadable">Listas do repositório ilegíveis</string>
     <string name="st_repo_no_extensions">Repositório não publicou extensões</string>
+    <string name="st_repo_no_internet">Sem conexão com a internet</string>
+    <string name="st_repo_not_valid">Esse link não é um repositório nem um complemento do Stremio</string>
     <string name="st_no_catalog">Sem catálogo ainda</string>
     <string name="st_pull_repo_hint">Adicione um repositório na aba Repositórios, ou atualize para o catálogo oficial.</string>
     <string name="st_official_repo">Extensão oficial</string>

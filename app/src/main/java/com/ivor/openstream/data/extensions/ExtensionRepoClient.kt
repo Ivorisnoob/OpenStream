@@ -36,7 +36,7 @@ class ExtensionRepoClient @Inject constructor(
 
         val entries = (repo.extensions + linked).distinctBy { it.id }
         if (entries.isEmpty() && repo.extensionLists.isNotEmpty()) {
-            throw IOException(context.getString(R.string.st_repo_lists_unreadable))
+            throw RepoException(context.getString(R.string.st_repo_lists_unreadable))
         }
 
         CachedRepoSnapshot(

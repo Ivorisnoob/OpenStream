@@ -437,6 +437,8 @@
     <string name="st_index_not_json">रिपॉज़िटरी इंडेक्स JSON ऑब्जेक्ट या ऐरे नहीं है</string>
     <string name="st_repo_lists_unreadable">रिपॉज़िटरी सूचियां पढ़ी नहीं जा सकीं</string>
     <string name="st_repo_no_extensions">रिपॉज़िटरी ने कोई एक्सटेंशन प्रकाशित नहीं किया</string>
+    <string name="st_repo_no_internet">इंटरनेट कनेक्शन नहीं है</string>
+    <string name="st_repo_not_valid">यह लिंक कोई रिपॉज़िटरी या Stremio ऐड-ऑन नहीं है</string>
     <string name="st_no_catalog">अभी कोई कैटलॉग नहीं</string>
     <string name="st_pull_repo_hint">रिपॉज़िटरी टैब में कोई रिपॉज़िटरी लाएं, या आधिकारिक कैटलॉग के लिए रीफ़्रेश करें।</string>
     <string name="st_official_repo">आधिकारिक एक्सटेंशन</string>
