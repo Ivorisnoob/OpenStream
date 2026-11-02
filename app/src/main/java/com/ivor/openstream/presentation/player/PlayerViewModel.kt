@@ -805,8 +805,8 @@ class PlayerViewModel @Inject constructor(
     private fun startResolution(identity: MediaIdentity, includeFallbacks: Boolean = false) {
         resolutionJob?.cancel()
         resolutionJob = viewModelScope.launch {
-            // The automatic search asks the source that played last time first; a widened search
-            // ("Find more", failover) goes to everything.
+            // The automatic search asks the source that played this title last time first; a
+            // widened search ("Find more", failover) goes to everything.
             streamingRepository.resolveServers(
                 identity,
                 includeFallbacks,

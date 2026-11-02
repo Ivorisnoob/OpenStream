@@ -78,9 +78,13 @@ Rules:
   provider's priority is its position. Search mode (`SourceSearchMode` in `AppSettings`): all at
   once (rank by quality, order breaks ties) or in order (one at a time, stop at the first with
   streams; ranking puts the order before quality; "Find more" searches everything).
-  The player's automatic search first asks the source that last played something
-  (`rememberWorkingSource`, kept per movie/tv) on its own and stops there when it has streams; with
-  none, or no answer in 10 s, the normal search runs. Downloads and "Find more" search everything.
+  The player's automatic search first asks the source that last played this title
+  (`rememberWorkingSource`, kept per movie and per show across its episodes; a title nothing has
+  played yet gets the normal search) on its own, and stops there only when it has a stream at the
+  quality cap (`streamMaxHeight`; "Auto"/"HD" don't count). Below the cap its streams are sent at
+  once and the normal search runs for the rest (in order: up to the first other source with
+  streams); with none, or no answer in 10 s, the normal search runs. Downloads and "Find more"
+  search everything.
   That automatic search alone answers from `ResolvedStreamCache` (memory only, 10 minutes, keyed by
   episode plus a fingerprint of the installed sources, order and search mode) and only keeps complete
   searches that found something; `onPlaybackError` drops the episode's entry. No source documents

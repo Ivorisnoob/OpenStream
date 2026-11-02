@@ -4,6 +4,8 @@ import com.ivor.openstream.domain.model.StreamAudio
 import com.ivor.openstream.domain.model.StreamQuality
 import com.ivor.openstream.domain.model.VideoServer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ServerRankerTest {
@@ -36,6 +38,23 @@ class ServerRankerTest {
         )
 
         assertEquals("preferred", ranked.first().id)
+    }
+
+    @Test
+    fun qualityCapIsReachedOnlyByAStreamAtTheCap() {
+        val sd = server("sd", "a", "https://example.com/720.m3u8", StreamQuality.Q720)
+        val fhd = server("fhd", "a", "https://example.com/1080.m3u8", StreamQuality.Q1080)
+        val auto = server("auto", "a", "https://example.com/master.m3u8", StreamQuality.UNKNOWN)
+        val hd = server("hd", "a", "https://example.com/hd.m3u8", StreamQuality.HD)
+        val uhd = server("uhd", "a", "https://example.com/2160.m3u8", StreamQuality.Q2160)
+
+        assertFalse(ServerRanker.reachesQualityCap(listOf(sd), 1080))
+        assertFalse(ServerRanker.reachesQualityCap(listOf(auto, hd), 1080))
+        assertTrue(ServerRanker.reachesQualityCap(listOf(sd, fhd), 1080))
+        assertTrue(ServerRanker.reachesQualityCap(listOf(sd), 720))
+        assertFalse(ServerRanker.reachesQualityCap(listOf(fhd), 2160))
+        assertTrue(ServerRanker.reachesQualityCap(listOf(uhd), 0))
+        assertFalse(ServerRanker.reachesQualityCap(emptyList(), 1080))
     }
 
     private fun server(
