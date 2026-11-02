@@ -827,14 +827,17 @@ class PlaybackSession @Inject constructor(
 
     /**
      * The quality and audio the phone's player is on: a quality picked by hand (the player pins
-     * its minimum size to it) or automatic under the ceiling it has (none after the user picked
-     * Auto), and the audio it plays, else the audio language the user prefers.
+     * its minimum size to it) or automatic under the ceiling it has, and the audio it plays, else
+     * the audio language the user prefers. Picking Auto on the phone clears its ceiling; the quality
+     * cap from Settings still applies then, as it does when Auto is picked on the casting screen.
      */
     private fun localSelection(): HlsSelection {
         if (!localPlayerCreated) return HlsSelection(maxHeight = heightCap().takeIf { it != Int.MAX_VALUE } ?: 0)
         val parameters = player.trackSelectionParameters
         val pinnedHeight = parameters.minVideoHeight.takeIf { it in 1 until Int.MAX_VALUE } ?: 0
-        val ceiling = parameters.maxVideoHeight.takeIf { it in 1 until Int.MAX_VALUE } ?: 0
+        val ceiling = parameters.maxVideoHeight.takeIf { it in 1 until Int.MAX_VALUE }
+            ?: heightCap().takeIf { it != Int.MAX_VALUE }
+            ?: 0
         val audio = player.audioFormat
         return HlsSelection(
             height = pinnedHeight,
