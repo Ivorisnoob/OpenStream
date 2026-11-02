@@ -244,6 +244,8 @@
     <string name="sheet_caption_style">Style des sous-titres</string>
     <string name="sheet_text_size">Taille du texte</string>
     <string name="sheet_background">Arrière-plan</string>
+    <string name="sheet_caption_position">Position</string>
+    <string name="sheet_caption_position_raised">%1$d%% plus haut</string>
     <string name="sheet_background_opacity">Opacité de l’arrière-plan</string>
     <string name="sheet_bold">Gras</string>
     <string name="sheet_source">Source</string>

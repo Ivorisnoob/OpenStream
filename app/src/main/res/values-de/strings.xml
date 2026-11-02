@@ -244,6 +244,8 @@
     <string name="sheet_caption_style">Untertitel-Stil</string>
     <string name="sheet_text_size">Textgröße</string>
     <string name="sheet_background">Hintergrund</string>
+    <string name="sheet_caption_position">Position</string>
+    <string name="sheet_caption_position_raised">%1$d%% höher</string>
     <string name="sheet_background_opacity">Hintergrund-Deckkraft</string>
     <string name="sheet_bold">Fett</string>
     <string name="sheet_source">Quelle</string>

@@ -244,6 +244,8 @@
     <string name="sheet_caption_style">Estilo de legenda</string>
     <string name="sheet_text_size">Tamanho do texto</string>
     <string name="sheet_background">Fundo</string>
+    <string name="sheet_caption_position">Posição</string>
+    <string name="sheet_caption_position_raised">%1$d%% mais acima</string>
     <string name="sheet_background_opacity">Opacidade do fundo</string>
     <string name="sheet_bold">Negrito</string>
     <string name="sheet_source">Fonte</string>

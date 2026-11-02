@@ -244,6 +244,8 @@
     <string name="sheet_caption_style">Stile didascalie</string>
     <string name="sheet_text_size">Dimensione testo</string>
     <string name="sheet_background">Sfondo</string>
+    <string name="sheet_caption_position">Posizione</string>
+    <string name="sheet_caption_position_raised">%1$d%% più in alto</string>
     <string name="sheet_background_opacity">Opacità sfondo</string>
     <string name="sheet_bold">Grassetto</string>
     <string name="sheet_source">Sorgente</string>

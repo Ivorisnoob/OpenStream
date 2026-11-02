@@ -109,6 +109,7 @@ import com.ivor.openstream.presentation.player.sourceSummary
 import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 import java.util.Locale
+import kotlin.math.roundToInt
 
 /** A video rendition exposed by the current stream. */
 data class QualityOption(
@@ -1105,6 +1106,21 @@ private fun LazyListScope.captionsPage(
             onChange = { actions.onCaptionSettingsChange(settings.copy(backgroundOpacity = it)) }
         )
     }
+    item(key = "caption-position") {
+        val raisedPercent = (settings.verticalOffset * 100).roundToInt()
+        LabeledSlider(
+            label = stringResource(R.string.sheet_caption_position),
+            valueLabel = if (raisedPercent == 0) {
+                stringResource(R.string.sheet_default)
+            } else {
+                stringResource(R.string.sheet_caption_position_raised, raisedPercent)
+            },
+            value = settings.verticalOffset,
+            range = 0f..CaptionStyleSettings.MAX_VERTICAL_OFFSET,
+            steps = CaptionStyleSettings.VERTICAL_OFFSET_STEPS,
+            onChange = { actions.onCaptionSettingsChange(settings.copy(verticalOffset = it)) }
+        )
+    }
 }
 
 // region Video shaders
@@ -1234,7 +1250,9 @@ private fun LabeledSlider(
     valueLabel: String,
     value: Float,
     range: ClosedFloatingPointRange<Float>,
-    onChange: (Float) -> Unit
+    onChange: (Float) -> Unit,
+    /** Discrete stops between the ends of [range]; 0 keeps the slider continuous. */
+    steps: Int = 0
 ) {
     Column(
         modifier = Modifier
@@ -1244,15 +1262,15 @@ private fun LabeledSlider(
             // TV, without changing how it behaves under touch on a phone.
             .focusable()
             .onKeyEvent { event ->
-                val step = (range.endInclusive - range.start) / 40f
+                val step = (range.endInclusive - range.start) / if (steps > 0) steps + 1f else 40f
                 when (event.type) {
                     KeyEventType.KeyDown -> when (event.key) {
                         Key.DirectionRight -> {
-                            onChange((value + step).coerceIn(range.start, range.endInclusive))
+                            onChange(snapToStep(value + step, step, range, steps))
                             true
                         }
                         Key.DirectionLeft -> {
-                            onChange((value - step).coerceIn(range.start, range.endInclusive))
+                            onChange(snapToStep(value - step, step, range, steps))
                             true
                         }
                         else -> false
@@ -1272,7 +1290,7 @@ private fun LabeledSlider(
         }
         // State-based Slider, matching the player timeline; the parent stays the source
         // of truth except while the user is dragging.
-        val labeledSliderState = rememberSliderState(value, 0, range)
+        val labeledSliderState = rememberSliderState(value, steps, range)
         LaunchedEffect(value) {
             if (labeledSliderState.value != value) labeledSliderState.value = value
         }
@@ -1285,6 +1303,21 @@ private fun LabeledSlider(
             onValueChangeFinished = null
         )
     }
+}
+
+/** Clamps a D-pad step into [range], landing exactly on a stop when the slider has [steps]. */
+private fun snapToStep(
+    target: Float,
+    step: Float,
+    range: ClosedFloatingPointRange<Float>,
+    steps: Int
+): Float {
+    val snapped = if (steps > 0) {
+        range.start + ((target - range.start) / step).roundToInt() * step
+    } else {
+        target
+    }
+    return snapped.coerceIn(range.start, range.endInclusive)
 }
 
 // endregion

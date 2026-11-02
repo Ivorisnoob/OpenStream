@@ -261,6 +261,8 @@
     <string name="sheet_caption_style">कैप्शन शैली</string>
     <string name="sheet_text_size">अक्षर आकार</string>
     <string name="sheet_background">पृष्ठभूमि</string>
+    <string name="sheet_caption_position">स्थिति</string>
+    <string name="sheet_caption_position_raised">%1$d%% ऊपर</string>
     <string name="sheet_background_opacity">पृष्ठभूमि अपारदर्शिता</string>
     <string name="sheet_bold">मोटा</string>
     <string name="sheet_source">स्रोत</string>
