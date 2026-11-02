@@ -140,8 +140,8 @@ class PlayerViewModel @Inject constructor(
     private val localMediaRepository: LocalMediaRepository
 ) : ViewModel() {
     /** A sideloaded subtitle's text, downloaded and unwrapped by the data layer. */
-    suspend fun loadSubtitleText(url: String, headers: Map<String, String>): String =
-        subtitleFetcher.fetchText(url, headers)
+    suspend fun loadSubtitleText(url: String, headers: Map<String, String>, language: String?): String =
+        subtitleFetcher.fetchText(url, headers, language)
 
     /** Intro/recap/credits times for the current anime episode; empty when unknown. */
     private val _skipSegments = MutableStateFlow<List<SkipSegment>>(emptyList())
@@ -817,8 +817,8 @@ class PlayerViewModel @Inject constructor(
     private fun startResolution(identity: MediaIdentity, includeFallbacks: Boolean = false) {
         resolutionJob?.cancel()
         resolutionJob = viewModelScope.launch {
-            // The automatic search asks the source that played last time first; a widened search
-            // ("Find more", failover) goes to everything.
+            // The automatic search asks the source that played this title last time first; a
+            // widened search ("Find more", failover) goes to everything.
             streamingRepository.resolveServers(
                 identity,
                 includeFallbacks,

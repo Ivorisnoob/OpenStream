@@ -148,6 +148,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.net.URL
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.roundToInt
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -227,7 +229,7 @@ fun ExoPlayerView(
     /** Pops the video out into picture-in-picture; null hides the button. */
     onPictureInPictureClick: (() -> Unit)? = null,
     /** Downloads a sideloaded subtitle as text (gzip/zip handled); throws when it can't. */
-    loadSubtitleText: suspend (url: String, headers: Map<String, String>) -> String = { _, _ -> throw IllegalStateException("No subtitle loader") },
+    loadSubtitleText: suspend (url: String, headers: Map<String, String>, language: String?) -> String = { _, _, _ -> throw IllegalStateException("No subtitle loader") },
     /** Container hint from the source (HLS for hosts whose URLs don't end in .m3u8). */
     mimeType: String? = null,
     /** Playback continues when the app leaves the foreground (the media notification takes over). */
@@ -370,6 +372,36 @@ fun ExoPlayerView(
     var surfaceWidth by remember { mutableIntStateOf(0) }
     var surfaceHeight by remember { mutableIntStateOf(0) }
     val haptics = LocalHapticFeedback.current
+    // Read inside the swipe detectors, which outlive a change of controls.
+    val latestDpadControls by rememberUpdatedState(dpadControls)
+    // Whether the level a brightness or volume swipe is moving already sits at an end, so a finger
+    // held there, or a wobble against it, does not repeat the stop.
+    var levelAtEnd by remember { mutableStateOf(false) }
+
+    /**
+     * The feel of a brightness or volume swipe, mirroring the hold-to-speed-up slide: a light tick
+     * for each tenth the level crosses, and a firmer one where it stops at either end.
+     */
+    fun levelSwipeHaptics(before: Float, after: Float) {
+        // A remote has no finger to feel it, and an unchanged level has nothing to tell.
+        if (latestDpadControls || after == before) return
+        if (after <= 0f || after >= 1f) {
+            if (!levelAtEnd) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            levelAtEnd = true
+            return
+        }
+        // Counted toward the direction of travel, so landing on a tenth ticks once and leaving it
+        // the other way ticks again only at the next one.
+        val crossed = if (after > before) {
+            floor(after * LEVEL_SWIPE_STEPS) != floor(before * LEVEL_SWIPE_STEPS)
+        } else {
+            ceil(after * LEVEL_SWIPE_STEPS) != ceil(before * LEVEL_SWIPE_STEPS)
+        }
+        if (crossed) {
+            levelAtEnd = false
+            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+        }
+    }
 
     fun changeVideoScale(scale: VideoScale, announce: Boolean = true) {
         videoScale = scale
@@ -621,11 +653,12 @@ fun ExoPlayerView(
     LaunchedEffect(selectedSubtitle) { subtitleOffsetMs = 0L }
 
     LaunchedEffect(selectedSubtitle, requestHeaders) {
-        val urlStr = selectedSubtitle?.url
+        val subtitle = selectedSubtitle
+        val urlStr = subtitle?.url
         if (urlStr != null) {
             subtitleLoadingState = SubtitleLoadingState.LOADING
             try {
-                val raw = loadSubtitleText(urlStr, requestHeaders)
+                val raw = loadSubtitleText(urlStr, requestHeaders, subtitle.language)
                 manualCues = withContext(Dispatchers.Default) { parseSubtitles(raw).filterNot { it.text.isSubtitleAd() } }
                 subtitleLoadingState = if (manualCues.isNotEmpty()) SubtitleLoadingState.SUCCESS else SubtitleLoadingState.ERROR
                 Log.i("PlayerSubtitles", "Parsed ${manualCues.size} cues for manual sync")
@@ -1108,6 +1141,9 @@ fun ExoPlayerView(
     val videoIsFocused = remember { mutableStateOf(false) }
     val videoFocusRequester = remember { FocusRequester() }
     val controlsFocusRequester = remember { FocusRequester() }
+    // Until the viewer touches the remote, the focus is only where the player put it, so a skip
+    // button appearing may take it even from the control bar.
+    var remoteKeyPressed by remember(videoUrl) { mutableStateOf(false) }
     val dpadModifier = if (dpadControls) {
         Modifier
             .focusRequester(videoFocusRequester)
@@ -1118,6 +1154,7 @@ fun ExoPlayerView(
             .focusable()
             .onPreviewKeyEvent { event ->
                 if (!videoHasFocus.value) return@onPreviewKeyEvent false
+                if (event.type == KeyEventType.KeyDown) remoteKeyPressed = true
                 if (!videoIsFocused.value && !event.isMediaKey()) return@onPreviewKeyEvent false
                 handleDpadKey(event)
             }
@@ -1156,14 +1193,15 @@ fun ExoPlayerView(
             }
         }
     }
-    // A skip button appearing takes the focus only from the bare video, never from a control being
-    // used, where Up from the progress bar reaches it. Leaving, it hands back the focus it held.
+    // A skip button appearing takes the focus from the bare video, or from the control bar the
+    // player itself focused before any key was pressed, never from a control being used: there Up
+    // from the progress bar reaches it. Leaving, it hands back the focus it held.
     LaunchedEffect(skipVisible, dpadControls) {
         if (!dpadControls || showSettingsDialog || upNextVisible) return@LaunchedEffect
         withFrameNanos { }
         runCatching {
             when {
-                skipVisible && !areControlsVisible -> skipFocusRequester.requestFocus()
+                skipVisible && (!areControlsVisible || !remoteKeyPressed) -> skipFocusRequester.requestFocus()
                 !skipVisible && skipFocused && areControlsVisible -> controlsFocusRequester.requestFocus()
                 !skipVisible && skipFocused -> videoFocusRequester.requestFocus()
             }
@@ -1246,6 +1284,12 @@ fun ExoPlayerView(
                         }
                         // Start from the screen's real brightness so the first swipe doesn't jump.
                         if (verticalMode == VerticalSwipe.BRIGHTNESS) brightness = currentBrightness(activity)
+                        // A swipe that starts at an end has already been told so.
+                        levelAtEnd = when (verticalMode) {
+                            VerticalSwipe.BRIGHTNESS -> brightness <= 0f || brightness >= 1f
+                            VerticalSwipe.VOLUME -> volume <= 0f || volume >= 1f
+                            else -> false
+                        }
                         if (isLocked) revealUnlockButton()
                     },
                     onDragEnd = {
@@ -1280,7 +1324,9 @@ fun ExoPlayerView(
                             VerticalSwipe.NONE -> Unit
                             VerticalSwipe.FULLSCREEN -> verticalTravel += dragAmount
                             VerticalSwipe.BRIGHTNESS -> {
+                                val before = brightness
                                 brightness = (brightness + delta).coerceIn(0f, 1f)
+                                levelSwipeHaptics(before, brightness)
                                 showBrightnessOverlay = true
                                 showVolumeOverlay = false
                                 activity?.let { act ->
@@ -1291,8 +1337,10 @@ fun ExoPlayerView(
                                 gestureOverlayTimeout = System.currentTimeMillis() + 2000
                             }
                             VerticalSwipe.VOLUME -> {
+                                val before = volume
                                 volume = (volume + delta).coerceIn(0f, 1f)
                                 exoPlayer.volume = volume
+                                levelSwipeHaptics(before, volume)
                                 showVolumeOverlay = true
                                 showBrightnessOverlay = false
                                 gestureOverlayTimeout = System.currentTimeMillis() + 2000
@@ -1674,7 +1722,8 @@ fun ExoPlayerView(
                 }
             },
             onInteraction = { controlsInteraction++ },
-            playFocusRequester = controlsFocusRequester
+            playFocusRequester = controlsFocusRequester,
+            skipFocusRequester = skipFocusRequester.takeIf { skipVisible }
         ) else PlayerControls(
             isVisible = areControlsVisible && !isInPictureInPicture && !isLocked,
             isPlaying = isPlaying,
@@ -1970,10 +2019,18 @@ fun ExoPlayerView(
                     modifier = Modifier
                         .focusRequester(skipFocusRequester)
                         .onFocusChanged { skipFocused = it.isFocused }
-                        // With the chrome hidden this is the only stop, so the other keys do what
-                        // they do on the bare video: seek, or bring the controls up.
+                        // With the chrome up, a press here is the viewer using it, so it stays up.
+                        // With it hidden this is the only stop, so the other keys do what they do
+                        // on the bare video: seek, or bring the controls up.
                         .onPreviewKeyEvent { event ->
-                            if (areControlsVisible || event.isConfirmKey()) false else handleDpadKey(event)
+                            when {
+                                areControlsVisible -> {
+                                    if (event.type == KeyEventType.KeyDown) controlsInteraction++
+                                    false
+                                }
+                                event.isConfirmKey() -> false
+                                else -> handleDpadKey(event)
+                            }
                         }
                 )
             } else {
@@ -2362,6 +2419,9 @@ private enum class VerticalSwipe { NONE, BRIGHTNESS, VOLUME, FULLSCREEN }
 
 /** How far (as a share of the player's height) a swipe must travel to go fullscreen, exit or minimize. */
 private const val SWIPE_ACTION_FRACTION = 0.12f
+
+/** Brightness and volume swipes tick at every tenth of their range (10%, 20%, ...). */
+private const val LEVEL_SWIPE_STEPS = 10f
 
 /** -1 for the left 35% of the player, 1 for the right 35%, 0 for the middle. */
 private fun tapZone(x: Float, width: Int): Int = when {

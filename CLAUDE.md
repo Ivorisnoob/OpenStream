@@ -78,9 +78,15 @@ Rules:
   provider's priority is its position. Search mode (`SourceSearchMode` in `AppSettings`): all at
   once (rank by quality, order breaks ties) or in order (one at a time, stop at the first with
   streams; ranking puts the order before quality; "Find more" searches everything).
-  The player's automatic search first asks the source that last played something
-  (`rememberWorkingSource`, kept per movie/tv) on its own and stops there when it has streams; with
-  none, or no answer in 10 s, the normal search runs. Downloads and "Find more" search everything.
+  The player's automatic search first asks the source that last played this title
+  (`rememberWorkingSource`, kept per movie and per show across its episodes for the 100 titles
+  played most recently; a title nothing has played yet gets the normal search) on its own, and
+  stops there only when it has a stream at the quality cap the player applies (`streamMaxHeight`,
+  or the stricter mobile-data cap; with no cap, 1080p or better; "Auto"/"HD" don't count). Below
+  the cap its streams are sent at
+  once and the normal search runs for the rest (in order: up to the first other source with
+  streams); with none, or no answer in 10 s, the normal search runs. Downloads and "Find more"
+  search everything.
   That automatic search alone answers from `ResolvedStreamCache` (memory only, 10 minutes, keyed by
   episode plus a fingerprint of the installed sources, order and search mode) and only keeps complete
   searches that found something; `onPlaybackError` drops the episode's entry. No source documents
@@ -127,6 +133,9 @@ Rules:
   and `SubSourceRepository` (keyless, mirrors subsource.net's own API: IMDb search -> list ->
   download token -> zip), plus any the stream carries. `SubtitleFetcher` downloads and unwraps
   them (gzip, zip, charset) for both the player and the cast proxy; promo cues are stripped.
+  `SubtitleCharset` picks the charset: a BOM, else UTF-16 or valid UTF-8, else the usual Windows
+  codepage of the subtitle's language (Turkish 1254, Cyrillic 1251...; 1252 for Western ones),
+  else, with no language, a guess from the file's high bytes. Text is UTF-8 from there on.
   `SavedSubtitleRepository` keeps subtitles on the device (`filesDir/subtitles/<download id>/`, files
   plus `index.json`), saved from Downloads (any language, or an imported file). Downloads also
   record the stream's own subtitles there (`stream.json`) so the sheet can offer them; older
