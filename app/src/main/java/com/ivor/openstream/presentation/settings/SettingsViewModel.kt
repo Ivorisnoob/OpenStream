@@ -17,7 +17,14 @@ import com.ivor.openstream.data.playback.StreamDataGuard
 import com.ivor.openstream.data.notifications.EpisodeAlarm
 import com.ivor.openstream.data.diagnostics.Diagnostics
 import com.ivor.openstream.data.repository.HiddenTitlesRepository
+import com.ivor.openstream.data.downloads.DownloadStorage
 import com.ivor.openstream.data.settings.AppSettings
+import com.ivor.openstream.data.settings.AutoDeleteWatched
+import com.ivor.openstream.data.settings.CaptionStyleSettings
+import com.ivor.openstream.data.settings.HomeRows
+import com.ivor.openstream.data.settings.PlayerPreferences
+import com.ivor.openstream.data.settings.SourceSearchMode
+import com.ivor.openstream.data.settings.StartScreen
 import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.settings.CacheSize
 import com.ivor.openstream.data.settings.DnsProvider
@@ -68,8 +75,124 @@ class SettingsViewModel @Inject constructor(
     private val diagnostics: Diagnostics,
     private val smartDownloads: SmartDownloads,
     private val appCaches: AppCaches,
-    val streamDataGuard: StreamDataGuard
+    val streamDataGuard: StreamDataGuard,
+    private val playerPreferences: PlayerPreferences,
+    private val downloadStorage: DownloadStorage
 ) : ViewModel() {
+
+    // region Subtitles and audio (shared with the player)
+
+    val captionStyle: StateFlow<CaptionStyleSettings> = playerPreferences.captionStyle
+    val subtitleLanguage: StateFlow<String?> = playerPreferences.subtitleLanguage
+    val audioLanguage: StateFlow<String?> = playerPreferences.audioLanguage
+
+    fun setCaptionStyle(style: CaptionStyleSettings) = playerPreferences.setCaptionStyle(style)
+
+    /** A language code, [PlayerPreferences.SUBTITLES_OFF], or null to let each stream decide. */
+    fun setSubtitleLanguage(language: String?) = playerPreferences.setSubtitleLanguage(language)
+
+    fun setAudioLanguage(language: String?) = playerPreferences.setAudioLanguage(language)
+
+    // endregion
+
+    // region Kids lock
+
+    val hasKidsLock: StateFlow<Boolean> = appSettingsStore.hasKidsLock
+
+    fun setKidsLock(pin: String) {
+        appSettingsStore.setKidsLock(pin)
+        _messages.tryEmit(context.getString(R.string.st_kids_lock_set))
+    }
+
+    fun clearKidsLock() {
+        appSettingsStore.clearKidsLock()
+        _messages.tryEmit(context.getString(R.string.st_kids_lock_removed))
+    }
+
+    // endregion
+
+    // region Download storage
+
+    /** Where downloads can go and where they are now; null until measured. */
+    data class StorageState(
+        val volumes: List<DownloadStorage.Volume>,
+        val currentRoot: String,
+        val downloadsBytes: Long,
+        val chosenMissing: Boolean
+    )
+
+    private val _storage = MutableStateFlow<StorageState?>(null)
+    val storage: StateFlow<StorageState?> = _storage.asStateFlow()
+
+    /** Progress of a move between volumes, 0..1; null while none is running. */
+    private val _storageMove = MutableStateFlow<Float?>(null)
+    val storageMove: StateFlow<Float?> = _storageMove.asStateFlow()
+
+    fun refreshStorage() {
+        viewModelScope.launch {
+            _storage.value = withContext(Dispatchers.IO) {
+                StorageState(
+                    volumes = downloadStorage.volumes(),
+                    currentRoot = downloadStorage.currentRoot().absolutePath,
+                    downloadsBytes = downloadStorage.downloadsSize(),
+                    chosenMissing = downloadStorage.chosenVolumeMissing()
+                )
+            }
+        }
+    }
+
+    /**
+     * Moves every download to [volume], then restarts the app so the download cache opens there.
+     * Downloads pause for the move and pick up again after the restart.
+     */
+    fun moveDownloads(volume: DownloadStorage.Volume) {
+        if (_storageMove.value != null) return
+        _storageMove.value = 0f
+        viewModelScope.launch {
+            downloadManager.pauseDownloads()
+            val moved = runCatching {
+                downloadStorage.moveTo(volume) { copied, total ->
+                    _storageMove.value = if (total > 0) copied.toFloat() / total else 1f
+                }
+            }
+            if (moved.isSuccess) {
+                AppRestart.restart(context)
+            } else {
+                downloadManager.resumeDownloads()
+                _storageMove.value = null
+                _messages.tryEmit(context.getString(R.string.st_storage_move_failed))
+                refreshStorage()
+            }
+        }
+    }
+
+    // endregion
+
+    // region Home screen and app behaviour
+
+    fun setStartScreen(screen: StartScreen) = appSettingsStore.update { it.copy(startScreen = screen) }
+
+    fun setHomeRowShown(key: String, shown: Boolean) = appSettingsStore.update {
+        it.copy(hiddenHomeRows = if (shown) it.hiddenHomeRows - key else it.hiddenHomeRows + key)
+    }
+
+    fun moveHomeRow(key: String, delta: Int) = appSettingsStore.update {
+        it.copy(homeRowOrder = HomeRows.move(it.homeRowOrder, key, delta))
+    }
+
+    fun resetHomeRows() = appSettingsStore.update { it.copy(homeRowOrder = emptyList(), hiddenHomeRows = emptySet()) }
+
+    fun setHaptics(enabled: Boolean) = appSettingsStore.update { it.copy(hapticsEnabled = enabled) }
+
+    fun setPauseWatchHistory(paused: Boolean) = appSettingsStore.update { it.copy(pauseWatchHistory = paused) }
+
+    fun setAutoDeleteWatched(mode: AutoDeleteWatched) = appSettingsStore.update { it.copy(autoDeleteWatched = mode) }
+
+    fun setSourceSearchMode(mode: SourceSearchMode) = appSettingsStore.update { it.copy(sourceSearchMode = mode) }
+
+    fun setVolumeBoostPercent(percent: Int) = appSettingsStore.setVolumeBoostPercent(percent)
+
+    // endregion
 
     val state: StateFlow<SettingsUiState> = extensionRepository.catalog
         .map { catalog ->
@@ -115,9 +238,9 @@ class SettingsViewModel @Inject constructor(
 
     fun restoreBackup(uri: Uri) = runFileJob(failure = context.getString(R.string.st_could_not_restore)) {
         val summary = openInput(uri).use { libraryBackup.restore(it) }
-        // Restored settings may flip Wi-Fi-only; the download manager has to hear about it.
+        // Restored settings may flip Wi-Fi-only or charging-only; the download manager has to hear about it.
         withContext(Dispatchers.Main) {
-            downloadManager.requirements = downloadRequirements(appSettingsStore.current.wifiOnlyDownloads)
+            downloadManager.requirements = downloadRequirements(appSettingsStore.current)
         }
         buildList {
             if (summary.watchLater > 0) add(context.getString(R.string.restore_saved, summary.watchLater))
@@ -211,7 +334,12 @@ class SettingsViewModel @Inject constructor(
 
     fun setWifiOnlyDownloads(wifiOnly: Boolean) {
         appSettingsStore.update { it.copy(wifiOnlyDownloads = wifiOnly) }
-        downloadManager.requirements = downloadRequirements(wifiOnly)
+        downloadManager.requirements = downloadRequirements(appSettingsStore.current)
+    }
+
+    fun setChargingOnlyDownloads(chargingOnly: Boolean) {
+        appSettingsStore.update { it.copy(chargingOnlyDownloads = chargingOnly) }
+        downloadManager.requirements = downloadRequirements(appSettingsStore.current)
     }
 
     fun setSmartDownloads(enabled: Boolean) {

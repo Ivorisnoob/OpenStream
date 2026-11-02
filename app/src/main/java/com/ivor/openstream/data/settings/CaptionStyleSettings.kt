@@ -1,4 +1,4 @@
-package com.ivor.openstream.presentation.player
+package com.ivor.openstream.data.settings
 
 import androidx.annotation.StringRes
 import com.ivor.openstream.R

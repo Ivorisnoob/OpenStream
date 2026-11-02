@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.ivor.openstream.data.network.NetworkMonitor
 import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.settings.NavBarStyle
+import com.ivor.openstream.data.settings.StartScreen
 import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.domain.repository.WatchProgressRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -26,6 +27,9 @@ class AppViewModel @Inject constructor(
     /** Starts optimistic so the offline banner never flashes while the first reading arrives. */
     val isOnline: StateFlow<Boolean> = networkMonitor.isOnline
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    /** The tab chosen in Settings to open on, read once: changing it applies from the next launch. */
+    val startScreen: StartScreen = appSettingsStore.current.startScreen
 
     /** How the phone tab bar is drawn; starts from the stored value so it never flips on launch. */
     val navBarStyle: StateFlow<NavBarStyle> = appSettingsStore.settings

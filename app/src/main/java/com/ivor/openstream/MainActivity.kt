@@ -6,6 +6,10 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -121,13 +125,17 @@ class MainActivity : ComponentActivity() {
                     if (tvMode) {
                         TvNavigation()
                     } else {
-                        AppNavigation(
-                            windowSizeClass = windowSizeClass.widthSizeClass,
-                            shortcutRequest = shortcutRequest,
-                            onShortcutHandled = { shortcutRequest = null },
-                            deepLinkRequest = deepLinkRequest,
-                            onDeepLinkHandled = { deepLinkRequest = null }
-                        )
+                        // Haptics off: every screen's ticks and taps go to a feedback that does nothing.
+                        val haptics = if (settings.hapticsEnabled) LocalHapticFeedback.current else NoHapticFeedback
+                        CompositionLocalProvider(LocalHapticFeedback provides haptics) {
+                            AppNavigation(
+                                windowSizeClass = windowSizeClass.widthSizeClass,
+                                shortcutRequest = shortcutRequest,
+                                onShortcutHandled = { shortcutRequest = null },
+                                deepLinkRequest = deepLinkRequest,
+                                onDeepLinkHandled = { deepLinkRequest = null }
+                            )
+                        }
                     }
                 }
             }
@@ -159,4 +167,9 @@ class MainActivity : ComponentActivity() {
         if (event.action == android.view.KeyEvent.ACTION_DOWN) playbackSession.adjustCastVolume(up)
         return true
     }
+}
+
+/** Haptics turned off in Settings: feedback that does nothing. */
+private object NoHapticFeedback : HapticFeedback {
+    override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) = Unit
 }

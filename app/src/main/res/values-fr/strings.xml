@@ -921,4 +921,19 @@
     <string name="calendar_suggestions">À l\'antenne cette semaine</string>
     <string name="calendar_some_failed">Certains titres n\'ont pas pu être vérifiés. Tirez vers le bas pour réessayer.</string>
     <string name="calendar_error">Impossible de charger le calendrier</string>
+    <string name="st_section_quality">Qualité et données</string>
+    <string name="st_section_network">Réseau</string>
+    <string name="st_search_hint">Rechercher dans les paramètres</string>
+    <string name="st_search_none">Aucun paramètre ne correspond à « %1$s »</string>
+    <string name="st_search_none_hint">Essayez un autre mot, comme thème, sous-titres ou qualité.</string>
+    <plurals name="st_search_results">
+        <item quantity="one">%1$d paramètre trouvé</item>
+        <item quantity="many">%1$d paramètres trouvés</item>
+        <item quantity="other">%1$d paramètres trouvés</item>
+    </plurals>
+    <string name="st_cat_personalization">Personnalisation</string>
+    <string name="st_cat_player">Lecteur et gestes</string>
+    <string name="st_cat_library">Profils et bibliothèque</string>
+    <string name="st_cat_about">Aide et à propos</string>
+    <string name="st_group_gestures">Gestes</string>
 </resources>

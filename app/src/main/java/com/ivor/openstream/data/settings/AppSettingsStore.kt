@@ -35,6 +35,18 @@ enum class DnsProvider(
     GOOGLE("Google", R.string.dns_name_google, "https://dns.google/dns-query", listOf("8.8.8.8", "8.8.4.4"))
 }
 
+/** The tab the app opens on. */
+enum class StartScreen { HOME, SEARCH, SAVED, DOWNLOADS, HISTORY }
+
+/** When a downloaded episode or movie is deleted after it has been watched to the end. */
+enum class AutoDeleteWatched(val delayMs: Long) {
+    OFF(-1L),
+    /** Half an hour after it ends, so the credits can still play from the file. */
+    AFTER_WATCHING(30L * 60 * 1000),
+    AFTER_DAY(24L * 60 * 60 * 1000),
+    AFTER_WEEK(7L * 24 * 60 * 60 * 1000)
+}
+
 /** How the phone's tab bar is drawn. Tablets always use the side rail. */
 enum class NavBarStyle {
     /** The expressive toolbar floating above the content, with drag-to-switch. */
@@ -130,7 +142,21 @@ data class AppSettings(
     /** The look the video picture is drawn in, and the sliders that tune it. */
     val videoShaders: VideoShaderCustomization = VideoShaderCustomization(),
     /** Which of the player's optional gestures are on. */
-    val videoGestures: VideoGestureCustomization = VideoGestureCustomization()
+    val videoGestures: VideoGestureCustomization = VideoGestureCustomization(),
+    /** Touch feedback (ticks and taps) across the app; off makes every haptic call do nothing. */
+    val hapticsEnabled: Boolean = true,
+    /** While on, nothing is added to watch history, Continue Watching or resume positions. */
+    val pauseWatchHistory: Boolean = false,
+    /** The tab the app opens on. */
+    val startScreen: StartScreen = StartScreen.HOME,
+    /** Home's rows in the user's order (keys, see [HomeRows]); rows not listed keep their default place. */
+    val homeRowOrder: List<String> = emptyList(),
+    /** Home rows the user turned off. */
+    val hiddenHomeRows: Set<String> = emptySet(),
+    /** Downloads only make progress while the device is charging. */
+    val chargingOnlyDownloads: Boolean = false,
+    /** When downloads of watched episodes and movies are deleted. */
+    val autoDeleteWatched: AutoDeleteWatched = AutoDeleteWatched.OFF
 ) {
     companion object {
         val SEEK_STEPS = listOf(5, 10, 15, 30)
@@ -206,6 +232,13 @@ class AppSettingsStore @Inject constructor(
             .putBoolean(KEY_PRELOAD_ARTWORK, updated.preloadArtwork)
             .putString(KEY_VIDEO_SHADERS, json.encodeToString(updated.videoShaders))
             .putString(KEY_VIDEO_GESTURES, json.encodeToString(updated.videoGestures))
+            .putBoolean(KEY_HAPTICS, updated.hapticsEnabled)
+            .putBoolean(KEY_PAUSE_HISTORY, updated.pauseWatchHistory)
+            .putString(KEY_START_SCREEN, updated.startScreen.name)
+            .putString(KEY_HOME_ROW_ORDER, updated.homeRowOrder.joinToString(","))
+            .putString(KEY_HIDDEN_HOME_ROWS, updated.hiddenHomeRows.joinToString(","))
+            .putBoolean(KEY_CHARGING_ONLY, updated.chargingOnlyDownloads)
+            .putString(KEY_AUTO_DELETE_WATCHED, updated.autoDeleteWatched.name)
             .apply()
     }
 
@@ -258,7 +291,15 @@ class AppSettingsStore @Inject constructor(
             videoGestures = jsonOrDefault(
                 prefs.getString(KEY_VIDEO_GESTURES, null),
                 defaults.videoGestures
-            )
+            ),
+            hapticsEnabled = prefs.getBoolean(KEY_HAPTICS, defaults.hapticsEnabled),
+            pauseWatchHistory = prefs.getBoolean(KEY_PAUSE_HISTORY, defaults.pauseWatchHistory),
+            startScreen = enumOrDefault(prefs.getString(KEY_START_SCREEN, null), defaults.startScreen),
+            homeRowOrder = prefs.getString(KEY_HOME_ROW_ORDER, null)?.let(::parseKeys) ?: defaults.homeRowOrder,
+            hiddenHomeRows = prefs.getString(KEY_HIDDEN_HOME_ROWS, null)?.let(::parseKeys)?.toSet()
+                ?: defaults.hiddenHomeRows,
+            chargingOnlyDownloads = prefs.getBoolean(KEY_CHARGING_ONLY, defaults.chargingOnlyDownloads),
+            autoDeleteWatched = enumOrDefault(prefs.getString(KEY_AUTO_DELETE_WATCHED, null), defaults.autoDeleteWatched)
         )
     }
 
@@ -302,6 +343,36 @@ class AppSettingsStore @Inject constructor(
 
     fun setVideoGestures(settings: VideoGestureCustomization) = update { it.copy(videoGestures = settings) }
 
+    // region Kids lock: a parental PIN asked before a kids profile can switch to another profile
+
+    private val _hasKidsLock = MutableStateFlow(prefs.getString(KEY_KIDS_LOCK_HASH, null) != null)
+
+    /** True while leaving a kids profile needs the parental PIN. */
+    val hasKidsLock: StateFlow<Boolean> = _hasKidsLock.asStateFlow()
+
+    fun setKidsLock(pin: String) {
+        require(ProfilePin.isValidPin(pin))
+        val salt = ProfilePin.generateSalt()
+        prefs.edit()
+            .putString(KEY_KIDS_LOCK_SALT, salt)
+            .putString(KEY_KIDS_LOCK_HASH, ProfilePin.hash(pin, salt))
+            .apply()
+        _hasKidsLock.value = true
+    }
+
+    fun clearKidsLock() {
+        prefs.edit().remove(KEY_KIDS_LOCK_HASH).remove(KEY_KIDS_LOCK_SALT).apply()
+        _hasKidsLock.value = false
+    }
+
+    fun verifyKidsLock(pin: String): Boolean {
+        val hash = prefs.getString(KEY_KIDS_LOCK_HASH, null) ?: return true
+        val salt = prefs.getString(KEY_KIDS_LOCK_SALT, null) ?: return false
+        return ProfilePin.verify(pin, hash, salt)
+    }
+
+    // endregion
+
     // region Profile PIN lockout (attempt counting survives restarts)
 
     fun pinAttempts(profileId: Long): Int = prefs.getInt(pinAttemptsKey(profileId), 0)
@@ -333,6 +404,20 @@ class AppSettingsStore @Inject constructor(
         /** "en,es" as stored; an empty string means none. */
         fun parseLanguages(stored: String): List<String> =
             stored.split(',').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+
+        /** "a,b" as stored; an empty string means none. */
+        fun parseKeys(stored: String): List<String> =
+            stored.split(',').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+
+        const val KEY_HAPTICS = "app_haptics_enabled"
+        const val KEY_PAUSE_HISTORY = "app_pause_watch_history"
+        const val KEY_START_SCREEN = "app_start_screen"
+        const val KEY_HOME_ROW_ORDER = "app_home_row_order"
+        const val KEY_HIDDEN_HOME_ROWS = "app_hidden_home_rows"
+        const val KEY_CHARGING_ONLY = "app_charging_only_downloads"
+        const val KEY_AUTO_DELETE_WATCHED = "app_auto_delete_watched"
+        const val KEY_KIDS_LOCK_HASH = "app_kids_lock_hash"
+        const val KEY_KIDS_LOCK_SALT = "app_kids_lock_salt"
 
         const val KEY_SUBTITLE_LANGUAGES = "app_subtitle_download_languages"
         const val KEY_SUBTITLE_FROM_SITES = "app_subtitle_download_from_sites"

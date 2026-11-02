@@ -22,7 +22,7 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.data.repository.OpenSubtitlesRepository
-import com.ivor.openstream.presentation.player.CaptionStyleSettings
+import com.ivor.openstream.data.settings.CaptionStyleSettings
 import com.ivor.openstream.presentation.player.ServersState
 import androidx.annotation.OptIn
 import androidx.annotation.StringRes

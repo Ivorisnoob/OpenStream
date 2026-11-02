@@ -78,13 +78,12 @@ import com.ivor.openstream.presentation.player.session.CastSubtitleOption
 import com.ivor.openstream.presentation.player.session.CastStreamOptions
 import com.ivor.openstream.presentation.player.session.CastSubtitles
 import com.ivor.openstream.presentation.player.components.SUBTITLES_OFF
+import com.ivor.openstream.data.settings.CaptionStyleSettings
+import com.ivor.openstream.data.settings.PlayerPreferences
 import androidx.media3.common.Player
 import androidx.mediarouter.media.MediaRouteSelector
 import javax.inject.Inject
 
-private const val KEY_CAPTION_STYLE = "caption_style"
-private const val KEY_PREFERRED_AUDIO = "preferred_audio_language"
-private const val KEY_PREFERRED_SUBTITLE = "preferred_subtitle_language"
 private const val MAX_AUTOMATIC_FAILOVERS = 3
 private const val STREAM_REFRESH_AGE_MS = 6 * 60 * 60 * 1_000L
 /** Episode stills preloaded behind the player, so the Up Next card and panel have them ready. */
@@ -129,6 +128,7 @@ class PlayerViewModel @Inject constructor(
     private val watchLaterRepository: WatchLaterRepository,
     private val listRepository: CustomListRepository,
     private val sharedPreferences: SharedPreferences,
+    private val playerPreferences: PlayerPreferences,
     private val json: Json,
     private val playbackSession: PlaybackSession,
     private val appSettingsStore: AppSettingsStore,
@@ -280,29 +280,21 @@ class PlayerViewModel @Inject constructor(
     private var playbackStarted = false
 
 
-    private val _captionSettings = MutableStateFlow(loadCaptionSettings())
-    val captionSettings: StateFlow<CaptionStyleSettings> = _captionSettings.asStateFlow()
+    // Kept in PlayerPreferences, shared with Settings, so a change made there shows here at once.
+    val captionSettings: StateFlow<CaptionStyleSettings> = playerPreferences.captionStyle
 
     /** Audio language the user last picked (for example `en` for dubs); applied to new streams. */
-    private val _preferredAudioLanguage = MutableStateFlow(sharedPreferences.getString(KEY_PREFERRED_AUDIO, null))
-    val preferredAudioLanguage: StateFlow<String?> = _preferredAudioLanguage.asStateFlow()
+    val preferredAudioLanguage: StateFlow<String?> = playerPreferences.audioLanguage
 
-    fun setPreferredAudioLanguage(language: String?) {
-        _preferredAudioLanguage.value = language
-        sharedPreferences.edit().putString(KEY_PREFERRED_AUDIO, language).apply()
-    }
+    fun setPreferredAudioLanguage(language: String?) = playerPreferences.setAudioLanguage(language)
 
     /**
      * Subtitle language the user last picked, [SUBTITLES_OFF] if they turned subtitles off, or
      * null if they never chose; applied to every new stream.
      */
-    private val _preferredSubtitleLanguage = MutableStateFlow(sharedPreferences.getString(KEY_PREFERRED_SUBTITLE, null))
-    val preferredSubtitleLanguage: StateFlow<String?> = _preferredSubtitleLanguage.asStateFlow()
+    val preferredSubtitleLanguage: StateFlow<String?> = playerPreferences.subtitleLanguage
 
-    fun setPreferredSubtitleLanguage(language: String) {
-        _preferredSubtitleLanguage.value = language
-        sharedPreferences.edit().putString(KEY_PREFERRED_SUBTITLE, language).apply()
-    }
+    fun setPreferredSubtitleLanguage(language: String) = playerPreferences.setSubtitleLanguage(language)
 
     private val _nextEpisodes = MutableStateFlow<List<EpisodeDto>>(emptyList())
     val nextEpisodes = _nextEpisodes.asStateFlow()
@@ -449,20 +441,7 @@ class PlayerViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    private fun loadCaptionSettings(): CaptionStyleSettings = try {
-        sharedPreferences.getString(KEY_CAPTION_STYLE, null)
-            ?.let { json.decodeFromString<CaptionStyleSettings>(it) }
-            ?: CaptionStyleSettings()
-    } catch (_: Exception) {
-        CaptionStyleSettings()
-    }
-
-    fun updateCaptionSettings(settings: CaptionStyleSettings) {
-        _captionSettings.value = settings
-        sharedPreferences.edit()
-            .putString(KEY_CAPTION_STYLE, json.encodeToString(settings))
-            .apply()
-    }
+    fun updateCaptionSettings(settings: CaptionStyleSettings) = playerPreferences.setCaptionStyle(settings)
 
     suspend fun getLocalMedia(id: Long): LocalMediaEntity? =
         localMediaRepository.getLocalMediaById(id)

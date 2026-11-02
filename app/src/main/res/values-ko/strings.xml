@@ -954,4 +954,17 @@
     <string name="calendar_suggestions">이번 주 방영</string>
     <string name="calendar_some_failed">일부 작품을 확인하지 못했습니다. 아래로 당겨 다시 시도하세요.</string>
     <string name="calendar_error">캘린더를 불러올 수 없습니다</string>
+    <string name="st_section_quality">화질 및 데이터</string>
+    <string name="st_section_network">네트워크</string>
+    <string name="st_search_hint">설정 검색</string>
+    <string name="st_search_none">‘%1$s’와(과) 일치하는 설정이 없습니다</string>
+    <string name="st_search_none_hint">테마, 자막, 화질 같은 다른 단어로 검색해 보세요.</string>
+    <plurals name="st_search_results">
+        <item quantity="other">설정 %1$d개를 찾았습니다</item>
+    </plurals>
+    <string name="st_cat_personalization">개인 설정</string>
+    <string name="st_cat_player">플레이어 및 제스처</string>
+    <string name="st_cat_library">프로필 및 라이브러리</string>
+    <string name="st_cat_about">도움말 및 정보</string>
+    <string name="st_group_gestures">제스처</string>
 </resources>

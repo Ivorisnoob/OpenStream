@@ -1232,6 +1232,8 @@ class PlaybackSession @Inject constructor(
         // An imported file is not a title: it would show up in Continue Watching and History with
         // nothing to open.
         if (item.mediaType == LOCAL_MEDIA_TYPE) return
+        // Watch history is paused: nothing is recorded, so nothing is queued next either.
+        if (appSettingsStore.current.pauseWatchHistory) return
 
         val key = item.key
         val completed = position.toFloat() / duration >= WatchProgress.COMPLETION_FRACTION

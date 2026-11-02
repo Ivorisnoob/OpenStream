@@ -10,6 +10,7 @@ import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.ivor.openstream.data.cache.CacheBudget
 import com.ivor.openstream.data.diagnostics.Diagnostics
 import com.ivor.openstream.data.downloads.SmartDownloads
+import com.ivor.openstream.data.downloads.WatchedDownloadCleaner
 import com.ivor.openstream.data.notifications.EpisodeAlarm
 import com.ivor.openstream.data.settings.AppDns
 import com.ivor.openstream.data.settings.AppLocale
@@ -33,6 +34,9 @@ class OpenStreamApp : Application(), SingletonImageLoader.Factory {
     @Inject
     lateinit var smartDownloads: SmartDownloads
 
+    @Inject
+    lateinit var watchedDownloadCleaner: WatchedDownloadCleaner
+
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(AppLocale.wrap(base, AppLocale.savedTag(base)))
     }
@@ -47,6 +51,7 @@ class OpenStreamApp : Application(), SingletonImageLoader.Factory {
             EpisodeAlarm.schedule(this)
         }
         smartDownloads.start()
+        watchedDownloadCleaner.start()
     }
 
     /**

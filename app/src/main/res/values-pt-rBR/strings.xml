@@ -921,4 +921,19 @@
     <string name="calendar_suggestions">No ar esta semana</string>
     <string name="calendar_some_failed">Não foi possível verificar alguns títulos. Puxe para baixo para tentar de novo.</string>
     <string name="calendar_error">Não foi possível carregar o calendário</string>
+    <string name="st_section_quality">Qualidade e dados</string>
+    <string name="st_section_network">Rede</string>
+    <string name="st_search_hint">Pesquisar configurações</string>
+    <string name="st_search_none">Nenhuma configuração corresponde a “%1$s”</string>
+    <string name="st_search_none_hint">Tente outra palavra, como tema, legendas ou qualidade.</string>
+    <plurals name="st_search_results">
+        <item quantity="one">%1$d configuração encontrada</item>
+        <item quantity="many">%1$d configurações encontradas</item>
+        <item quantity="other">%1$d configurações encontradas</item>
+    </plurals>
+    <string name="st_cat_personalization">Personalização</string>
+    <string name="st_cat_player">Player e gestos</string>
+    <string name="st_cat_library">Perfis e biblioteca</string>
+    <string name="st_cat_about">Ajuda e sobre</string>
+    <string name="st_group_gestures">Gestos</string>
 </resources>
