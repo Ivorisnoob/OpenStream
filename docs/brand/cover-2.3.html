@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OpenStream 2.3 cover</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+  @import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,600,1,0&icon_names=auto_awesome,calendar_month,tv&display=block");
+  @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@900&text=%E7%AC%AC2%E5%B7%BB3%E8%A9%B1%E3%82%AA%E3%83%BC%E3%83%97%E3%83%B3%E3%82%B9%E3%83%88%E3%83%AA%E3%83%BC%E3%83%A0&display=block");
+
+  /* 2.3 is the night edition: an AMOLED-black stage with sakura doing the outlining. */
+  html, body, .stage { background: var(--ink); }
+  .stage { width: 1280px; height: 640px; }
+
+  .spine { width: 84px; padding: 28px 0 26px; background: var(--sakura); color: var(--ink); }
+  .spine::after { background: repeating-linear-gradient(180deg, var(--sakura) 0 10px, transparent 10px 20px); }
+  .spine .name { font-size: 24px; }
+  .spine .kana { font-size: 30px; }
+  .spine .num { font-size: 30px; letter-spacing: -0.04em; }
+
+  .panel.hero {
+    left: 128px; top: 40px; width: 560px; height: 548px;
+    border-radius: 48px 132px 48px 48px;
+    padding: 30px 36px;
+    border-color: var(--sakura);
+    box-shadow: 12px 12px 0 var(--sakura);
+  }
+
+  .row { display: flex; align-items: center; gap: 12px; }
+  .kicker {
+    background: var(--ink); color: #fff; border-radius: 999px; padding: 9px 16px;
+    font-size: 17px; font-weight: 900; letter-spacing: 0.08em; font-variation-settings: "wdth" 120;
+  }
+  .kicker.jp { letter-spacing: 0.04em; font-size: 17px; }
+
+  .num-big {
+    margin-top: 30px; display: flex; align-items: baseline;
+    font-size: 236px; line-height: 0.76; font-weight: 1000; letter-spacing: -0.05em;
+    font-variation-settings: "wdth" 125, "opsz" 144;
+    text-shadow: 10px 10px 0 var(--sakura);
+  }
+  .num-big .dot { color: var(--sakura); text-shadow: 10px 10px 0 var(--ink); margin: 0 0.03em; }
+
+  .tagline {
+    margin-top: 30px; font-size: 30px; line-height: 1.12; font-weight: 800; letter-spacing: -0.01em;
+    font-variation-settings: "wdth" 100, "opsz" 36;
+  }
+  .wave { margin-top: 12px; display: block; }
+  .hero .chips { margin-top: 14px; }
+
+  .stamp { right: 40px; top: 30px; transform: rotate(4deg); background: var(--sakura); color: var(--ink); }
+
+  .badge { position: absolute; display: grid; place-items: center; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <svg class="layer" id="art" width="1280" height="640" viewBox="0 0 1280 640"></svg>
+
+  <div class="spine">
+    <svg width="30" height="30" viewBox="-20 -20 40 40"><path d="M0,-18Q3,-3 18,0Q3,3 0,18Q-3,3 -18,0Q-3,-3 0,-18Z" fill="#1A1030"/></svg>
+    <span class="name en-only">OPENSTREAM</span>
+    <span class="kana jp ja-only">オープンストリーム</span>
+    <span class="num">2.3</span>
+  </div>
+
+  <div class="panel hero">
+    <div class="row">
+      <div class="brand">
+        <span class="dot"><svg width="30" height="30" viewBox="30 30 48 48" id="brandMark"></svg></span>
+        OpenStream
+      </div>
+      <span class="kicker en-only">VOL. 2 &middot; CH. 3</span>
+      <span class="kicker jp ja-only">第2巻 第3話</span>
+    </div>
+    <div class="num-big"><span>2</span><span class="dot">.</span><span>3</span></div>
+    <div class="tagline">A new TV app, a new Settings<br>and what's coming next.</div>
+    <svg class="wave" id="wave" width="480" height="24" viewBox="0 0 480 24"></svg>
+    <div class="chips">
+      <span class="chip"><span class="icon">tv</span>TV app</span>
+      <span class="chip"><span class="icon">calendar_month</span>Upcoming</span>
+      <span class="chip"><span class="icon">auto_awesome</span>Shaders</span>
+    </div>
+  </div>
+
+  <div class="stamp">OUT NOW</div>
+
+  <svg class="layer" id="front" width="1280" height="640" viewBox="0 0 1280 640"></svg>
+  <div class="badge" style="left: 714px; top: 412px; width: 128px; height: 128px;"><span class="icon" style="font-size: 54px; color: var(--on-tertiary-container)">calendar_month</span></div>
+  <div class="badge" style="left: 1141px; top: 96px; width: 112px; height: 112px;"><span class="icon" style="font-size: 50px; color: var(--ink)">auto_awesome</span></div>
+</div>
+
+<script src="brand.js"></script>
+<script>
+  const svg = document.getElementById("art");
+  const front = document.getElementById("front");
+  const cx = 975, cy = 288;
+
+  // Night screentone and sakura speed lines aimed at the TV.
+  halftone(svg, {
+    x0: 0, y0: 0, x1: 1280, y1: 640, step: 17, maxR: 7.2, fill: "#2E1F4F",
+    weight: (x, y) => Math.max(((y - 256) - x * 0.55) / 360, 0),
+  });
+  halftone(svg, {
+    x0: 600, y0: 0, x1: 1280, y1: 400, step: 13, maxR: 5, fill: "#2E1F4F",
+    weight: (x, y) => ((x - 900) * 0.6 - y + 40) / 300,
+  });
+  const lines = el("g", { opacity: 0.42 }, svg);
+  fadedFocusLines(lines, { width: 1280, height: 640, cx, cy, inner: 230 });
+
+  // The TV: a paper bezel with a hard sakura shadow, the mark playing on screen.
+  const W = 420, H = 270, x0 = cx - W / 2, y0 = cy - H / 2;
+  const leg = (x) => {
+    el("rect", { x: x + 10, y: y0 + H + 4, width: 22, height: 46, rx: 8, fill: SAKURA, transform: `rotate(${x < cx ? 12 : -12} ${x + 11} ${y0 + H})` }, front);
+    el("rect", { x, y: y0 + H - 4, width: 22, height: 46, rx: 8, fill: "#FFF6F8", transform: `rotate(${x < cx ? 12 : -12} ${x + 11} ${y0 + H})` }, front);
+  };
+  leg(cx - 120);
+  leg(cx + 98);
+  el("rect", { x: x0 + 14, y: y0 + 14, width: W, height: H, rx: 36, fill: SAKURA }, front);
+  el("rect", { x: x0, y: y0, width: W, height: H, rx: 36, fill: "#FFF6F8" }, front);
+  const sx = x0 + 20, sy = y0 + 20, sw = W - 40, sh = H - 40;
+  el("rect", { x: sx, y: sy, width: sw, height: sh, rx: 20, fill: "#FFE4EA" }, front);
+  const clip = el("clipPath", { id: "screenClip" }, el("defs", {}, front));
+  el("rect", { x: sx, y: sy, width: sw, height: sh, rx: 20 }, clip);
+  const tone = el("g", { "clip-path": "url(#screenClip)" }, front);
+  halftone(tone, {
+    x0: sx, y0: sy, x1: sx + sw, y1: sy + sh, step: 12, maxR: 3.8, fill: "#FFC2D3",
+    weight: (x, y) => ((y - cy) + (cx - x) * 0.5 + 20) / 150,
+  });
+  mark(front, { cx: cx - 3, cy: cy - 16, size: 148, spark: SAKURA });
+  wavyProgress(front, { x: sx + 28, y: sy + sh - 30, width: sw - 56, progress: 0.58, color: SAKURA, track: "#FFC9D6", stroke: 8, amp: 4.5, wavelength: 30 });
+
+  // Badges for the other headliners, outlined like comic panels.
+  inkShape(front, { kind: "cookie9", cx: 778, cy: 476, r: 70, rot: 0.2, fill: "#FFDCC2", shadow: 0, outline: 0 });
+  inkShape(front, { kind: "sunny", cx: 1197, cy: 152, r: 60, fill: SAKURA, shadow: 0, outline: 0 });
+
+  const pill = el("g", { transform: "translate(1104 560) rotate(-10)" }, front);
+  el("rect", { x: -120, y: -38, width: 240, height: 76, rx: 38, fill: SAKURA, transform: "translate(8 8)" }, pill);
+  el("rect", { x: -120, y: -38, width: 240, height: 76, rx: 38, fill: "#fff" }, pill);
+  const t = el("text", { x: 0, y: 15, "text-anchor": "middle", fill: INK, "font-family": "Roboto Flex", "font-size": 40, "font-weight": 1000, style: "font-variation-settings: 'wdth' 125; letter-spacing: 0.02em" }, pill);
+  t.textContent = "AMOLED";
+
+  sparkle(front, { x: 748, y: 120, r: 22 });
+  sparkle(front, { x: 1236, y: 400, r: 14 });
+  sparkle(front, { x: 905, y: 560, r: 12, fill: SAKURA });
+  inkShape(front, { kind: "flower", cx: 1240, cy: 300, r: 18, fill: "#FFB3C6", shadow: 0, outline: 0 });
+
+  wavyProgress(document.getElementById("wave"), { x: 6, y: 12, width: 440, progress: 0.72, color: SAKURA, track: "#FFC9D6", stroke: 9, amp: 5.5, wavelength: 38 });
+  markInto(document.getElementById("brandMark"));
+</script>
+</body>
+</html>
