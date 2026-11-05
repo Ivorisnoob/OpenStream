@@ -70,7 +70,7 @@ brightness back to the system.
 - [x] **Filters and sorting** in search beyond genre: type, year, rating, original language.
 - [ ] **In-app trailers.** Trailers currently open YouTube externally
       (`DetailsScreen.kt:913` and the `TrailerRail`).
-- [ ] **Upcoming episodes calendar** for followed shows.
+- [x] **Upcoming episodes calendar** for followed shows (Saved > Upcoming; a drawer entry on TV).
 - [x] **"Not interested" / hide title** from Home rows (long-press; undo in Settings).
 
 ## Library and sync

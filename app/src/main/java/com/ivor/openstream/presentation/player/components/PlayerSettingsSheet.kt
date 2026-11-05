@@ -7,6 +7,7 @@ import com.ivor.openstream.R
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import com.ivor.openstream.data.settings.CaptionTextColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -31,10 +32,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bedtime
@@ -42,14 +44,22 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ClosedCaption
+import androidx.compose.material.icons.filled.CropFree
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.HighQuality
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import com.ivor.openstream.data.playback.VolumeBooster
+import com.ivor.openstream.data.settings.VideoShaderCustomization
+import com.ivor.openstream.data.settings.VideoShaderPreset
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
@@ -61,25 +71,32 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Slider
+import androidx.compose.material3.rememberSliderState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ivor.openstream.presentation.player.CaptionStyleSettings
+import com.ivor.openstream.data.settings.CaptionStyleSettings
 import com.ivor.openstream.presentation.player.ServersState
 import com.ivor.openstream.presentation.player.session.SleepTimer
 import com.ivor.openstream.data.remote.model.EpisodeDto
@@ -92,6 +109,7 @@ import com.ivor.openstream.presentation.player.sourceSummary
 import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 import java.util.Locale
+import kotlin.math.roundToInt
 
 /** A video rendition exposed by the current stream. */
 data class QualityOption(
@@ -162,7 +180,9 @@ enum class PlayerSettingsPage(val title: String, @StringRes val titleRes: Int) {
     MAIN("Playback", R.string.st_playback),
     SOURCES("Sources", R.string.sheet_sources),
     AUDIO("Audio", R.string.sheet_audio),
+    VOLUME_BOOST("Volume boost", R.string.sheet_volume_boost),
     QUALITY("Quality", R.string.sheet_quality),
+    SHADERS("Shaders", R.string.vpc_shaders),
     SPEED("Speed", R.string.sheet_speed),
     SUBTITLES("Subtitles", R.string.sheet_subtitles),
     CAPTIONS("Caption style", R.string.sheet_caption_style),
@@ -195,7 +215,14 @@ class PlayerSettingsModel(
     val episodes: List<EpisodeDto> = emptyList(),
     val currentEpisode: Int = 0,
     val episodeProgress: Map<Pair<Int, Int>, WatchProgress> = emptyMap(),
-    val smoothMotion: SmoothMotion? = null
+    val smoothMotion: SmoothMotion? = null,
+    val volumeBoostPercent: Int = 100,
+    /** The look the picture is drawn in; the master switch lives in Settings. */
+    val videoShaders: VideoShaderCustomization = VideoShaderCustomization(),
+    /** Whether the picture fills the screen, cropping the small band that does not fit. */
+    val zoomToFill: Boolean = false,
+    /** False when a fill would crop more of the picture than is worth losing, which hides the row. */
+    val zoomToFillAvailable: Boolean = false
 )
 
 class PlayerSettingsActions(
@@ -208,7 +235,13 @@ class PlayerSettingsActions(
     val onSubtitleOffsetChange: (Long) -> Unit = {},
     val onSleepTimerChange: (SleepTimer?) -> Unit = {},
     val onEpisodeSelected: (EpisodeDto) -> Unit = {},
-    val onSmoothMotionToggle: ((Boolean) -> Unit)? = null
+    val onSmoothMotionToggle: ((Boolean) -> Unit)? = null,
+    val onVolumeBoostChange: (Int) -> Unit = {},
+    val onOpenExternalPlayer: (() -> Unit)? = null,
+    /** A shader slider mid-drag: on the picture now, stored on release. */
+    val onPreviewVideoShaders: (VideoShaderCustomization) -> Unit = {},
+    val onVideoShadersChange: (VideoShaderCustomization) -> Unit = {},
+    val onZoomToFillChange: (Boolean) -> Unit = {}
 )
 
 /**
@@ -223,9 +256,16 @@ fun PlayerSettingsHost(
     initialPage: PlayerSettingsPage,
     model: PlayerSettingsModel,
     actions: PlayerSettingsActions,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** True on TV: render the side panel, never a ModalBottomSheet. */
+    tvControls: Boolean = false
 ) {
-    PlayerPanelHost(visible = visible, isFullscreen = isFullscreen, onDismiss = onDismiss) { listModifier, onClose ->
+    PlayerPanelHost(
+        visible = visible,
+        isFullscreen = isFullscreen,
+        onDismiss = onDismiss,
+        tvControls = tvControls
+    ) { listModifier, onClose ->
         SettingsContent(
             initialPage = initialPage,
             model = model,
@@ -291,6 +331,7 @@ private fun ColumnScope.SettingsContent(
                 PlayerSettingsPage.MAIN -> mainPage(model, actions, onNavigate = { page = it })
                 PlayerSettingsPage.SOURCES -> sourcesPage(model.serversState, sourceFilter, sourceActions)
                 PlayerSettingsPage.AUDIO -> audioPage(model, actions, sourceActions, onDone = goHome)
+                PlayerSettingsPage.VOLUME_BOOST -> volumeBoostPage(model, actions)
                 PlayerSettingsPage.QUALITY -> qualityPage(
                     model = model,
                     actions = actions,
@@ -298,6 +339,7 @@ private fun ColumnScope.SettingsContent(
                     onOpenSources = { page = PlayerSettingsPage.SOURCES }
                 )
                 PlayerSettingsPage.SPEED -> speedPage(model, actions)
+                PlayerSettingsPage.SHADERS -> shadersPage(model, actions)
                 PlayerSettingsPage.SUBTITLES -> subtitlesPage(model, actions, onDone = goHome)
                 PlayerSettingsPage.CAPTIONS -> captionsPage(model, actions)
                 PlayerSettingsPage.SLEEP -> sleepPage(model, actions, onDone = goHome)
@@ -374,6 +416,15 @@ private fun LazyListScope.mainPage(
         )
         add(
             MainRow(
+                icon = Icons.AutoMirrored.Filled.VolumeUp,
+                key = "volume-boost",
+                title = { stringResource(R.string.sheet_volume_boost) },
+                value = { "${model.volumeBoostPercent}%" },
+                onClick = { onNavigate(PlayerSettingsPage.VOLUME_BOOST) }
+            )
+        )
+        add(
+            MainRow(
                 icon = Icons.Default.HighQuality,
                 key = "quality",
                 title = { stringResource(R.string.sheet_quality) },
@@ -393,6 +444,38 @@ private fun LazyListScope.mainPage(
                         else stringResource(R.string.misc_off)
                     },
                     onClick = { actions.onSmoothMotionToggle?.invoke(!sm.enabled) }
+                )
+            )
+        }
+        if (model.videoShaders.masterEnabled) {
+            add(
+                MainRow(
+                    icon = Icons.Default.Palette,
+                    key = "shaders",
+                    title = { stringResource(R.string.vpc_shaders) },
+                    value = {
+                        val shaders = model.videoShaders
+                        when {
+                            shaders.activePreset != VideoShaderPreset.NONE ->
+                                stringResource(shaders.activePreset.titleRes)
+                            !shaders.isPictureNeutral -> stringResource(R.string.vpc_shaders_adjusted)
+                            else -> stringResource(R.string.cz_video_shaders_off)
+                        }
+                    },
+                    onClick = { onNavigate(PlayerSettingsPage.SHADERS) }
+                )
+            )
+        }
+        if (model.zoomToFillAvailable) {
+            add(
+                MainRow(
+                    icon = Icons.Default.CropFree,
+                    key = "zoom-to-fill",
+                    title = { stringResource(R.string.vp_zoom_to_fill) },
+                    value = {
+                        stringResource(if (model.zoomToFill) R.string.misc_on else R.string.misc_off)
+                    },
+                    onClick = { actions.onZoomToFillChange(!model.zoomToFill) }
                 )
             )
         }
@@ -446,6 +529,17 @@ private fun LazyListScope.mainPage(
                 onClick = { onNavigate(PlayerSettingsPage.SLEEP) }
             )
         )
+        if (actions.onOpenExternalPlayer != null) {
+            add(
+                MainRow(
+                    icon = Icons.AutoMirrored.Filled.OpenInNew,
+                    key = "external-player",
+                    title = { stringResource(R.string.sheet_external_player) },
+                    value = { stringResource(R.string.action_open_external_player) },
+                    onClick = { actions.onOpenExternalPlayer.invoke() }
+                )
+            )
+        }
     }
 
     itemsIndexed(rows, key = { _, row -> row.key }) { index, row ->
@@ -544,6 +638,58 @@ private fun LazyListScope.qualityPage(
                 modifier = Modifier.padding(top = 12.dp)
             )
         }
+    }
+}
+
+// endregion
+
+// region Volume Boost
+
+@OptIn(ExperimentalLayoutApi::class)
+private fun LazyListScope.volumeBoostPage(
+    model: PlayerSettingsModel,
+    actions: PlayerSettingsActions
+) {
+    item(key = "boost-value") {
+        Text(
+            text = "${model.volumeBoostPercent}%",
+            style = MaterialTheme.typography.displayMedium,
+            fontWeight = FontWeight.Black,
+            color = MaterialTheme.colorScheme.primary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp)
+        )
+    }
+    item(key = "boost-options") {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            maxItemsInEachRow = 3
+        ) {
+            VolumeBooster.BOOST_PRESETS.forEach { percent ->
+                ToggleButton(
+                    checked = percent == model.volumeBoostPercent,
+                    onCheckedChange = { actions.onVolumeBoostChange(percent) },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        if (percent == 100) stringResource(R.string.speed_normal) else "${percent}%",
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+    }
+    item(key = "boost-description") {
+        Text(
+            text = stringResource(R.string.sheet_volume_boost_desc),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp)
+        )
     }
 }
 
@@ -884,20 +1030,62 @@ private fun LazyListScope.captionsPage(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 12.dp)
-                .background(Color.Black, ExpressiveShapes.large)
+                .background(MaterialTheme.colorScheme.scrim, ExpressiveShapes.large)
                 .padding(vertical = 28.dp, horizontal = 16.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = stringResource(R.string.pf_where_going),
-                color = Color.White,
+                color = androidx.compose.ui.graphics.Color(settings.textColor.argb),
                 fontWeight = FontWeight.SemiBold,
                 fontSize = settings.textSizeSp.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
-                    .background(Color.Black.copy(alpha = settings.backgroundOpacity), RoundedCornerShape(6.dp))
+                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = settings.backgroundOpacity), ExpressiveShapes.extraSmall)
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             )
+        }
+    }
+    item(key = "caption-color") {
+        Column(modifier = Modifier.padding(bottom = 8.dp)) {
+            Text(
+                text = stringResource(R.string.sheet_caption_color),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CaptionTextColor.entries.forEach { option ->
+                    Surface(
+                        selected = option == settings.textColor,
+                        onClick = {
+                            actions.onCaptionSettingsChange(settings.copy(textColor = option))
+                        },
+                        shape = ExpressiveShapes.medium,
+                        color = if (option == settings.textColor) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.surfaceContainer
+                        },
+                        contentColor = if (option == settings.textColor) {
+                            MaterialTheme.colorScheme.onPrimary
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = stringResource(option.labelRes),
+                            style = MaterialTheme.typography.labelLarge,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 10.dp)
+                        )
+                    }
+                }
+            }
         }
     }
     item(key = "caption-size") {
@@ -918,7 +1106,143 @@ private fun LazyListScope.captionsPage(
             onChange = { actions.onCaptionSettingsChange(settings.copy(backgroundOpacity = it)) }
         )
     }
+    item(key = "caption-position") {
+        val raisedPercent = (settings.verticalOffset * 100).roundToInt()
+        LabeledSlider(
+            label = stringResource(R.string.sheet_caption_position),
+            valueLabel = if (raisedPercent == 0) {
+                stringResource(R.string.sheet_default)
+            } else {
+                stringResource(R.string.sheet_caption_position_raised, raisedPercent)
+            },
+            value = settings.verticalOffset,
+            range = 0f..CaptionStyleSettings.MAX_VERTICAL_OFFSET,
+            steps = CaptionStyleSettings.VERTICAL_OFFSET_STEPS,
+            onChange = { actions.onCaptionSettingsChange(settings.copy(verticalOffset = it)) }
+        )
+    }
 }
+
+// region Video shaders
+
+/**
+ * The panel's Shaders page: the looks, the sliders that tune every built-in one, and a way back to
+ * a neutral picture.
+ *
+ * The master switch is in Settings rather than here, so this page is only offered while it is on:
+ * the stage costs a little battery on every video, and that is not a choice to make by accident
+ * while watching.
+ */
+private fun LazyListScope.shadersPage(
+    model: PlayerSettingsModel,
+    actions: PlayerSettingsActions
+) {
+    val settings = model.videoShaders
+    item(key = "shader-presets") {
+        // Four to a row: the names are one or two words on purpose, so a wider cell would only
+        // stretch them.
+        Column(
+            modifier = Modifier.padding(bottom = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            VideoShaderPreset.entries.chunked(4).forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    row.forEach { preset ->
+                        PresetCell(
+                            preset = preset,
+                            selected = settings.activePreset == preset,
+                            onClick = {
+                                actions.onVideoShadersChange(settings.copy(activePreset = preset))
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    // A last row of one keeps its cell the width of a full row's.
+                    repeat(4 - row.size) { Spacer(modifier = Modifier.weight(1f)) }
+                }
+            }
+        }
+    }
+    item(key = "shader-picture") {
+        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+            ShaderPictureSliders(
+                settings = settings,
+                onPreview = actions.onPreviewVideoShaders,
+                onChange = actions.onVideoShadersChange
+            )
+        }
+    }
+    if (!settings.isPictureNeutral) {
+        item(key = "shader-reset") {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = { actions.onVideoShadersChange(settings.withNeutralPicture()) }) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.vs_reset_picture))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A preset in the panel's grid: its icon over its name, filled with the accent while it is the one
+ * on the picture. Rounded off, the cell is a chip; chosen, it squares up - the same pair of shapes
+ * the sheet's own list items use.
+ */
+@Composable
+private fun PresetCell(
+    preset: VideoShaderPreset,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        selected = selected,
+        onClick = onClick,
+        shape = RoundedCornerShape(if (selected) 18.dp else 26.dp),
+        color = if (selected) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.surfaceContainer
+        },
+        contentColor = if (selected) {
+            MaterialTheme.colorScheme.onPrimary
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        },
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = preset.icon,
+                contentDescription = null,
+                modifier = Modifier.size(22.dp)
+            )
+            Text(
+                text = stringResource(preset.titleRes),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+// endregion
 
 @Composable
 private fun LabeledSlider(
@@ -926,9 +1250,35 @@ private fun LabeledSlider(
     valueLabel: String,
     value: Float,
     range: ClosedFloatingPointRange<Float>,
-    onChange: (Float) -> Unit
+    onChange: (Float) -> Unit,
+    /** Discrete stops between the ends of [range]; 0 keeps the slider continuous. */
+    steps: Int = 0
 ) {
-    Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+            // TV: a Slider alone is a touch control. Giving the row focus and letting
+            // the D-pad step the value makes the same control remote-operable on a
+            // TV, without changing how it behaves under touch on a phone.
+            .focusable()
+            .onKeyEvent { event ->
+                val step = (range.endInclusive - range.start) / if (steps > 0) steps + 1f else 40f
+                when (event.type) {
+                    KeyEventType.KeyDown -> when (event.key) {
+                        Key.DirectionRight -> {
+                            onChange(snapToStep(value + step, step, range, steps))
+                            true
+                        }
+                        Key.DirectionLeft -> {
+                            onChange(snapToStep(value - step, step, range, steps))
+                            true
+                        }
+                        else -> false
+                    }
+                    else -> false
+                }
+            }
+    ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             Text(label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             Text(
@@ -938,8 +1288,36 @@ private fun LabeledSlider(
                 color = MaterialTheme.colorScheme.primary
             )
         }
-        Slider(value = value, onValueChange = onChange, valueRange = range)
+        // State-based Slider, matching the player timeline; the parent stays the source
+        // of truth except while the user is dragging.
+        val labeledSliderState = rememberSliderState(value, steps, range)
+        LaunchedEffect(value) {
+            if (labeledSliderState.value != value) labeledSliderState.value = value
+        }
+        Slider(
+            state = labeledSliderState,
+            onValueChange = {
+                labeledSliderState.value = it
+                onChange(it)
+            },
+            onValueChangeFinished = null
+        )
     }
+}
+
+/** Clamps a D-pad step into [range], landing exactly on a stop when the slider has [steps]. */
+private fun snapToStep(
+    target: Float,
+    step: Float,
+    range: ClosedFloatingPointRange<Float>,
+    steps: Int
+): Float {
+    val snapped = if (steps > 0) {
+        range.start + ((target - range.start) / step).roundToInt() * step
+    } else {
+        target
+    }
+    return snapped.coerceIn(range.start, range.endInclusive)
 }
 
 // endregion

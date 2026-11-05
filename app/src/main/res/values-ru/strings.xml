@@ -82,6 +82,7 @@
     <string name="home_recently_watched">Недавно просмотрено</string>
     <string name="home_weekend_movies">Фильмы на выходные</string>
     <string name="home_anime_movies">Аниме-фильмы</string>
+    <string name="home_popular_on_service">Популярное на %1$s</string>
     <string name="home_critically_acclaimed">Признание критиков</string>
     <string name="home_top_result">Лучший результат</string>
     <string name="home_rank_this_week">%1$d на этой неделе</string>
@@ -139,6 +140,7 @@
     <string name="details_play">Смотреть</string>
     <string name="details_trailer">Трейлер</string>
     <string name="details_episodes">Серии</string>
+    <string name="details_latest">Последняя</string>
     <string name="details_more_like_this">Похожее</string>
     <string name="details_known_for">Известен по</string>
     <string name="details_first_aired">Дата выхода</string>
@@ -205,6 +207,7 @@
     <string name="player_enter_fullscreen">Во весь экран</string>
     <string name="player_exit_fullscreen">Выйти из полноэкранного режима</string>
     <string name="player_pip">Картинка в картинке</string>
+    <string name="player_shader_look">Эффект шейдера</string>
     <string name="player_zoom_fill">Масштаб до заполнения</string>
     <string name="player_playback_settings">Настройки воспроизведения</string>
     <string name="player_waiting_tracks">Ожидание видеодорожек</string>
@@ -242,6 +245,8 @@
     <string name="sheet_caption_style">Стиль субтитров</string>
     <string name="sheet_text_size">Размер текста</string>
     <string name="sheet_background">Фон</string>
+    <string name="sheet_caption_position">Положение</string>
+    <string name="sheet_caption_position_raised">Выше на %1$d%%</string>
     <string name="sheet_background_opacity">Прозрачность фона</string>
     <string name="sheet_bold">Жирный</string>
     <string name="sheet_source">Источник</string>
@@ -319,6 +324,10 @@
     <string name="st_theme_system">Системная</string>
     <string name="st_theme_light">Светлая</string>
     <string name="st_theme_dark">Тёмная</string>
+    <string name="st_amoled_black">AMOLED-чёрный</string>
+    <string name="st_amoled_black_hint">Чисто чёрные поверхности, когда приложение в тёмной теме.</string>
+    <string name="st_floating_nav_bar">Плавающая панель навигации</string>
+    <string name="st_floating_nav_bar_hint">Если выключить, внизу будет обычная закреплённая панель.</string>
     <string name="st_dynamic_color">Динамические цвета</string>
     <string name="st_dynamic_hint">Цвета под обои</string>
     <string name="st_language">Язык</string>
@@ -343,9 +352,14 @@
     <string name="st_history_cleared">История просмотра и прогресс очищены</string>
     <string name="st_clear_crash">Очистить отчёты о сбоях</string>
     <string name="st_crash_cleared">Отчёты о сбоях очищены</string>
-    <string name="st_clear_cache">Очистить кэш изображений</string>
-    <string name="st_cache_cleared">Кэш изображений очищен</string>
-    <string name="st_cache_size">%1$s изображений</string>
+    <string name="st_clear_all_cache">Очистить кэш</string>
+    <string name="st_cache_used">%1$s занято изображениями и данными о тайтлах</string>
+    <string name="st_cache_hint">Изображения и данные о тайтлах хранятся, чтобы страницы открывались быстрее</string>
+    <string name="st_cache_cleared_all">Кэш очищен</string>
+    <string name="st_cache_limit">Размер кэша</string>
+    <string name="st_cache_limit_hint">Сколько места могут занимать изображения и данные о тайтлах. Применится при следующем запуске приложения.</string>
+    <string name="st_preload_artwork">Предзагрузка изображений</string>
+    <string name="st_preload_artwork_hint">По Wi-Fi загружать постеры рядов до того, как вы до них долистаете</string>
     <string name="st_show_hidden">Показывать скрытые тайтлы</string>
     <string name="st_backup">Резервная копия библиотеки</string>
     <string name="st_backup_hint">«Смотреть позже», списки, история и скрытые тайтлы каждого профиля, плюс настройки</string>
@@ -379,7 +393,6 @@
     <string name="st_allow_install_note">Сначала разрешите OpenStream устанавливать обновления, затем вернитесь и нажмите Установить.</string>
     <string name="st_storage_help">Хранилище и помощь</string>
     <string name="st_on_device">На этом устройстве</string>
-    <string name="st_posters_cache">Постеры и фоны для быстрой загрузки</string>
     <string name="st_crash_include">Включает %1$d отчёт о сбое</string>
     <string name="st_repo_data_note">Репозитории содержат данные, а не код</string>
     <string name="st_repo_data_body">Расширение лишь выбирает и настраивает резолвер, уже встроенный в OpenStream, поэтому сторонний список не может выполнять свой код на устройстве.</string>
@@ -409,6 +422,8 @@
     <string name="st_index_not_json">Индекс репозитория — не объект или массив JSON</string>
     <string name="st_repo_lists_unreadable">Не удалось прочитать списки репозитория</string>
     <string name="st_repo_no_extensions">Репозиторий не опубликовал расширений</string>
+    <string name="st_repo_no_internet">Нет подключения к интернету</string>
+    <string name="st_repo_not_valid">Эта ссылка не ведёт на репозиторий или дополнение Stremio</string>
     <string name="st_no_catalog">Каталога пока нет</string>
     <string name="st_pull_repo_hint">Добавьте репозиторий на вкладке Репозитории или обновите для получения официального каталога.</string>
     <string name="st_official_repo">Официальное расширение</string>
@@ -638,6 +653,7 @@
     <string name="player_rewind_seconds">Назад на %1$d сек</string>
     <string name="src_up_to_quality">До %1$s</string>
     <string name="src_adaptive">Адаптивное</string>
+    <string name="src_repo_official">Официальный</string>
     <string name="src_available_count">Доступно: %1$d</string>
     <string name="src_progress">%1$s готово · проверено %2$s из %3$s</string>
     <string name="sub_checking_all">Проверка источника видео, OpenSubtitles и SubSource…</string>
@@ -817,4 +833,112 @@
     <string name="match_rail">Лучшие совпадения для вас</string>
     <string name="match_percent">Совпадение: %1$d%%</string>
     <string name="match_because">Потому что вам понравился %1$s</string>
+    <string name="dl_tab_downloads">Загрузки</string>
+    <string name="dl_tab_local_files">Локальные файлы</string>
+    <string name="dl_save_to_storage_failed">Не удалось сохранить в память</string>
+    <string name="local_import_files">Импортировать видео</string>
+    <string name="local_no_files_title">Нет локальных видео</string>
+    <string name="local_no_files_body">Импортируйте видеофайлы с устройства, чтобы смотреть их в OpenStream</string>
+    <string name="local_file">Локальное видео</string>
+    <string name="local_delete_confirm_title">Убрать локальное видео?</string>
+    <string name="local_delete_confirm_body">Оно только пропадёт из этого списка. Файл останется на устройстве.</string>
+    <string name="local_search_hint">Поиск по локальным видео</string>
+    <string name="sort_name_asc">Название (А–Я)</string>
+    <string name="sort_name_desc">Название (Я–А)</string>
+    <string name="sort_date_added_desc">Недавно добавленные</string>
+    <string name="sort_date_added_asc">Давно добавленные</string>
+    <string name="sort_size_desc">Сначала большие</string>
+    <string name="sort_size_asc">Сначала маленькие</string>
+    <string name="sort_duration_desc">Сначала длинные</string>
+    <string name="sort_duration_asc">Сначала короткие</string>
+    <string name="dl_save_in_progress">Это видео уже сохраняется в «Загрузки»</string>
+    <string name="dl_storage_permission_needed">Разрешите доступ к памяти, чтобы сохранять видео в папку «Загрузки»</string>
+    <string name="dl_save_unsupported">Эту загрузку нельзя сохранить одним видеофайлом</string>
+    <string name="dl_save_protected">Этот поток защищён и воспроизводится только в OpenStream</string>
+    <plurals name="local_import_success">
+        <item quantity="one">Импортировано %1$d видео</item>
+        <item quantity="few">Импортировано %1$d видео</item>
+        <item quantity="many">Импортировано %1$d видео</item>
+        <item quantity="other">Импортировано %1$d видео</item>
+    </plurals>
+    <string name="dl_delete_confirm">Удалить загрузку?</string>
+    <string name="dl_delete_body">Удалить %1$s с этого устройства? Чтобы смотреть офлайн, придётся скачать снова.</string>
+    <string name="dl_cancel_confirm">Отменить загрузку?</string>
+    <string name="dl_cancel_body">Остановить загрузку %1$s? Недокачанный файл будет удалён.</string>
+    <string name="action_keep">Оставить</string>
+    <string name="season_episode_format">Сезон %1$d, серия %2$d</string>
+    <string name="dl_pick_source_title">Выберите источник загрузки</string>
+    <string name="dl_pick_source_hint">Выберите, откуда скачивать.</string>
+    <string name="dl_pick_batch_hint">Для каждой серии будут использованы выбранный источник и качество, если они доступны.</string>
+    <string name="dl_batch_queued">Скачиваем серий: %1$d… Они будут в разделе «Загрузки».</string>
+    <string name="dl_season_already">Все серии здесь уже скачаны или скачиваются</string>
+    <string name="dl_hold_options">Удерживайте, чтобы выбрать источник</string>
+    <string name="dl_hold_tip">Совет: удерживайте «Скачать», чтобы выбрать источник и качество.</string>
+    <string name="dl_choose_source">Выберите источник загрузки</string>
+    <string name="dl_no_quality_match">В этом качестве источников пока нет.</string>
+    <string name="action_show_all">Показать все</string>
+    <plurals name="dl_delete_group_body">
+        <item quantity="one">Удалить %1$d серию «%2$s» с этого устройства? Чтобы смотреть офлайн, придётся скачать снова.</item>
+        <item quantity="few">Удалить %1$d серии «%2$s» с этого устройства? Чтобы смотреть офлайн, придётся скачать снова.</item>
+        <item quantity="many">Удалить %1$d серий «%2$s» с этого устройства? Чтобы смотреть офлайн, придётся скачать снова.</item>
+        <item quantity="other">Удалить %1$d серии «%2$s» с этого устройства? Чтобы смотреть офлайн, придётся скачать снова.</item>
+    </plurals>
+    <plurals name="dl_delete_episodes">
+        <item quantity="one">Удалить %1$d серию?</item>
+        <item quantity="few">Удалить %1$d серии?</item>
+        <item quantity="many">Удалить %1$d серий?</item>
+        <item quantity="other">Удалить %1$d серии?</item>
+    </plurals>
+    <plurals name="dl_batch_count">
+        <item quantity="one">%1$d серия</item>
+        <item quantity="few">%1$d серии</item>
+        <item quantity="many">%1$d серий</item>
+        <item quantity="other">%1$d серии</item>
+    </plurals>
+
+    <string name="sheet_volume_boost">Усиление громкости</string>
+    <string name="sheet_volume_boost_desc">Делает тихие видео громче. Лимитер не даёт громким местам искажаться. Действует для всего, что вы смотрите, пока не вернёте «Обычная».</string>
+    <string name="sheet_external_player">Внешний плеер</string>
+    <string name="action_open_external_player">Открыть во внешнем плеере</string>
+
+    <string name="st_stream_cap">Ограничение качества</string>
+    <string name="st_stream_cap_hint">Максимальное качество потока. По умолчанию 1080p.</string>
+    <string name="st_stream_cap_none">Без ограничения</string>
+    <string name="tv_hold_to_delete">Удерживайте OK, чтобы удалить</string>
+    <string name="tv_st_network">Сеть</string>
+    <string name="tv_st_storage">Хранилище</string>
+    <string name="tv_hold_to_remove">Удерживайте OK, чтобы убрать</string>
+    <string name="tv_key_space">Пробел</string>
+
+    <!-- Calendar -->
+    <string name="calendar_title">Скоро</string>
+    <string name="calendar_subtitle">Новые серии и фильмы из того, что вы смотрите</string>
+    <string name="calendar_next_up">Далее</string>
+    <string name="calendar_out_now">Уже вышло</string>
+    <string name="calendar_new_badge">Новое</string>
+    <string name="calendar_watch_now_cd">Смотреть %1$s сейчас</string>
+    <string name="calendar_day_cd">%1$s, запланировано: %2$d</string>
+    <string name="calendar_empty_title">В календаре пока пусто</string>
+    <string name="calendar_empty_body">Сохраните сериал или начните смотреть его, и новые серии появятся здесь.</string>
+    <string name="calendar_nothing_scheduled">Для ваших тайтлов даты не объявлены.</string>
+    <string name="calendar_nothing_filter">С этим фильтром ничего нет.</string>
+    <string name="calendar_suggestions">Выходит на этой неделе</string>
+    <string name="calendar_some_failed">Не удалось проверить некоторые тайтлы. Потяните вниз, чтобы повторить.</string>
+    <string name="calendar_error">Не удалось загрузить календарь</string>
+    <string name="st_section_quality">Качество и трафик</string>
+    <string name="st_section_network">Сеть</string>
+    <string name="st_search_hint">Поиск настроек</string>
+    <string name="st_search_none">Нет настроек по запросу «%1$s»</string>
+    <string name="st_search_none_hint">Попробуйте другое слово, например «тема», «субтитры» или «качество».</string>
+    <plurals name="st_search_results">
+        <item quantity="one">Найдена %1$d настройка</item>
+        <item quantity="few">Найдено %1$d настройки</item>
+        <item quantity="many">Найдено %1$d настроек</item>
+        <item quantity="other">Найдено %1$d настройки</item>
+    </plurals>
+    <string name="st_cat_personalization">Персонализация</string>
+    <string name="st_cat_player">Плеер и жесты</string>
+    <string name="st_cat_library">Профили и библиотека</string>
+    <string name="st_cat_about">Помощь и сведения</string>
+    <string name="st_group_gestures">Жесты</string>
 </resources>

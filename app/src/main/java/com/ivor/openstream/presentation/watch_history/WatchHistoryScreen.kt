@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.watch_history
 
+import com.ivor.openstream.ui.theme.onScrim
 import com.ivor.openstream.presentation.components.isCompactWidth
 import com.ivor.openstream.R
 import androidx.compose.ui.graphics.Brush
@@ -40,7 +41,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
@@ -289,7 +290,11 @@ private fun HistoryRow(
             supportingContent = {
                 Text(
                     text = listOfNotNull(
-                        if (entry.isMovie) stringResource(R.string.details_movie) else "S${entry.season} E${entry.episode}" + (entry.episodeTitle?.let { " · $it" } ?: ""),
+                        if (entry.isMovie) stringResource(R.string.details_movie) else stringResource(
+                            R.string.li_episode_code,
+                            entry.season,
+                            entry.episode
+                        ) + (entry.episodeTitle?.let { " · $it" } ?: ""),
                         status,
                         time
                     ).joinToString("  ·  "),
@@ -354,13 +359,13 @@ private fun HistoryCard(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.7f)))
+                        .background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to MaterialTheme.colorScheme.scrim.copy(alpha = 0.7f)))
                 )
                 // Status chip: done, or how much is left.
                 Surface(
                     shape = ExpressiveShapes.small,
-                    color = if (entry.completed) MaterialTheme.colorScheme.primary else Color.Black.copy(alpha = 0.65f),
-                    contentColor = if (entry.completed) MaterialTheme.colorScheme.onPrimary else Color.White,
+                    color = if (entry.completed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.scrim.copy(alpha = 0.65f),
+                    contentColor = if (entry.completed) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onScrim,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(10.dp)
@@ -380,15 +385,12 @@ private fun HistoryCard(
                     }
                 }
                 if (!entry.completed && entry.fraction > 0f) {
-                    LinearProgressIndicator(
+                    LinearWavyProgressIndicator(
                         progress = { entry.fraction },
-                        gapSize = 0.dp,
-                        drawStopIndicator = {},
-                        trackColor = Color.White.copy(alpha = 0.25f),
+                        trackColor = MaterialTheme.colorScheme.onScrim.copy(alpha = 0.25f),
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
-                            .height(4.dp)
                     )
                 }
             }
@@ -402,7 +404,11 @@ private fun HistoryCard(
             )
             Text(
                 text = listOfNotNull(
-                    if (entry.isMovie) stringResource(R.string.details_movie) else "S${entry.season} E${entry.episode}" + (entry.episodeTitle?.let { " · $it" } ?: ""),
+                    if (entry.isMovie) stringResource(R.string.details_movie) else stringResource(
+                        R.string.li_episode_code,
+                        entry.season,
+                        entry.episode
+                    ) + (entry.episodeTitle?.let { " · $it" } ?: ""),
                     time
                 ).joinToString("  ·  "),
                 style = MaterialTheme.typography.bodySmall,
@@ -439,21 +445,18 @@ private fun Thumbnail(entry: WatchProgress) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.4f)),
+                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.4f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             }
         } else if (entry.fraction > 0f) {
-            LinearProgressIndicator(
+            LinearWavyProgressIndicator(
                 progress = { entry.fraction },
-                gapSize = 0.dp,
-                drawStopIndicator = {},
-                trackColor = Color.Black.copy(alpha = 0.45f),
+                trackColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .height(3.dp)
             )
         }
     }

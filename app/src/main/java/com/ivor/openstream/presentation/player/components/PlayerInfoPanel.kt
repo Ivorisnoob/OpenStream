@@ -38,7 +38,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
@@ -56,7 +56,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -356,7 +355,7 @@ private fun MetaRow(parts: List<String>, rating: Double?) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         rating?.let {
-            Icon(Icons.Default.Star, contentDescription = stringResource(R.string.li_sort_rating), tint = Color(0xFFFFB300), modifier = Modifier.size(16.dp))
+            Icon(Icons.Default.Star, contentDescription = stringResource(R.string.li_sort_rating), tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(16.dp))
             Text(
                 text = String.format(Locale.US, " %.1f", it) + if (parts.isNotEmpty()) "  ·  " else "",
                 style = MaterialTheme.typography.labelLarge,
@@ -456,20 +455,17 @@ internal fun EpisodeThumb(episode: EpisodeDto, progress: WatchProgress?) {
             progress?.completed == true -> Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.45f)),
+                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Default.CheckCircle, contentDescription = stringResource(R.string.details_watched), tint = MaterialTheme.colorScheme.primary)
             }
-            progress != null && progress.fraction > 0f -> LinearProgressIndicator(
+            progress != null && progress.fraction > 0f -> LinearWavyProgressIndicator(
                 progress = { progress.fraction },
-                gapSize = 0.dp,
-                drawStopIndicator = {},
-                trackColor = Color.Black.copy(alpha = 0.45f),
+                trackColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .height(3.dp)
             )
         }
     }

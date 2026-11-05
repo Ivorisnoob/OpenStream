@@ -37,4 +37,7 @@ data class DownloadEntity(
 
     /** Size on disk; rows written before HLS sizes were recorded only have [downloadedBytes]. */
     val sizeBytes: Long get() = if (totalBytes > 0) totalBytes else downloadedBytes
+
+    /** Saved out to the Downloads folder: [uri] is that file, and the download cache no longer has it. */
+    val isSavedFile: Boolean get() = uri.startsWith("content://") || uri.startsWith("file://")
 }

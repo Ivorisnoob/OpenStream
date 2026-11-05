@@ -1,14 +1,10 @@
 package com.ivor.openstream.presentation.components
 
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -24,11 +20,6 @@ val LocalWindowWidthClass = staticCompositionLocalOf { WindowWidthSizeClass.Comp
 val isCompactWidth: Boolean
     @Composable @ReadOnlyComposable
     get() = LocalWindowWidthClass.current == WindowWidthSizeClass.Compact
-
-/** Tablets in landscape, unfolded foldables in landscape, desktop windows. */
-val isExpandedWidth: Boolean
-    @Composable @ReadOnlyComposable
-    get() = LocalWindowWidthClass.current == WindowWidthSizeClass.Expanded
 
 /** Picks a value by width class: [compact] on phones, [medium] on small tablets, [expanded] on large windows. */
 @Composable
@@ -46,12 +37,6 @@ fun <T> byWidth(compact: T, medium: T, expanded: T = medium): T = when (LocalWin
 val bottomContentPadding: Dp
     @Composable @ReadOnlyComposable
     get() = if (isCompactWidth) 200.dp else 120.dp
-
-/** Readable line length for text-heavy screens (settings, forms): centered, at most [max] wide. */
-fun Modifier.readableWidth(max: Dp = ReadableMaxWidth): Modifier =
-    fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = max)
-
-val ReadableMaxWidth = 720.dp
 
 /**
  * Hosts a full-width scrolling list whose content is centered at most [maxContentWidth] wide.

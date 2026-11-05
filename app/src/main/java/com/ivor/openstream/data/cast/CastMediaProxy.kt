@@ -58,7 +58,9 @@ import javax.inject.Singleton
  *
  * URLs are stateless (`/<token>/m/<base64 of url + headers>/<name>`) so they keep working across a
  * restart of the proxy; the random token keeps the server from being an open relay on the LAN. The
- * phone has to stay on the same network as the receiver while casting.
+ * master playlist URL can carry a [HlsSelection] in its query: the quality and audio picked on the
+ * phone, which [HlsRenditionSelector] narrows the playlist to. The phone has to stay on the same
+ * network as the receiver while casting.
  */
 @OptIn(UnstableApi::class)
 @Singleton
@@ -126,34 +128,57 @@ class CastMediaProxy @Inject constructor(
 
     /**
      * The proxy URL a receiver at [receiver] should use for [target]. Null when the phone has no
-     * address on a local network or the server can't start.
+     * address on a local network or the server can't start. When [target] is an HLS master
+     * playlist, [selection] narrows it to the renditions picked on the phone.
      */
-    fun mediaUrl(target: String, headers: Map<String, String>, receiver: InetAddress?): String? {
+    fun mediaUrl(
+        target: String,
+        headers: Map<String, String>,
+        receiver: InetAddress?,
+        selection: HlsSelection? = null
+    ): String? {
         val base = baseUrl(receiver) ?: return null
-        return "$base/m/${encode(target, headers)}/${fileName(target, "media")}"
+        val query = selection?.takeUnless { it.isEmpty }?.toQuery()?.let { "?$it" }.orEmpty()
+        return "$base/m/${encode(target, headers)}/${fileName(target, "media")}$query"
     }
-
-    /** Like [mediaUrl] for a subtitle file, served as WebVTT whatever its original format. */
-    fun subtitleUrl(target: String, headers: Map<String, String>, receiver: InetAddress?): String? {
-        val base = baseUrl(receiver) ?: return null
-        return "$base/s/${encode(target, headers)}/subtitles.vtt"
-    }
-
-    /** What a receiver needs to be told up front about a stream: its type and HLS segment format. */
-    data class StreamProbe(val mimeType: String, val hlsVideoSegmentFormat: String?)
 
     /**
-     * Looks at the start of [target] (and, for an HLS master playlist, its first variant) to tell
-     * HLS from progressive files and TS from fMP4 segments. Blocking; call off the main thread.
+     * Like [mediaUrl] for a subtitle file, served as UTF-8 WebVTT whatever its original format and
+     * charset. [language] picks the codepage for files that are not UTF-8.
      */
-    fun probe(target: String, headers: Map<String, String>): StreamProbe {
+    fun subtitleUrl(target: String, headers: Map<String, String>, receiver: InetAddress?, language: String? = null): String? {
+        val base = baseUrl(receiver) ?: return null
+        val query = language?.takeIf { it.isNotBlank() }?.let { "?$LANGUAGE_PARAM=${Uri.encode(it)}" }.orEmpty()
+        return "$base/s/${encode(target, headers)}/subtitles.vtt$query"
+    }
+
+    /**
+     * What a receiver needs to be told up front about a stream: its type and HLS segment format.
+     * For an HLS master playlist also the variant heights ([heights], tallest first) and audio
+     * renditions it offers, whatever [probe]'s selection kept.
+     */
+    data class StreamProbe(
+        val mimeType: String,
+        val hlsVideoSegmentFormat: String?,
+        val heights: List<Int> = emptyList(),
+        val audioRenditions: List<HlsAudioRendition> = emptyList()
+    )
+
+    /**
+     * Looks at the start of [target] (and, for an HLS master playlist, the first variant
+     * [selection] keeps) to tell HLS from progressive files and TS from fMP4 segments. Blocking;
+     * call off the main thread.
+     */
+    fun probe(target: String, headers: Map<String, String>, selection: HlsSelection? = null): StreamProbe {
         val path = Uri.parse(target).path.orEmpty().lowercase()
         if (path.endsWith(".mpd")) return StreamProbe("application/dash+xml", null)
         val playlist = runCatching { readPlaylist(target, headers) }.getOrNull()
             ?: return StreamProbe(if (path.endsWith(".m3u8")) HLS_MIME else guessContentType(target).takeUnless { it == "video/mp2t" } ?: "video/mp4", null)
         val (text, base) = playlist
-        val mediaPlaylist = if (text.contains("#EXT-X-STREAM-INF")) {
-            val variant = text.lineSequence().map { it.trim() }
+        val isMaster = HlsRenditionSelector.isMaster(text)
+        val mediaPlaylist = if (isMaster) {
+            val selected = selection?.let { HlsRenditionSelector.select(text, it) } ?: text
+            val variant = selected.lineSequence().map { it.trim() }
                 .dropWhile { !it.startsWith("#EXT-X-STREAM-INF") }
                 .drop(1)
                 .firstOrNull { it.isNotEmpty() && !it.startsWith("#") }
@@ -166,7 +191,12 @@ class CastMediaProxy @Inject constructor(
             mediaPlaylist.contains("#EXT-X-MAP") -> HLS_FMP4
             else -> HLS_TS
         }
-        return StreamProbe(HLS_MIME, format)
+        return StreamProbe(
+            mimeType = HLS_MIME,
+            hlsVideoSegmentFormat = format,
+            heights = if (isMaster) HlsRenditionSelector.heights(text) else emptyList(),
+            audioRenditions = if (isMaster) HlsRenditionSelector.audioRenditions(text) else emptyList()
+        )
     }
 
     /** The playlist text and its address after redirects, or null when [target] isn't a playlist. */
@@ -237,6 +267,7 @@ class CastMediaProxy @Inject constructor(
                     return
                 }
                 val segments = parts[1].substringBefore('?').split('/').filter { it.isNotEmpty() }
+                val selection = HlsSelection.fromQuery(parts[1].substringAfter('?', ""))
                 if (segments.size < 3 || segments[0] != token) {
                     writeError(output, 403, "Forbidden")
                     return
@@ -247,8 +278,8 @@ class CastMediaProxy @Inject constructor(
                 }
                 val host = requestHeaders["host"] ?: return
                 when (segments[1]) {
-                    "m" -> serveMedia(decoded.first, decoded.second, requestHeaders["range"], method == "HEAD", host, output)
-                    "s" -> serveSubtitle(decoded.first, decoded.second, method == "HEAD", output)
+                    "m" -> serveMedia(decoded.first, decoded.second, requestHeaders["range"], method == "HEAD", host, selection, output)
+                    "s" -> serveSubtitle(decoded.first, decoded.second, languageOf(parts[1]), method == "HEAD", output)
                     else -> writeError(output, 404, "Not Found")
                 }
                 output.flush()
@@ -265,6 +296,7 @@ class CastMediaProxy @Inject constructor(
         rangeHeader: String?,
         headOnly: Boolean,
         host: String,
+        selection: HlsSelection?,
         output: OutputStream
     ) {
         val range = parseRange(rangeHeader)
@@ -297,7 +329,9 @@ class CastMediaProxy @Inject constructor(
             if (head.isPlaylist()) {
                 val body = head + readRest(source, MAX_PLAYLIST_BYTES)
                 val base = source.uri?.toString() ?: target
-                val rewritten = rewritePlaylist(body.toString(Charsets.UTF_8), base, headers, host)
+                val text = body.toString(Charsets.UTF_8)
+                    .let { playlist -> selection?.let { HlsRenditionSelector.select(playlist, it) } ?: playlist }
+                val rewritten = rewritePlaylist(text, base, headers, host)
                     .toByteArray(Charsets.UTF_8)
                 writeHead(
                     output, 200, "OK",
@@ -338,11 +372,18 @@ class CastMediaProxy @Inject constructor(
         }
     }
 
-    private fun serveSubtitle(target: String, headers: Map<String, String>, headOnly: Boolean, output: OutputStream) {
-        val body = subtitleCache[target] ?: runCatching { fetchSubtitleAsVtt(target, headers) }
+    private fun serveSubtitle(
+        target: String,
+        headers: Map<String, String>,
+        language: String?,
+        headOnly: Boolean,
+        output: OutputStream
+    ) {
+        val cacheKey = "$target\n$language"
+        val body = subtitleCache[cacheKey] ?: runCatching { fetchSubtitleAsVtt(target, headers, language) }
             .onFailure { Log.w(TAG, "Subtitle conversion failed: ${it.message}") }
             .getOrNull()
-            ?.also { subtitleCache[target] = it }
+            ?.also { subtitleCache[cacheKey] = it }
         if (body == null) {
             writeError(output, 502, "Bad Gateway")
             return
@@ -351,8 +392,8 @@ class CastMediaProxy @Inject constructor(
         if (!headOnly) output.write(body)
     }
 
-    private fun fetchSubtitleAsVtt(target: String, headers: Map<String, String>): ByteArray {
-        val text = runBlocking { subtitleFetcher.fetchText(target, headers) }
+    private fun fetchSubtitleAsVtt(target: String, headers: Map<String, String>, language: String?): ByteArray {
+        val text = runBlocking { subtitleFetcher.fetchText(target, headers, language) }
         val cues = parseSubtitles(text).filterNot { it.text.isSubtitleAd() }
         if (cues.isEmpty()) throw IOException(context.getString(R.string.dl_no_cues))
         return cues.toWebVtt().toByteArray(Charsets.UTF_8)
@@ -433,6 +474,10 @@ class CastMediaProxy @Inject constructor(
         }
         return Base64.encodeToString(payload.toByteArray(Charsets.UTF_8), BASE64_FLAGS)
     }
+
+    /** The subtitle language a [subtitleUrl] carries in its query, if any. */
+    private fun languageOf(path: String): String? =
+        Uri.parse(path).getQueryParameter(LANGUAGE_PARAM)?.takeIf { it.isNotBlank() }
 
     private fun decode(segment: String): Pair<String, Map<String, String>>? = runCatching {
         val lines = Base64.decode(segment, BASE64_FLAGS).toString(Charsets.UTF_8).split('\n')
@@ -533,6 +578,7 @@ class CastMediaProxy @Inject constructor(
         private const val HLS_FMP4 = "fmp4"
         private const val HLS_TS = "mpeg2_ts"
         private const val SNIFF_BYTES = 16
+        private const val LANGUAGE_PARAM = "lang"
         private const val MAX_PLAYLIST_BYTES = 16 * 1024 * 1024
         private const val BASE64_FLAGS = Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
         private val PROXIED_SCHEMES = setOf("http", "https", "content", "file")

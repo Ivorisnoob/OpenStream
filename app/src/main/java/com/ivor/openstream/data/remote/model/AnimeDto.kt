@@ -58,6 +58,7 @@ data class AnimeDetailsDto(
     @SerialName("episode_run_time") val episodeRunTime: List<Int>? = null,
     @SerialName("networks") val networks: List<ProductionCompanyDto>? = null,
     @SerialName("next_episode_to_air") val nextEpisodeToAir: AiringEpisodeDto? = null,
+    @SerialName("last_episode_to_air") val lastEpisodeToAir: AiringEpisodeDto? = null,
     /** Movies: `credits`. Series: `aggregate_credits`, which spans every season. */
     @SerialName("credits") val credits: CreditsDto? = null,
     @SerialName("aggregate_credits") val aggregateCredits: CreditsDto? = null,

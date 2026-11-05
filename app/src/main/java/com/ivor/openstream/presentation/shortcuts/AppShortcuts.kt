@@ -10,10 +10,10 @@ import com.ivor.openstream.MainActivity
 import com.ivor.openstream.R
 
 /** Launcher long-press targets. Published at runtime so they work for every applicationId. */
-enum class AppShortcut(val id: String, val label: String, @StringRes val labelRes: Int, val icon: Int) {
-    CONTINUE_WATCHING("continue_watching", "Continue watching", R.string.sc_continue, R.drawable.ic_shortcut_continue),
-    SEARCH("search", "Search", R.string.sc_search, R.drawable.ic_shortcut_search),
-    DOWNLOADS("downloads", "Downloads", R.string.sc_downloads, R.drawable.ic_shortcut_downloads);
+enum class AppShortcut(val id: String, @StringRes val labelRes: Int, val icon: Int) {
+    CONTINUE_WATCHING("continue_watching", R.string.sc_continue, R.drawable.ic_shortcut_continue),
+    SEARCH("search", R.string.sc_search, R.drawable.ic_shortcut_search),
+    DOWNLOADS("downloads", R.string.sc_downloads, R.drawable.ic_shortcut_downloads);
 
     companion object {
         const val EXTRA = "com.ivor.openstream.SHORTCUT"

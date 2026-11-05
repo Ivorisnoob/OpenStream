@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ivor.openstream.R
+import com.ivor.openstream.data.images.ArtworkPrefetcher
+import com.ivor.openstream.data.images.TmdbImages
 import com.ivor.openstream.data.local.entity.TitleRatingEntity
 import com.ivor.openstream.data.local.entity.WatchLaterEntity
 import com.ivor.openstream.data.remote.model.AnimeDto
@@ -13,6 +15,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import com.ivor.openstream.domain.model.AnimeCatalog
+import com.ivor.openstream.domain.model.StreamingService
+import com.ivor.openstream.data.settings.AppSettingsStore
+import com.ivor.openstream.data.settings.HomeRows
+import kotlinx.coroutines.flow.drop
 import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.domain.repository.AnimeRepository
 import com.ivor.openstream.domain.repository.WatchProgressRepository
@@ -21,7 +27,9 @@ import com.ivor.openstream.data.repository.TitleRatingRepository
 import com.ivor.openstream.domain.repository.WatchLaterRepository
 import com.ivor.openstream.domain.matching.TitleMatcher
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +40,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -82,6 +91,8 @@ class HomeViewModel @Inject constructor(
     private val ratingRepository: TitleRatingRepository,
     private val listRepository: CustomListRepository,
     private val watchLaterRepository: WatchLaterRepository,
+    private val artworkPrefetcher: ArtworkPrefetcher,
+    private val appSettingsStore: AppSettingsStore,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -93,6 +104,18 @@ class HomeViewModel @Inject constructor(
 
     val continueWatching: StateFlow<List<WatchProgress>> = watchProgressRepository.continueWatching()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Home's rows in the order chosen in Settings, without the hidden ones (keys from [HomeRows]). */
+    val rowOrder: StateFlow<List<String>> = appSettingsStore.settings
+        .map { settings -> HomeRows.ordered(settings.homeRowOrder).filterNot { it in settings.hiddenHomeRows } }
+        .distinctUntilChanged()
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            appSettingsStore.current.let { settings ->
+                HomeRows.ordered(settings.homeRowOrder).filterNot { it in settings.hiddenHomeRows }
+            }
+        )
 
     /** Watch Later plus every custom list, as title-key sets for the match engine. */
     private val listKeySets: StateFlow<List<Set<Pair<String, Int>>>> =
@@ -208,6 +231,14 @@ class HomeViewModel @Inject constructor(
                 .distinctUntilChanged()
                 .collect { kids -> if (kids != null) loadData() }
         }
+        // A streaming-service row turned back on in Settings has not been fetched yet.
+        viewModelScope.launch {
+            appSettingsStore.settings
+                .map { it.hiddenHomeRows }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect { if (_uiState.value is HomeUiState.Success) loadServiceRows(forceRefresh = false) }
+        }
     }
 
     fun hideTitle(anime: AnimeDto) {
@@ -222,6 +253,9 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { watchProgressRepository.dismiss(item.mediaType, item.tmdbId) }
     }
 
+    /** Loads the per-service rows after the rest of Home is on screen. */
+    private var serviceRowsJob: Job? = null
+
     /** Pull-to-refresh keeps the current feed on screen while the new one loads. */
     fun refresh() {
         val current = _uiState.value
@@ -230,6 +264,7 @@ class HomeViewModel @Inject constructor(
     }
 
     fun loadData(showLoading: Boolean = true, forceRefresh: Boolean = false) {
+        serviceRowsJob?.cancel()
         viewModelScope.launch {
             if (showLoading) _uiState.value = HomeUiState.Loading
             val catalogs = coroutineScope {
@@ -257,15 +292,72 @@ class HomeViewModel @Inject constructor(
                 HomeRail("anime-movies", context.getString(R.string.home_anime_movies), RailStyle.POSTER, catalogs.getValue(AnimeCatalog.ANIME_MOVIES))
             ).filter { it.items.isNotEmpty() }
 
-            _uiState.value = HomeUiState.Success(
+            // A refresh keeps the service rows on screen until their new copies arrive; a full
+            // reload (a kids profile switch) drops them, since they were filtered for the old profile.
+            val keptServiceRails = if (showLoading) emptyList() else {
+                (_uiState.value as? HomeUiState.Success)?.rails.orEmpty().filter { it.key.startsWith(SERVICE_RAIL_PREFIX) }
+            }
+            val success = HomeUiState.Success(
                 hero = trending.filter { it.posterPath != null }.take(8),
-                rails = rails
+                rails = rails + keptServiceRails
             )
+            _uiState.value = success
+            prefetchArtwork(success.hero, rails)
+            loadServiceRows(forceRefresh)
         }
+    }
+
+    /**
+     * "Popular on Netflix" and the like, appended below the other rows once they are showing, so
+     * these extra requests never hold up Home's first paint.
+     */
+    private fun loadServiceRows(forceRefresh: Boolean) {
+        serviceRowsJob?.cancel()
+        serviceRowsJob = viewModelScope.launch {
+            val serviceRails = coroutineScope {
+                // Rows turned off in Settings are not fetched at all.
+                val hidden = appSettingsStore.current.hiddenHomeRows
+                StreamingService.entries.filterNot { HomeRows.serviceKey(it) in hidden }.map { service ->
+                    async { service to repository.getServiceCatalog(service, forceRefresh).getOrDefault(emptyList()) }
+                }.awaitAll()
+            }.map { (service, items) ->
+                HomeRail(
+                    key = HomeRows.serviceKey(service),
+                    title = context.getString(R.string.home_popular_on_service, service.displayName),
+                    style = RailStyle.POSTER,
+                    items = items
+                )
+            }.filter { it.items.isNotEmpty() }
+            _uiState.update { state ->
+                if (state !is HomeUiState.Success) return@update state
+                state.copy(rails = state.rails.filterNot { it.key.startsWith(SERVICE_RAIL_PREFIX) } + serviceRails)
+            }
+            prefetchArtwork(emptyList(), serviceRails)
+        }
+    }
+
+    /** The rows below the fold, in the sizes HomeScreen draws them, so scrolling finds them ready. */
+    private fun prefetchArtwork(heroItems: List<AnimeDto>, railList: List<HomeRail>) {
+        val hero = heroItems.map { TmdbImages.url("w780", it.posterPath) }
+        val rails = railList.flatMap { rail ->
+            rail.items.take(PREFETCH_PER_RAIL).map { item ->
+                when (rail.style) {
+                    RailStyle.LANDSCAPE -> TmdbImages.url("w780", item.backdropPath)
+                    RailStyle.RANKED, RailStyle.POSTER -> TmdbImages.url("w342", item.posterPath)
+                }
+            }
+        }
+        artworkPrefetcher.prefetch(hero + rails)
     }
 }
 
 private val AnimeDto.homeMediaType: String get() = if (isMovie) "movie" else "tv"
+
+/** Keys of the per-service rows, which load after the rest of Home. */
+private const val SERVICE_RAIL_PREFIX = HomeRows.SERVICE_PREFIX
+
+/** Rails show 20 titles; the first screenfuls of each are worth having ready. */
+private const val PREFETCH_PER_RAIL = 12
 
 private fun HomeUiState.Success.without(hidden: Set<String>): HomeUiState.Success {
     fun List<AnimeDto>.visible() = filterNot { HiddenTitlesRepository.key(it.homeMediaType, it.id) in hidden }

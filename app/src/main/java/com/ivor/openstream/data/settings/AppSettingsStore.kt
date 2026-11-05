@@ -3,9 +3,11 @@ package com.ivor.openstream.data.settings
 import android.content.SharedPreferences
 import androidx.annotation.StringRes
 import com.ivor.openstream.R
+import com.ivor.openstream.data.playback.VolumeBooster
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -33,6 +35,27 @@ enum class DnsProvider(
     GOOGLE("Google", R.string.dns_name_google, "https://dns.google/dns-query", listOf("8.8.8.8", "8.8.4.4"))
 }
 
+/** The tab the app opens on. */
+enum class StartScreen { HOME, SEARCH, SAVED, DOWNLOADS, HISTORY }
+
+/** When a downloaded episode or movie is deleted after it has been watched to the end. */
+enum class AutoDeleteWatched(val delayMs: Long) {
+    OFF(-1L),
+    /** Half an hour after it ends, so the credits can still play from the file. */
+    AFTER_WATCHING(30L * 60 * 1000),
+    AFTER_DAY(24L * 60 * 60 * 1000),
+    AFTER_WEEK(7L * 24 * 60 * 60 * 1000)
+}
+
+/** How the phone's tab bar is drawn. Tablets always use the side rail. */
+enum class NavBarStyle {
+    /** The expressive toolbar floating above the content, with drag-to-switch. */
+    FLOATING,
+
+    /** A standard navigation bar docked to the bottom edge, with labels under the icons. */
+    DOCKED
+}
+
 /** A button in the picture-in-picture window, beside play/pause. */
 enum class PipAction(val label: String, @StringRes val labelRes: Int) {
     REWIND("Back", R.string.pip_back),
@@ -50,9 +73,26 @@ enum class SourceSearchMode(val label: String, @StringRes val labelRes: Int) {
     IN_ORDER("In my order", R.string.sheet_search_in_order)
 }
 
+/**
+ * How much disk the caches may use: artwork (Coil) and title info (TMDB answers). Read when the
+ * app starts, since both caches fix their size when they open.
+ */
+enum class CacheSize(val imageBytes: Long, val metadataBytes: Long) {
+    SMALL(imageBytes = 100L * MB, metadataBytes = 25L * MB),
+    STANDARD(imageBytes = 250L * MB, metadataBytes = 50L * MB),
+    LARGE(imageBytes = 600L * MB, metadataBytes = 100L * MB);
+
+    val totalBytes: Long get() = imageBytes + metadataBytes
+}
+
+private const val MB = 1024L * 1024L
+
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,
+    /** Dark theme with true-black surfaces, so OLED pixels can switch off. */
+    val amoledBlack: Boolean = false,
+    val navBarStyle: NavBarStyle = NavBarStyle.FLOATING,
     val dnsProvider: DnsProvider = DnsProvider.ADGUARD,
     val wifiOnlyDownloads: Boolean = false,
     /** Seconds per double-tap or seek button press. */
@@ -65,6 +105,8 @@ data class AppSettings(
     val showSkipButton: Boolean = true,
     /** Tallest rendition a download picks from a master playlist. */
     val downloadMaxHeight: Int = 1080,
+    /** Tallest rendition allowed while streaming, on any network. 0 means no limit. */
+    val streamMaxHeight: Int = 1080,
     /** Picture-in-picture buttons left and right of play/pause (Android shows three at most). */
     val pipLeftAction: PipAction = PipAction.REWIND,
     val pipRightAction: PipAction = PipAction.FORWARD,
@@ -90,7 +132,31 @@ data class AppSettings(
     /** Real-time video frame interpolation (up to 60 or 120 fps). Off by default to save battery. */
     val smoothMotionEnabled: Boolean = false,
     /** Output FPS ceiling for Smooth Motion (60 or 120). */
-    val smoothMotionMaxFps: Int = 120
+    val smoothMotionMaxFps: Int = 120,
+    /** Hardware volume boost percentage via LoudnessEnhancer (100% = normal / 0 dB, up to 300%). */
+    val volumeBoostPercent: Int = 100,
+    /** Disk budget for artwork and title info; takes effect on the next start. */
+    val cacheSize: CacheSize = CacheSize.STANDARD,
+    /** Load artwork for rows not on screen yet, only on unmetered networks. */
+    val preloadArtwork: Boolean = true,
+    /** The look the video picture is drawn in, and the sliders that tune it. */
+    val videoShaders: VideoShaderCustomization = VideoShaderCustomization(),
+    /** Which of the player's optional gestures are on. */
+    val videoGestures: VideoGestureCustomization = VideoGestureCustomization(),
+    /** Touch feedback (ticks and taps) across the app; off makes every haptic call do nothing. */
+    val hapticsEnabled: Boolean = true,
+    /** While on, nothing is added to watch history, Continue Watching or resume positions. */
+    val pauseWatchHistory: Boolean = false,
+    /** The tab the app opens on. */
+    val startScreen: StartScreen = StartScreen.HOME,
+    /** Home's rows in the user's order (keys, see [HomeRows]); rows not listed keep their default place. */
+    val homeRowOrder: List<String> = emptyList(),
+    /** Home rows the user turned off. */
+    val hiddenHomeRows: Set<String> = emptySet(),
+    /** Downloads only make progress while the device is charging. */
+    val chargingOnlyDownloads: Boolean = false,
+    /** When downloads of watched episodes and movies are deleted. */
+    val autoDeleteWatched: AutoDeleteWatched = AutoDeleteWatched.OFF
 ) {
     companion object {
         val SEEK_STEPS = listOf(5, 10, 15, 30)
@@ -99,6 +165,8 @@ data class AppSettings(
         val SMART_AHEAD_OPTIONS = listOf(1, 2, 3)
         /** Quality caps offered for metered networks: 720p, 480p and no limit. */
         val METERED_CAPS = listOf(720, 480, 0)
+    /** Quality caps offered for streaming: 1080p, 720p, 4K and no limit. */
+    val STREAM_CAPS = listOf(1080, 720, 2160, 0)
         val SMOOTH_MOTION_FPS_OPTIONS = listOf(60, 120)
     }
 }
@@ -112,6 +180,9 @@ class AppSettingsStore @Inject constructor(
     val settings: StateFlow<AppSettings> = _settings.asStateFlow()
 
     val current: AppSettings get() = _settings.value
+
+    /** The two settings that are stored as one JSON value each rather than field by field. */
+    private val json = Json { ignoreUnknownKeys = true }
 
     private val _activeProfileId = MutableStateFlow(prefs.getLong(KEY_ACTIVE_PROFILE, DEFAULT_PROFILE_ID))
 
@@ -132,6 +203,8 @@ class AppSettingsStore @Inject constructor(
         prefs.edit()
             .putString(KEY_THEME, updated.themeMode.name)
             .putBoolean(KEY_DYNAMIC_COLOR, updated.dynamicColor)
+            .putBoolean(KEY_AMOLED_BLACK, updated.amoledBlack)
+            .putString(KEY_NAV_BAR_STYLE, updated.navBarStyle.name)
             .putString(KEY_DNS, updated.dnsProvider.name)
             .putBoolean(KEY_WIFI_ONLY, updated.wifiOnlyDownloads)
             .putInt(KEY_SEEK_STEP, updated.seekStepSeconds)
@@ -139,6 +212,7 @@ class AppSettingsStore @Inject constructor(
             .putBoolean(KEY_AUTO_PLAY_NEXT, updated.autoPlayNext)
             .putBoolean(KEY_SHOW_SKIP_BUTTON, updated.showSkipButton)
             .putInt(KEY_DOWNLOAD_HEIGHT, updated.downloadMaxHeight)
+            .putInt(KEY_STREAM_HEIGHT, updated.streamMaxHeight)
             .putString(KEY_PIP_LEFT, updated.pipLeftAction.name)
             .putString(KEY_PIP_RIGHT, updated.pipRightAction.name)
             .putString(KEY_SUBTITLE_LANGUAGES, updated.subtitleDownloadLanguages.joinToString(","))
@@ -153,6 +227,18 @@ class AppSettingsStore @Inject constructor(
             .putInt(KEY_METERED_HEIGHT, updated.meteredMaxHeight)
             .putBoolean(KEY_SMOOTH_MOTION_ENABLED, updated.smoothMotionEnabled)
             .putInt(KEY_SMOOTH_MOTION_MAX_FPS, updated.smoothMotionMaxFps)
+            .putInt(KEY_VOLUME_BOOST, updated.volumeBoostPercent)
+            .putString(KEY_CACHE_SIZE, updated.cacheSize.name)
+            .putBoolean(KEY_PRELOAD_ARTWORK, updated.preloadArtwork)
+            .putString(KEY_VIDEO_SHADERS, json.encodeToString(updated.videoShaders))
+            .putString(KEY_VIDEO_GESTURES, json.encodeToString(updated.videoGestures))
+            .putBoolean(KEY_HAPTICS, updated.hapticsEnabled)
+            .putBoolean(KEY_PAUSE_HISTORY, updated.pauseWatchHistory)
+            .putString(KEY_START_SCREEN, updated.startScreen.name)
+            .putString(KEY_HOME_ROW_ORDER, updated.homeRowOrder.joinToString(","))
+            .putString(KEY_HIDDEN_HOME_ROWS, updated.hiddenHomeRows.joinToString(","))
+            .putBoolean(KEY_CHARGING_ONLY, updated.chargingOnlyDownloads)
+            .putString(KEY_AUTO_DELETE_WATCHED, updated.autoDeleteWatched.name)
             .apply()
     }
 
@@ -161,6 +247,8 @@ class AppSettingsStore @Inject constructor(
         return AppSettings(
             themeMode = enumOrDefault(prefs.getString(KEY_THEME, null), defaults.themeMode),
             dynamicColor = prefs.getBoolean(KEY_DYNAMIC_COLOR, defaults.dynamicColor),
+            amoledBlack = prefs.getBoolean(KEY_AMOLED_BLACK, defaults.amoledBlack),
+            navBarStyle = enumOrDefault(prefs.getString(KEY_NAV_BAR_STYLE, null), defaults.navBarStyle),
             dnsProvider = enumOrDefault(prefs.getString(KEY_DNS, null), defaults.dnsProvider),
             wifiOnlyDownloads = prefs.getBoolean(KEY_WIFI_ONLY, defaults.wifiOnlyDownloads),
             seekStepSeconds = prefs.getInt(KEY_SEEK_STEP, defaults.seekStepSeconds)
@@ -171,6 +259,8 @@ class AppSettingsStore @Inject constructor(
             showSkipButton = prefs.getBoolean(KEY_SHOW_SKIP_BUTTON, defaults.showSkipButton),
             downloadMaxHeight = prefs.getInt(KEY_DOWNLOAD_HEIGHT, defaults.downloadMaxHeight)
                 .takeIf { it in AppSettings.DOWNLOAD_HEIGHTS } ?: defaults.downloadMaxHeight,
+            streamMaxHeight = prefs.getInt(KEY_STREAM_HEIGHT, defaults.streamMaxHeight)
+                .takeIf { it in AppSettings.STREAM_CAPS } ?: defaults.streamMaxHeight,
             pipLeftAction = enumOrDefault(prefs.getString(KEY_PIP_LEFT, null), defaults.pipLeftAction),
             pipRightAction = enumOrDefault(prefs.getString(KEY_PIP_RIGHT, null), defaults.pipRightAction),
             subtitleDownloadLanguages = prefs.getString(KEY_SUBTITLE_LANGUAGES, null)
@@ -189,9 +279,37 @@ class AppSettingsStore @Inject constructor(
                 .takeIf { it in AppSettings.METERED_CAPS } ?: defaults.meteredMaxHeight,
             smoothMotionEnabled = prefs.getBoolean(KEY_SMOOTH_MOTION_ENABLED, defaults.smoothMotionEnabled),
             smoothMotionMaxFps = prefs.getInt(KEY_SMOOTH_MOTION_MAX_FPS, defaults.smoothMotionMaxFps)
-                .takeIf { it in AppSettings.SMOOTH_MOTION_FPS_OPTIONS } ?: defaults.smoothMotionMaxFps
+                .takeIf { it in AppSettings.SMOOTH_MOTION_FPS_OPTIONS } ?: defaults.smoothMotionMaxFps,
+            volumeBoostPercent = prefs.getInt(KEY_VOLUME_BOOST, defaults.volumeBoostPercent)
+                .coerceIn(VolumeBooster.MIN_PERCENT, VolumeBooster.MAX_PERCENT),
+            cacheSize = enumOrDefault(prefs.getString(KEY_CACHE_SIZE, null), defaults.cacheSize),
+            preloadArtwork = prefs.getBoolean(KEY_PRELOAD_ARTWORK, defaults.preloadArtwork),
+            videoShaders = jsonOrDefault(
+                prefs.getString(KEY_VIDEO_SHADERS, null),
+                defaults.videoShaders
+            ),
+            videoGestures = jsonOrDefault(
+                prefs.getString(KEY_VIDEO_GESTURES, null),
+                defaults.videoGestures
+            ),
+            hapticsEnabled = prefs.getBoolean(KEY_HAPTICS, defaults.hapticsEnabled),
+            pauseWatchHistory = prefs.getBoolean(KEY_PAUSE_HISTORY, defaults.pauseWatchHistory),
+            startScreen = enumOrDefault(prefs.getString(KEY_START_SCREEN, null), defaults.startScreen),
+            homeRowOrder = prefs.getString(KEY_HOME_ROW_ORDER, null)?.let(::parseKeys) ?: defaults.homeRowOrder,
+            hiddenHomeRows = prefs.getString(KEY_HIDDEN_HOME_ROWS, null)?.let(::parseKeys)?.toSet()
+                ?: defaults.hiddenHomeRows,
+            chargingOnlyDownloads = prefs.getBoolean(KEY_CHARGING_ONLY, defaults.chargingOnlyDownloads),
+            autoDeleteWatched = enumOrDefault(prefs.getString(KEY_AUTO_DELETE_WATCHED, null), defaults.autoDeleteWatched)
         )
     }
+
+    /** A JSON-stored value, or [default] when it is absent or no longer parses. */
+    private inline fun <reified T> jsonOrDefault(stored: String?, default: T): T =
+        stored?.let { runCatching { json.decodeFromString<T>(it) }.getOrNull() } ?: default
+
+    fun setCacheSize(size: CacheSize) = update { it.copy(cacheSize = size) }
+
+    fun setPreloadArtwork(enabled: Boolean) = update { it.copy(preloadArtwork = enabled) }
 
     fun setAppLanguage(tag: String?) = update { it.copy(appLanguage = tag) }
 
@@ -210,10 +328,50 @@ class AppSettingsStore @Inject constructor(
     fun setMeteredMaxHeight(height: Int) =
         update { it.copy(meteredMaxHeight = height.takeIf { it in AppSettings.METERED_CAPS } ?: 0) }
 
+    fun setStreamMaxHeight(height: Int) =
+        update { it.copy(streamMaxHeight = height.takeIf { it in AppSettings.STREAM_CAPS } ?: 1080) }
+
     fun setSmoothMotionEnabled(enabled: Boolean) = update { it.copy(smoothMotionEnabled = enabled) }
 
     fun setSmoothMotionMaxFps(fps: Int) =
         update { it.copy(smoothMotionMaxFps = fps.takeIf { it in AppSettings.SMOOTH_MOTION_FPS_OPTIONS } ?: 120) }
+
+    fun setVolumeBoostPercent(percent: Int) =
+        update { it.copy(volumeBoostPercent = percent.coerceIn(VolumeBooster.MIN_PERCENT, VolumeBooster.MAX_PERCENT)) }
+
+    fun setVideoShaders(settings: VideoShaderCustomization) = update { it.copy(videoShaders = settings) }
+
+    fun setVideoGestures(settings: VideoGestureCustomization) = update { it.copy(videoGestures = settings) }
+
+    // region Kids lock: a parental PIN asked before a kids profile can switch to another profile
+
+    private val _hasKidsLock = MutableStateFlow(prefs.getString(KEY_KIDS_LOCK_HASH, null) != null)
+
+    /** True while leaving a kids profile needs the parental PIN. */
+    val hasKidsLock: StateFlow<Boolean> = _hasKidsLock.asStateFlow()
+
+    fun setKidsLock(pin: String) {
+        require(ProfilePin.isValidPin(pin))
+        val salt = ProfilePin.generateSalt()
+        prefs.edit()
+            .putString(KEY_KIDS_LOCK_SALT, salt)
+            .putString(KEY_KIDS_LOCK_HASH, ProfilePin.hash(pin, salt))
+            .apply()
+        _hasKidsLock.value = true
+    }
+
+    fun clearKidsLock() {
+        prefs.edit().remove(KEY_KIDS_LOCK_HASH).remove(KEY_KIDS_LOCK_SALT).apply()
+        _hasKidsLock.value = false
+    }
+
+    fun verifyKidsLock(pin: String): Boolean {
+        val hash = prefs.getString(KEY_KIDS_LOCK_HASH, null) ?: return true
+        val salt = prefs.getString(KEY_KIDS_LOCK_SALT, null) ?: return false
+        return ProfilePin.verify(pin, hash, salt)
+    }
+
+    // endregion
 
     // region Profile PIN lockout (attempt counting survives restarts)
 
@@ -247,6 +405,20 @@ class AppSettingsStore @Inject constructor(
         fun parseLanguages(stored: String): List<String> =
             stored.split(',').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
 
+        /** "a,b" as stored; an empty string means none. */
+        fun parseKeys(stored: String): List<String> =
+            stored.split(',').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+
+        const val KEY_HAPTICS = "app_haptics_enabled"
+        const val KEY_PAUSE_HISTORY = "app_pause_watch_history"
+        const val KEY_START_SCREEN = "app_start_screen"
+        const val KEY_HOME_ROW_ORDER = "app_home_row_order"
+        const val KEY_HIDDEN_HOME_ROWS = "app_hidden_home_rows"
+        const val KEY_CHARGING_ONLY = "app_charging_only_downloads"
+        const val KEY_AUTO_DELETE_WATCHED = "app_auto_delete_watched"
+        const val KEY_KIDS_LOCK_HASH = "app_kids_lock_hash"
+        const val KEY_KIDS_LOCK_SALT = "app_kids_lock_salt"
+
         const val KEY_SUBTITLE_LANGUAGES = "app_subtitle_download_languages"
         const val KEY_SUBTITLE_FROM_SITES = "app_subtitle_download_from_sites"
         const val KEY_SOURCE_SEARCH_MODE = "app_source_search_mode"
@@ -259,8 +431,15 @@ class AppSettingsStore @Inject constructor(
         const val KEY_METERED_HEIGHT = "app_metered_max_height"
         const val KEY_SMOOTH_MOTION_ENABLED = "app_smooth_motion_enabled"
         const val KEY_SMOOTH_MOTION_MAX_FPS = "app_smooth_motion_max_fps"
+        const val KEY_VOLUME_BOOST = "app_volume_boost_percent"
+        const val KEY_CACHE_SIZE = "app_cache_size"
+        const val KEY_PRELOAD_ARTWORK = "app_preload_artwork"
+        const val KEY_VIDEO_SHADERS = "app_video_shaders"
+        const val KEY_VIDEO_GESTURES = "app_video_gestures"
         const val KEY_THEME = "app_theme_mode"
         const val KEY_DYNAMIC_COLOR = "app_dynamic_color"
+        const val KEY_AMOLED_BLACK = "app_amoled_black"
+        const val KEY_NAV_BAR_STYLE = "app_nav_bar_style"
         const val KEY_DNS = "app_dns_provider"
         const val KEY_WIFI_ONLY = "app_wifi_only_downloads"
         const val KEY_SEEK_STEP = "app_seek_step_seconds"
@@ -268,6 +447,7 @@ class AppSettingsStore @Inject constructor(
         const val KEY_AUTO_PLAY_NEXT = "app_auto_play_next"
         const val KEY_SHOW_SKIP_BUTTON = "app_show_skip_button"
         const val KEY_DOWNLOAD_HEIGHT = "app_download_max_height"
+        const val KEY_STREAM_HEIGHT = "app_stream_max_height"
         const val KEY_ACTIVE_PROFILE = "app_active_profile_id"
         const val KEY_PIP_LEFT = "app_pip_left_action"
         const val KEY_PIP_RIGHT = "app_pip_right_action"

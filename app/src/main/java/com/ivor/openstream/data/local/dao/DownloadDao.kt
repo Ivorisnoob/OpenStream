@@ -35,6 +35,9 @@ interface DownloadDao {
         errorMessage: String?
     )
 
+    @Query("UPDATE downloads SET uri = :uri WHERE downloadId = :downloadId")
+    suspend fun updateUri(downloadId: String, uri: String)
+
     @Query("SELECT * FROM downloads WHERE tmdbId = :tmdbId AND mediaType = :mediaType")
     fun getDownloadsForTitle(tmdbId: Int, mediaType: String): Flow<List<DownloadEntity>>
 

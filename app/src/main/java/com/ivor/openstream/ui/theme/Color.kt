@@ -65,3 +65,24 @@ val VibrantSecondaryDark = Color(0xFFD4BBFF)
 val VibrantSecondaryContainerDark = Color(0xFF533887)
 val VibrantTertiaryDark = Color(0xFFFFB0C8)
 val VibrantTertiaryContainerDark = Color(0xFF7B2949)
+
+// AMOLED Theme
+// True black for the page and the lowest layer; the containers above it are only bright enough
+// to keep cards, sheets and rows from disappearing. Text neutrals are fixed instead of derived
+// from the wallpaper so they always stay readable on black.
+val AmoledBackground = Color(0xFF000000)
+val AmoledSurface = Color(0xFF000000)
+val AmoledSurfaceDim = Color(0xFF000000)
+val AmoledSurfaceContainerLowest = Color(0xFF000000)
+val AmoledSurfaceContainerLow = Color(0xFF050506)
+val AmoledSurfaceContainer = Color(0xFF0A0A0C)
+val AmoledSurfaceContainerHigh = Color(0xFF121214)
+val AmoledSurfaceContainerHighest = Color(0xFF1C1C20)
+val AmoledSurfaceVariant = Color(0xFF1F1F24)
+val AmoledSurfaceBright = Color(0xFF232328)
+val AmoledOnSurface = Color(0xFFE6E1E5)
+val AmoledOnSurfaceVariant = Color(0xFFCAC4D0)
+val AmoledOutline = Color(0xFF938F99)
+val AmoledOutlineVariant = Color(0xFF35353B)
+val AmoledInverseSurface = Color(0xFFE6E1E5)
+val AmoledInverseOnSurface = Color(0xFF1C1B1F)

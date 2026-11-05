@@ -27,8 +27,8 @@ android {
         applicationId = "com.ivor.openstream"
         minSdk = 26
         targetSdk = 36
-        versionCode = 7
-        versionName = "2.2"
+        versionCode = 8
+        versionName = "2.3"
 
         val localProperties = Properties()
         val localPropertiesFile = rootProject.file("local.properties")
@@ -126,7 +126,9 @@ android {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.process)
     implementation(libs.androidx.activity.compose)
     
     // Compose BOM & UI
@@ -145,6 +147,7 @@ dependencies {
 
     // Image Loading
     implementation(libs.coil.compose)
+    implementation(libs.androidx.tv.material)
     implementation(libs.coil.network.okhttp)
 
     // Networking
@@ -183,6 +186,7 @@ dependencies {
 
     // Testing
     testImplementation(libs.junit)
+    testImplementation(libs.okhttp.mockwebserver)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

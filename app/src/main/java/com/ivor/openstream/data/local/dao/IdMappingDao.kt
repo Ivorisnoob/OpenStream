@@ -16,4 +16,7 @@ interface IdMappingDao {
 
     @Query("DELETE FROM id_mappings WHERE resolvedAt < :oldestAllowed")
     suspend fun deleteOlderThan(oldestAllowed: Long)
+
+    @Query("DELETE FROM id_mappings")
+    suspend fun clear()
 }

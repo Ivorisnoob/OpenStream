@@ -11,6 +11,8 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,7 +33,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -48,15 +50,23 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ivor.openstream.ui.theme.ExpressiveShapes
+import com.ivor.openstream.presentation.components.ExpressiveMotion
+import kotlinx.coroutines.delay
 
 /**
  * The shared surface for player sheets (settings, sources). Inline, it is a bottom sheet below the
@@ -71,34 +81,66 @@ fun PlayerPanelHost(
     visible: Boolean,
     isFullscreen: Boolean,
     onDismiss: () -> Unit,
+    /**
+     * True on TV: a remote cannot dismiss a [ModalBottomSheet] window (its scrim
+     * is a touch-dismiss target and its drag handle is a touch gesture), so the
+     * panel always renders as the inline side panel, which is entirely navigable
+     * with the D-pad.
+     */
+    tvControls: Boolean = false,
     content: @Composable ColumnScope.(listModifier: Modifier, onClose: (() -> Unit)?) -> Unit
 ) {
-    if (isFullscreen) {
+    if (isFullscreen || tvControls) {
+        // Panel motion follows the theme (instant with reduced motion).
+        val panelFade = ExpressiveMotion.finiteEffectsSpec()
+        val panelSlide = ExpressiveMotion.finiteSpatialSpec()
+        // TV: nothing else moves the remote into the panel, so it would stay on the video and the
+        // D-pad would seek. The panel takes focus when it opens, and again whenever it loses it
+        // while open (switching pages removes the focused row).
+        val panelFocus = remember { FocusRequester() }
+        var panelHasFocus by remember { mutableStateOf(false) }
+        LaunchedEffect(visible, panelHasFocus, tvControls) {
+            if (!tvControls || !visible || panelHasFocus) return@LaunchedEffect
+            // The page may still be entering; keep asking for a moment.
+            repeat(20) {
+                delay(50)
+                runCatching { panelFocus.requestFocus() }
+                if (panelHasFocus) return@LaunchedEffect
+            }
+        }
         Box(modifier = Modifier.fillMaxSize()) {
-            AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut()) {
+            AnimatedVisibility(visible = visible, enter = fadeIn(panelFade), exit = fadeOut(panelFade)) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.45f))
+                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             onClick = onDismiss
                         )
+                        .focusable(false)
                 )
             }
             AnimatedVisibility(
                 visible = visible,
-                enter = slideInHorizontally { it } + fadeIn(),
-                exit = slideOutHorizontally { it } + fadeOut(),
+                enter = slideInHorizontally(panelSlide) { it } + fadeIn(panelFade),
+                exit = slideOutHorizontally(panelSlide) { it } + fadeOut(panelFade),
                 modifier = Modifier.align(Alignment.CenterEnd)
             ) {
                 Surface(
-                    shape = RoundedCornerShape(topStart = 32.dp, bottomStart = 32.dp),
+                    // Inner edge rounds with the extraLarge token; the outer edge stays square.
+                    shape = ExpressiveShapes.extraLarge.copy(
+                        topEnd = CornerSize(0.dp),
+                        bottomEnd = CornerSize(0.dp)
+                    ),
                     color = MaterialTheme.colorScheme.surfaceContainer,
                     modifier = Modifier
                         .fillMaxHeight()
                         .width(400.dp)
+                        .focusRequester(panelFocus)
+                        .onFocusChanged { panelHasFocus = it.hasFocus }
+                        .focusGroup()
                 ) {
                     Column(
                         modifier = Modifier
@@ -114,6 +156,8 @@ fun PlayerPanelHost(
             BackHandler(enabled = visible, onBack = onDismiss)
         }
     } else if (visible) {
+        // Phone only: a TV always takes the branch above (tvControls = true),
+        // so this ModalBottomSheet is unreachable from TvNavigation.
         ModalBottomSheet(
             onDismissRequest = onDismiss,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),

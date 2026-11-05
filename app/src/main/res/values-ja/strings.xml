@@ -82,6 +82,7 @@
     <string name="home_recently_watched">最近視聴</string>
     <string name="home_weekend_movies">週末映画</string>
     <string name="home_anime_movies">アニメ映画</string>
+    <string name="home_popular_on_service">%1$sで人気</string>
     <string name="home_critically_acclaimed">高く評価された作品</string>
     <string name="home_top_result">トップの結果</string>
     <string name="home_rank_this_week">今週%1$d位</string>
@@ -139,6 +140,7 @@
     <string name="details_play">再生</string>
     <string name="details_trailer">予告編</string>
     <string name="details_episodes">エピソード</string>
+    <string name="details_latest">最新</string>
     <string name="details_more_like_this">関連作品</string>
     <string name="details_known_for">代表作</string>
     <string name="details_first_aired">初回放送</string>
@@ -205,6 +207,7 @@
     <string name="player_enter_fullscreen">全画面にする</string>
     <string name="player_exit_fullscreen">全画面を終了</string>
     <string name="player_pip">ピクチャーインピクチャー</string>
+    <string name="player_shader_look">シェーダー効果</string>
     <string name="player_zoom_fill">拡大して画面に合わせる</string>
     <string name="player_playback_settings">再生設定</string>
     <string name="player_waiting_tracks">映像トラックを待機しています</string>
@@ -242,6 +245,8 @@
     <string name="sheet_caption_style">字幕スタイル</string>
     <string name="sheet_text_size">文字サイズ</string>
     <string name="sheet_background">背景</string>
+    <string name="sheet_caption_position">位置</string>
+    <string name="sheet_caption_position_raised">%1$d%%上</string>
     <string name="sheet_background_opacity">背景の不透明度</string>
     <string name="sheet_bold">太字</string>
     <string name="sheet_source">ソース</string>
@@ -319,6 +324,10 @@
     <string name="st_theme_system">システム</string>
     <string name="st_theme_light">ライト</string>
     <string name="st_theme_dark">ダーク</string>
+    <string name="st_amoled_black">AMOLEDブラック</string>
+    <string name="st_amoled_black_hint">ダーク表示中は純黒の背景を使います。</string>
+    <string name="st_floating_nav_bar">フローティングナビゲーションバー</string>
+    <string name="st_floating_nav_bar_hint">オフにすると画面下端に通常のバーを固定します。</string>
     <string name="st_dynamic_color">ダイナミックカラー</string>
     <string name="st_dynamic_hint">壁紙に合わせて色を変更</string>
     <string name="st_language">言語</string>
@@ -343,9 +352,14 @@
     <string name="st_history_cleared">視聴履歴と進行状況をクリアしました</string>
     <string name="st_clear_crash">クラッシュレポートをクリア</string>
     <string name="st_crash_cleared">クラッシュレポートをクリアしました</string>
-    <string name="st_clear_cache">画像キャッシュをクリア</string>
-    <string name="st_cache_cleared">画像キャッシュをクリアしました</string>
-    <string name="st_cache_size">アートワーク%1$s</string>
+    <string name="st_clear_all_cache">キャッシュをクリア</string>
+    <string name="st_cache_used">アートワークと作品情報で%1$s使用中</string>
+    <string name="st_cache_hint">ページをすばやく開くためアートワークと作品情報を保持</string>
+    <string name="st_cache_cleared_all">キャッシュをクリアしました</string>
+    <string name="st_cache_limit">キャッシュサイズ</string>
+    <string name="st_cache_limit_hint">アートワークと作品情報が使える容量。次回アプリ起動時に反映されます。</string>
+    <string name="st_preload_artwork">アートワークを先読み</string>
+    <string name="st_preload_artwork_hint">Wi-Fi接続時、スクロールする前に各列のポスターを読み込みます</string>
     <string name="st_show_hidden">非表示のタイトルを表示</string>
     <string name="st_backup">ライブラリをバックアップ</string>
     <string name="st_backup_hint">各プロフィールの「後で見る」、リスト、履歴、非表示タイトル、設定</string>
@@ -379,7 +393,6 @@
     <string name="st_allow_install_note">先にOpenStreamのインストールを許可してから、戻ってインストールをタップしてください。</string>
     <string name="st_storage_help">ストレージとヘルプ</string>
     <string name="st_on_device">このデバイス上</string>
-    <string name="st_posters_cache">高速読み込みのためポスターと背景を保持</string>
     <string name="st_crash_include">%1$d件のクラッシュレポートを含みます</string>
     <string name="st_repo_data_note">リポジトリはコードではなくデータを提供します</string>
     <string name="st_repo_data_body">拡張機能はOpenStream内蔵のリゾルバーを選択・設定するだけで、第三者のリストがデバイス上でコードを実行することはありません。</string>
@@ -409,6 +422,8 @@
     <string name="st_index_not_json">リポジトリのインデックスはJSONオブジェクトまたは配列ではありません</string>
     <string name="st_repo_lists_unreadable">リポジトリのリストを読み取れませんでした</string>
     <string name="st_repo_no_extensions">リポジトリに拡張機能が公開されていません</string>
+    <string name="st_repo_no_internet">インターネットに接続されていません</string>
+    <string name="st_repo_not_valid">このリンクはリポジトリでも Stremio アドオンでもありません</string>
     <string name="st_no_catalog">まだカタログがありません</string>
     <string name="st_pull_repo_hint">リポジトリタブでリポジトリを取り込むか、更新して公式カタログを取得してください。</string>
     <string name="st_official_repo">公式拡張機能</string>
@@ -638,6 +653,7 @@
     <string name="player_rewind_seconds">%1$d秒戻る</string>
     <string name="src_up_to_quality">最大%1$s</string>
     <string name="src_adaptive">アダプティブ</string>
+    <string name="src_repo_official">公式</string>
     <string name="src_available_count">%1$d件利用可能</string>
     <string name="src_progress">%1$s準備完了・%2$s/%3$sを確認済み</string>
     <string name="sub_checking_all">動画のソース、OpenSubtitles、SubSourceを確認しています…</string>
@@ -817,4 +833,97 @@
     <string name="match_rail">あなたへのトップマッチ</string>
     <string name="match_percent">%1$d%%マッチ</string>
     <string name="match_because">%1$sがお好きなので</string>
+    <string name="dl_tab_downloads">ダウンロード</string>
+    <string name="dl_tab_local_files">ローカルファイル</string>
+    <string name="dl_save_to_storage_failed">ストレージに保存できませんでした</string>
+    <string name="local_import_files">動画をインポート</string>
+    <string name="local_no_files_title">ローカル動画はありません</string>
+    <string name="local_no_files_body">端末の動画ファイルをインポートして OpenStream で再生できます</string>
+    <string name="local_file">ローカル動画</string>
+    <string name="local_delete_confirm_title">ローカル動画を削除しますか？</string>
+    <string name="local_delete_confirm_body">このリストから外すだけです。ファイルは端末に残ります。</string>
+    <string name="local_search_hint">ローカル動画を検索</string>
+    <string name="sort_name_asc">名前 (A–Z)</string>
+    <string name="sort_name_desc">名前 (Z–A)</string>
+    <string name="sort_date_added_desc">追加日が新しい順</string>
+    <string name="sort_date_added_asc">追加日が古い順</string>
+    <string name="sort_size_desc">サイズが大きい順</string>
+    <string name="sort_size_asc">サイズが小さい順</string>
+    <string name="sort_duration_desc">再生時間が長い順</string>
+    <string name="sort_duration_asc">再生時間が短い順</string>
+    <string name="dl_save_in_progress">すでにダウンロードフォルダに保存中です</string>
+    <string name="dl_storage_permission_needed">ダウンロードフォルダに動画を保存するには、ストレージへのアクセスを許可してください</string>
+    <string name="dl_save_unsupported">このダウンロードは1つの動画ファイルとして保存できません</string>
+    <string name="dl_save_protected">このストリームは保護されているため、OpenStream 内でのみ再生できます</string>
+    <plurals name="local_import_success">
+        <item quantity="other">%1$d 本の動画をインポートしました</item>
+    </plurals>
+    <string name="dl_delete_confirm">ダウンロードを削除しますか？</string>
+    <string name="dl_delete_body">%1$sをこの端末から削除しますか？オフラインで見るには再度ダウンロードが必要です。</string>
+    <string name="dl_cancel_confirm">ダウンロードをキャンセルしますか？</string>
+    <string name="dl_cancel_body">%1$sのダウンロードを停止しますか？途中までのファイルは削除されます。</string>
+    <string name="action_keep">残す</string>
+    <string name="season_episode_format">シーズン%1$d、第%2$d話</string>
+    <string name="dl_pick_source_title">ダウンロード元を選択</string>
+    <string name="dl_pick_source_hint">ダウンロード元を選んでください。</string>
+    <string name="dl_pick_batch_hint">利用できる場合、各エピソードにタップしたプロバイダと画質を使います。</string>
+    <string name="dl_batch_queued">%1$d話をダウンロード中… ダウンロードで確認できます。</string>
+    <string name="dl_season_already">ここのエピソードはすべてダウンロード済みかダウンロード中です</string>
+    <string name="dl_hold_options">長押しでダウンロード元を選択</string>
+    <string name="dl_hold_tip">ヒント: ダウンロードを長押しすると、ダウンロード元と画質を選べます。</string>
+    <string name="dl_choose_source">ダウンロード元を選択</string>
+    <string name="dl_no_quality_match">この画質のソースはまだありません。</string>
+    <string name="action_show_all">すべて表示</string>
+    <plurals name="dl_delete_group_body">
+        <item quantity="other">%2$sの%1$d話をこの端末から削除しますか？オフラインで見るには再度ダウンロードが必要です。</item>
+    </plurals>
+    <plurals name="dl_delete_episodes">
+        <item quantity="other">%1$d話を削除しますか？</item>
+    </plurals>
+    <plurals name="dl_batch_count">
+        <item quantity="other">%1$d話</item>
+    </plurals>
+
+    <string name="sheet_volume_boost">音量ブースト</string>
+    <string name="sheet_volume_boost_desc">音の小さい動画を大きくします。リミッターで大きな音の歪みを防ぎます。通常に戻すまで、再生するすべての動画に適用されます。</string>
+    <string name="sheet_external_player">外部プレーヤー</string>
+    <string name="action_open_external_player">外部プレーヤーで開く</string>
+
+    <string name="st_stream_cap">画質の上限</string>
+    <string name="st_stream_cap_hint">ストリームが使用できる最高画質。初期設定は1080pです。</string>
+    <string name="st_stream_cap_none">上限なし</string>
+    <string name="tv_hold_to_delete">OKを長押しで削除</string>
+    <string name="tv_st_network">ネットワーク</string>
+    <string name="tv_st_storage">ストレージ</string>
+    <string name="tv_hold_to_remove">OKを長押しで削除</string>
+    <string name="tv_key_space">スペース</string>
+
+    <!-- Calendar -->
+    <string name="calendar_title">配信予定</string>
+    <string name="calendar_subtitle">フォロー中の新着エピソードと映画</string>
+    <string name="calendar_next_up">次の配信</string>
+    <string name="calendar_out_now">配信中</string>
+    <string name="calendar_new_badge">新着</string>
+    <string name="calendar_watch_now_cd">%1$sを今すぐ見る</string>
+    <string name="calendar_day_cd">%1$s、予定: %2$d</string>
+    <string name="calendar_empty_title">カレンダーにはまだ何もありません</string>
+    <string name="calendar_empty_body">番組を保存するか視聴を始めると、新しいエピソードがここに表示されます。</string>
+    <string name="calendar_nothing_scheduled">フォロー中の作品に発表された日程はありません。</string>
+    <string name="calendar_nothing_filter">このフィルターに該当するものはありません。</string>
+    <string name="calendar_suggestions">今週放送</string>
+    <string name="calendar_some_failed">一部の作品を確認できませんでした。下に引いて再試行してください。</string>
+    <string name="calendar_error">カレンダーを読み込めませんでした</string>
+    <string name="st_section_quality">画質とデータ</string>
+    <string name="st_section_network">ネットワーク</string>
+    <string name="st_search_hint">設定を検索</string>
+    <string name="st_search_none">「%1$s」に一致する設定はありません</string>
+    <string name="st_search_none_hint">テーマ、字幕、画質など、別の言葉で試してください。</string>
+    <plurals name="st_search_results">
+        <item quantity="other">%1$d 件の設定が見つかりました</item>
+    </plurals>
+    <string name="st_cat_personalization">カスタマイズ</string>
+    <string name="st_cat_player">プレーヤーとジェスチャー</string>
+    <string name="st_cat_library">プロフィールとライブラリ</string>
+    <string name="st_cat_about">ヘルプと情報</string>
+    <string name="st_group_gestures">ジェスチャー</string>
 </resources>

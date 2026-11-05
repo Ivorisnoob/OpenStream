@@ -39,3 +39,33 @@ fun VideoServer.sourceSummary(context: Context): String = buildList {
     if (audioLabel.isNotBlank()) add(audioLabel)
     add(streamType)
 }.joinToString(" · ")
+
+/**
+ * The repository a server's extension was installed from, as the user knows it: "Official" for the
+ * one that ships with the app, otherwise the repository's own name. Null when it is not known.
+ */
+fun VideoServer.repoLabel(context: Context): String? {
+    val source = origin ?: return null
+    return if (source.isOfficial) {
+        context.getString(R.string.src_repo_official)
+    } else {
+        source.repoName.takeIf { it.isNotBlank() }
+    }
+}
+
+/**
+ * The line under a server in source lists: who serves it, where it comes from and what it is.
+ * The extension's name is added only when neither the provider nor the server already shows it.
+ */
+fun VideoServer.sourceDetails(context: Context): String = buildList {
+    add(providerName)
+    origin?.extensionName
+        ?.takeIf { extension ->
+            extension.isNotBlank() &&
+                !extension.equals(providerName, ignoreCase = true) &&
+                !extension.equals(name, ignoreCase = true)
+        }
+        ?.let(::add)
+    repoLabel(context)?.let(::add)
+    add(sourceSummary(context))
+}.filter { it.isNotBlank() }.joinToString(" · ")

@@ -11,6 +11,7 @@ import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
 import com.ivor.openstream.R
+import com.ivor.openstream.data.downloads.DownloadStorageExporter
 import com.ivor.openstream.data.local.dao.DownloadDao
 import com.ivor.openstream.data.local.entity.DownloadEntity
 import com.ivor.openstream.data.service.HlsDownloadService
@@ -22,6 +23,7 @@ import com.ivor.openstream.domain.model.DownloadStatus
 import com.ivor.openstream.domain.model.DownloadTarget
 import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.domain.repository.DownloadRepository
+import com.ivor.openstream.domain.repository.SourcePreference
 import com.ivor.openstream.domain.repository.StreamingRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -48,6 +50,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
+import kotlin.math.abs
 import javax.inject.Named
 import javax.inject.Singleton
 import kotlin.coroutines.resume
@@ -72,12 +75,15 @@ class DownloadRepositoryImpl @Inject constructor(
     private val json: Json,
     private val appSettings: AppSettingsStore,
     private val savedSubtitles: SavedSubtitleRepository,
-    private val subtitleSaver: DownloadSubtitleSaver
+    private val subtitleSaver: DownloadSubtitleSaver,
+    private val storageExporter: DownloadStorageExporter
 ) : DownloadRepository {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val resolutionJobs = ConcurrentHashMap<String, Job>()
     private val resolutionSlots = Semaphore(MAX_PARALLEL_RESOLUTIONS)
+    /** One save to storage at a time: each reads the whole video once. */
+    private val saveSlot = Semaphore(1)
     private val systemDownloads by lazy {
         context.getSystemService(Context.DOWNLOAD_SERVICE) as SystemDownloadManager
     }
@@ -93,6 +99,8 @@ class DownloadRepositoryImpl @Inject constructor(
         scope.launch {
             runCatching { reconcileWithMedia3() }.onFailure { Log.w(TAG, "Could not reconcile downloads", it) }
             recoverInterruptedResolutions()
+            storageExporter.deleteAbandonedSaves()
+            saveFinishedToStorage()
         }
     }
 
@@ -115,15 +123,20 @@ class DownloadRepositoryImpl @Inject constructor(
         job.await()
     }
 
-    override fun enqueue(targets: List<DownloadTarget>) {
+    override fun enqueue(targets: List<DownloadTarget>, preference: SourcePreference?) {
         targets.forEach { target ->
             scope.launch {
                 val existing = dao.getDownloadById(target.id)
                 if (existing != null && (existing.status == DownloadStatus.COMPLETED || DownloadStatus.isActive(existing.status))) {
                     return@launch
                 }
+                // Paused: carry on from where it stopped instead of starting over.
+                if (existing?.status == DownloadStatus.PAUSED) {
+                    resume(existing.downloadId)
+                    return@launch
+                }
                 dao.insertDownload(placeholder(target))
-                resolveAndStart(target)
+                resolveAndStart(target, preference)
             }
         }
     }
@@ -162,6 +175,7 @@ class DownloadRepositoryImpl @Inject constructor(
 
     private suspend fun removeEntry(downloadId: String) {
         resolutionJobs.remove(downloadId)?.cancel()
+        dao.getDownloadById(downloadId)?.takeIf { it.isSavedFile }?.let { deleteSavedFile(it.uri) }
         if (isMedia3(downloadId)) {
             removeFromMedia3(downloadId)
         } else {
@@ -177,13 +191,49 @@ class DownloadRepositoryImpl @Inject constructor(
             .getOrNull() ?: entity.uri
     }
 
+    override suspend fun getPlaybackMimeType(downloadId: String): String? {
+        if (!isMedia3(downloadId) || dao.getDownloadById(downloadId)?.isSavedFile != false) return null
+        return withContext(Dispatchers.IO) {
+            runCatching { media3.downloadIndex.getDownload(downloadId)?.request?.mimeType }.getOrNull()
+        }
+    }
+
+    override fun saveFinishedToStorage() {
+        scope.launch {
+            dao.getAllDownloads().first()
+                .filter { it.status == DownloadStatus.COMPLETED && isMedia3(it.downloadId) && !it.isSavedFile }
+                .forEach { saveToStorage(it.downloadId) }
+        }
+    }
+
+    /**
+     * Turns a finished download into a plain video file in Downloads/Openstream, then frees its
+     * copy in the download cache. If that can't be done (no permission on Android 9 and older,
+     * encrypted or split-audio streams), the download keeps playing from the cache.
+     */
+    private suspend fun saveToStorage(downloadId: String) = saveSlot.withPermit {
+        val entity = dao.getDownloadById(downloadId)
+            ?.takeIf { it.status == DownloadStatus.COMPLETED && !it.isSavedFile } ?: return@withPermit
+        storageExporter.exportToStorage(entity).onSuccess { uri ->
+            // Deleted meanwhile: the file has nothing to belong to.
+            if (dao.getDownloadById(downloadId) == null) {
+                deleteSavedFile(uri.toString())
+                return@onSuccess
+            }
+            dao.updateUri(downloadId, uri.toString())
+            removeFromMedia3(downloadId)
+        }
+    }
+
+    private fun deleteSavedFile(uri: String) = storageExporter.deleteSaved(uri)
+
     // region Starting downloads
 
-    private fun resolveAndStart(target: DownloadTarget) {
+    private fun resolveAndStart(target: DownloadTarget, preference: SourcePreference? = null) {
         resolutionJobs.remove(target.id)?.cancel()
         val job = scope.launch(start = CoroutineStart.LAZY) {
             resolutionSlots.withPermit {
-                val server = findDownloadableServer(target)
+                val server = findDownloadableServer(target, preference)
                 if (server == null) {
                     dao.updateProgress(target.id, DownloadStatus.FAILED, 0, 0, 0, context.getString(R.string.dl_no_source))
                 } else {
@@ -203,15 +253,22 @@ class DownloadRepositoryImpl @Inject constructor(
         job.start()
     }
 
-    private suspend fun findDownloadableServer(target: DownloadTarget): VideoServer? {
+    private suspend fun findDownloadableServer(target: DownloadTarget, preference: SourcePreference?): VideoServer? {
         var latest = emptyList<VideoServer>()
         withTimeoutOrNull(RESOLUTION_TIMEOUT_MS) {
             streamingRepository.resolveServers(target.toIdentity())
                 .onEach { latest = it.servers }
                 .first { it.isComplete }
         }
+        val downloadable = latest.filter { it.isDownloadable }
+        // The source the user picked, at the quality closest to theirs; otherwise the ranked best.
+        preference?.let { wanted ->
+            downloadable.filter { it.providerId == wanted.providerId }
+                .minByOrNull { abs(it.quality.rank - wanted.qualityRank) }
+                ?.let { return it }
+        }
         // Servers arrive ranked best-first.
-        return latest.firstOrNull { it.isDownloadable }
+        return downloadable.firstOrNull()
     }
 
     private suspend fun start(server: VideoServer, target: DownloadTarget) {
@@ -307,6 +364,9 @@ class DownloadRepositoryImpl @Inject constructor(
     }
 
     private suspend fun writeProgress(download: Download, finalException: Exception?) {
+        // Removing a saved download's cache copy reports it as removing; the row is the file now.
+        if (download.state == Download.STATE_REMOVING) return
+        if (dao.getDownloadById(download.request.id)?.isSavedFile == true) return
         val status = when (download.state) {
             Download.STATE_COMPLETED -> DownloadStatus.COMPLETED
             Download.STATE_FAILED -> DownloadStatus.FAILED
@@ -323,6 +383,9 @@ class DownloadRepositoryImpl @Inject constructor(
         val error = finalException?.let { context.getString(R.string.player_source_stopped) }
             ?: if (status == DownloadStatus.FAILED) context.getString(R.string.dl_failed) else null
         if (finalException != null) Log.w(TAG, "Download ${download.request.id} failed", finalException)
+        // Read before the update: only a download that has just finished is saved to storage.
+        val wasCompleted = status == DownloadStatus.COMPLETED &&
+            dao.getDownloadById(download.request.id)?.status == DownloadStatus.COMPLETED
         dao.updateProgress(
             downloadId = download.request.id,
             status = status,
@@ -336,6 +399,12 @@ class DownloadRepositoryImpl @Inject constructor(
             },
             errorMessage = error
         )
+
+        // Only a download that has just finished; older ones are picked up at startup.
+        if (status == DownloadStatus.COMPLETED && !wasCompleted) {
+            val id = download.request.id
+            scope.launch { saveToStorage(id) }
+        }
     }
 
     private suspend fun syncLegacySystemDownloads() {
@@ -370,7 +439,7 @@ class DownloadRepositoryImpl @Inject constructor(
         media3.downloadIndex.getDownloads().use { cursor ->
             while (cursor.moveToNext()) cursor.download.let { indexed[it.request.id] = it }
         }
-        val rows = dao.getAllDownloads().first().filter { isMedia3(it.downloadId) }
+        val rows = dao.getAllDownloads().first().filter { isMedia3(it.downloadId) && !it.isSavedFile }
         val rowIds = rows.mapTo(HashSet()) { it.downloadId }
 
         indexed.values

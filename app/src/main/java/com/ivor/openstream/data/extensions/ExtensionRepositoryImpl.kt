@@ -1,6 +1,9 @@
 package com.ivor.openstream.data.extensions
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import androidx.annotation.StringRes
 import com.ivor.openstream.R
 import com.ivor.openstream.domain.model.ExtensionCatalog
 import com.ivor.openstream.domain.model.ExtensionManifest
@@ -9,15 +12,18 @@ import com.ivor.openstream.domain.model.ExtensionUsage
 import com.ivor.openstream.domain.model.MarketplaceExtension
 import com.ivor.openstream.domain.repository.ExtensionRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -60,7 +66,15 @@ class ExtensionRepositoryImpl @Inject constructor(
         }
     }
 
+    /**
+     * Runs in the repository's own scope, not the caller's: a screen that starts a refresh and is
+     * then closed must not cut it short halfway through the repositories.
+     */
     override suspend fun refresh(force: Boolean) {
+        scope.async { refreshNow(force) }.await()
+    }
+
+    private suspend fun refreshNow(force: Boolean) {
         ensureLoaded()
         refreshMutex.withLock {
             val now = System.currentTimeMillis()
@@ -85,9 +99,9 @@ class ExtensionRepositoryImpl @Inject constructor(
                         }
                     }
                     .onFailure { error ->
-                        synchronized(lock) {
-                            repoErrors[repoId] = error.message ?: context.getString(R.string.st_could_not_reach_repo)
-                        }
+                        if (error is CancellationException) throw error
+                        val message = describeFailure(error, R.string.st_could_not_reach_repo)
+                        synchronized(lock) { repoErrors[repoId] = message }
                     }
             }
             store.setLastSyncedAt(System.currentTimeMillis())
@@ -97,39 +111,52 @@ class ExtensionRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun addRepo(url: String): Result<ExtensionRepo> {
+    /**
+     * Failures carry a [RepoException] with a message fit to show. Like [refresh], the work runs in
+     * the repository's own scope, so leaving the screen does not abandon an add halfway.
+     */
+    override suspend fun addRepo(url: String): Result<ExtensionRepo> =
+        scope.async {
+            try {
+                addRepoNow(url)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Result.failure(RepoException(describeFailure(error, R.string.st_could_not_add_repo)))
+            }
+        }.await()
+
+    private suspend fun addRepoNow(url: String): Result<ExtensionRepo> {
         ensureLoaded()
         val normalized = RepoUrlNormalizer.normalize(url)
-            ?: return Result.failure(IllegalArgumentException(context.getString(R.string.st_bad_repo_link)))
+            ?: return Result.failure(RepoException(context.getString(R.string.st_bad_repo_link)))
         val repoId = RepoUrlNormalizer.repoId(normalized)
         if (synchronized(lock) { snapshots.containsKey(repoId) }) {
-            return Result.failure(IllegalStateException(context.getString(R.string.st_repo_already_added)))
+            return Result.failure(RepoException(context.getString(R.string.st_repo_already_added)))
         }
 
-        return runCatching { client.fetch(normalized) }
-            .mapCatching { snapshot ->
-                if (snapshot.extensions.isEmpty()) {
-                    throw IllegalStateException(context.getString(R.string.st_repo_no_extensions))
-                }
-                cache.write(repoId, snapshot)
-                store.addCustomRepo(CustomRepoRecord(id = repoId, url = normalized, name = snapshot.name))
-                val repo = synchronized(lock) {
-                    snapshots[repoId] = snapshot
-                    repoErrors[repoId] = null
-                    rebuildManifests()
-                    toRepo(repoId, snapshot)
-                }
-                // A pasted Stremio add-on is ready to use without a separate install step.
-                seedDefaultInstalls()
-                publish(isSyncing = false)
-                repo
-            }
+        val fetched = client.fetch(normalized)
+        if (fetched.extensions.isEmpty()) {
+            return Result.failure(RepoException(context.getString(R.string.st_repo_no_extensions)))
+        }
+        cache.write(repoId, fetched)
+        store.addCustomRepo(CustomRepoRecord(id = repoId, url = normalized, name = fetched.name))
+        val repo = synchronized(lock) {
+            snapshots[repoId] = fetched
+            repoErrors[repoId] = null
+            rebuildManifests()
+            toRepo(repoId, fetched)
+        }
+        // A pasted Stremio add-on is ready to use without a separate install step.
+        seedDefaultInstalls()
+        publish(isSyncing = false)
+        return Result.success(repo)
     }
 
     override suspend fun removeRepo(repoId: String): Result<Unit> {
         ensureLoaded()
         if (repoId == BundledExtensionCatalog.OFFICIAL_REPO_ID) {
-            return Result.failure(IllegalStateException(context.getString(R.string.st_official_cannot_remove)))
+            return Result.failure(RepoException(context.getString(R.string.st_official_cannot_remove)))
         }
         store.removeCustomRepo(repoId)
         store.removeInstallsForRepo(repoId)
@@ -329,6 +356,26 @@ class ExtensionRepositoryImpl @Inject constructor(
             lastSyncedAt = store.lastSyncedAt(),
             syncError = repos.firstNotNullOfOrNull { it.error }
         )
+    }
+
+    /**
+     * A plain, localized reason for a failed fetch; the exception's own text (often English, or
+     * internal like an HTTP status) is never shown. [fallback] covers anything unexpected.
+     */
+    private fun describeFailure(error: Throwable, @StringRes fallback: Int): String = when (error) {
+        is RepoException -> error.message ?: context.getString(fallback)
+        is IOException -> context.getString(
+            if (isOnline()) R.string.st_could_not_reach_repo else R.string.st_repo_no_internet
+        )
+        // Also kotlinx.serialization's errors: the link answered with something that isn't JSON.
+        is IllegalArgumentException -> context.getString(R.string.st_repo_not_valid)
+        else -> context.getString(fallback)
+    }
+
+    private fun isOnline(): Boolean {
+        val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return true
+        val capabilities = connectivity.getNetworkCapabilities(connectivity.activeNetwork) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
     private fun toRepo(repoId: String, snapshot: CachedRepoSnapshot) = ExtensionRepo(

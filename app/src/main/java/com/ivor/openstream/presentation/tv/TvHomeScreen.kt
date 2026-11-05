@@ -1,189 +1,191 @@
 package com.ivor.openstream.presentation.tv
 
-import androidx.compose.foundation.background
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.foundation.focusable
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import coil3.compose.AsyncImage
+import androidx.tv.material3.Button
+import androidx.tv.material3.ButtonDefaults
+import androidx.tv.material3.Icon
+import androidx.tv.material3.OutlinedButton
 import com.ivor.openstream.R
 import com.ivor.openstream.data.remote.model.AnimeDto
 import com.ivor.openstream.domain.model.WatchProgress
+import com.ivor.openstream.presentation.home.HomeRail
 import com.ivor.openstream.presentation.home.HomeUiState
 import com.ivor.openstream.presentation.home.HomeViewModel
-import com.ivor.openstream.ui.theme.ExpressiveShapes
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.debounce
 
-private const val IMAGE_BASE = "https://image.tmdb.org/t/p/w780"
-private const val HERO_IMAGE_BASE = "https://image.tmdb.org/t/p/w1280"
+/** What the info panel above the rows describes: the featured title, or the card in focus. */
+private sealed interface HomeFocus {
+    data class Title(val item: AnimeDto) : HomeFocus
+    data class Resume(val progress: WatchProgress) : HomeFocus
+}
 
-/** Overscan-safe frame for the 10-foot screen: nothing focusable near the edges. */
-internal val TvFramePadding = PaddingValues(horizontal = 56.dp, vertical = 32.dp)
+private fun AnimeDto.tvMediaType(): String = mediaType ?: if (isMovie) "movie" else "tv"
 
 /**
- * Leanback home: menu row, cinematic hero and landscape rails, all remote driven.
- * One hero moment (the featured backdrop); everything else stays calm and legible.
+ * TV Home, laid out like the platform's own launchers: the backdrop and the info panel at the top
+ * follow the card in focus, the featured title's Play and Details buttons sit in that panel, and
+ * the rows below scroll so the row in focus always lands in the same place.
  */
+@OptIn(ExperimentalFoundationApi::class, kotlinx.coroutines.FlowPreview::class)
 @Composable
 fun TvHomeScreen(
     onOpenTitle: (mediaType: String, id: Int) -> Unit,
-    onResume: (WatchProgress) -> Unit,
-    onSearch: () -> Unit,
-    onSettings: () -> Unit,
+    onPlay: (mediaType: String, id: Int, season: Int, episode: Int) -> Unit,
+    modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val continueWatching by viewModel.continueWatching.collectAsState()
-    val animated = rememberTvAnimated()
 
-    fun AnimeDto.tvMediaType(): String = mediaType ?: if (isMovie) "movie" else "tv"
+    when (val state = uiState) {
+        HomeUiState.Loading -> TvLoading()
+        is HomeUiState.Error -> TvErrorState(onRetry = viewModel::refresh)
+        is HomeUiState.Success -> {
+            val featured = remember(state.hero) { state.hero.firstOrNull { it.backdropPath != null } }
+            var focus by remember { mutableStateOf<HomeFocus?>(null) }
+            // Moving quickly along a row should not flash every backdrop on the way.
+            val shown by produceState<HomeFocus?>(featured?.let { HomeFocus.Title(it) }, featured) {
+                snapshotFlow { focus ?: featured?.let { HomeFocus.Title(it) } }
+                    .debounce(180)
+                    .collect { value = it }
+            }
+            val featuredProgress = featured?.let { hero -> continueWatching.firstOrNull { it.tmdbId == hero.id } }
 
-    val heroItem: AnimeDto? = (uiState as? HomeUiState.Success)
-        ?.hero?.firstOrNull { it.backdropPath != null }
-    val heroProgress: WatchProgress? = heroItem?.let { hero ->
-        continueWatching.firstOrNull { it.tmdbId == hero.id && !it.isMovie }
-    }
-    val playRequester = remember { FocusRequester() }
-    val detailsRequester = remember { FocusRequester() }
-    LaunchedEffect(heroItem?.id) {
-        // Land the remote on Play when there is something to resume, else Details.
-        (if (heroProgress != null) playRequester else detailsRequester).requestFocus()
-    }
+            val playRequester = remember { FocusRequester() }
+            LaunchedEffect(Unit) { runCatching { playRequester.requestFocus() } }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        // Menu row: brand + search + settings, all D-pad reachable.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(TvFramePadding)
-                .padding(bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = stringResource(R.string.app_name),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Black,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.weight(1f))
-            TvMenuChip(
-                icon = Icons.Default.Search,
-                label = stringResource(R.string.nav_search),
-                onClick = onSearch
-            )
-            Spacer(Modifier.width(16.dp))
-            TvMenuChip(
-                icon = Icons.Default.Settings,
-                label = stringResource(R.string.st_title),
-                onClick = onSettings
-            )
-        }
+            BoxWithConstraints(modifier.fillMaxSize()) {
+                val panelHeight = maxHeight * 0.5f
+                TvBackdrop(
+                    url = shown.backdropUrl(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.78f)
+                        .align(Alignment.TopEnd)
+                )
+                TvBackdropScrims()
 
-        when (val state = uiState) {
-            HomeUiState.Loading -> Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) { CircularProgressIndicator() }
-
-            is HomeUiState.Error -> TvErrorState(
-                onRetry = { viewModel.refresh() }
-            )
-
-            is HomeUiState.Success -> {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 48.dp),
-                    verticalArrangement = Arrangement.spacedBy(28.dp)
-                ) {
-                    if (heroItem != null) {
-                        item(key = "hero") {
-                            TvHero(
-                                item = heroItem,
-                                progress = heroProgress,
-                                animated = animated,
-                                playRequester = playRequester,
-                                detailsRequester = detailsRequester,
-                                onResume = { heroProgress?.let(onResume) },
-                                onOpenDetails = { onOpenTitle(heroItem.tvMediaType(), heroItem.id) }
-                            )
+                Column(Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(panelHeight)
+                            .padding(start = TvLayout.ContentStart, end = TvLayout.ContentEnd, bottom = 12.dp),
+                        contentAlignment = Alignment.BottomStart
+                    ) {
+                        Column {
+                            InfoPanel(shown)
+                            if (featured != null) {
+                                // Hidden while a card has focus but still focusable, so Up from the
+                                // first row lands here and brings them back.
+                                val buttonsAlpha by animateFloatAsState(if (focus == null) 1f else 0f, label = "buttons")
+                                Spacer(Modifier.height(16.dp))
+                                FeaturedButtons(
+                                    progress = featuredProgress,
+                                    playRequester = playRequester,
+                                    modifier = Modifier
+                                        .alpha(buttonsAlpha)
+                                        .onFocusChanged { if (it.hasFocus) focus = null },
+                                    onPlay = {
+                                        val progress = featuredProgress
+                                        if (progress != null) {
+                                            onPlay(progress.mediaType, progress.tmdbId, progress.season, progress.episode)
+                                        } else {
+                                            onPlay(featured.tvMediaType(), featured.id, 1, 1)
+                                        }
+                                    },
+                                    onDetails = { onOpenTitle(featured.tvMediaType(), featured.id) }
+                                )
+                            }
                         }
                     }
-                    if (continueWatching.isNotEmpty()) {
-                        item(key = "continue") {
-                            TvContinueRail(
-                                items = continueWatching,
-                                animated = animated,
-                                onResume = onResume,
-                                onOpenDetails = { onOpenTitle(it.mediaType, it.tmdbId) }
-                            )
-                        }
-                    }
-                    items(
-                        items = state.rails,
-                        key = { "rail:${it.key}" }
-                    ) { rail ->
-                        if (rail.items.isNotEmpty()) {
-                            TvRail(
-                                title = rail.title,
-                                animated = animated,
-                                onOpen = { onOpenTitle(it.tvMediaType(), it.id) },
-                                items = rail.items
-                            )
+
+                    val headerSpace = with(LocalDensity.current) { 40.dp.toPx() }
+                    val rowPivot = remember(headerSpace) { tvRowPivot(headerSpace) }
+                    val defaultSpec = LocalBringIntoViewSpec.current
+                    CompositionLocalProvider(LocalBringIntoViewSpec provides rowPivot) {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentPadding = PaddingValues(bottom = 48.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (continueWatching.isNotEmpty()) {
+                                item(key = "continue") {
+                                    // Rows scroll sideways the usual way; only the column pivots.
+                                    CompositionLocalProvider(LocalBringIntoViewSpec provides defaultSpec) {
+                                        TvRail(title = stringResource(R.string.home_continue_watching)) {
+                                            items(continueWatching, key = { "cw:${it.mediaType}:${it.tmdbId}" }) { progress ->
+                                                ContinueCard(
+                                                    progress = progress,
+                                                    onClick = {
+                                                        onPlay(progress.mediaType, progress.tmdbId, progress.season, progress.episode)
+                                                    },
+                                                    onFocused = { focus = HomeFocus.Resume(progress) }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            items(state.rails.filter { it.items.isNotEmpty() }, key = { "rail:${it.key}" }) { rail ->
+                                CompositionLocalProvider(LocalBringIntoViewSpec provides defaultSpec) {
+                                    TitleRail(
+                                        rail = rail,
+                                        onOpen = { onOpenTitle(it.tvMediaType(), it.id) },
+                                        onFocused = { focus = HomeFocus.Title(it) }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -192,289 +194,149 @@ fun TvHomeScreen(
     }
 }
 
-@Composable
-private fun TvMenuChip(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    onClick: () -> Unit
-) {
-    val focused = rememberTvFocused()
-    val scale = tvFocusScale(focused.value, rememberTvAnimated())
-    androidx.compose.material3.Surface(
-        onClick = onClick,
-        shape = CircleShape,
-        color = if (focused.value) MaterialTheme.colorScheme.secondaryContainer
-        else MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = Modifier
-            .then(Modifier.scale(scale))
-            .focusable()
-            .onFocusChanged { focused.value = it.isFocused }
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(text = label, style = MaterialTheme.typography.titleMedium)
-        }
-    }
+private fun HomeFocus?.backdropUrl(): String? = when (this) {
+    is HomeFocus.Title -> (item.backdropPath ?: item.posterPath)?.let { "$TV_BACKDROP_BASE$it" }
+    is HomeFocus.Resume -> (progress.backdropPath ?: progress.stillPath)?.let { "$TV_BACKDROP_BASE$it" }
+    null -> null
 }
 
 @Composable
-private fun TvHero(
-    item: AnimeDto,
-    progress: WatchProgress?,
-    animated: Boolean,
-    playRequester: FocusRequester,
-    detailsRequester: FocusRequester,
-    onResume: () -> Unit,
-    onOpenDetails: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(420.dp)
-            .padding(TvFramePadding)
-    ) {
-        AsyncImage(
-            model = "$HERO_IMAGE_BASE${item.backdropPath}",
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxSize()
-                .clip(ExpressiveShapes.extraLarge)
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clip(ExpressiveShapes.extraLarge)
-                .background(
-                    Brush.horizontalGradient(
-                        0f to Color.Transparent,
-                        0.45f to Color.Black.copy(alpha = 0.55f),
-                        1f to Color.Black.copy(alpha = 0.88f)
-                    )
-                )
-        )
-        Column(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxWidth(0.52f)
-                .padding(36.dp),
-            verticalArrangement = Arrangement.Bottom
-        ) {
-            Text(
-                text = item.name,
-                style = MaterialTheme.typography.displaySmall,
-                fontWeight = FontWeight.Black,
-                color = Color.White,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            item.voteAverage?.takeIf { it > 0 }?.let { rating ->
-                Text(
-                    text = String.format(java.util.Locale.US, "★ %.1f", rating),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.White.copy(alpha = 0.85f),
-                    modifier = Modifier.padding(top = 8.dp)
-                )
+private fun InfoPanel(shown: HomeFocus?) {
+    AnimatedContent(
+        targetState = shown,
+        transitionSpec = { fadeIn() togetherWith fadeOut() },
+        contentKey = {
+            when (it) {
+                is HomeFocus.Title -> "t${it.item.id}"
+                is HomeFocus.Resume -> "r${it.progress.tmdbId}"
+                null -> "none"
             }
-            Row(modifier = Modifier.padding(top = 20.dp)) {
-                if (progress != null) {
-                    Button(
-                        onClick = onResume,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondary,
-                            contentColor = MaterialTheme.colorScheme.onSecondary
-                        ),
-                        modifier = Modifier
-                            .height(60.dp)
-                            .focusRequester(playRequester)
-                    ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
+        },
+        label = "info"
+    ) { target ->
+        Column(Modifier.width(460.dp)) {
+            when (target) {
+                is HomeFocus.Title -> {
+                    val item = target.item
+                    Text(
+                        text = item.name,
+                        style = MaterialTheme.typography.displaySmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    MetaLine(
+                        listOfNotNull(
+                            item.date.take(4).takeIf { it.isNotBlank() },
+                            item.voteAverage?.takeIf { it > 0 }?.let { "★ %.1f".format(it) },
+                            stringResource(if (item.isMovie) R.string.details_movie else R.string.search_filter_series)
+                        )
+                    )
+                    item.overview?.takeIf { it.isNotBlank() }?.let { overview ->
+                        Spacer(Modifier.height(10.dp))
                         Text(
-                            text = stringResource(R.string.cd_resume),
-                            style = MaterialTheme.typography.titleMedium
+                            text = overview,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
-                    Spacer(Modifier.width(16.dp))
                 }
-                OutlinedButton(
-                    onClick = onOpenDetails,
-                    modifier = Modifier
-                        .height(60.dp)
-                        .focusRequester(detailsRequester)
-                ) {
+                is HomeFocus.Resume -> {
+                    val progress = target.progress
                     Text(
-                        text = stringResource(R.string.st_details),
-                        style = MaterialTheme.typography.titleMedium
+                        text = progress.title,
+                        style = MaterialTheme.typography.displaySmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    MetaLine(
+                        listOfNotNull(
+                            if (progress.isMovie) null else stringResource(R.string.li_episode_code, progress.season, progress.episode),
+                            progress.episodeTitle?.takeIf { it.isNotBlank() },
+                            stringResource(R.string.home_continue_watching)
+                        )
                     )
                 }
+                null -> Unit
             }
         }
     }
 }
 
 @Composable
-private fun TvContinueRail(
-    items: List<WatchProgress>,
-    animated: Boolean,
-    onResume: (WatchProgress) -> Unit,
-    onOpenDetails: (WatchProgress) -> Unit
-) {
-    TvRailHeader(title = stringResource(R.string.home_continue_watching))
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 56.dp),
-        horizontalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
-        items(items, key = { "cw:${it.mediaType}:${it.tmdbId}:${it.season}:${it.episode}" }) { item ->
-            TvLandscapeCard(
-                imageUrl = item.backdropPath?.let { "$IMAGE_BASE$it" },
-                title = item.title,
-                subtitle = if (item.isMovie) null else "S${item.season} · E${item.episode}",
-                progress = item.fraction.takeIf { it > 0f },
-                animated = animated,
-                onClick = { onResume(item) }
-            )
-        }
-    }
-}
-
-@Composable
-internal fun TvRail(
-    title: String,
-    items: List<AnimeDto>,
-    animated: Boolean,
-    onOpen: (AnimeDto) -> Unit
-) {
-    TvRailHeader(title = title)
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 56.dp),
-        horizontalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
-        items(items, key = { "rail:${it.id}" }) { item ->
-            TvLandscapeCard(
-                imageUrl = item.backdropPath?.let { "$IMAGE_BASE$it" }
-                    ?: item.posterPath?.let { "$IMAGE_BASE$it" },
-                title = item.name,
-                subtitle = item.date.take(4).takeIf { it.length == 4 },
-                progress = null,
-                animated = animated,
-                onClick = { onOpen(item) }
-            )
-        }
-    }
-}
-
-@Composable
-private fun TvRailHeader(title: String) {
+private fun MetaLine(parts: List<String>) {
     Text(
-        text = title,
-        style = MaterialTheme.typography.headlineSmall,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier
-            .padding(horizontal = 56.dp)
-            .padding(bottom = 12.dp)
-            .semantics { heading() }
+        text = parts.joinToString("  ·  "),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
     )
 }
 
 @Composable
-private fun TvLandscapeCard(
-    imageUrl: String?,
-    title: String,
-    subtitle: String?,
-    progress: Float?,
-    animated: Boolean,
-    onClick: () -> Unit
+private fun FeaturedButtons(
+    progress: WatchProgress?,
+    playRequester: FocusRequester,
+    onPlay: () -> Unit,
+    onDetails: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val focused = rememberTvFocused()
-    val bringIntoViewRequester = remember { BringIntoViewRequester() }
-    val scope = rememberCoroutineScope()
-    Column(
-        modifier = Modifier
-            .width(264.dp)
-            .bringIntoViewRequester(bringIntoViewRequester)
-    ) {
-        TvCard(
-            focused = focused.value,
-            animated = animated,
-            onClick = onClick,
-            onFocused = {
-                focused.value = true
-                scope.launch {
-                    runCatching { bringIntoViewRequester.bringIntoView() }
-                }
-            },
-            onBlurred = { focused.value = false }
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Button(
+            onClick = onPlay,
+            modifier = Modifier.focusRequester(playRequester),
+            contentPadding = ButtonDefaults.ButtonWithIconContentPadding
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(148.dp)
-            ) {
-                if (imageUrl != null) {
-                    AsyncImage(
-                        model = imageUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
+            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+            Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+            androidx.tv.material3.Text(
+                if (progress != null && !progress.isMovie) {
+                    stringResource(R.string.cd_resume) + "  " +
+                        stringResource(R.string.li_episode_code, progress.season, progress.episode)
+                } else {
+                    stringResource(if (progress != null) R.string.cd_resume else R.string.details_play)
                 }
-                if (progress != null) {
-                    androidx.compose.material3.LinearProgressIndicator(
-                        progress = { progress.coerceIn(0f, 1f) },
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                    )
-                }
-            }
-        }
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp)
-        )
-        subtitle?.let {
-            Text(
-                text = it,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 4.dp, end = 4.dp)
             )
+        }
+        OutlinedButton(
+            onClick = onDetails,
+            contentPadding = ButtonDefaults.ButtonWithIconContentPadding
+        ) {
+            Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+            Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+            androidx.tv.material3.Text(stringResource(R.string.st_details))
         }
     }
 }
 
 @Composable
-internal fun TvErrorState(onRetry: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = stringResource(R.string.st_could_not_catalog),
-            style = MaterialTheme.typography.headlineSmall
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = stringResource(R.string.home_check_connection),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(20.dp))
-        Button(onClick = onRetry, modifier = Modifier.height(56.dp)) {
-            Text(
-                text = stringResource(R.string.action_try_again),
-                style = MaterialTheme.typography.titleMedium
+private fun ContinueCard(progress: WatchProgress, onClick: () -> Unit, onFocused: () -> Unit) {
+    TvLandscapeCard(
+        title = progress.title,
+        subtitle = if (progress.isMovie) null else {
+            stringResource(R.string.li_episode_code, progress.season, progress.episode) +
+                (progress.episodeTitle?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "")
+        },
+        imageUrl = (progress.stillPath ?: progress.backdropPath)?.let { "$TV_STILL_BASE$it" },
+        progress = progress.fraction.takeIf { it > 0f },
+        onClick = onClick,
+        onFocused = onFocused
+    )
+}
+
+@Composable
+private fun TitleRail(rail: HomeRail, onOpen: (AnimeDto) -> Unit, onFocused: (AnimeDto) -> Unit) {
+    TvRail(title = rail.title) {
+        items(rail.items, key = { "${rail.key}:${it.id}" }) { item ->
+            TvPosterCard(
+                title = item.name,
+                posterPath = item.posterPath,
+                onClick = { onOpen(item) },
+                onFocused = { onFocused(item) }
             )
         }
     }

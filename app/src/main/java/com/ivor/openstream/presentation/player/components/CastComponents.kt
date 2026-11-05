@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.player.components
 
+import com.ivor.openstream.ui.theme.onScrim
 import androidx.compose.animation.AnimatedContent
 import com.ivor.openstream.R
 import androidx.compose.foundation.background
@@ -23,10 +24,12 @@ import androidx.compose.material.icons.filled.CastConnected
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.ClosedCaptionDisabled
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Button
@@ -36,6 +39,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -51,6 +55,7 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberSliderState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -78,8 +83,10 @@ import androidx.mediarouter.media.MediaRouteSelector
 import androidx.mediarouter.media.MediaRouter
 import coil3.compose.AsyncImage
 import com.ivor.openstream.presentation.components.ExpressiveBackButton
+import com.ivor.openstream.presentation.player.session.CastAudioOption
 import com.ivor.openstream.presentation.player.session.CastError
 import com.ivor.openstream.presentation.player.session.CastStatus
+import com.ivor.openstream.presentation.player.session.CastStreamOptions
 import com.ivor.openstream.presentation.player.session.CastSubtitleOption
 import com.ivor.openstream.presentation.player.session.CastSubtitles
 import com.ivor.openstream.ui.theme.ExpressiveShapes
@@ -100,13 +107,16 @@ fun CastPlaybackView(
     isLoading: Boolean,
     error: CastError?,
     subtitles: CastSubtitles,
+    streamOptions: CastStreamOptions,
     seekStepSeconds: Int,
     onSelectSubtitle: (CastSubtitleOption?) -> Unit,
+    onSelectQuality: (Int) -> Unit,
+    onSelectAudio: (CastAudioOption) -> Unit,
     onRetry: () -> Unit,
     onChooseSource: (() -> Unit)?,
     onNextClick: (() -> Unit)?,
     onBackClick: () -> Unit,
-    onCastClick: () -> Unit,
+    onCastClick: (() -> Unit)?,
     onPlaybackEnded: () -> Unit,
     onPlaybackReady: () -> Unit,
     modifier: Modifier = Modifier
@@ -119,6 +129,7 @@ fun CastPlaybackView(
     var scrubbing by remember { mutableStateOf(false) }
     var scrubValue by remember { mutableFloatStateOf(0f) }
     var showSubtitleMenu by remember { mutableStateOf(false) }
+    var showStreamMenu by remember { mutableStateOf(false) }
 
     val latestEnded by rememberUpdatedState(onPlaybackEnded)
     val latestReady by rememberUpdatedState(onPlaybackReady)
@@ -151,7 +162,7 @@ fun CastPlaybackView(
         }
     }
 
-    Box(modifier = modifier.background(Color.Black)) {
+    Box(modifier = modifier.background(MaterialTheme.colorScheme.scrim)) {
         if (artworkUrl != null) {
             AsyncImage(
                 model = artworkUrl,
@@ -166,7 +177,7 @@ fun CastPlaybackView(
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.35f))
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.35f))
         )
 
         Column(Modifier.fillMaxSize()) {
@@ -180,7 +191,7 @@ fun CastPlaybackView(
                 ExpressiveBackButton(
                     onClick = onBackClick,
                     containerColor = Color.Transparent,
-                    contentColor = Color.White
+                    contentColor = MaterialTheme.colorScheme.onScrim
                 )
                 Column(
                     modifier = Modifier
@@ -190,7 +201,7 @@ fun CastPlaybackView(
                     Text(
                         text = stringResource(R.string.player_playing_on, deviceName),
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primaryContainer,
+                        color = MaterialTheme.colorScheme.onScrim,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -198,28 +209,31 @@ fun CastPlaybackView(
                         text = if (subtitle.isNotBlank()) "$title · $subtitle" else title,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onScrim,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.semantics { heading() }
                     )
                 }
                 if (subtitles.options.isNotEmpty()) {
+                    // Phone only in practice: casting on TV can't start because the
+                    // cast sheet is guarded with tvControls. Even if reached, every
+                    // DropdownMenuItem is focusable, so the remote can traverse it.
                     Box {
                         IconButton(onClick = { showSubtitleMenu = true }) {
                             Icon(
                                 if (subtitles.activeId != null) Icons.Default.ClosedCaption else Icons.Default.ClosedCaptionDisabled,
                                 contentDescription = stringResource(R.string.player_subtitles_on_tv),
-                                tint = Color.White
+                                tint = MaterialTheme.colorScheme.onScrim
                             )
                         }
                         DropdownMenu(expanded = showSubtitleMenu, onDismissRequest = { showSubtitleMenu = false }) {
-                            SubtitleMenuItem(stringResource(R.string.misc_off), selected = subtitles.activeId == null) {
+                            CastMenuItem(stringResource(R.string.misc_off), selected = subtitles.activeId == null) {
                                 showSubtitleMenu = false
                                 onSelectSubtitle(null)
                             }
                             subtitles.options.forEach { option ->
-                                SubtitleMenuItem(option.label, selected = option.id == subtitles.activeId) {
+                                CastMenuItem(option.label, selected = option.id == subtitles.activeId) {
                                     showSubtitleMenu = false
                                     onSelectSubtitle(option)
                                 }
@@ -227,8 +241,61 @@ fun CastPlaybackView(
                         }
                     }
                 }
-                IconButton(onClick = onCastClick) {
-                    Icon(Icons.Default.CastConnected, contentDescription = stringResource(R.string.cd_cast_device, deviceName), tint = Color.White)
+                val canPickQuality = streamOptions.qualities.size > 1
+                val canPickAudio = streamOptions.audios.size > 1
+                if (onChooseSource != null || canPickQuality || canPickAudio) {
+                    // Source, quality and audio for the TV. Every item is focusable, like the
+                    // subtitle menu, so a remote can traverse it too.
+                    Box {
+                        IconButton(onClick = { showStreamMenu = true }) {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = stringResource(R.string.player_playback_settings),
+                                tint = MaterialTheme.colorScheme.onScrim
+                            )
+                        }
+                        DropdownMenu(expanded = showStreamMenu, onDismissRequest = { showStreamMenu = false }) {
+                            if (onChooseSource != null) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.sheet_source)) },
+                                    onClick = {
+                                        showStreamMenu = false
+                                        onChooseSource()
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null) }
+                                )
+                            }
+                            if (canPickQuality) {
+                                if (onChooseSource != null) HorizontalDivider()
+                                CastMenuHeader(stringResource(R.string.sheet_quality))
+                                CastMenuItem(stringResource(R.string.sheet_auto), selected = streamOptions.selectedHeight == 0) {
+                                    showStreamMenu = false
+                                    if (streamOptions.selectedHeight != 0) onSelectQuality(0)
+                                }
+                                streamOptions.qualities.forEach { height ->
+                                    CastMenuItem("${height}p", selected = height == streamOptions.selectedHeight) {
+                                        showStreamMenu = false
+                                        if (height != streamOptions.selectedHeight) onSelectQuality(height)
+                                    }
+                                }
+                            }
+                            if (canPickAudio) {
+                                if (onChooseSource != null || canPickQuality) HorizontalDivider()
+                                CastMenuHeader(stringResource(R.string.sheet_audio))
+                                streamOptions.audios.forEach { option ->
+                                    CastMenuItem(option.label, selected = option.id == streamOptions.selectedAudioId) {
+                                        showStreamMenu = false
+                                        if (option.id != streamOptions.selectedAudioId) onSelectAudio(option)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (onCastClick != null) {
+                    IconButton(onClick = onCastClick) {
+                        Icon(Icons.Default.CastConnected, contentDescription = stringResource(R.string.cd_cast_device, deviceName), tint = MaterialTheme.colorScheme.onScrim)
+                    }
                 }
             }
 
@@ -243,14 +310,14 @@ fun CastPlaybackView(
                         Text(
                             text = error.message,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onScrim,
                             modifier = Modifier.padding(horizontal = 24.dp)
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
                             Button(onClick = onRetry, shape = ExpressiveShapes.medium) { Text(stringResource(R.string.action_retry)) }
                             if (onChooseSource != null && error.fromStream) {
                                 OutlinedButton(onClick = onChooseSource, shape = ExpressiveShapes.medium) {
-                                    Text(stringResource(R.string.player_other_source), color = Color.White)
+                                    Text(stringResource(R.string.player_other_source), color = MaterialTheme.colorScheme.onScrim)
                                 }
                             }
                         }
@@ -320,13 +387,20 @@ fun CastPlaybackView(
                 Text(
                     text = formatTime(if (scrubbing) (scrubValue * duration).toLong() else position),
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onScrim
                 )
+                // Playback drives the slider except while the user is scrubbing it.
+                val castSliderState = rememberSliderState()
+                val castPlayed = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f
+                LaunchedEffect(castPlayed, scrubbing) {
+                    if (!scrubbing) castSliderState.value = castPlayed
+                }
                 Slider(
-                    value = if (scrubbing) scrubValue else if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f,
+                    state = castSliderState,
                     onValueChange = {
                         scrubbing = true
                         scrubValue = it
+                        castSliderState.value = it
                     },
                     onValueChangeFinished = {
                         if (duration > 0) {
@@ -340,7 +414,7 @@ fun CastPlaybackView(
                     colors = SliderDefaults.colors(
                         thumbColor = MaterialTheme.colorScheme.primary,
                         activeTrackColor = MaterialTheme.colorScheme.primary,
-                        inactiveTrackColor = Color.White.copy(alpha = 0.3f)
+                        inactiveTrackColor = MaterialTheme.colorScheme.onScrim.copy(alpha = 0.3f)
                     ),
                     modifier = Modifier
                         .weight(1f)
@@ -349,7 +423,7 @@ fun CastPlaybackView(
                 Text(
                     text = formatTime(duration),
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onScrim
                 )
             }
         }
@@ -357,7 +431,19 @@ fun CastPlaybackView(
 }
 
 @Composable
-private fun SubtitleMenuItem(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun CastMenuHeader(label: String) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .semantics { heading() }
+    )
+}
+
+@Composable
+private fun CastMenuItem(label: String, selected: Boolean, onClick: () -> Unit) {
     DropdownMenuItem(
         text = { Text(label) },
         onClick = onClick,
@@ -399,6 +485,9 @@ fun CastDeviceSheet(
         onDispose { router.removeCallback(callback) }
     }
 
+    // Phone only: on TV the cast sheet is never opened (its only triggers are
+    // guarded by tvControls in PlayerScreen), so this ModalBottomSheet is
+    // unreachable from TvNavigation.
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)

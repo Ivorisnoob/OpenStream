@@ -82,6 +82,7 @@
     <string name="home_recently_watched">Assistidos recentemente</string>
     <string name="home_weekend_movies">Filmes para o fim de semana</string>
     <string name="home_anime_movies">Filmes de anime</string>
+    <string name="home_popular_on_service">Popular em %1$s</string>
     <string name="home_critically_acclaimed">Aclamados pela crítica</string>
     <string name="home_top_result">Melhor resultado</string>
     <string name="home_rank_this_week">%1$d esta semana</string>
@@ -139,6 +140,7 @@
     <string name="details_play">Reproduzir</string>
     <string name="details_trailer">Trailer</string>
     <string name="details_episodes">Episódios</string>
+    <string name="details_latest">Mais recente</string>
     <string name="details_more_like_this">Semelhantes</string>
     <string name="details_known_for">Conhecido por</string>
     <string name="details_first_aired">Estreia</string>
@@ -205,6 +207,7 @@
     <string name="player_enter_fullscreen">Tela cheia</string>
     <string name="player_exit_fullscreen">Sair da tela cheia</string>
     <string name="player_pip">Picture in picture</string>
+    <string name="player_shader_look">Efeito de shader</string>
     <string name="player_zoom_fill">Zoom para preencher</string>
     <string name="player_playback_settings">Configurações de reprodução</string>
     <string name="player_waiting_tracks">Aguardando faixas de vídeo</string>
@@ -242,6 +245,8 @@
     <string name="sheet_caption_style">Estilo de legenda</string>
     <string name="sheet_text_size">Tamanho do texto</string>
     <string name="sheet_background">Fundo</string>
+    <string name="sheet_caption_position">Posição</string>
+    <string name="sheet_caption_position_raised">%1$d%% mais alto</string>
     <string name="sheet_background_opacity">Opacidade do fundo</string>
     <string name="sheet_bold">Negrito</string>
     <string name="sheet_source">Fonte</string>
@@ -319,6 +324,10 @@
     <string name="st_theme_system">Sistema</string>
     <string name="st_theme_light">Claro</string>
     <string name="st_theme_dark">Escuro</string>
+    <string name="st_amoled_black">Preto AMOLED</string>
+    <string name="st_amoled_black_hint">Superfícies totalmente pretas quando o app está escuro.</string>
+    <string name="st_floating_nav_bar">Barra de navegação flutuante</string>
+    <string name="st_floating_nav_bar_hint">Desativada, uma barra normal fica fixa embaixo.</string>
     <string name="st_dynamic_color">Cor dinâmica</string>
     <string name="st_dynamic_hint">Cores do seu papel de parede</string>
     <string name="st_language">Idioma</string>
@@ -343,9 +352,14 @@
     <string name="st_history_cleared">Histórico e progresso apagados</string>
     <string name="st_clear_crash">Limpar relatórios de crash</string>
     <string name="st_crash_cleared">Relatórios de crash apagados</string>
-    <string name="st_clear_cache">Limpar cache de imagens</string>
-    <string name="st_cache_cleared">Cache de imagens limpo</string>
-    <string name="st_cache_size">%1$s de artes</string>
+    <string name="st_clear_all_cache">Limpar cache</string>
+    <string name="st_cache_used">%1$s usados por artes e informações dos títulos</string>
+    <string name="st_cache_hint">Artes e informações dos títulos guardadas para abrir páginas mais rápido</string>
+    <string name="st_cache_cleared_all">Cache limpo</string>
+    <string name="st_cache_limit">Tamanho do cache</string>
+    <string name="st_cache_limit_hint">Espaço que as artes e informações dos títulos podem usar. Vale a partir da próxima vez que o app abrir.</string>
+    <string name="st_preload_artwork">Pré-carregar artes</string>
+    <string name="st_preload_artwork_hint">No Wi-Fi, carrega os posters das fileiras antes de você chegar nelas</string>
     <string name="st_show_hidden">Mostrar títulos ocultos</string>
     <string name="st_backup">Backup da biblioteca</string>
     <string name="st_backup_hint">Ver mais tarde, listas, histórico e ocultos de cada perfil, mais ajustes</string>
@@ -379,7 +393,6 @@
     <string name="st_allow_install_note">Permita ao OpenStream instalar atualizações, volte e toque em Instalar.</string>
     <string name="st_storage_help">Armazenamento e ajuda</string>
     <string name="st_on_device">Neste dispositivo</string>
-    <string name="st_posters_cache">Posters e fundos guardados para carregar rápido</string>
     <string name="st_crash_include">Inclui %1$d relatório de crash</string>
     <string name="st_repo_data_note">Repositórios trazem dados, não código</string>
     <string name="st_repo_data_body">Extensão só escolhe e configura um resolvedor que já vem no OpenStream, então lista de terceiros não roda código no aparelho.</string>
@@ -409,6 +422,8 @@
     <string name="st_index_not_json">Índice do repositório não é objeto ou array JSON</string>
     <string name="st_repo_lists_unreadable">Listas do repositório ilegíveis</string>
     <string name="st_repo_no_extensions">Repositório não publicou extensões</string>
+    <string name="st_repo_no_internet">Sem conexão com a internet</string>
+    <string name="st_repo_not_valid">Esse link não é um repositório nem um complemento do Stremio</string>
     <string name="st_no_catalog">Sem catálogo ainda</string>
     <string name="st_pull_repo_hint">Adicione um repositório na aba Repositórios, ou atualize para o catálogo oficial.</string>
     <string name="st_official_repo">Extensão oficial</string>
@@ -638,6 +653,7 @@
     <string name="player_rewind_seconds">Voltar %1$d segundos</string>
     <string name="src_up_to_quality">Até %1$s</string>
     <string name="src_adaptive">Adaptativa</string>
+    <string name="src_repo_official">Oficial</string>
     <string name="src_available_count">%1$d disponíveis</string>
     <string name="src_progress">%1$s prontas · %2$s de %3$s verificadas</string>
     <string name="sub_checking_all">Verificando fonte do vídeo, OpenSubtitles e SubSource…</string>
@@ -817,4 +833,107 @@
     <string name="match_rail">Melhores para você</string>
     <string name="match_percent">%1$d%% de compatibilidade</string>
     <string name="match_because">Porque você gostou de %1$s</string>
+    <string name="dl_tab_downloads">Downloads</string>
+    <string name="dl_tab_local_files">Arquivos locais</string>
+    <string name="dl_save_to_storage_failed">Não foi possível salvar no armazenamento</string>
+    <string name="local_import_files">Importar vídeos</string>
+    <string name="local_no_files_title">Nenhum vídeo local</string>
+    <string name="local_no_files_body">Importe arquivos de vídeo do seu dispositivo para assistir no OpenStream</string>
+    <string name="local_file">Vídeo local</string>
+    <string name="local_delete_confirm_title">Remover vídeo local?</string>
+    <string name="local_delete_confirm_body">Ele só sai desta lista. O arquivo continua no seu dispositivo.</string>
+    <string name="local_search_hint">Pesquisar vídeos locais</string>
+    <string name="sort_name_asc">Nome (A–Z)</string>
+    <string name="sort_name_desc">Nome (Z–A)</string>
+    <string name="sort_date_added_desc">Adicionados recentemente</string>
+    <string name="sort_date_added_asc">Adicionados primeiro</string>
+    <string name="sort_size_desc">Maiores</string>
+    <string name="sort_size_asc">Menores</string>
+    <string name="sort_duration_desc">Mais longos</string>
+    <string name="sort_duration_asc">Mais curtos</string>
+    <string name="dl_save_in_progress">Já está sendo salvo em Downloads</string>
+    <string name="dl_storage_permission_needed">Permita o acesso ao armazenamento para salvar vídeos na pasta de downloads</string>
+    <string name="dl_save_unsupported">Este download não pode ser salvo como um único arquivo de vídeo</string>
+    <string name="dl_save_protected">Esta transmissão é protegida e só pode ser assistida no OpenStream</string>
+    <plurals name="local_import_success">
+        <item quantity="one">%1$d vídeo importado</item>
+        <item quantity="many">%1$d vídeos importados</item>
+        <item quantity="other">%1$d vídeos importados</item>
+    </plurals>
+    <string name="dl_delete_confirm">Excluir download?</string>
+    <string name="dl_delete_body">Remover %1$s deste dispositivo? Você vai precisar baixar de novo para assistir offline.</string>
+    <string name="dl_cancel_confirm">Cancelar download?</string>
+    <string name="dl_cancel_body">Parar o download de %1$s? O arquivo parcial será removido.</string>
+    <string name="action_keep">Manter</string>
+    <string name="season_episode_format">Temporada %1$d, episódio %2$d</string>
+    <string name="dl_pick_source_title">Escolher a fonte do download</string>
+    <string name="dl_pick_source_hint">Escolha de onde baixar.</string>
+    <string name="dl_pick_batch_hint">Vamos usar o provedor e a qualidade que você tocar para cada episódio, quando disponíveis.</string>
+    <string name="dl_batch_queued">Baixando %1$d episódios… Encontre-os em Downloads.</string>
+    <string name="dl_season_already">Todos os episódios aqui já foram baixados ou estão baixando</string>
+    <string name="dl_hold_options">Segure para escolher a fonte</string>
+    <string name="dl_hold_tip">Dica: segure Baixar para escolher a fonte e a qualidade.</string>
+    <string name="dl_choose_source">Escolher a fonte do download</string>
+    <string name="dl_no_quality_match">Ainda não há fontes nesta qualidade.</string>
+    <string name="action_show_all">Mostrar tudo</string>
+    <plurals name="dl_delete_group_body">
+        <item quantity="one">Remover %1$d episódio de %2$s deste dispositivo? Você vai precisar baixá-lo de novo para assistir offline.</item>
+        <item quantity="many">Remover %1$d episódios de %2$s deste dispositivo? Você vai precisar baixá-los de novo para assistir offline.</item>
+        <item quantity="other">Remover %1$d episódios de %2$s deste dispositivo? Você vai precisar baixá-los de novo para assistir offline.</item>
+    </plurals>
+    <plurals name="dl_delete_episodes">
+        <item quantity="one">Excluir 1 episódio?</item>
+        <item quantity="many">Excluir %1$d episódios?</item>
+        <item quantity="other">Excluir %1$d episódios?</item>
+    </plurals>
+    <plurals name="dl_batch_count">
+        <item quantity="one">%1$d episódio</item>
+        <item quantity="many">%1$d episódios</item>
+        <item quantity="other">%1$d episódios</item>
+    </plurals>
+
+    <string name="sheet_volume_boost">Aumento de volume</string>
+    <string name="sheet_volume_boost_desc">Deixa os vídeos baixos mais altos. Um limitador evita que as partes altas distorçam. Vale para tudo o que você assistir até voltar para Normal.</string>
+    <string name="sheet_external_player">Player externo</string>
+    <string name="action_open_external_player">Abrir em player externo</string>
+
+    <string name="st_stream_cap">Limite de qualidade</string>
+    <string name="st_stream_cap_hint">Qualidade máxima que uma transmissão pode usar. Padrão: 1080p.</string>
+    <string name="st_stream_cap_none">Sem limite</string>
+    <string name="tv_hold_to_delete">Segure OK para excluir</string>
+    <string name="tv_st_network">Rede</string>
+    <string name="tv_st_storage">Armazenamento</string>
+    <string name="tv_hold_to_remove">Segure OK para remover</string>
+    <string name="tv_key_space">Espaço</string>
+
+    <!-- Calendar -->
+    <string name="calendar_title">Em breve</string>
+    <string name="calendar_subtitle">Novos episódios e filmes do que você acompanha</string>
+    <string name="calendar_next_up">A seguir</string>
+    <string name="calendar_out_now">Já disponível</string>
+    <string name="calendar_new_badge">Novo</string>
+    <string name="calendar_watch_now_cd">Assistir %1$s agora</string>
+    <string name="calendar_day_cd">%1$s, programados: %2$d</string>
+    <string name="calendar_empty_title">Ainda não há nada no calendário</string>
+    <string name="calendar_empty_body">Salve uma série ou comece a assistir e os novos episódios aparecem aqui.</string>
+    <string name="calendar_nothing_scheduled">Não há datas anunciadas para o que você acompanha.</string>
+    <string name="calendar_nothing_filter">Nada com este filtro.</string>
+    <string name="calendar_suggestions">No ar esta semana</string>
+    <string name="calendar_some_failed">Não foi possível verificar alguns títulos. Puxe para baixo para tentar de novo.</string>
+    <string name="calendar_error">Não foi possível carregar o calendário</string>
+    <string name="st_section_quality">Qualidade e dados</string>
+    <string name="st_section_network">Rede</string>
+    <string name="st_search_hint">Pesquisar configurações</string>
+    <string name="st_search_none">Nenhuma configuração corresponde a “%1$s”</string>
+    <string name="st_search_none_hint">Tente outra palavra, como tema, legendas ou qualidade.</string>
+    <plurals name="st_search_results">
+        <item quantity="one">%1$d configuração encontrada</item>
+        <item quantity="many">%1$d configurações encontradas</item>
+        <item quantity="other">%1$d configurações encontradas</item>
+    </plurals>
+    <string name="st_cat_personalization">Personalização</string>
+    <string name="st_cat_player">Player e gestos</string>
+    <string name="st_cat_library">Perfis e biblioteca</string>
+    <string name="st_cat_about">Ajuda e sobre</string>
+    <string name="st_group_gestures">Gestos</string>
 </resources>

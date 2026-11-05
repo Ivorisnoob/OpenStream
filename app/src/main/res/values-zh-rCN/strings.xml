@@ -82,6 +82,7 @@
     <string name="home_recently_watched">最近观看</string>
     <string name="home_weekend_movies">周末电影</string>
     <string name="home_anime_movies">动画电影</string>
+    <string name="home_popular_on_service">%1$s 热门</string>
     <string name="home_critically_acclaimed">口碑佳作</string>
     <string name="home_top_result">最佳结果</string>
     <string name="home_rank_this_week">本周第 %1$d 名</string>
@@ -139,6 +140,7 @@
     <string name="details_play">播放</string>
     <string name="details_trailer">预告片</string>
     <string name="details_episodes">剧集</string>
+    <string name="details_latest">最新</string>
     <string name="details_more_like_this">相似推荐</string>
     <string name="details_known_for">代表作</string>
     <string name="details_first_aired">首播</string>
@@ -205,6 +207,7 @@
     <string name="player_enter_fullscreen">进入全屏</string>
     <string name="player_exit_fullscreen">退出全屏</string>
     <string name="player_pip">画中画</string>
+    <string name="player_shader_look">着色器效果</string>
     <string name="player_zoom_fill">缩放以填满</string>
     <string name="player_playback_settings">播放设置</string>
     <string name="player_waiting_tracks">正在等待视频轨道</string>
@@ -242,6 +245,8 @@
     <string name="sheet_caption_style">字幕样式</string>
     <string name="sheet_text_size">字体大小</string>
     <string name="sheet_background">背景</string>
+    <string name="sheet_caption_position">位置</string>
+    <string name="sheet_caption_position_raised">上移 %1$d%%</string>
     <string name="sheet_background_opacity">背景不透明度</string>
     <string name="sheet_bold">加粗</string>
     <string name="sheet_source">来源</string>
@@ -319,6 +324,10 @@
     <string name="st_theme_system">跟随系统</string>
     <string name="st_theme_light">浅色</string>
     <string name="st_theme_dark">深色</string>
+    <string name="st_amoled_black">AMOLED 纯黑</string>
+    <string name="st_amoled_black_hint">深色模式下使用纯黑背景。</string>
+    <string name="st_floating_nav_bar">悬浮导航栏</string>
+    <string name="st_floating_nav_bar_hint">关闭后改用固定在底部的标准导航栏。</string>
     <string name="st_dynamic_color">动态配色</string>
     <string name="st_dynamic_hint">跟随壁纸配色</string>
     <string name="st_language">语言</string>
@@ -343,9 +352,14 @@
     <string name="st_history_cleared">观看历史和进度已清除</string>
     <string name="st_clear_crash">清除崩溃报告</string>
     <string name="st_crash_cleared">崩溃报告已清除</string>
-    <string name="st_clear_cache">清除图片缓存</string>
-    <string name="st_cache_cleared">图片缓存已清除</string>
-    <string name="st_cache_size">封面占用 %1$s</string>
+    <string name="st_clear_all_cache">清除缓存</string>
+    <string name="st_cache_used">封面和影片信息占用 %1$s</string>
+    <string name="st_cache_hint">保留封面和影片信息，让页面打开更快</string>
+    <string name="st_cache_cleared_all">缓存已清除</string>
+    <string name="st_cache_limit">缓存大小</string>
+    <string name="st_cache_limit_hint">封面和影片信息可占用的空间。下次启动应用时生效。</string>
+    <string name="st_preload_artwork">预加载封面</string>
+    <string name="st_preload_artwork_hint">连接 Wi-Fi 时，在你滚动到之前预先加载各行的海报</string>
     <string name="st_show_hidden">显示已隐藏的标题</string>
     <string name="st_backup">备份媒体库</string>
     <string name="st_backup_hint">包含每个用户的稍后观看、列表、历史记录、已隐藏标题及设置</string>
@@ -379,7 +393,6 @@
     <string name="st_allow_install_note">请先允许 OpenStream 安装更新，然后返回并轻触“安装”。</string>
     <string name="st_storage_help">存储与帮助</string>
     <string name="st_on_device">在此设备上</string>
-    <string name="st_posters_cache">缓存海报和背景图以加快加载</string>
     <string name="st_crash_include">包含 %1$d 份崩溃报告</string>
     <string name="st_repo_data_note">仓库仅提供数据，不含代码</string>
     <string name="st_repo_data_body">扩展仅选用并配置 OpenStream 内置的解析器，第三方列表无法在您的设备上运行代码。</string>
@@ -409,6 +422,8 @@
     <string name="st_index_not_json">仓库索引不是 JSON 对象或数组</string>
     <string name="st_repo_lists_unreadable">无法读取仓库列表</string>
     <string name="st_repo_no_extensions">该仓库未发布任何扩展</string>
+    <string name="st_repo_no_internet">没有网络连接</string>
+    <string name="st_repo_not_valid">此链接不是仓库，也不是 Stremio 插件</string>
     <string name="st_no_catalog">暂无目录</string>
     <string name="st_pull_repo_hint">在“仓库”选项卡中拉取仓库，或刷新以获取官方目录。</string>
     <string name="st_official_repo">官方扩展</string>
@@ -638,6 +653,7 @@
     <string name="player_rewind_seconds">快退 %1$d 秒</string>
     <string name="src_up_to_quality">最高 %1$s</string>
     <string name="src_adaptive">自适应</string>
+    <string name="src_repo_official">官方</string>
     <string name="src_available_count">%1$d 个可用</string>
     <string name="src_progress">%1$s 就绪 · 已检查 %2$s/%3$s</string>
     <string name="sub_checking_all">正在检查视频来源、OpenSubtitles 和 SubSource…</string>
@@ -817,4 +833,97 @@
     <string name="match_rail">最匹配你的推荐</string>
     <string name="match_percent">%1$d%% 匹配</string>
     <string name="match_because">因为你喜欢 %1$s</string>
+    <string name="dl_tab_downloads">下载</string>
+    <string name="dl_tab_local_files">本地文件</string>
+    <string name="dl_save_to_storage_failed">无法保存到存储空间</string>
+    <string name="local_import_files">导入视频</string>
+    <string name="local_no_files_title">没有本地视频</string>
+    <string name="local_no_files_body">从设备导入视频文件，在 OpenStream 中观看</string>
+    <string name="local_file">本地视频</string>
+    <string name="local_delete_confirm_title">移除本地视频？</string>
+    <string name="local_delete_confirm_body">只会从此列表移除，文件仍保留在设备上。</string>
+    <string name="local_search_hint">搜索本地视频</string>
+    <string name="sort_name_asc">名称 (A–Z)</string>
+    <string name="sort_name_desc">名称 (Z–A)</string>
+    <string name="sort_date_added_desc">最近添加</string>
+    <string name="sort_date_added_asc">最早添加</string>
+    <string name="sort_size_desc">最大</string>
+    <string name="sort_size_asc">最小</string>
+    <string name="sort_duration_desc">时长最长</string>
+    <string name="sort_duration_asc">时长最短</string>
+    <string name="dl_save_in_progress">正在保存到“下载”文件夹</string>
+    <string name="dl_storage_permission_needed">请允许存储访问权限，以便将视频保存到“下载”文件夹</string>
+    <string name="dl_save_unsupported">此下载无法保存为单个视频文件</string>
+    <string name="dl_save_protected">此视频流受保护，只能在 OpenStream 中播放</string>
+    <plurals name="local_import_success">
+        <item quantity="other">已导入 %1$d 个视频</item>
+    </plurals>
+    <string name="dl_delete_confirm">删除下载？</string>
+    <string name="dl_delete_body">要从此设备移除 %1$s 吗？离线观看需要重新下载。</string>
+    <string name="dl_cancel_confirm">取消下载？</string>
+    <string name="dl_cancel_body">停止下载 %1$s？未完成的文件将被删除。</string>
+    <string name="action_keep">保留</string>
+    <string name="season_episode_format">第 %1$d 季第 %2$d 集</string>
+    <string name="dl_pick_source_title">选择下载来源</string>
+    <string name="dl_pick_source_hint">选择从哪里下载。</string>
+    <string name="dl_pick_batch_hint">在可用时，每一集都会使用你点选的提供方和画质。</string>
+    <string name="dl_batch_queued">正在下载 %1$d 集… 可在“下载”中查看。</string>
+    <string name="dl_season_already">这里的所有剧集都已下载或正在下载</string>
+    <string name="dl_hold_options">长按以选择来源</string>
+    <string name="dl_hold_tip">提示：长按“下载”可选择来源和画质。</string>
+    <string name="dl_choose_source">选择下载来源</string>
+    <string name="dl_no_quality_match">此画质暂无来源。</string>
+    <string name="action_show_all">显示全部</string>
+    <plurals name="dl_delete_group_body">
+        <item quantity="other">要从此设备移除 %2$s 的 %1$d 集吗？离线观看需要重新下载。</item>
+    </plurals>
+    <plurals name="dl_delete_episodes">
+        <item quantity="other">删除 %1$d 集？</item>
+    </plurals>
+    <plurals name="dl_batch_count">
+        <item quantity="other">%1$d 集</item>
+    </plurals>
+
+    <string name="sheet_volume_boost">音量增强</string>
+    <string name="sheet_volume_boost_desc">让声音偏小的视频更响。限幅器可防止大声部分失真。在你改回“正常”之前，对所有播放内容生效。</string>
+    <string name="sheet_external_player">外部播放器</string>
+    <string name="action_open_external_player">在外部播放器中打开</string>
+
+    <string name="st_stream_cap">画质上限</string>
+    <string name="st_stream_cap_hint">流媒体可使用的最高画质。默认 1080p。</string>
+    <string name="st_stream_cap_none">不限制</string>
+    <string name="tv_hold_to_delete">长按 OK 键删除</string>
+    <string name="tv_st_network">网络</string>
+    <string name="tv_st_storage">存储</string>
+    <string name="tv_hold_to_remove">长按 OK 键移除</string>
+    <string name="tv_key_space">空格</string>
+
+    <!-- Calendar -->
+    <string name="calendar_title">即将上线</string>
+    <string name="calendar_subtitle">你关注内容的新剧集和电影</string>
+    <string name="calendar_next_up">下一个</string>
+    <string name="calendar_out_now">现已上线</string>
+    <string name="calendar_new_badge">新</string>
+    <string name="calendar_watch_now_cd">立即观看%1$s</string>
+    <string name="calendar_day_cd">%1$s，已排期：%2$d</string>
+    <string name="calendar_empty_title">日历中还没有内容</string>
+    <string name="calendar_empty_body">保存剧集或开始观看，新剧集就会显示在这里。</string>
+    <string name="calendar_nothing_scheduled">你关注的内容尚未公布日期。</string>
+    <string name="calendar_nothing_filter">此筛选条件下没有内容。</string>
+    <string name="calendar_suggestions">本周播出</string>
+    <string name="calendar_some_failed">部分作品无法检查。下拉重试。</string>
+    <string name="calendar_error">无法加载日历</string>
+    <string name="st_section_quality">画质和流量</string>
+    <string name="st_section_network">网络</string>
+    <string name="st_search_hint">搜索设置</string>
+    <string name="st_search_none">没有与“%1$s”匹配的设置</string>
+    <string name="st_search_none_hint">换个词试试，比如主题、字幕或画质。</string>
+    <plurals name="st_search_results">
+        <item quantity="other">找到 %1$d 项设置</item>
+    </plurals>
+    <string name="st_cat_personalization">个性化</string>
+    <string name="st_cat_player">播放器和手势</string>
+    <string name="st_cat_library">个人资料和媒体库</string>
+    <string name="st_cat_about">帮助与关于</string>
+    <string name="st_group_gestures">手势</string>
 </resources>

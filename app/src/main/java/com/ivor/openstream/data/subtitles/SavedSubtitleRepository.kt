@@ -133,7 +133,7 @@ class SavedSubtitleRepository @Inject constructor(
     ): SavedSubtitle = withContext(Dispatchers.IO) {
         val dir = directory(mediaType, tmdbId, season, episode)
         readIndex(dir).firstOrNull { it.originId == subtitle.id }?.let { return@withContext it }
-        val text = fetcher.fetchText(subtitle.url, headers)
+        val text = fetcher.fetchText(subtitle.url, headers, subtitle.language)
         if (parseSubtitles(text).isEmpty()) {
             throw IOException(
                 if (text.trimStart().startsWith("<")) {
@@ -171,11 +171,11 @@ class SavedSubtitleRepository @Inject constructor(
                 if (buffer.size > MAX_IMPORT_BYTES) throw IOException(context.getString(R.string.dl_sub_too_large))
                 buffer
             } ?: throw IOException(context.getString(R.string.dl_could_not_open_file))
-            val text = fetcher.textOf(bytes)
-            if (parseSubtitles(text).isEmpty()) throw IOException(context.getString(R.string.dl_no_sub_in_file))
-
             val baseName = name.substringBeforeLast('.').ifBlank { "Subtitles" }
             val language = guessLanguage(baseName)
+            val text = fetcher.textOf(bytes, language)
+            if (parseSubtitles(text).isEmpty()) throw IOException(context.getString(R.string.dl_no_sub_in_file))
+
             add(
                 directory(mediaType, tmdbId, season, episode),
                 text,
@@ -245,6 +245,10 @@ class SavedSubtitleRepository @Inject constructor(
         temp.writeText(json.encodeToString(indexSerializer, entries))
         if (!temp.renameTo(File(dir, INDEX_FILE))) throw IOException(context.getString(R.string.dl_could_not_update_saved))
     }
+
+    /** Where [saved] is stored on the device. */
+    fun fileFor(mediaType: String, tmdbId: Int, season: Int, episode: Int, saved: SavedSubtitle): File =
+        File(directory(mediaType, tmdbId, season, episode), saved.fileName)
 
     private fun directory(mediaType: String, tmdbId: Int, season: Int, episode: Int) =
         File(rootDirectory(context), keyFor(mediaType, tmdbId, season, episode))

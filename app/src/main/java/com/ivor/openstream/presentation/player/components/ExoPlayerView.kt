@@ -4,6 +4,8 @@ import android.app.Activity
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.animation.core.animateDpAsState
 import com.ivor.openstream.presentation.player.session.SleepTimer
 import com.ivor.openstream.domain.model.SkipSegment
 import com.ivor.openstream.data.remote.model.EpisodeDto
@@ -20,7 +22,7 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.data.repository.OpenSubtitlesRepository
-import com.ivor.openstream.presentation.player.CaptionStyleSettings
+import com.ivor.openstream.data.settings.CaptionStyleSettings
 import com.ivor.openstream.presentation.player.ServersState
 import androidx.annotation.OptIn
 import androidx.annotation.StringRes
@@ -32,6 +34,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -45,6 +48,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -55,7 +59,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Shadow
@@ -95,11 +101,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Surface
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
@@ -117,11 +125,32 @@ import io.github.ivorisnoob.smoothmotion.media3.SmoothMotion
 import io.github.ivorisnoob.smoothmotion.ui.bindSmoothMotion
 import io.github.ivorisnoob.smoothmotion.ui.unbindSmoothMotion
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import com.ivor.openstream.data.settings.VideoGestureCustomization
+import com.ivor.openstream.data.settings.VideoShaderCustomization
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.net.URL
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.roundToInt
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -187,6 +216,8 @@ fun ExoPlayerView(
     /** Intro/recap/credits times from AniSkip; empty falls back to a manual skip early on. */
     skipSegments: List<SkipSegment> = emptyList(),
     showSkipButton: Boolean = true,
+    /** Up Next is on screen: it takes the skip button's corner and, on a TV, the focus. */
+    upNextVisible: Boolean = false,
     /** Leave the player screen with playback continuing in the mini player (swipe down inline). */
     onMinimize: () -> Unit = onBackClick,
     /** This season's episodes; a swipe up in fullscreen opens them. */
@@ -199,7 +230,7 @@ fun ExoPlayerView(
     /** Pops the video out into picture-in-picture; null hides the button. */
     onPictureInPictureClick: (() -> Unit)? = null,
     /** Downloads a sideloaded subtitle as text (gzip/zip handled); throws when it can't. */
-    loadSubtitleText: suspend (url: String, headers: Map<String, String>) -> String = { _, _ -> throw IllegalStateException("No subtitle loader") },
+    loadSubtitleText: suspend (url: String, headers: Map<String, String>, language: String?) -> String = { _, _, _ -> throw IllegalStateException("No subtitle loader") },
     /** Container hint from the source (HLS for hosts whose URLs don't end in .m3u8). */
     mimeType: String? = null,
     /** Playback continues when the app leaves the foreground (the media notification takes over). */
@@ -209,7 +240,27 @@ fun ExoPlayerView(
     /** Optional SmoothMotion engine for real-time frame interpolation. */
     smoothMotion: SmoothMotion? = null,
     /** D-pad and remote-key handling, for the Android TV player surface. */
-    dpadControls: Boolean = false
+    dpadControls: Boolean = false,
+    volumeBoostPercent: Int = 100,
+    onVolumeBoostChange: (Int) -> Unit = {},
+    onOpenExternalPlayer: (() -> Unit)? = null,
+    /** The look the picture is drawn in; the master switch lives in Settings. */
+    videoShaders: VideoShaderCustomization = VideoShaderCustomization(),
+    /** A shader slider mid-drag: on the picture now, stored when the finger lifts. */
+    onPreviewVideoShaders: (VideoShaderCustomization) -> Unit = {},
+    onVideoShadersChange: (VideoShaderCustomization) -> Unit = {},
+    /** The controls' quick toggle has the look off the picture; nothing chosen is changed. */
+    videoShaderHidden: Boolean = false,
+    onVideoShaderHiddenChange: (Boolean) -> Unit = {},
+    /** Which of the player's optional gestures are on, and how long the controls stay up. */
+    videoGestures: VideoGestureCustomization = VideoGestureCustomization(),
+    /**
+     * The saved position this session started from, when that is worth offering to skip. Null while
+     * nothing was resumed; it is the starting point, not the position, so it does not follow
+     * playback.
+     */
+    resumedFromMs: Long? = null,
+    onPlayFromStart: () -> Unit = {}
 ) {
     val context = LocalContext.current
     // Read in composition for the track parser below, which runs in listener and
@@ -241,6 +292,8 @@ fun ExoPlayerView(
 
     // UI State
     var areControlsVisible by remember { mutableStateOf(true) }
+    // Bumped by every remote key press on the TV chrome, to restart its hide countdown.
+    var controlsInteraction by remember { mutableIntStateOf(0) }
     var showSettingsDialog by remember { mutableStateOf(false) }
     var settingsInitialPage by remember { mutableStateOf(PlayerSettingsPage.MAIN) }
 
@@ -304,10 +357,112 @@ fun ExoPlayerView(
     var scaleFeedbackSequence by remember { mutableIntStateOf(0) }
     var showScaleFeedback by remember { mutableStateOf(false) }
 
-    fun changeVideoScale(scale: VideoScale) {
+    // Hold to speed up: the rate, how far the held finger has slid, and the moment between the
+    // long press firing and the hold having lasted long enough to mean it.
+    var boostSpeed by remember { mutableFloatStateOf(BOOST_SPEED_MIN) }
+    var boostResidue by remember { mutableFloatStateOf(0f) }
+    var boostPending by remember { mutableStateOf(false) }
+    // The platform's long press, which is only the trigger: the boost's own window is measured
+    // from the same press, so the wait after it is what is left of that window.
+    val longPressTimeoutMs = LocalViewConfiguration.current.longPressTimeoutMillis
+    // The lock's confirmation, and the hold that opens it again.
+    var showLockedPill by remember { mutableStateOf(false) }
+    var lockedPillSequence by remember { mutableIntStateOf(0) }
+    // Zoom to fill, from the panel's switch. A new video starts letterboxed: how much of a picture a
+    // window can afford to crop is this picture's answer, not a setting that outlives it.
+    var zoomToFill by rememberSaveable(videoUrl) { mutableStateOf(false) }
+    // The video's shape and the surface's, which together say what a fill would crop away.
+    var videoAspect by remember { mutableStateOf<Float?>(null) }
+    var surfaceWidth by remember { mutableIntStateOf(0) }
+    var surfaceHeight by remember { mutableIntStateOf(0) }
+    val haptics = LocalHapticFeedback.current
+    // Read inside the swipe detectors, which outlive a change of controls.
+    val latestDpadControls by rememberUpdatedState(dpadControls)
+    // Whether the level a brightness or volume swipe is moving already sits at an end, so a finger
+    // held there, or a wobble against it, does not repeat the stop.
+    var levelAtEnd by remember { mutableStateOf(false) }
+
+    /**
+     * The feel of a brightness or volume swipe, mirroring the hold-to-speed-up slide: a light tick
+     * for each tenth the level crosses, and a firmer one where it stops at either end.
+     */
+    fun levelSwipeHaptics(before: Float, after: Float) {
+        // A remote has no finger to feel it, and an unchanged level has nothing to tell.
+        if (latestDpadControls || after == before) return
+        if (after <= 0f || after >= 1f) {
+            if (!levelAtEnd) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            levelAtEnd = true
+            return
+        }
+        // Counted toward the direction of travel, so landing on a tenth ticks once and leaving it
+        // the other way ticks again only at the next one.
+        val crossed = if (after > before) {
+            floor(after * LEVEL_SWIPE_STEPS) != floor(before * LEVEL_SWIPE_STEPS)
+        } else {
+            ceil(after * LEVEL_SWIPE_STEPS) != ceil(before * LEVEL_SWIPE_STEPS)
+        }
+        if (crossed) {
+            levelAtEnd = false
+            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+        }
+    }
+
+    fun changeVideoScale(scale: VideoScale, announce: Boolean = true) {
         videoScale = scale
-        showScaleFeedback = true
-        scaleFeedbackSequence++
+        // The panel's switch and the picture are two views of one choice, so they move together.
+        zoomToFill = scale == VideoScale.ZOOM
+        if (announce) {
+            showScaleFeedback = true
+            scaleFeedbackSequence++
+        }
+    }
+
+    /** Whether a fill would crop no more than [MAX_ACCEPTABLE_CROP] of the picture. */
+    fun canZoomToFill(): Boolean {
+        val video = videoAspect ?: return false
+        if (surfaceWidth <= 0 || surfaceHeight <= 0) return false
+        return isZoomToFillAvailable(video, surfaceWidth.toFloat() / surfaceHeight)
+    }
+
+    // The switch, the HUD's cycle and the pinch are three ways to one choice; this is what keeps
+    // the picture in step with the switch. A fill the source cannot spare is refused, and one that
+    // stops being affordable - a rotation, a window that narrows, a shape that arrives late - is
+    // given back rather than left sitting there cropped past the cap.
+    LaunchedEffect(zoomToFill, videoAspect, surfaceWidth, surfaceHeight) {
+        if (zoomToFill) {
+            when {
+                // Nothing has said what shape the picture is yet: wait for it rather than
+                // refusing a fill that may be perfectly fine.
+                videoAspect == null || surfaceWidth <= 0 -> Unit
+                canZoomToFill() -> {
+                    if (videoScale != VideoScale.ZOOM) changeVideoScale(VideoScale.ZOOM)
+                }
+                // The picture comes back out with the switch when a fill can no longer be
+                // afforded. Said quietly: nothing the viewer did brought this on.
+                videoScale == VideoScale.ZOOM -> changeVideoScale(VideoScale.FIT, announce = false)
+                else -> zoomToFill = false
+            }
+        } else if (videoScale == VideoScale.ZOOM) {
+            changeVideoScale(VideoScale.FIT)
+        }
+    }
+
+    LaunchedEffect(lockedPillSequence) {
+        if (lockedPillSequence > 0) {
+            delay(SCREEN_LOCK_PILL_MS)
+            showLockedPill = false
+        }
+    }
+
+    // The chip offering to skip a resumed position. It goes as soon as it is used, and on its own
+    // after a while, since it is an offer rather than part of the player. The clock only runs while
+    // the video plays, so a slow start does not use up the time it is on screen.
+    var showResumeChip by remember(resumedFromMs) { mutableStateOf(resumedFromMs != null) }
+    LaunchedEffect(showResumeChip, isPlaying, isBuffering) {
+        if (showResumeChip && isPlaying && !isBuffering) {
+            delay(RESUME_CHIP_VISIBLE_MS)
+            showResumeChip = false
+        }
     }
 
     LaunchedEffect(scaleFeedbackSequence) {
@@ -319,6 +474,7 @@ fun ExoPlayerView(
 
     // Read through State so the gesture handlers, created once, see a changed setting.
     val currentSeekStep by rememberUpdatedState(seekStepSeconds)
+    val currentGestures by rememberUpdatedState(videoGestures)
 
     // Seeks in the same direction while the feedback is still up add together (10s, 20s, 30s...).
     fun showSeekFeedback(direction: Int) {
@@ -333,9 +489,53 @@ fun ExoPlayerView(
         currentTime = exoPlayer.currentPosition
     }
 
+    /** Starts the hold's rate change, from wherever the held finger's slide has reached. */
+    fun startSpeedBoost() {
+        // The request is answered either way, so the guard below leaves nothing pending behind it.
+        boostPending = false
+        // Asked by the hold's own clock and by a slide that sets off inside it; a boost already
+        // running means the other caller got here first, and re-coercing the rate under a finger
+        // that is already sliding would move it.
+        if (isSpeedBoosted) return
+        // Starts at the rate the setting asks for; sliding the held finger still reaches every
+        // other rate, so that is where it begins, not a cap.
+        boostSpeed = currentGestures.holdSpeed.coerceIn(BOOST_SPEED_MIN, BOOST_SPEED_MAX)
+        boostResidue = 0f
+        isSpeedBoosted = true
+        areControlsVisible = false
+        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+        exoPlayer.setPlaybackParameters(
+            exoPlayer.playbackParameters.withSpeed(boostSpeed)
+        )
+    }
+
+    // The rest of the hold's own window, counted from the long press the platform has already waited
+    // out. A release before it is up clears the flag and cancels this delay, so a tap that lingered
+    // a moment past the long press never changes the rate.
+    LaunchedEffect(boostPending, longPressTimeoutMs) {
+        if (boostPending) {
+            delay((SPEED_BOOST_HOLD_MS - longPressTimeoutMs).coerceAtLeast(0L))
+            // Read again rather than left to the cancellation above: a release in the delay's last
+            // moment is applied before this suspend resumes, so a boost started off a finger that
+            // is already gone would be a boost nothing is left to end.
+            if (boostPending) startSpeedBoost()
+        }
+    }
+
+    /** Offers the unlock badge. The badge is what takes the offer away again if it goes unused. */
     fun revealUnlockButton() {
+        // Only a reveal that brings the badge back starts its clock again; a second one while it is
+        // already up - a second hand, a key, another tap - leaves the badge, and any hold on it,
+        // exactly where they are.
+        if (!showUnlockButton) unlockButtonSequence++
         showUnlockButton = true
-        unlockButtonSequence++
+    }
+
+    /** Takes the lock off: the badge's ring and the screen reader's action both land here. */
+    fun unlockScreen() {
+        isLocked = false
+        showUnlockButton = false
+        areControlsVisible = true
     }
 
     fun togglePlaybackWithFeedback() {
@@ -419,15 +619,12 @@ fun ExoPlayerView(
 
     fun handleDpadKey(event: KeyEvent): Boolean = dpadAction(event)
 
-    LaunchedEffect(unlockButtonSequence) {
-        if (unlockButtonSequence > 0) {
-            delay(2500)
-            showUnlockButton = false
-        }
-    }
-
     // While locked, back does nothing except show the unlock button.
     BackHandler(enabled = isLocked) { revealUnlockButton() }
+    // Android TV: back hides the chrome first, then leaves the player.
+    BackHandler(enabled = dpadControls && !isLocked) {
+        if (areControlsVisible) areControlsVisible = false else onBackClick()
+    }
 
     LaunchedEffect(seekFeedbackSequence) {
         if (seekFeedbackSequence > 0) {
@@ -437,9 +634,19 @@ fun ExoPlayerView(
         }
     }
 
+    // The video's shape, which zoom-to-fill's crop judgement needs. With the effect graph installed
+    // the player itself reports no size, so Smooth motion's own reading is the source there and the
+    // player's size is the fallback for when Smooth motion is not installed at all.
+    val latestSmoothMotion by rememberUpdatedState(smoothMotion)
+    LaunchedEffect(smoothMotion) {
+        smoothMotion?.videoAspectRatio?.collect { videoAspect = it }
+    }
+
     // Reset subtitle state when switching videos
     LaunchedEffect(videoUrl) {
         activeVideoHeight = 0
+        // The shape is this video's business too, and nothing has said what it is yet.
+        videoAspect = null
         subtitleChoiceMade = false
         selectedSubtitle = null
         manualCues = emptyList()
@@ -450,11 +657,12 @@ fun ExoPlayerView(
     LaunchedEffect(selectedSubtitle) { subtitleOffsetMs = 0L }
 
     LaunchedEffect(selectedSubtitle, requestHeaders) {
-        val urlStr = selectedSubtitle?.url
+        val subtitle = selectedSubtitle
+        val urlStr = subtitle?.url
         if (urlStr != null) {
             subtitleLoadingState = SubtitleLoadingState.LOADING
             try {
-                val raw = loadSubtitleText(urlStr, requestHeaders)
+                val raw = loadSubtitleText(urlStr, requestHeaders, subtitle.language)
                 manualCues = withContext(Dispatchers.Default) { parseSubtitles(raw).filterNot { it.text.isSubtitleAd() } }
                 subtitleLoadingState = if (manualCues.isNotEmpty()) SubtitleLoadingState.SUCCESS else SubtitleLoadingState.ERROR
                 Log.i("PlayerSubtitles", "Parsed ${manualCues.size} cues for manual sync")
@@ -806,10 +1014,11 @@ fun ExoPlayerView(
         }
     }
 
-    // Auto-hide controls
-    LaunchedEffect(areControlsVisible, isPlaying) {
+    // Auto-hide controls. On a TV each remote key press while the chrome is up restarts the
+    // countdown, so moving through the bar one stop at a time never races it.
+    LaunchedEffect(areControlsVisible, isPlaying, videoGestures.controlsHideSeconds, controlsInteraction) {
         if (areControlsVisible && isPlaying) {
-            delay(3000)
+            delay(if (dpadControls) 6000 else videoGestures.controlsHideSeconds * 1_000L)
             areControlsVisible = false
         }
     }
@@ -896,6 +1105,11 @@ fun ExoPlayerView(
 
             override fun onVideoSizeChanged(videoSize: VideoSize) {
                 activeVideoHeight = videoSize.height
+                // The stand-in for when nothing has installed a different pipeline: with the effect
+                // graph in place Smooth motion's own reading is what carries the shape.
+                if (videoSize.height > 0 && latestSmoothMotion == null) {
+                    videoAspect = videoSize.width * videoSize.pixelWidthHeightRatio / videoSize.height
+                }
             }
 
             override fun onCues(cueGroup: CueGroup) {
@@ -925,18 +1139,30 @@ fun ExoPlayerView(
     }
 
     // Android TV: the remote's D-pad and media keys drive playback when the surface is focused.
+    // While a control inside has focus, the D-pad and OK belong to that control; only the
+    // remote's media keys still go to the player.
     val videoHasFocus = remember { mutableStateOf(false) }
+    val videoIsFocused = remember { mutableStateOf(false) }
     val videoFocusRequester = remember { FocusRequester() }
     val controlsFocusRequester = remember { FocusRequester() }
+    // Until the viewer touches the remote, the focus is only where the player put it, so a skip
+    // button appearing may take it even from the control bar.
+    var remoteKeyPressed by remember(videoUrl) { mutableStateOf(false) }
     val dpadModifier = if (dpadControls) {
         Modifier
             .focusRequester(videoFocusRequester)
-            .onFocusChanged { videoHasFocus.value = it.hasFocus }
+            .onFocusChanged {
+                videoHasFocus.value = it.hasFocus
+                videoIsFocused.value = it.isFocused
+            }
             .focusable()
             .onPreviewKeyEvent { event ->
                 if (!videoHasFocus.value) return@onPreviewKeyEvent false
+                if (event.type == KeyEventType.KeyDown) remoteKeyPressed = true
+                if (!videoIsFocused.value && !event.isMediaKey()) return@onPreviewKeyEvent false
                 handleDpadKey(event)
-            }    } else {
+            }
+    } else {
         Modifier
     }
     // The video surface takes the focus when a new stream starts (a TV never leaves it orphaned).
@@ -946,21 +1172,64 @@ fun ExoPlayerView(
             areControlsVisible = true
         }
     }
-    // Controls showing on a TV hands the focus to the control bar so D-pad navigates it.
-    LaunchedEffect(areControlsVisible, dpadControls) {
-        if (dpadControls && areControlsVisible) runCatching { controlsFocusRequester.requestFocus() }
+    // Skip intro / recap / credits. AniSkip segments show whenever playback is inside one; without
+    // them, a manual jump is offered early in the video while the controls are up.
+    var manualSkipUsed by remember(videoUrl) { mutableStateOf(false) }
+    val fittingSegments = remember(skipSegments, totalTime / 10_000) { skipSegments.forDuration(totalTime) }
+    val activeSegment = fittingSegments.firstOrNull { currentTime >= it.startMs && currentTime < it.endMs - 1_000 }
+    val offerManualSkip = skipSegments.isEmpty() && !manualSkipUsed && areControlsVisible &&
+        totalTime > MANUAL_SKIP_MS * 4 && currentTime in 5_000L..MANUAL_SKIP_WINDOW_MS
+    val skipVisible = showSkipButton && (activeSegment != null || offerManualSkip) && !isLocked &&
+        !isInPictureInPicture && !showSettingsDialog && !upNextVisible
+    val skipFocusRequester = remember { FocusRequester() }
+    var skipFocused by remember { mutableStateOf(false) }
+    // Controls showing on a TV hands the focus to the control bar so D-pad navigates it. Hidden
+    // again, it goes to the skip button if there is one, otherwise back to the video so the next key
+    // press still reaches the player. Up Next, when it shows, holds the focus itself.
+    LaunchedEffect(areControlsVisible, dpadControls, showSettingsDialog, upNextVisible) {
+        if (!dpadControls || showSettingsDialog || upNextVisible) return@LaunchedEffect
+        withFrameNanos { }
+        runCatching {
+            when {
+                areControlsVisible -> controlsFocusRequester.requestFocus()
+                skipVisible -> skipFocusRequester.requestFocus()
+                else -> videoFocusRequester.requestFocus()
+            }
+        }
+    }
+    // A skip button appearing takes the focus from the bare video, or from the control bar the
+    // player itself focused before any key was pressed, never from a control being used: there Up
+    // from the progress bar reaches it. Leaving, it hands back the focus it held.
+    LaunchedEffect(skipVisible, dpadControls) {
+        if (!dpadControls || showSettingsDialog || upNextVisible) return@LaunchedEffect
+        withFrameNanos { }
+        runCatching {
+            when {
+                skipVisible && (!areControlsVisible || !remoteKeyPressed) -> skipFocusRequester.requestFocus()
+                !skipVisible && skipFocused && areControlsVisible -> controlsFocusRequester.requestFocus()
+                !skipVisible && skipFocused -> videoFocusRequester.requestFocus()
+            }
+        }
     }
 
     Box(
         modifier = modifier
             .fillMaxSize()
+            .onSizeChanged {
+                surfaceWidth = it.width
+                surfaceHeight = it.height
+            }
             .then(dpadModifier)
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {
                         tryAwaitRelease()
+                        // The press has gone, so whatever it was waiting to start is not
+                        // starting now.
+                        boostPending = false
                         if (isSpeedBoosted) {
                             isSpeedBoosted = false
+                            boostResidue = 0f
                             exoPlayer.setPlaybackParameters(exoPlayer.playbackParameters.withSpeed(playbackSpeed))
                         }
                     },
@@ -986,10 +1255,12 @@ fun ExoPlayerView(
                         }
                     },
                     onLongPress = {
-                        if (!isLocked && exoPlayer.isPlaying) {
-                            isSpeedBoosted = true
-                            areControlsVisible = false
-                            exoPlayer.setPlaybackParameters(exoPlayer.playbackParameters.withSpeed(BOOST_SPEED))
+                        // The long press is only the trigger. The rate changes once the hold has
+                        // lasted the boost's own window, which is longer than the platform's long
+                        // press, so a tap that lingered a moment past it changes nothing. A release
+                        // in between calls the whole thing off from onPress above.
+                        if (!isLocked && currentGestures.holdToSpeedUp && exoPlayer.isPlaying) {
+                            boostPending = true
                         }
                     }
                 )
@@ -1000,17 +1271,29 @@ fun ExoPlayerView(
                         verticalTravel = 0f
                         verticalMode = when {
                             isLocked -> VerticalSwipe.NONE
+                            // A held finger is running the video fast; sideways is the rate, and a
+                            // wobble must not grab a lane on the way.
+                            isSpeedBoosted -> VerticalSwipe.NONE
                             // Inline, any vertical swipe is about the player itself: up for
                             // fullscreen, down to shrink into the mini player.
                             !latestIsFullscreen -> VerticalSwipe.FULLSCREEN
                             // Fullscreen: brightness on the left third, volume on the right, and a
-                            // swipe down the middle exits.
-                            offset.x < size.width / 3f -> VerticalSwipe.BRIGHTNESS
-                            offset.x > size.width * 2f / 3f -> VerticalSwipe.VOLUME
+                            // swipe down the middle exits. Either lane can be switched off, and the
+                            // swipe it would have taken falls back to the fullscreen pair.
+                            offset.x < size.width / 3f && currentGestures.brightnessSwipe ->
+                                VerticalSwipe.BRIGHTNESS
+                            offset.x > size.width * 2f / 3f && currentGestures.volumeSwipe ->
+                                VerticalSwipe.VOLUME
                             else -> VerticalSwipe.FULLSCREEN
                         }
                         // Start from the screen's real brightness so the first swipe doesn't jump.
                         if (verticalMode == VerticalSwipe.BRIGHTNESS) brightness = currentBrightness(activity)
+                        // A swipe that starts at an end has already been told so.
+                        levelAtEnd = when (verticalMode) {
+                            VerticalSwipe.BRIGHTNESS -> brightness <= 0f || brightness >= 1f
+                            VerticalSwipe.VOLUME -> volume <= 0f || volume >= 1f
+                            else -> false
+                        }
                         if (isLocked) revealUnlockButton()
                     },
                     onDragEnd = {
@@ -1045,7 +1328,9 @@ fun ExoPlayerView(
                             VerticalSwipe.NONE -> Unit
                             VerticalSwipe.FULLSCREEN -> verticalTravel += dragAmount
                             VerticalSwipe.BRIGHTNESS -> {
+                                val before = brightness
                                 brightness = (brightness + delta).coerceIn(0f, 1f)
+                                levelSwipeHaptics(before, brightness)
                                 showBrightnessOverlay = true
                                 showVolumeOverlay = false
                                 activity?.let { act ->
@@ -1056,8 +1341,10 @@ fun ExoPlayerView(
                                 gestureOverlayTimeout = System.currentTimeMillis() + 2000
                             }
                             VerticalSwipe.VOLUME -> {
+                                val before = volume
                                 volume = (volume + delta).coerceIn(0f, 1f)
                                 exoPlayer.volume = volume
+                                levelSwipeHaptics(before, volume)
                                 showVolumeOverlay = true
                                 showBrightnessOverlay = false
                                 gestureOverlayTimeout = System.currentTimeMillis() + 2000
@@ -1071,11 +1358,20 @@ fun ExoPlayerView(
                     onDragStart = {
                         if (isLocked) {
                             revealUnlockButton()
-                        } else if (!isSpeedBoosted && exoPlayer.duration > 0) {
+                        } else if (isSpeedBoosted || boostPending) {
+                            // A held finger slides the rate, so this drag is not a scrub. A slide
+                            // that sets off inside the hold's own window has waited long enough:
+                            // it starts the boost here rather than a step later.
+                            if (boostPending) startSpeedBoost()
+                            boostResidue = 0f
+                        } else if (exoPlayer.duration > 0) {
                             scrubStartMs = exoPlayer.currentPosition
                             scrubTargetMs = scrubStartMs
                             isScrubbing = true
                             areControlsVisible = false
+                            // A scrub says where the viewer decided to be, so the offer to start
+                            // over stops being an offer.
+                            showResumeChip = false
                         }
                     },
                     onDragEnd = {
@@ -1088,7 +1384,47 @@ fun ExoPlayerView(
                     onDragCancel = { isScrubbing = false },
                     onHorizontalDrag = { change, dragAmount ->
                         change.consume()
-                        if (isScrubbing) {
+                        if (isSpeedBoosted) {
+                            // One step per BOOST_SPEED_STEP_TRAVEL of travel, banked and spent a
+                            // step at a time so a wobble cannot throw the rate and the rate comes
+                            // back with the finger.
+                            boostResidue += dragAmount
+                            val stepTravel = BOOST_SPEED_STEP_TRAVEL.toPx()
+                            var steps = 0
+                            while (boostResidue >= stepTravel) {
+                                steps++
+                                boostResidue -= stepTravel
+                            }
+                            while (boostResidue <= -stepTravel) {
+                                steps--
+                                boostResidue += stepTravel
+                            }
+                            if (steps != 0) {
+                                val stepped = (boostSpeed / BOOST_SPEED_STEP).roundToInt() + steps
+                                val next = (stepped * BOOST_SPEED_STEP)
+                                    .coerceIn(BOOST_SPEED_MIN, BOOST_SPEED_MAX)
+                                // At either end the push outward is dropped, so turning back
+                                // answers at once instead of unwinding an overflow nobody can see.
+                                if (next <= BOOST_SPEED_MIN || next >= BOOST_SPEED_MAX) {
+                                    boostResidue = 0f
+                                }
+                                if (next != boostSpeed) {
+                                    boostSpeed = next
+                                    exoPlayer.setPlaybackParameters(
+                                        exoPlayer.playbackParameters.withSpeed(next)
+                                    )
+                                    // An end reads as a stop: the rate has stopped following the
+                                    // finger, which is worth a different tap than a step is.
+                                    haptics.performHapticFeedback(
+                                        if (next <= BOOST_SPEED_MIN || next >= BOOST_SPEED_MAX) {
+                                            HapticFeedbackType.LongPress
+                                        } else {
+                                            HapticFeedbackType.SegmentTick
+                                        }
+                                    )
+                                }
+                            }
+                        } else if (isScrubbing) {
                             val duration = exoPlayer.duration.coerceAtLeast(0L)
                             // A full-width swipe covers up to three minutes, so short swipes stay precise.
                             val msPerPx = duration.coerceAtMost(SCRUB_FULL_WIDTH_MS).toFloat() / size.width
@@ -1114,7 +1450,23 @@ fun ExoPlayerView(
                     } while (event.changes.any { it.pressed })
                     if (pinching && !isLocked) {
                         when {
-                            zoom > 1.1f && videoScale != VideoScale.ZOOM -> changeVideoScale(VideoScale.ZOOM)
+                            zoom > 1.1f && videoScale != VideoScale.ZOOM -> {
+                                // A fill is refused when it would crop more than the picture can
+                                // spare: a portrait clip in a landscape window keeps its letterbox.
+                                // A shape nobody has reported yet is taken on trust here, as the
+                                // HUD takes it; the revocation gives the picture back if the fill
+                                // turns out to be one this clip cannot afford.
+                                val video = videoAspect
+                                if (video == null || isZoomToFillAvailable(
+                                        video,
+                                        size.width.toFloat() / size.height
+                                    )
+                                ) {
+                                    changeVideoScale(VideoScale.ZOOM)
+                                } else {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                }
+                            }
                             zoom < 0.9f && videoScale != VideoScale.FIT -> changeVideoScale(VideoScale.FIT)
                         }
                     }
@@ -1156,6 +1508,53 @@ fun ExoPlayerView(
                     scaleY = shrink
                 }
         )
+
+        // Resumed position: an offer to skip it, gone as soon as it is taken or scrubbed past.
+        AnimatedVisibility(
+            visible = showResumeChip && !isLocked,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            // TV: top left, since the TV controls fill the lower third. Up from the controls reaches it.
+            modifier = if (dpadControls) {
+                Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 56.dp, top = 32.dp)
+            } else {
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 16.dp, bottom = if (isFullscreen) 96.dp else 72.dp)
+            }
+        ) {
+            // One small pill: the whole thing is the button. The resumed time is in the spoken label
+            // rather than on screen, where the seek bar already shows it.
+            val resumedLabel = stringResource(R.string.vp_resumed_from, formatTime(resumedFromMs ?: 0L))
+            val playFromStart = stringResource(R.string.vp_play_from_start)
+            Surface(
+                onClick = {
+                    showResumeChip = false
+                    onPlayFromStart()
+                },
+                shape = ExpressiveShapes.extraLarge,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.85f),
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .semantics { contentDescription = "$resumedLabel. $playFromStart" }
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Replay,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(playFromStart, style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
 
         // Gesture Overlays
         androidx.compose.animation.AnimatedVisibility(
@@ -1233,51 +1632,114 @@ fun ExoPlayerView(
         if (displaySubtitleText.isNotEmpty()) {
             // The PiP window is only a couple hundred dp tall: full-size captions with the
             // controls' clearance would sit mid-frame, so hug the bottom edge and shrink them.
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(
-                        bottom = when {
-                            isInPictureInPicture -> 4.dp
-                            isFullscreen -> 64.dp
-                            else -> 40.dp
-                        },
-                        start = if (isInPictureInPicture) 4.dp else 12.dp,
-                        end = if (isInPictureInPicture) 4.dp else 12.dp
-                    )
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = displaySubtitleText,
-                    style = TextStyle(
-                        color = Color.White,
-                        fontSize = if (isInPictureInPicture) {
-                            (captionSettings.textSizeSp * PIP_CAPTION_SCALE).coerceAtLeast(9f).sp
-                        } else {
-                            captionSettings.textSizeSp.sp
-                        },
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center,
-                        shadow = Shadow(
-                            color = Color.Black,
-                            blurRadius = 4f
-                        )
-                    ),
+            // Elsewhere the chosen raise is a share of the player's height, so the same setting
+            // lands in the same place inline, fullscreen and on a TV, whether or not the
+            // controls are showing.
+            BoxWithConstraints(modifier = Modifier.matchParentSize()) {
+                val captionRaise = if (isInPictureInPicture) {
+                    0.dp
+                } else {
+                    maxHeight * captionSettings.verticalOffset
+                        .coerceIn(0f, CaptionStyleSettings.MAX_VERTICAL_OFFSET)
+                }
+                Box(
                     modifier = Modifier
-                        .background(
-                            Color.Black.copy(alpha = captionSettings.backgroundOpacity),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
-                        )
+                        .align(Alignment.BottomCenter)
                         .padding(
-                            horizontal = if (isInPictureInPicture) 4.dp else 12.dp,
-                            vertical = if (isInPictureInPicture) 1.dp else 6.dp
+                            bottom = when {
+                                isInPictureInPicture -> 4.dp
+                                isFullscreen -> 64.dp
+                                else -> 40.dp
+                            } + captionRaise,
+                            start = if (isInPictureInPicture) 4.dp else 12.dp,
+                            end = if (isInPictureInPicture) 4.dp else 12.dp
                         )
-                )
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = displaySubtitleText,
+                        style = TextStyle(
+                            color = Color(captionSettings.textColor.argb),
+                            fontSize = if (isInPictureInPicture) {
+                                (captionSettings.textSizeSp * PIP_CAPTION_SCALE).coerceAtLeast(9f).sp
+                            } else {
+                                captionSettings.textSizeSp.sp
+                            },
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center,
+                            shadow = Shadow(
+                                color = Color.Black,
+                                blurRadius = 4f
+                            )
+                        ),
+                        modifier = Modifier
+                            .background(
+                                Color.Black.copy(alpha = captionSettings.backgroundOpacity),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
+                            )
+                            .padding(
+                                horizontal = if (isInPictureInPicture) 4.dp else 12.dp,
+                                vertical = if (isInPictureInPicture) 1.dp else 6.dp
+                            )
+                    )
+                }
             }
         }
 
-        PlayerControls(
+        if (dpadControls) TvPlayerControls(
+            isVisible = areControlsVisible && !isInPictureInPicture && !upNextVisible,
+            isPlaying = isPlaying,
+            isBuffering = isBuffering,
+            title = title,
+            subtitle = subtitle,
+            sourceLabel = sourceLabel,
+            qualityLabel = qualityDisplayLabel(selectedQuality, activeVideoHeight),
+            hasSubtitles = subtitleOptions.isNotEmpty(),
+            subtitlesEnabled = selectedSubtitle?.isDisabled == false,
+            currentTime = currentTime,
+            totalTime = totalTime,
+            seekStepSeconds = seekStepSeconds,
+            videoScale = videoScale,
+            onPauseToggle = {
+                if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
+            },
+            onForward = { seekStep(1) },
+            onRewind = { seekStep(-1) },
+            onNextClick = onNextClick,
+            onSubtitlesClick = {
+                settingsInitialPage = PlayerSettingsPage.SUBTITLES
+                showSettingsDialog = true
+                areControlsVisible = false
+            },
+            onSourcesClick = {
+                settingsInitialPage = PlayerSettingsPage.SOURCES
+                showSettingsDialog = true
+                areControlsVisible = false
+            },
+            onQualityClick = {
+                settingsInitialPage = PlayerSettingsPage.QUALITY
+                showSettingsDialog = true
+                areControlsVisible = false
+            },
+            onSettingsClick = {
+                settingsInitialPage = PlayerSettingsPage.MAIN
+                showSettingsDialog = true
+                areControlsVisible = false
+            },
+            onVideoScaleClick = {
+                // Same rule as the phone: a fill is only entered when the picture can spare it.
+                val next = videoScale.next()
+                if (next != VideoScale.ZOOM || videoAspect == null || canZoomToFill()) {
+                    changeVideoScale(next)
+                } else {
+                    changeVideoScale(next.next())
+                }
+            },
+            onInteraction = { controlsInteraction++ },
+            playFocusRequester = controlsFocusRequester,
+            skipFocusRequester = skipFocusRequester.takeIf { skipVisible }
+        ) else PlayerControls(
             isVisible = areControlsVisible && !isInPictureInPicture && !isLocked,
             isPlaying = isPlaying,
             isBuffering = isBuffering,
@@ -1287,6 +1749,14 @@ fun ExoPlayerView(
             qualityLabel = qualityDisplayLabel(selectedQuality, activeVideoHeight),
             hasSubtitles = subtitleOptions.isNotEmpty(),
             subtitlesEnabled = selectedSubtitle?.isDisabled == false,
+            // Only while a look is on the picture, or taken off it by this toggle.
+            onShaderLookToggle = if (videoShaders.isEffectActive) {
+                {
+                    onVideoShaderHiddenChange(!videoShaderHidden)
+                    areControlsVisible = true
+                }
+            } else null,
+            shaderLookShown = !videoShaderHidden,
             currentTime = currentTime,
             totalTime = totalTime,            onPauseToggle = {
                 if (exoPlayer.isPlaying) {
@@ -1340,6 +1810,10 @@ fun ExoPlayerView(
                 areControlsVisible = false
                 showSettingsDialog = false
                 revealUnlockButton()
+                // The lock hides its own button, so this pill is the only thing that says the tap
+                // did anything.
+                showLockedPill = true
+                lockedPillSequence++
             },
             isRotationLocked = isRotationLocked,
             onRotationLockToggle = {
@@ -1349,7 +1823,15 @@ fun ExoPlayerView(
             seekStepSeconds = seekStepSeconds,
             videoScale = videoScale,
             onVideoScaleClick = {
-                changeVideoScale(videoScale.next())
+                // The cycle has a stop the source cannot take: a fill is only entered when the
+                // picture can spare it, or when nothing has said what shape it is yet - the effect
+                // above decides that case, and gives the fill back if the answer is no.
+                val next = videoScale.next()
+                if (next != VideoScale.ZOOM || videoAspect == null || canZoomToFill()) {
+                    changeVideoScale(next)
+                } else {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
                 areControlsVisible = true
             },
             onCastClick = onCastClick,
@@ -1421,7 +1903,12 @@ fun ExoPlayerView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(Icons.Default.FastForward, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Text(stringResource(R.string.player_boost_speed), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        // The rate the hold is actually running at, which a slide changes.
+                        text = formatBoostRate(boostSpeed),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
@@ -1434,24 +1921,67 @@ fun ExoPlayerView(
                 .align(Alignment.TopCenter)
                 .padding(top = 24.dp)
         ) {
-            Surface(
-                onClick = {
-                    isLocked = false
-                    showUnlockButton = false
-                    areControlsVisible = true
-                },
-                shape = ExpressiveShapes.extraLarge,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            // Keyed on the reveal: a fresh reveal is a fresh offer, with its own timer. A reveal
+            // while the badge is up does not change the key, so a hold that is running survives it.
+            key(unlockButtonSequence) {
+                ScreenUnlockBadge(
+                    onUnlock = { unlockScreen() },
+                    onExpire = { showUnlockButton = false }
+                )
+            }
+        }
+
+        // A screen reader cannot reveal the badge: a tap activates the focused node rather than the
+        // surface, so an offer that is not on screen is an offer it cannot take. While the badge is
+        // away, the same unlock action rides on a node the eye never meets - one point of it, no
+        // looks and nothing to brush - so the way out the tap gives everyone else is there for
+        // TalkBack at any moment.
+        if (isLocked && !showUnlockButton) {
+            val unlockLabel = stringResource(R.string.vp_unlock_screen)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 24.dp)
+                    .size(1.dp)
+                    .semantics {
+                        contentDescription = unlockLabel
+                        customActions = listOf(
+                            CustomAccessibilityAction(unlockLabel) {
+                                // The ring's confirmation is not skipped with the ring.
+                                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                unlockScreen()
+                                true
+                            }
+                        )
+                    }
+            )
+        }
+
+        AnimatedVisibility(
+            visible = showLockedPill,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier
+                    .semantics { liveRegion = LiveRegionMode.Polite }
+                    .background(Color.Black.copy(alpha = 0.55f), CircleShape)
+                    .padding(horizontal = 18.dp, vertical = 12.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.LockOpen, contentDescription = null)
-                    Text(stringResource(R.string.action_tap_to_unlock), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                }
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    text = stringResource(R.string.vp_screen_locked),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.White
+                )
             }
         }
 
@@ -1485,39 +2015,60 @@ fun ExoPlayerView(
             )
         }
 
-        // Skip intro / recap / credits. AniSkip segments show whenever playback is inside one; without
-        // them, a manual jump is offered early in the video while the controls are up.
-        var manualSkipUsed by remember(videoUrl) { mutableStateOf(false) }
-        val fittingSegments = remember(skipSegments, totalTime / 10_000) { skipSegments.forDuration(totalTime) }
-        val activeSegment = fittingSegments.firstOrNull { currentTime >= it.startMs && currentTime < it.endMs - 1_000 }
-        val offerManualSkip = skipSegments.isEmpty() && !manualSkipUsed && areControlsVisible &&
-            totalTime > MANUAL_SKIP_MS * 4 && currentTime in 5_000L..MANUAL_SKIP_WINDOW_MS
         val skipLabel = activeSegment?.let { stringResource(it.type.labelRes) } ?: stringResource(R.string.player_skip_seconds, MANUAL_SKIP_MS / 1_000)
+        val onSkip = {
+            val target = activeSegment?.endMs ?: (exoPlayer.currentPosition + MANUAL_SKIP_MS)
+            exoPlayer.seekTo(target)
+            currentTime = target
+            if (activeSegment == null) manualSkipUsed = true
+        }
+        // On a TV it sits clear of the control bar, which fills the bottom of the screen.
+        val tvSkipBottom by animateDpAsState(if (areControlsVisible) 244.dp else 48.dp, label = "tvSkipBottom")
         AnimatedVisibility(
-            visible = showSkipButton && (activeSegment != null || offerManualSkip) && !isLocked &&
-                !isInPictureInPicture && !showSettingsDialog,
+            visible = skipVisible,
             enter = slideInHorizontally { it / 2 } + fadeIn(),
             exit = slideOutHorizontally { it / 2 } + fadeOut(),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = if (isFullscreen) 24.dp else 12.dp, bottom = if (isFullscreen) 88.dp else 56.dp)
-        ) {
-            Button(
-                onClick = {
-                    val target = activeSegment?.endMs ?: (exoPlayer.currentPosition + MANUAL_SKIP_MS)
-                    exoPlayer.seekTo(target)
-                    currentTime = target
-                    if (activeSegment == null) manualSkipUsed = true
-                },
-                shape = ExpressiveShapes.medium,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
+                .padding(
+                    end = if (dpadControls) 56.dp else if (isFullscreen) 24.dp else 12.dp,
+                    bottom = if (dpadControls) tvSkipBottom else if (isFullscreen) 88.dp else 56.dp
                 )
-            ) {
-                Icon(Icons.Default.SkipNext, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(skipLabel, fontWeight = FontWeight.Bold)
+        ) {
+            if (dpadControls) {
+                TvSkipButton(
+                    label = skipLabel,
+                    onClick = onSkip,
+                    modifier = Modifier
+                        .focusRequester(skipFocusRequester)
+                        .onFocusChanged { skipFocused = it.isFocused }
+                        // With the chrome up, a press here is the viewer using it, so it stays up.
+                        // With it hidden this is the only stop, so the other keys do what they do
+                        // on the bare video: seek, or bring the controls up.
+                        .onPreviewKeyEvent { event ->
+                            when {
+                                areControlsVisible -> {
+                                    if (event.type == KeyEventType.KeyDown) controlsInteraction++
+                                    false
+                                }
+                                event.isConfirmKey() -> false
+                                else -> handleDpadKey(event)
+                            }
+                        }
+                )
+            } else {
+                Button(
+                    onClick = onSkip,
+                    shape = ExpressiveShapes.medium,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                ) {
+                    Icon(Icons.Default.SkipNext, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(skipLabel, fontWeight = FontWeight.Bold)
+                }
             }
         }
 
@@ -1562,6 +2113,9 @@ fun ExoPlayerView(
         PlayerSettingsHost(
             visible = showSettingsDialog,
             isFullscreen = isFullscreen,
+            // TV: the D-pad variant renders the settings/side panel even before the
+            // stream goes fullscreen, so no ModalBottomSheet is ever reachable there.
+            tvControls = dpadControls,
             initialPage = settingsInitialPage,
             onDismiss = { showSettingsDialog = false },
             model = PlayerSettingsModel(
@@ -1584,7 +2138,11 @@ fun ExoPlayerView(
                 episodes = episodes,
                 currentEpisode = currentEpisodeNumber,
                 episodeProgress = episodeProgress,
-                smoothMotion = smoothMotion
+                smoothMotion = smoothMotion,
+                volumeBoostPercent = volumeBoostPercent,
+                videoShaders = videoShaders,
+                zoomToFill = zoomToFill,
+                zoomToFillAvailable = canZoomToFill()
             ),
             actions = PlayerSettingsActions(
                 sources = sourceActions,
@@ -1626,6 +2184,11 @@ fun ExoPlayerView(
                 onSleepTimerChange = onSleepTimerChange,
                 onEpisodeSelected = onEpisodeSelected,
                 onSmoothMotionToggle = { enabled -> smoothMotion?.enabled = enabled },
+                onVolumeBoostChange = onVolumeBoostChange,
+                onOpenExternalPlayer = onOpenExternalPlayer,
+                onPreviewVideoShaders = onPreviewVideoShaders,
+                onVideoShadersChange = onVideoShadersChange,
+                onZoomToFillChange = { zoomToFill = it },
                 onAudioSelected = { option ->
                     val tracks = exoPlayer.currentTracks
                     if (option.groupIndex < tracks.groups.size) {
@@ -1687,7 +2250,188 @@ private fun GestureIndicator(
     }
 }
 
-private const val BOOST_SPEED = 2f
+/** Where a hold-to-speed-up starts and stops, and how finely a slide moves it. */
+private const val BOOST_SPEED_MIN = 2f
+private const val BOOST_SPEED_MAX = 4f
+private const val BOOST_SPEED_STEP = 0.1f
+/** How far a held finger slides for one rate step. */
+private val BOOST_SPEED_STEP_TRAVEL = 20.dp
+/**
+ * How long a press is held before the rate changes. Longer than the platform's long press, which
+ * only triggers it: a tap that lingers a moment too long is not an instruction to hurry.
+ */
+private const val SPEED_BOOST_HOLD_MS = 650L
+
+/** How long the unlock badge is held to open the lock. A tap is what a pocket does. */
+private const val SCREEN_LOCK_HOLD_MS = 1_500L
+/** How long "Screen locked" stays up. */
+private const val SCREEN_LOCK_PILL_MS = 2_000L
+/** How long the unlock badge waits, untouched, before it takes itself away. */
+private const val UNLOCK_BUTTON_VISIBLE_MS = 2_500L
+/** How long the resumed-from chip stays up before it takes itself away. */
+private const val RESUME_CHIP_VISIBLE_MS = 5_000L
+
+/**
+ * How much of the picture filling the screen may crop away before the fill is refused.
+ *
+ * A 16:9 video on a tall phone loses a slim band top and bottom, which is the feature; a portrait
+ * clip in a landscape window would lose most of the picture, so it keeps its letterbox.
+ */
+private const val MAX_ACCEPTABLE_CROP = 0.25f
+
+/**
+ * Fraction of the frame zoom-to-fill would crop away to fill a container.
+ *
+ * Filling scales by the larger factor, so the loss is what the two aspects differ by. Both are
+ * width over height and must be positive: a 16:9 video in a 19.5:9 window loses about 0.18.
+ */
+internal fun zoomFillCropFraction(videoAspect: Float, containerAspect: Float): Float {
+    require(videoAspect > 0f && containerAspect > 0f) {
+        "Aspects must be positive, got video=$videoAspect container=$containerAspect"
+    }
+    return 1f - (minOf(videoAspect, containerAspect) / maxOf(videoAspect, containerAspect))
+}
+
+/** Whether a source of [videoAspect] may fill a window of [containerAspect] at all. */
+internal fun isZoomToFillAvailable(videoAspect: Float, containerAspect: Float): Boolean =
+    zoomFillCropFraction(videoAspect, containerAspect) <= MAX_ACCEPTABLE_CROP
+
+/** "2x", "2.1x": whole rates read as whole numbers, and the rest keep one decimal. */
+private fun formatBoostRate(rate: Float): String {
+    val whole = rate.toInt()
+    val tenth = ((rate - whole) * 10f).roundToInt()
+    return if (tenth == 0) "${whole}x" else "$whole.${tenth}x"
+}
+
+/**
+ * The unlock badge the lock leaves behind: a hold-to-confirm control rather than a button, because
+ * a tap is what a pocket does.
+ *
+ * The ring sweeps as it is held and springs back if it is let go, so the gesture reads as a
+ * commitment being made rather than a delayed click. TalkBack is offered an explicit unlock action
+ * instead, since a press-and-hold is not a gesture a screen reader performs.
+ */
+@Composable
+private fun ScreenUnlockBadge(
+    onUnlock: () -> Unit,
+    onExpire: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var holding by remember { mutableStateOf(false) }
+    val haptics = LocalHapticFeedback.current
+    val ring by animateFloatAsState(
+        targetValue = if (holding) 1f else 0f,
+        animationSpec = if (holding) {
+            tween(durationMillis = SCREEN_LOCK_HOLD_MS.toInt(), easing = LinearEasing)
+        } else {
+            // Let go early and the ring empties with the same spring a touch gesture would settle
+            // on, rather than snapping to nothing.
+            spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+        },
+        label = "unlockHold"
+    )
+
+    // One clock, two jobs. A hold that is running owns it: a hold let go a frame early unlocks
+    // nothing, and the offer is never taken away mid-ring, which is what would make the lock feel
+    // stuck. The rest of the time it is the offer's own patience, and a release starts that wait
+    // over. The caller keys this composable on the reveal that brings the badge back, so that
+    // reveal starts it again.
+    LaunchedEffect(holding) {
+        if (holding) {
+            delay(SCREEN_LOCK_HOLD_MS)
+            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+            onUnlock()
+        } else {
+            delay(UNLOCK_BUTTON_VISIBLE_MS)
+            onExpire()
+        }
+    }
+
+    val unlockLabel = stringResource(R.string.vp_unlock_screen)
+    val contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+    Surface(
+        shape = ExpressiveShapes.extraLarge,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = contentColor,
+        modifier = modifier.semantics(mergeDescendants = true) {
+            // A hold is not something a screen reader performs, so the label says what the control
+            // does and the action does it.
+            contentDescription = unlockLabel
+            customActions = listOf(
+                CustomAccessibilityAction(unlockLabel) {
+                    // The ring's confirmation is not skipped with the ring.
+                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                    onUnlock()
+                    true
+                }
+            )
+        }
+    ) {
+        Row(
+            modifier = Modifier
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            holding = true
+                            try {
+                                tryAwaitRelease()
+                            } finally {
+                                // A cancelled press is a press that has gone: run this on the
+                                // way out either way.
+                                holding = false
+                            }
+                        }
+                    )
+                }
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(22.dp)
+                    .drawBehind {
+                        val stroke = 2.5.dp.toPx()
+                        val inset = stroke / 2f
+                        val ringSize = Size(size.width - stroke, size.height - stroke)
+                        drawArc(
+                            color = contentColor.copy(alpha = 0.25f),
+                            startAngle = 0f,
+                            sweepAngle = 360f,
+                            useCenter = false,
+                            topLeft = Offset(inset, inset),
+                            size = ringSize,
+                            style = Stroke(width = stroke)
+                        )
+                        if (ring > 0f) {
+                            drawArc(
+                                color = contentColor,
+                                startAngle = -90f,
+                                sweepAngle = 360f * ring,
+                                useCenter = false,
+                                topLeft = Offset(inset, inset),
+                                size = ringSize,
+                                style = Stroke(width = stroke, cap = StrokeCap.Round)
+                            )
+                        }
+                    }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.LockOpen,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+            Text(
+                text = stringResource(R.string.vp_unlock_hint),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
 /** A typical opening's length, for titles AniSkip has no times for. */
 /** How far the manual skip (and PiP "Skip intro" without AniSkip times) jumps. */
 const val MANUAL_SKIP_MS = 85_000L
@@ -1698,6 +2442,9 @@ private enum class VerticalSwipe { NONE, BRIGHTNESS, VOLUME, FULLSCREEN }
 
 /** How far (as a share of the player's height) a swipe must travel to go fullscreen, exit or minimize. */
 private const val SWIPE_ACTION_FRACTION = 0.12f
+
+/** Brightness and volume swipes tick at every tenth of their range (10%, 20%, ...). */
+private const val LEVEL_SWIPE_STEPS = 10f
 
 /** -1 for the left 35% of the player, 1 for the right 35%, 0 for the middle. */
 private fun tapZone(x: Float, width: Int): Int = when {
@@ -1781,3 +2528,21 @@ private fun SubtitleDto.isSideloadOnly(): Boolean =
 
 /** Caption size in picture-in-picture relative to the user's chosen size. */
 private const val PIP_CAPTION_SCALE = 0.55f
+
+/** A remote's playback keys, which reach the player wherever the focus is. */
+private fun KeyEvent.isConfirmKey(): Boolean = when (nativeKeyEvent.keyCode) {
+    android.view.KeyEvent.KEYCODE_DPAD_CENTER,
+    android.view.KeyEvent.KEYCODE_ENTER,
+    android.view.KeyEvent.KEYCODE_NUMPAD_ENTER -> true
+    else -> false
+}
+
+private fun KeyEvent.isMediaKey(): Boolean = when (nativeKeyEvent.keyCode) {
+    android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+    android.view.KeyEvent.KEYCODE_MEDIA_PLAY,
+    android.view.KeyEvent.KEYCODE_MEDIA_PAUSE,
+    android.view.KeyEvent.KEYCODE_MEDIA_NEXT,
+    android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
+    android.view.KeyEvent.KEYCODE_MEDIA_REWIND -> true
+    else -> false
+}

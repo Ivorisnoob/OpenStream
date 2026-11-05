@@ -1,7 +1,10 @@
 package com.ivor.openstream.presentation.watch_later
 
+import com.ivor.openstream.ui.theme.onScrim
 import com.ivor.openstream.presentation.components.bottomContentPadding
 import com.ivor.openstream.R
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.CalendarMonth
 import com.ivor.openstream.presentation.components.byWidth
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -35,7 +38,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
@@ -87,6 +90,7 @@ fun WatchLaterScreen(
     onBackClick: () -> Unit,
     onAnimeClick: (Int, String) -> Unit,
     onOpenList: (listId: Long) -> Unit = {},
+    onOpenCalendar: () -> Unit = {},
     viewModel: WatchLaterViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -155,6 +159,37 @@ fun WatchLaterScreen(
                         }
                     }
                 )
+            }
+
+            item(key = "calendar", span = fullWidth) {
+                Surface(
+                    onClick = onOpenCalendar,
+                    shape = ExpressiveShapes.large,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Icon(Icons.Default.CalendarMonth, contentDescription = null)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.calendar_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = stringResource(R.string.calendar_subtitle),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                    }
+                }
             }
 
             // The user's own lists sit above Watch Later; the row ends with "New list".
@@ -313,26 +348,23 @@ private fun SavedCard(
                         .padding(6.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    if (entry.mediaType == "movie") Badge("MOVIE")
+                    if (entry.mediaType == "movie") Badge(stringResource(R.string.details_movie))
                     if (entry.voteAverage > 0) {
-                        Surface(shape = ExpressiveShapes.extraSmall, color = Color.Black.copy(alpha = 0.65f), contentColor = Color.White) {
+                        Surface(shape = ExpressiveShapes.extraSmall, color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.65f), contentColor = MaterialTheme.colorScheme.onScrim) {
                             Row(modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFFFB300), modifier = Modifier.size(12.dp))
+                                Icon(Icons.Default.Star, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(12.dp))
                                 Text(String.format(Locale.US, " %.1f", entry.voteAverage), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
                 if (latest != null && !latest.completed && latest.fraction > 0f) {
-                    LinearProgressIndicator(
+                    LinearWavyProgressIndicator(
                         progress = { latest.fraction },
-                        gapSize = 0.dp,
-                        drawStopIndicator = {},
-                        trackColor = Color.Black.copy(alpha = 0.45f),
+                        trackColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f),
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
-                            .height(4.dp)
                     )
                 }
             }
@@ -349,8 +381,11 @@ private fun SavedCard(
                     text = when {
                         it.isMovie && it.completed -> stringResource(R.string.details_watched)
                         it.isMovie -> stringResource(R.string.home_continue_watching)
-                        it.completed -> stringResource(R.string.misc_code_watched, "S${it.season} E${it.episode}")
-                        else -> "S${it.season} E${it.episode}"
+                        it.completed -> stringResource(
+                            R.string.misc_code_watched,
+                            stringResource(R.string.li_episode_code, it.season, it.episode)
+                        )
+                        else -> stringResource(R.string.li_episode_code, it.season, it.episode)
                     },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,

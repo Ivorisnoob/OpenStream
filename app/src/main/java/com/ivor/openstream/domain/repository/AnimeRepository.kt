@@ -5,6 +5,7 @@ import com.ivor.openstream.data.remote.model.AnimeDto
 import com.ivor.openstream.data.remote.model.SeasonDetailsDto
 import com.ivor.openstream.domain.model.AnimeCatalog
 import com.ivor.openstream.domain.model.BrowseGenre
+import com.ivor.openstream.domain.model.StreamingService
 
 interface AnimeRepository {
     suspend fun getPopularAnime(page: Int): Result<List<AnimeDto>>
@@ -12,12 +13,20 @@ interface AnimeRepository {
     suspend fun getTopRatedAnime(page: Int = 1): Result<List<AnimeDto>>
     suspend fun getAiringTodayAnime(page: Int = 1): Result<List<AnimeDto>>
 
-    /** One of Home's curated, anime-only lists. */
     /**
      * One of Home's curated lists. Lists are cached for a few hours so Home opens instantly and
      * stays stable; [forceRefresh] fetches a fresh copy (pull to refresh).
      */
     suspend fun getCatalog(catalog: AnimeCatalog, forceRefresh: Boolean = false): Result<List<AnimeDto>>
+
+    /**
+     * Popular movies and series on [service] in the device's region (US when the device has none),
+     * subscription titles only. Cached like [getCatalog]; empty when the service isn't offered there.
+     */
+    suspend fun getServiceCatalog(service: StreamingService, forceRefresh: Boolean = false): Result<List<AnimeDto>>
+
+    /** Forgets the lists [getCatalog] built ("Clear cache"); the next Home load rebuilds them. */
+    fun clearCachedCatalogs()
 
     /** Popular movies and series in a genre, interleaved by popularity. */
     suspend fun discoverByGenre(genre: BrowseGenre, page: Int): Result<List<AnimeDto>>
@@ -30,8 +39,12 @@ interface AnimeRepository {
     ): Result<List<AnimeDto>>
     suspend fun getAnimeDetails(id: Int): Result<AnimeDetailsDto>
     suspend fun getMovieDetails(id: Int): Result<AnimeDetailsDto>
-    suspend fun getMediaDetails(id: Int, mediaType: String): Result<AnimeDetailsDto>
-    suspend fun getSeasonDetails(animeId: Int, seasonNumber: Int): Result<SeasonDetailsDto>
+    /**
+     * Answers come from a cache that can be a few hours old. [fresh] asks TMDB first (still
+     * falling back to the cache offline), for background checks that look for new episodes.
+     */
+    suspend fun getMediaDetails(id: Int, mediaType: String, fresh: Boolean = false): Result<AnimeDetailsDto>
+    suspend fun getSeasonDetails(animeId: Int, seasonNumber: Int, fresh: Boolean = false): Result<SeasonDetailsDto>
     
     // Watch History
     suspend fun addToWatchHistory(anime: AnimeDto)

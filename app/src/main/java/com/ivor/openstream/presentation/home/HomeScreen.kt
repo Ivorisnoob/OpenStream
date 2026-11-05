@@ -1,10 +1,11 @@
 package com.ivor.openstream.presentation.home
 
+import com.ivor.openstream.data.settings.HomeRows
+import com.ivor.openstream.ui.theme.onScrim
 import com.ivor.openstream.presentation.components.SkeletonBox
 import com.ivor.openstream.presentation.components.AnimeCard
 import com.ivor.openstream.presentation.components.bottomContentPadding
 import com.ivor.openstream.presentation.components.byWidth
-import com.ivor.openstream.presentation.components.isCompactWidth
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -34,7 +35,6 @@ import androidx.compose.material.icons.filled.Settings
 import com.ivor.openstream.domain.model.Profile
 import com.ivor.openstream.presentation.profiles.ProfileSwitchButton
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -47,7 +47,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -65,7 +64,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -97,7 +99,6 @@ fun HomeScreen(
     onResume: (WatchProgress) -> Unit,
     onOpenDetails: (mediaType: String, id: Int) -> Unit,
     onSettingsClick: () -> Unit,
-    onUpdateClick: () -> Unit = {},
     profile: Profile? = null,
     onSwitchProfile: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
@@ -105,6 +106,7 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val continueWatching by viewModel.continueWatching.collectAsState()
     val matches by viewModel.matches.collectAsState()
+    val rowOrder by viewModel.rowOrder.collectAsState()
     val open: (AnimeDto) -> Unit = { onAnimeClick(it.id, if (it.isMovie) "movie" else "tv") }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -147,7 +149,6 @@ fun HomeScreen(
                             items = state.hero,
                             onOpen = open,
                             onSettingsClick = onSettingsClick,
-                            onUpdateClick = onUpdateClick,
                             profile = profile,
                             onSwitchProfile = onSwitchProfile,
                             onKidsTap = {
@@ -156,32 +157,36 @@ fun HomeScreen(
                         )
                     }
 
-                    if (continueWatching.isNotEmpty()) {
-                        item(key = "continue_watching") {
-                            SectionHeader(title = stringResource(R.string.home_continue_watching))
-                            ContinueWatchingRail(
-                                items = continueWatching,
-                                onResume = onResume,
-                                onOpenDetails = { onOpenDetails(it.mediaType, it.tmdbId) },
-                                onRemove = viewModel::removeFromContinueWatching
-                            )
-                        }
-                    }
-
-                    if (matches.isNotEmpty()) {
-                        item(key = "top-matches") {
-                            SectionHeader(title = stringResource(R.string.match_rail))
-                            MatchRail(matches = matches, onOpen = open)
-                        }
-                    }
-
-                    state.rails.forEach { rail ->
-                        item(key = rail.key) {
-                            SectionHeader(title = rail.title)
-                            when (rail.style) {
-                                RailStyle.RANKED -> RankedRail(rail.items, open, hide)
-                                RailStyle.LANDSCAPE -> LandscapeRail(rail.items, open, hide)
-                                RailStyle.POSTER -> PosterRail(rail.items, open, hide)
+                    // In the order chosen in Settings > Home screen, without the rows turned off there.
+                    val railsByKey = state.rails.associateBy { it.key }
+                    rowOrder.forEach { key ->
+                        when (key) {
+                            HomeRows.CONTINUE_WATCHING -> if (continueWatching.isNotEmpty()) {
+                                item(key = key) {
+                                    SectionHeader(title = stringResource(R.string.home_continue_watching))
+                                    ContinueWatchingRail(
+                                        items = continueWatching,
+                                        onResume = onResume,
+                                        onOpenDetails = { onOpenDetails(it.mediaType, it.tmdbId) },
+                                        onRemove = viewModel::removeFromContinueWatching
+                                    )
+                                }
+                            }
+                            HomeRows.TOP_MATCHES -> if (matches.isNotEmpty()) {
+                                item(key = key) {
+                                    SectionHeader(title = stringResource(R.string.match_rail))
+                                    MatchRail(matches = matches, onOpen = open)
+                                }
+                            }
+                            else -> railsByKey[key]?.let { rail ->
+                                item(key = rail.key) {
+                                    SectionHeader(title = rail.title)
+                                    when (rail.style) {
+                                        RailStyle.RANKED -> RankedRail(rail.items, open, hide)
+                                        RailStyle.LANDSCAPE -> LandscapeRail(rail.items, open, hide)
+                                        RailStyle.POSTER -> PosterRail(rail.items, open, hide)
+                                    }
+                                }
                             }
                         }
                     }
@@ -194,7 +199,7 @@ fun HomeScreen(
             // Above the floating toolbar and the mini player.
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = if (isCompactWidth) 180.dp else 100.dp)
+                .padding(bottom = bottomContentPadding)
         )
     }
 }
@@ -207,7 +212,6 @@ private fun HeroSection(
     items: List<AnimeDto>,
     onOpen: (AnimeDto) -> Unit,
     onSettingsClick: () -> Unit,
-    onUpdateClick: () -> Unit,
     profile: Profile?,
     onSwitchProfile: () -> Unit,
     onKidsTap: () -> Unit
@@ -226,11 +230,9 @@ private fun HeroSection(
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.weight(1f)
             )
-            // A kids profile keeps Settings and updates out of reach; leaving takes a hold on the avatar.
+            // A kids profile keeps Settings out of reach; leaving takes a hold on the avatar. Updates
+            // are checked from Settings > Help and about.
             if (profile?.isKids != true) {
-                IconButton(onClick = onUpdateClick) {
-                    Icon(Icons.Default.SystemUpdate, contentDescription = stringResource(R.string.action_check_for_updates))
-                }
                 IconButton(onClick = onSettingsClick) {
                     Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.cd_settings))
                 }
@@ -252,15 +254,17 @@ private fun HeroSection(
                         HeroCard(anime = items[index], rank = index + 1, onClick = { onOpen(items[index]) })
                     }
                 } else {
-                    // Tablets: several phone-sized poster cards side by side, not one huge banner.
+                    // Tablets and landscape phones: several poster cards side by side, not one huge
+                    // banner, and short enough that the title stays on a landscape phone's screen.
+                    val heroHeight = minOf(440.dp, LocalConfiguration.current.screenHeightDp.dp * 0.72f)
                     HorizontalMultiBrowseCarousel(
                         state = rememberCarouselState { items.size },
-                        preferredItemWidth = 320.dp,
+                        preferredItemWidth = heroHeight * 0.727f,
                         itemSpacing = 8.dp,
                         contentPadding = PaddingValues(horizontal = 16.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(440.dp)
+                            .height(heroHeight)
                     ) { index ->
                         HeroCard(anime = items[index], rank = index + 1, onClick = { onOpen(items[index]) })
                     }
@@ -307,7 +311,7 @@ private fun CarouselItemScope.HeroCard(
                 .background(
                     Brush.verticalGradient(
                         0.45f to Color.Transparent,
-                        1f to Color.Black.copy(alpha = 0.88f)
+                        1f to MaterialTheme.colorScheme.scrim.copy(alpha = 0.88f)
                     )
                 )
         )
@@ -335,7 +339,7 @@ private fun CarouselItemScope.HeroCard(
                 text = anime.name,
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Black,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onScrim,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
@@ -358,19 +362,19 @@ private fun MetaLine(anime: AnimeDto) {
             Icon(
                 Icons.Default.Star,
                 contentDescription = null,
-                tint = Color(0xFFFFC857),
+                tint = MaterialTheme.colorScheme.tertiary,
                 modifier = Modifier.size(16.dp)
             )
             Text(
                 text = String.format(Locale.US, " %.1f", rating) + if (parts.isNotEmpty()) "  ·  " else "",
                 style = MaterialTheme.typography.labelLarge,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onScrim
             )
         }
         Text(
             text = parts.joinToString("  ·  "),
             style = MaterialTheme.typography.labelLarge,
-            color = Color.White.copy(alpha = 0.8f),
+            color = MaterialTheme.colorScheme.onScrim.copy(alpha = 0.8f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -452,13 +456,13 @@ private fun LandscapeRail(items: List<AnimeDto>, onOpen: (AnimeDto) -> Unit, onH
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.8f)))
+                    .background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to MaterialTheme.colorScheme.scrim.copy(alpha = 0.8f)))
             )
             Text(
                 text = anime.name,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onScrim,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
@@ -580,7 +584,9 @@ fun SectionHeader(title: String, topPadding: Dp = 28.dp) {
         style = MaterialTheme.typography.headlineSmall,
         fontWeight = FontWeight.Black,
         color = MaterialTheme.colorScheme.onBackground,
-        modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = topPadding, bottom = 14.dp)
+        modifier = Modifier
+            .padding(start = 24.dp, end = 24.dp, top = topPadding, bottom = 14.dp)
+            .semantics { heading() }
     )
 }
 

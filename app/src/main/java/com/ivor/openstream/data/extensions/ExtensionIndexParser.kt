@@ -56,7 +56,7 @@ class ExtensionIndexParser @Inject constructor() {
                 val dto = json.decodeFromJsonElement(ExtensionRepoDto.serializer(), stripEntries(root))
                 dto.copy(extensions = decodeEntries(root["extensions"] as? JsonArray))
             }
-            else -> throw IllegalArgumentException(strings.indexError)
+            else -> throw RepoException(strings.indexError)
         }
     }
 
@@ -152,7 +152,7 @@ class ExtensionIndexParser @Inject constructor() {
         strings: RepoParseStrings
     ): ExtensionRepoDto {
         val addonId = manifest.text("id")?.takeIf { it.isNotBlank() }
-            ?: throw IllegalArgumentException(strings.manifestIdError)
+            ?: throw RepoException(strings.manifestIdError)
         val name = manifest.text("name")?.trim().orEmpty().ifEmpty { addonId }
         val baseUrl = sourceUrl?.substringBefore('?')?.removeSuffix("/manifest.json")?.trimEnd('/').orEmpty()
         val resources = (manifest["resources"] as? JsonArray).orEmpty().mapNotNull { resource ->

@@ -3,7 +3,9 @@ package com.ivor.openstream.presentation.profiles
 import com.ivor.openstream.presentation.components.CenteredListBox
 import com.ivor.openstream.R
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
+import com.ivor.openstream.presentation.components.ExpressiveMotion
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -112,6 +114,25 @@ fun WhoIsWatchingScreen(
     var lockSeconds by remember { mutableStateOf<Long?>(null) }
     val scope = rememberCoroutineScope()
     val wrongText = stringResource(R.string.pin_wrong)
+
+    // Kids lock: leaving a kids profile for one without its own PIN, or managing profiles, first
+    // asks for the parental PIN set in Settings. A profile's own PIN already keeps a child out.
+    val hasKidsLock by viewModel.hasKidsLock.collectAsState()
+    val kidsLocked = hasKidsLock && profiles.firstOrNull { it.id == activeId }?.isKids == true
+    var afterKidsLock by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var kidsPin by remember { mutableStateOf("") }
+    var kidsPinError by remember { mutableStateOf<String?>(null) }
+    var kidsLockSeconds by remember { mutableStateOf<Long?>(null) }
+    fun guarded(action: () -> Unit) {
+        if (kidsLocked) {
+            kidsPin = ""
+            kidsPinError = null
+            kidsLockSeconds = null
+            afterKidsLock = action
+        } else {
+            action()
+        }
+    }
     Surface(color = MaterialTheme.colorScheme.background, modifier = modifier.fillMaxSize()) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -141,24 +162,69 @@ fun WhoIsWatchingScreen(
                         profile = profile,
                         selected = profile.id == activeId,
                         onClick = {
-                            if (profile.hasPin) {
-                                pendingProfile = profile
-                                pinInput = ""
-                                pinError = null
-                                lockSeconds = null
-                            } else {
-                                onSelect(profile)
+                            when {
+                                profile.hasPin -> {
+                                    pendingProfile = profile
+                                    pinInput = ""
+                                    pinError = null
+                                    lockSeconds = null
+                                }
+                                profile.isKids || profile.id == activeId -> onSelect(profile)
+                                else -> guarded { onSelect(profile) }
                             }
                         }
                     )
                 }
             }
-            OutlinedButton(onClick = onManage, shape = ExpressiveShapes.medium, modifier = Modifier.padding(bottom = 24.dp)) {
+            OutlinedButton(onClick = { guarded(onManage) }, shape = ExpressiveShapes.medium, modifier = Modifier.padding(bottom = 24.dp)) {
                 Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.st_manage_profiles))
             }
         }
+    }
+
+    afterKidsLock?.let { proceed ->
+        PinPadDialog(
+            profileName = "",
+            message = stringResource(R.string.st_kids_lock_enter),
+            lockedSeconds = kidsLockSeconds,
+            error = kidsPinError,
+            pin = kidsPin,
+            onDigit = { digit ->
+                if (kidsLockSeconds == null && kidsPin.length < ProfilePin.MAX_LENGTH && digit.isDigit()) {
+                    kidsPin += digit
+                    kidsPinError = null
+                }
+            },
+            onBackspace = {
+                if (kidsPin.isNotEmpty()) {
+                    kidsPin = kidsPin.dropLast(1)
+                    kidsPinError = null
+                }
+            },
+            onClear = {
+                kidsPin = ""
+                kidsPinError = null
+            },
+            onSubmit = {
+                when (val result = viewModel.checkKidsLock(kidsPin)) {
+                    ProfilesViewModel.PinCheck.Ok -> {
+                        afterKidsLock = null
+                        proceed()
+                    }
+                    ProfilesViewModel.PinCheck.Wrong -> {
+                        kidsPinError = wrongText
+                        kidsPin = ""
+                    }
+                    is ProfilesViewModel.PinCheck.Locked -> {
+                        kidsLockSeconds = result.secondsLeft
+                        kidsPinError = null
+                    }
+                }
+            },
+            onDismiss = { afterKidsLock = null }
+        )
     }
 
     pendingProfile?.let { pending ->
@@ -208,7 +274,11 @@ fun WhoIsWatchingScreen(
 
 @Composable
 private fun ProfileTile(profile: Profile, selected: Boolean, onClick: () -> Unit) {
-    val scale by animateFloatAsState(if (selected) 1f else 0.92f, tween(300), label = "profileTileScale")
+    val scale by animateFloatAsState(
+        if (selected) 1f else 0.92f,
+        ExpressiveMotion.effectsSpec(),
+        label = "profileTileScale"
+    )
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -269,9 +339,12 @@ fun ProfileSwitchButton(
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     var holding by remember { mutableStateOf(false) }
+    // The fill tracks the finger, so its duration stays tied to the hold even with
+    // reduced motion; only the release snap goes instant.
+    val reducedHold = ExpressiveMotion.reducedMotion()
     val progress by animateFloatAsState(
         targetValue = if (holding) 1f else 0f,
-        animationSpec = tween(if (holding) KIDS_HOLD_MS.toInt() else 150),
+        animationSpec = if (reducedHold && !holding) snap() else tween(if (holding) KIDS_HOLD_MS.toInt() else 150),
         label = "kidsHold"
     )
     val isKids = profile?.isKids == true
@@ -603,6 +676,8 @@ private fun PinSetDialog(
 @Composable
 private fun PinPadDialog(
     profileName: String,
+    /** Replaces "Enter the PIN for <name>" when the PIN is not a profile's. */
+    message: String? = null,
     lockedSeconds: Long? = null,
     error: String? = null,
     pin: String = "",
@@ -621,7 +696,7 @@ private fun PinPadDialog(
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    stringResource(R.string.pin_for_name, profileName),
+                    message ?: stringResource(R.string.pin_for_name, profileName),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center
                 )
@@ -680,11 +755,11 @@ private fun PinPadDialog(
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         IconButton(onClick = onClear, enabled = !locked && pin.isNotEmpty(), modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Filled.Clear, contentDescription = null)
+                            Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.pin_clear))
                         }
                         PinKey(label = "0", enabled = !locked, onClick = { onDigit('0') })
                         IconButton(onClick = onBackspace, enabled = !locked && pin.isNotEmpty(), modifier = Modifier.weight(1f)) {
-                            Icon(Icons.AutoMirrored.Filled.Backspace, contentDescription = null)
+                            Icon(Icons.AutoMirrored.Filled.Backspace, contentDescription = stringResource(R.string.pin_backspace))
                         }
                     }
                 }
@@ -692,7 +767,7 @@ private fun PinPadDialog(
         },
         confirmButton = {
             IconButton(onClick = onSubmit, enabled = canSubmit) {
-                Icon(Icons.Filled.Check, contentDescription = null)
+                Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.pin_submit))
             }
         }
     )

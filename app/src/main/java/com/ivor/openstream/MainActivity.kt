@@ -6,6 +6,10 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -52,9 +56,41 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
-        // Request notification permission for Android 13+
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+
+        // Mirror the saved theme into AppCompat's night mode so the cold-start window
+        // (DayNight theme) matches the Compose theme even with forced light/dark.
+        // Runtime switches stay recompose-only; this is re-applied on every creation.
+        androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(
+            when (appSettings.current.themeMode) {
+                ThemeMode.LIGHT -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO
+                ThemeMode.DARK -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES
+                ThemeMode.SYSTEM -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+            }
+        )
+
+        // AMOLED's page is true black, so the window behind Compose must be black too; otherwise
+        // the charcoal DayNight surface shows through during the first frame and in transient
+        // gaps such as rotation. The setting only changes dark surfaces, so light themes keep
+        // their normal window color.
+        val startsDark = when (appSettings.current.themeMode) {
+            ThemeMode.LIGHT -> false
+            ThemeMode.DARK -> true
+            ThemeMode.SYSTEM -> {
+                val nightMode = resources.configuration.uiMode and
+                    android.content.res.Configuration.UI_MODE_NIGHT_MASK
+                nightMode == android.content.res.Configuration.UI_MODE_NIGHT_YES
+            }
+        }
+        if (appSettings.current.amoledBlack && startsDark) {
+            window.setBackgroundDrawable(
+                android.graphics.drawable.ColorDrawable(android.graphics.Color.BLACK)
+            )
+        }
+
+        // First launch only; re-asking on every rotation while the user decides is a bug.
+        if (savedInstanceState == null &&
+            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU
+        ) {
             androidx.core.app.ActivityCompat.requestPermissions(
                 this,
                 arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
@@ -71,25 +107,35 @@ class MainActivity : ComponentActivity() {
         setContent {
             val windowSizeClass = calculateWindowSizeClass(this)
             val settings by appSettings.settings.collectAsState()
-            val darkTheme = when (settings.themeMode) {
+            val tvMode = rememberTvMode()
+            val amoled = settings.amoledBlack
+            val darkTheme = if (tvMode) true else when (settings.themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
             }
-            OpenStreamTheme(darkTheme = darkTheme, dynamicColor = settings.dynamicColor) {
+            OpenStreamTheme(
+                darkTheme = darkTheme,
+                dynamicColor = if (tvMode) false else settings.dynamicColor,
+                amoled = amoled
+            ) {
                 // Most screens draw their own background without a Scaffold, so this root
                 // Surface is what gives un-styled Text the theme's onBackground color.
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    if (rememberTvMode()) {
+                    if (tvMode) {
                         TvNavigation()
                     } else {
-                        AppNavigation(
-                            windowSizeClass = windowSizeClass.widthSizeClass,
-                            shortcutRequest = shortcutRequest,
-                            onShortcutHandled = { shortcutRequest = null },
-                            deepLinkRequest = deepLinkRequest,
-                            onDeepLinkHandled = { deepLinkRequest = null }
-                        )
+                        // Haptics off: every screen's ticks and taps go to a feedback that does nothing.
+                        val haptics = if (settings.hapticsEnabled) LocalHapticFeedback.current else NoHapticFeedback
+                        CompositionLocalProvider(LocalHapticFeedback provides haptics) {
+                            AppNavigation(
+                                windowSizeClass = windowSizeClass.widthSizeClass,
+                                shortcutRequest = shortcutRequest,
+                                onShortcutHandled = { shortcutRequest = null },
+                                deepLinkRequest = deepLinkRequest,
+                                onDeepLinkHandled = { deepLinkRequest = null }
+                            )
+                        }
                     }
                 }
             }
@@ -121,4 +167,9 @@ class MainActivity : ComponentActivity() {
         if (event.action == android.view.KeyEvent.ACTION_DOWN) playbackSession.adjustCastVolume(up)
         return true
     }
+}
+
+/** Haptics turned off in Settings: feedback that does nothing. */
+private object NoHapticFeedback : HapticFeedback {
+    override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) = Unit
 }

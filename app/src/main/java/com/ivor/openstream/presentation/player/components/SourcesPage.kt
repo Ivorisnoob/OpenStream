@@ -42,7 +42,7 @@ import com.ivor.openstream.domain.model.StreamAudio
 import com.ivor.openstream.domain.model.StreamQuality
 import com.ivor.openstream.domain.model.VideoServer
 import com.ivor.openstream.presentation.player.ServersState
-import com.ivor.openstream.presentation.player.sourceSummary
+import com.ivor.openstream.presentation.player.sourceDetails
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 
 /** What the Sources page needs: the live resolution state and what the user can do with it. */
@@ -63,9 +63,16 @@ fun SourcesPanel(
     isFullscreen: Boolean,
     state: ServersState,
     actions: SourcesPageActions,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** True on TV: render the side panel, never a ModalBottomSheet. */
+    tvControls: Boolean = false
 ) {
-    PlayerPanelHost(visible = visible, isFullscreen = isFullscreen, onDismiss = onDismiss) { listModifier, onClose ->
+    PlayerPanelHost(
+        visible = visible,
+        isFullscreen = isFullscreen,
+        onDismiss = onDismiss,
+        tvControls = tvControls
+    ) { listModifier, onClose ->
         val filter = rememberSourceFilter()
         PanelHeader(
             title = stringResource(R.string.sheet_sources),
@@ -290,8 +297,8 @@ private fun SourceRow(
         },
         supportingContent = {
             Text(
-                "${server.providerName} · ${server.sourceSummary(LocalContext.current)}",
-                maxLines = 1,
+                server.sourceDetails(LocalContext.current),
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
         },

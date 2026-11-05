@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.search
 
+import com.ivor.openstream.ui.theme.onScrim
 import com.ivor.openstream.R
 import com.ivor.openstream.presentation.components.bottomContentPadding
 import com.ivor.openstream.presentation.components.isCompactWidth
@@ -26,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -357,8 +359,9 @@ private fun androidx.compose.foundation.lazy.grid.LazyGridScope.browseContent(
                                     Icons.Default.Close,
                                     contentDescription = stringResource(R.string.cd_remove_query, query),
                                     modifier = Modifier
-                                        .size(18.dp)
                                         .clickable { onRemoveRecent(query) }
+                                        .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                                        .padding(15.dp)
                                 )
                             },
                             shape = ExpressiveShapes.small
@@ -709,10 +712,10 @@ private fun TopResultCard(item: AnimeDto, onClick: () -> Unit) {
                     .fillMaxSize()
                     .background(
                         if (compact) {
-                            Brush.verticalGradient(0.35f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.85f))
+                            Brush.verticalGradient(0.35f to Color.Transparent, 1f to MaterialTheme.colorScheme.scrim.copy(alpha = 0.85f))
                         } else {
                             // The text sits on the left of a wide banner, so the scrim runs sideways.
-                            Brush.horizontalGradient(0f to Color.Black.copy(alpha = 0.85f), 0.6f to Color.Transparent)
+                            Brush.horizontalGradient(0f to MaterialTheme.colorScheme.scrim.copy(alpha = 0.85f), 0.6f to Color.Transparent)
                         }
                     )
             )
@@ -734,17 +737,17 @@ private fun TopResultCard(item: AnimeDto, onClick: () -> Unit) {
                     text = item.name,
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Black,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onScrim,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 8.dp)
                 )
-                Text(metaLine(item), style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.85f))
+                Text(metaLine(item), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onScrim.copy(alpha = 0.85f))
                 if (!compact && !item.overview.isNullOrBlank()) {
                     Text(
                         text = item.overview,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.8f),
+                        color = MaterialTheme.colorScheme.onScrim.copy(alpha = 0.8f),
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(top = 8.dp)
@@ -803,7 +806,7 @@ private fun ResultCard(item: AnimeDto, onClick: () -> Unit) {
                 Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             item.voteAverage?.takeIf { it > 0 }?.let { rating ->
-                Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFFFB300), modifier = Modifier.padding(start = 6.dp).size(12.dp))
+                Icon(Icons.Default.Star, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.padding(start = 6.dp).size(12.dp))
                 Text(String.format(Locale.US, " %.1f", rating), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }

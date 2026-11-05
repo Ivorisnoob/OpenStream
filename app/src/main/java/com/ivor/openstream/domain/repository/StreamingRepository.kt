@@ -10,8 +10,8 @@ interface StreamingRepository {
      * Resolves servers from every active source. Backup (fallback) sources normally run only when
      * the direct ones return nothing; [includeFallbacks] queries them alongside, for when the
      * direct links resolved but refused to play. [preferLastWorking] asks the source that last
-     * played something first and stops there when it has streams, so the next title starts without
-     * searching every source again.
+     * played this title (the movie, or any episode of the show) first and stops there when it has a
+     * stream at the quality cap; below the cap the other sources are searched as well.
      */
     fun resolveServers(
         identity: MediaIdentity,
@@ -21,7 +21,14 @@ interface StreamingRepository {
     suspend fun getServers(identity: MediaIdentity): List<VideoServer>
     suspend fun refreshServer(server: VideoServer): Result<VideoServer>
     fun rememberServer(identity: MediaIdentity, server: VideoServer)
+    fun getRememberedServerId(identity: MediaIdentity): String?
 
-    /** [server] actually played: its source is the one [resolveServers] can ask first next time. */
+    /** A stream [resolveServers] handed out for [identity] failed: search afresh next time. */
+    fun forgetResolvedServers(identity: MediaIdentity)
+
+    /** Drops every remembered search result ("Clear cache"). */
+    fun clearResolvedServers()
+
+    /** [server] actually played: its source is the one [resolveServers] asks first for this title. */
     fun rememberWorkingSource(identity: MediaIdentity, server: VideoServer)
 }

@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.home
 
+import com.ivor.openstream.ui.theme.onScrim
 import com.ivor.openstream.presentation.components.byWidth
 import com.ivor.openstream.R
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -25,7 +26,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -40,7 +41,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -94,6 +94,7 @@ private fun ContinueWatchingCard(
                 .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                 .combinedClickable(
                     onClick = onResume,
+                    onClickLabel = stringResource(R.string.cd_resume),
                     onLongClick = {
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 showMenu = true
@@ -115,7 +116,7 @@ private fun ContinueWatchingCard(
                     .background(
                         Brush.verticalGradient(
                             0.45f to Color.Transparent,
-                            1f to Color.Black.copy(alpha = 0.75f)
+                            1f to MaterialTheme.colorScheme.scrim.copy(alpha = 0.75f)
                         )
                     )
             )
@@ -135,24 +136,20 @@ private fun ContinueWatchingCard(
                 text = item.badge(),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onScrim,
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(start = 14.dp, bottom = if (item.fraction > 0f) 16.dp else 12.dp)
             )
             if (item.fraction > 0f) {
-                LinearProgressIndicator(
+                LinearWavyProgressIndicator(
                     progress = { item.fraction },
-                    strokeCap = StrokeCap.Round,
                     color = MaterialTheme.colorScheme.primary,
-                    trackColor = Color.White.copy(alpha = 0.3f),
-                    gapSize = 0.dp,
-                    drawStopIndicator = {},
+                    trackColor = MaterialTheme.colorScheme.onScrim.copy(alpha = 0.3f),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .padding(horizontal = 14.dp, vertical = 8.dp)
-                        .height(4.dp)
                 )
             }
 
@@ -199,9 +196,10 @@ private fun ContinueWatchingCard(
 private fun WatchProgress.badge(): String {
     val remaining = ((durationMs - positionMs) / 60_000L).coerceAtLeast(1L)
     val minutesLeft = stringResource(R.string.misc_minutes_short, remaining)
+    val episodeCode = stringResource(R.string.li_episode_code, season, episode)
     return when {
-        isUpNext && !isMovie -> "${stringResource(R.string.player_up_next)} · S$season E$episode"
+        isUpNext && !isMovie -> "${stringResource(R.string.player_up_next)} · $episodeCode"
         isMovie -> minutesLeft
-        else -> "S$season E$episode · $minutesLeft"
+        else -> "$episodeCode · $minutesLeft"
     }
 }

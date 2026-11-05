@@ -52,6 +52,8 @@ data/cast          Cast options, media item converter, LAN proxy the receiver st
 data/streaming     Source resolution, extension -> provider registry, id mapping
 data/extensions    Extension catalog: repos, cache, parser, ranking, bundled copy
 data/service       Media3 download service
+data/cache         HTTP cache rules for TMDB, cache budget, AppCaches (size/clear)
+data/images        ArtworkPrefetcher
 domain             Models and repository interfaces
 presentation       Screens + ViewModels; player/session holds the app-wide player
 ui/theme           Colors, type, ExpressiveShapes
@@ -76,9 +78,19 @@ Rules:
   provider's priority is its position. Search mode (`SourceSearchMode` in `AppSettings`): all at
   once (rank by quality, order breaks ties) or in order (one at a time, stop at the first with
   streams; ranking puts the order before quality; "Find more" searches everything).
-  The player's automatic search first asks the source that last played something
-  (`rememberWorkingSource`, kept per movie/tv) on its own and stops there when it has streams; with
-  none, or no answer in 10 s, the normal search runs. Downloads and "Find more" search everything.
+  The player's automatic search first asks the source that last played this title
+  (`rememberWorkingSource`, kept per movie and per show across its episodes for the 100 titles
+  played most recently; a title nothing has played yet gets the normal search) on its own, and
+  stops there only when it has a stream at the quality cap the player applies (`streamMaxHeight`,
+  or the stricter mobile-data cap; with no cap, 1080p or better; "Auto"/"HD" don't count). Below
+  the cap its streams are sent at
+  once and the normal search runs for the rest (in order: up to the first other source with
+  streams); with none, or no answer in 10 s, the normal search runs. Downloads and "Find more"
+  search everything.
+  That automatic search alone answers from `ResolvedStreamCache` (memory only, 10 minutes, keyed by
+  episode plus a fingerprint of the installed sources, order and search mode) and only keeps complete
+  searches that found something; `onPlaybackError` drops the episode's entry. No source documents
+  how long its links stay valid, which is why the window is short.
   Engines: `vidking-direct` (`VidkingDirectApi`, encrypted payload, prefers the master playlist so
   quality switches in-player), `web-embed` and `vidking-webview` (`WebEmbedResolver`: first a native
   pass through `HosterExtractors` (Filemoon, StreamWish/VidHide, Voe, Mp4Upload, Vidmoly, ok.ru) when
@@ -88,8 +100,9 @@ Rules:
   (no torrents/debrid). A pasted Stremio `manifest.json` becomes a one-add-on repository
   (`ExtensionIndexParser`), installed right away when it can play.
   `VideoServer` can carry a MIME hint (HLS for URLs without `.m3u8`) and the source's own intro/outro
-  times, which the player prefers over AniSkip. `AnimeEpisodeMapper`
-  maps TMDB season/episode to an AniList episode (ani.zip + AniList GraphQL, both keyless);
+  times, which the player prefers over AniSkip. `ExtensionStreamProvider` stamps each server with its
+  `SourceOrigin` (extension name, repository, official or not), which source lists show.
+  `AnimeEpisodeMapper` maps TMDB season/episode to an AniList episode (ani.zip + AniList GraphQL, both keyless);
   megaplay embeds decrypt with a fixed AES key; `ImagePrefixStrippingDataSource` strips the fake
   PNG header some anime CDNs put before TS segments.
 - **Catalog.** `extensions/index.json` is published; `app/src/main/assets/extensions/official-repo.json`
@@ -110,12 +123,20 @@ Rules:
   stateless URLs carry the target and headers, HLS playlists are rewritten, segments are read through
   the download cache and `ImagePrefixStrippingDataSource`, subtitles are served as WebVTT. The
   phone must stay on the TV's network. `PlayerScreen` swaps `ExoPlayerView` for `CastPlaybackView`.
+  The TV keeps the phone's source, quality and audio: connecting reads the local player's pinned
+  height (or its ceiling on automatic) and audio rendition into an `HlsSelection`, which rides in
+  the master playlist URL's query, and `HlsRenditionSelector` narrows the master to those variants
+  and that audio rendition (DEFAULT=YES) before the receiver sees it. `CastPlaybackView`'s settings
+  menu changes source, quality and audio by reloading at the TV's position. Downloads cast as stored.
 - **Player UI.** Controls in `PlayerControls`; settings and sources share `PlayerPanelHost`
   (bottom sheet inline, in-player side panel in fullscreen so immersive mode survives).
 - **Subtitles.** `CombinedSubtitleRepository`: `OpenSubtitlesRepository` (keyless legacy REST API)
   and `SubSourceRepository` (keyless, mirrors subsource.net's own API: IMDb search -> list ->
   download token -> zip), plus any the stream carries. `SubtitleFetcher` downloads and unwraps
   them (gzip, zip, charset) for both the player and the cast proxy; promo cues are stripped.
+  `SubtitleCharset` picks the charset: a BOM, else UTF-16 or valid UTF-8, else the usual Windows
+  codepage of the subtitle's language (Turkish 1254, Cyrillic 1251...; 1252 for Western ones),
+  else, with no language, a guess from the file's high bytes. Text is UTF-8 from there on.
   `SavedSubtitleRepository` keeps subtitles on the device (`filesDir/subtitles/<download id>/`, files
   plus `index.json`), saved from Downloads (any language, or an imported file). Downloads also
   record the stream's own subtitles there (`stream.json`) so the sheet can offer them; older
@@ -128,9 +149,32 @@ Rules:
 - **Network.** `AppDns` (DNS-over-HTTPS, default AdGuard, chosen in Settings) backs every OkHttp
   client and Coil's image loader (`OpenStreamApp`), because some ISPs block TMDB at the DNS level.
   Media3 playback/downloads and WebView sources still use the system resolver.
-- **Settings.** `AppSettingsStore` (SharedPreferences) holds theme, dynamic color, DNS,
-  Wi-Fi-only downloads and the subtitle languages saved with downloads; `MainActivity` applies the
-  theme.
+- **Caching.** TMDB answers live in an OkHttp disk cache (`cacheDir/tmdb_http`). TMDB's own cache
+  headers are not relied on: `MetadataCacheHeadersInterceptor` stamps each successful answer with a
+  lifetime from `MetadataCachePolicy` (lists and discover 3 h, titles and seasons 6 h, search 1 h,
+  person 1 day, ratings 7 days, external ids 30 days), and `StaleIfErrorInterceptor` answers from
+  the cache, up to 30 days old, when TMDB is unreachable or returns 5xx/429. The `TmdbFresh` API
+  (`ForceRefreshInterceptor`) revalidates first; pull to refresh, `EpisodeNotifier` and
+  `SmartDownloads` use it (`fresh = true`), and what it fetches refreshes the shared cache. Home's
+  built lists are also kept in memory for 3 h (`AnimeRepositoryImpl`); the old SharedPreferences copy
+  is only read as an offline fallback and deleted after the next successful load. Artwork is Coil's
+  disk cache in its default folder (`coil3_disk_cache`). The Cache size setting sizes both caches when
+  the app starts, capped at a tenth of free space (`CacheBudget`). `ArtworkPrefetcher` fills Coil's
+  disk cache for Home rows and Details rails off screen: unmetered network only, not with Data Saver,
+  battery saver or on low-RAM devices, two at a time, after a 1.5 s head start, skipping anything
+  already on disk. `AppCaches` measures and clears all of it for Settings.
+- **Settings.** `AppSettingsStore` (SharedPreferences) holds theme, dynamic color, the phone tab bar style
+  (floating toolbar or docked `ShortNavigationBar`), DNS,
+  Wi-Fi-only and charging-only downloads, the subtitle languages saved with downloads, cache size and
+  artwork preload, haptics (off: `MainActivity` provides a no-op `LocalHapticFeedback`), paused watch
+  history (`PlaybackSession` records nothing), the start tab, Home's row order and hidden rows
+  (`HomeRows`), and when watched downloads are deleted (`WatchedDownloadCleaner`); plus the kids lock,
+  a parental PIN asked before a kids profile switches to a profile without its own PIN.
+  `PlayerPreferences` keeps caption style and the preferred audio and subtitle language, shared by the
+  player and Settings. `MainActivity` applies the theme. Cache size and preload are device settings
+  and stay out of `LibraryBackup`. The phone screen is a list of categories (`SettingsLayout`: one
+  pane in portrait, list and page side by side when wider) with a search over every setting
+  (`SettingsSearch`) that opens the category and pulses the row; the catalogue is in `SettingsScreen`.
 - **Skip intro.** `SkipTimesRepository`: `AnimeEpisodeMapper` gives the MAL id and the episode within
   that entry (AniList title search only as a fallback), AniSkip v2 gives the intro/recap/credits
   times (anime only), and the player picks the submission timed on the closest file length. All
@@ -142,15 +186,40 @@ Rules:
   filters to discover calls and checks everything else against the US rating (G/PG,
   TV-Y..TV-PG; unrated is hidden); Home hides Settings and leaving takes a hold on the avatar.
   `include_adult=false` is added to every TMDB request.
+- **Home rows.** `AnimeCatalog` lists load first; the per-service rows (`StreamingService`:
+  Netflix, Prime Video, Disney+, Apple TV, HBO Max, Crunchyroll) load after Home is on screen and
+  append below. Each is a movie + series `discover` with `with_watch_providers` (all of a service's
+  regional provider ids), subscription titles only, in the device's country (`watch_region`, from
+  the system locale rather than the app language; US when it has none). A service with nothing in
+  that region gets no row.
 - **Lists.** Watch Later plus user lists (`CustomListRepository`, `custom_lists` tables); Details has
   "Add to list" and "Mark all watched", the Saved tab shows the lists.
+- **Calendar.** `UpcomingRepository` builds a schedule from Watch Later and shows with progress:
+  each title's next and last episode, their season lists, and saved films. TMDB dates carry no air
+  time, so everything stops at the day. `CalendarScreen` (opened from Saved) and `TvCalendarScreen`
+  (a drawer entry) share `CalendarViewModel`; relative dates come from the system (`CalendarFormat`).
 - **Backup / diagnostics.** `LibraryBackup` (JSON, merge on restore) and `Diagnostics` (crash files
   in `filesDir/crashes`, recorder installed in `OpenStreamApp`) back the Settings entries.
 - **Deep links.** `MainActivity` is `singleTask`; `DeepLinks` turns TMDB links (VIEW or shared text)
   into Details, `AppShortcut` handles launcher shortcuts.
+- **TV.** `TvDimens` (gutter = 5% of window width per side, poster rail = 6 cards +
+  a 0.4-card peek, landscape rail = 4 + peek, hero = 55–60% of window height, focus
+  scale 1.09) plus `TvTheme` (10-foot type scale, pinned fontScale) wrap the whole
+  TV shell in `TvNavigation` (permanent nav rail, one Back rule). Every TV screen is
+  a real D-pad surface: Home/Details/Search/Saved/Downloads/Sources/Settings all
+  request initial focus, confirm deletions in place (no dialogs/sheets/dropdowns),
+  and route their ViewModels from the phone feature packages unchanged. `StreamQuality`
+  cap (`streamMaxHeight`, default 1080p) lives in `AppSettingsStore`. Phone paths are
+  untouched; phone-only affordances (document pickers, typed text, cast sheet) are
+  guarded by `tvControls` in the shared player components.
 - **Downloads.** Everything goes through Media3's `DownloadManager` (`DownloadRepositoryImpl`):
   queue resolves sources in the app scope, live progress from the manager, pause/resume/retry,
-  one rendition up to 1080p from master playlists. Offline playback reads the same cache.
+  one rendition up to 1080p from master playlists. Offline playback reads the same cache, which lives
+  on internal storage or an SD card (`DownloadStorage`; a move copies, switches, deletes the old copy,
+  then restarts the app because the cache opens its folder once per process).
+  `DownloadBackgroundGate` pauses the manager while the app is in the background and downloads are
+  waiting (for Wi-Fi, or after a sticky restart): Android 12+ forbids the foreground start they would
+  need, and Media3 cannot catch that failure. They resume when the app comes to the foreground.
 
 ## Known external constraints
 
@@ -181,6 +250,13 @@ guides, component list) live in `docs/design/`.
 - Don't drive the app on the emulator unless asked; the maintainer tests. `installDebug` when asked.
 - Never use emojis: not in code, comments, commits, PRs, changelogs or messages sent anywhere.
 - Commit and push only when asked. End commit messages with the attribution trailer in use.
+- This is a Windows checkout (Git Bash and PowerShell, `core.autocrlf`). Don't pass long or
+  multi-line text inline: PowerShell here-strings given to `git commit -F -` become a pathspec,
+  and long Git Bash heredocs full of non-ASCII text fail with "unexpected EOF". Write commit
+  messages, PR bodies, scripts and translation data to a file in the scratchpad with the Write
+  tool, then pass the path (`git commit -F <file>`, `gh pr create --body-file <file>`,
+  `python <script> <args>`). Scripts that edit tracked files keep each file's existing line
+  endings.
 - Every pull request targets `beta`, never `main`. Branch new work from `beta` and open the PR
   with `gh pr create --base beta`; never change a base to `main`, and retarget a PR already
   opened against `main` (`gh pr edit --base beta`) instead of merging it. `beta` is the branch

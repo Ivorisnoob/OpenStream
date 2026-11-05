@@ -32,5 +32,18 @@ enum class StreamQuality(val label: String, @StringRes val labelRes: Int?, val r
                 else -> UNKNOWN
             }
         }
+
+        fun maxRankForHeight(heightPx: Int): Int = when {
+            heightPx <= 0 -> Int.MAX_VALUE
+            heightPx >= 2160 -> Int.MAX_VALUE
+            heightPx >= 1440 -> Q1440.rank
+            heightPx >= 1080 -> Q1080.rank
+            heightPx >= 720 -> Q720.rank
+            heightPx >= 480 -> Q480.rank
+            else -> Q360.rank
+        }
     }
+
+    fun fitsHeightCap(heightPx: Int): Boolean =
+        this == UNKNOWN || rank <= StreamQuality.maxRankForHeight(heightPx)
 }

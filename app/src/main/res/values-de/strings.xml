@@ -82,6 +82,7 @@
     <string name="home_recently_watched">Kürzlich angesehen</string>
     <string name="home_weekend_movies">Wochenend-Filme</string>
     <string name="home_anime_movies">Anime-Filme</string>
+    <string name="home_popular_on_service">Beliebt auf %1$s</string>
     <string name="home_critically_acclaimed">Von Kritikern gefeiert</string>
     <string name="home_top_result">Top-Ergebnis</string>
     <string name="home_rank_this_week">%1$d diese Woche</string>
@@ -139,6 +140,7 @@
     <string name="details_play">Abspielen</string>
     <string name="details_trailer">Trailer</string>
     <string name="details_episodes">Folgen</string>
+    <string name="details_latest">Neueste</string>
     <string name="details_more_like_this">Mehr wie dieses</string>
     <string name="details_known_for">Bekannt für</string>
     <string name="details_first_aired">Erstausstrahlung</string>
@@ -205,6 +207,7 @@
     <string name="player_enter_fullscreen">Vollbild aktivieren</string>
     <string name="player_exit_fullscreen">Vollbild verlassen</string>
     <string name="player_pip">Bild-in-Bild</string>
+    <string name="player_shader_look">Shader-Effekt</string>
     <string name="player_zoom_fill">Zum Füllen zoomen</string>
     <string name="player_playback_settings">Wiedergabe-Einstellungen</string>
     <string name="player_waiting_tracks">Warte auf Videospuren</string>
@@ -242,6 +245,8 @@
     <string name="sheet_caption_style">Untertitel-Stil</string>
     <string name="sheet_text_size">Textgröße</string>
     <string name="sheet_background">Hintergrund</string>
+    <string name="sheet_caption_position">Position</string>
+    <string name="sheet_caption_position_raised">%1$d%% höher</string>
     <string name="sheet_background_opacity">Hintergrund-Deckkraft</string>
     <string name="sheet_bold">Fett</string>
     <string name="sheet_source">Quelle</string>
@@ -319,6 +324,10 @@
     <string name="st_theme_system">System</string>
     <string name="st_theme_light">Hell</string>
     <string name="st_theme_dark">Dunkel</string>
+    <string name="st_amoled_black">AMOLED-Schwarz</string>
+    <string name="st_amoled_black_hint">Echtes Schwarz für Flächen, solange die App dunkel ist.</string>
+    <string name="st_floating_nav_bar">Schwebende Navigationsleiste</string>
+    <string name="st_floating_nav_bar_hint">Aus: eine normale Leiste am unteren Rand.</string>
     <string name="st_dynamic_color">Dynamische Farben</string>
     <string name="st_dynamic_hint">Farben an Ihr Hintergrundbild anpassen</string>
     <string name="st_language">Sprache</string>
@@ -343,9 +352,14 @@
     <string name="st_history_cleared">Verlauf und Fortschritt gelöscht</string>
     <string name="st_clear_crash">Absturzberichte löschen</string>
     <string name="st_crash_cleared">Absturzberichte gelöscht</string>
-    <string name="st_clear_cache">Bild-Cache leeren</string>
-    <string name="st_cache_cleared">Bild-Cache geleert</string>
-    <string name="st_cache_size">%1$s an Artworks</string>
+    <string name="st_clear_all_cache">Cache leeren</string>
+    <string name="st_cache_used">%1$s für Artworks und Titelinfos belegt</string>
+    <string name="st_cache_hint">Artworks und Titelinfos werden gespeichert, damit Seiten schneller öffnen</string>
+    <string name="st_cache_cleared_all">Cache geleert</string>
+    <string name="st_cache_limit">Cache-Größe</string>
+    <string name="st_cache_limit_hint">Platz für Artworks und Titelinfos. Gilt ab dem nächsten App-Start.</string>
+    <string name="st_preload_artwork">Artworks vorladen</string>
+    <string name="st_preload_artwork_hint">Im WLAN Poster für Reihen laden, bevor du dorthin scrollst</string>
     <string name="st_show_hidden">Ausgeblendete Titel anzeigen</string>
     <string name="st_backup">Mediathek sichern</string>
     <string name="st_backup_hint">Später ansehen, Listen, Verlauf und ausgeblendete Titel jedes Profils, plus Einstellungen</string>
@@ -379,7 +393,6 @@
     <string name="st_allow_install_note">Erlauben Sie OpenStream zuerst, Updates zu installieren, und tippen Sie dann zurück hier auf Installieren.</string>
     <string name="st_storage_help">Speicher und Hilfe</string>
     <string name="st_on_device">Auf diesem Gerät</string>
-    <string name="st_posters_cache">Poster und Hintergründe für schnelleres Laden gespeichert</string>
     <string name="st_crash_include">Enthält %1$d Absturzbericht</string>
     <string name="st_repo_data_note">Repositories liefern Daten, keinen Code</string>
     <string name="st_repo_data_body">Eine Erweiterung wählt und konfiguriert nur einen Resolver, der bereits in OpenStream enthalten ist, sodass eine Drittanbieter-Liste keinen eigenen Code auf Ihrem Gerät ausführen kann.</string>
@@ -409,6 +422,8 @@
     <string name="st_index_not_json">Repository-Index ist kein JSON-Objekt oder -Array</string>
     <string name="st_repo_lists_unreadable">Repository-Listen konnten nicht gelesen werden</string>
     <string name="st_repo_no_extensions">Repository hat keine Erweiterungen veröffentlicht</string>
+    <string name="st_repo_no_internet">Keine Internetverbindung</string>
+    <string name="st_repo_not_valid">Dieser Link ist kein Repository und kein Stremio-Add-on</string>
     <string name="st_no_catalog">Noch kein Katalog</string>
     <string name="st_pull_repo_hint">Fügen Sie im Tab Repositories ein Repository hinzu oder aktualisieren Sie, um den offiziellen Katalog zu laden.</string>
     <string name="st_official_repo">Offizielle Erweiterung</string>
@@ -638,6 +653,7 @@
     <string name="player_rewind_seconds">%1$d Sekunden zurückspulen</string>
     <string name="src_up_to_quality">Bis zu %1$s</string>
     <string name="src_adaptive">Adaptiv</string>
+    <string name="src_repo_official">Offiziell</string>
     <string name="src_available_count">%1$d verfügbar</string>
     <string name="src_progress">%1$s bereit · %2$s von %3$s geprüft</string>
     <string name="sub_checking_all">Videoquelle, OpenSubtitles und SubSource werden geprüft…</string>
@@ -817,4 +833,102 @@
     <string name="match_rail">Top-Treffer für Sie</string>
     <string name="match_percent">%1$d%% Treffer</string>
     <string name="match_because">Weil Ihnen %1$s gefallen hat</string>
+    <string name="dl_tab_downloads">Downloads</string>
+    <string name="dl_tab_local_files">Lokale Dateien</string>
+    <string name="dl_save_to_storage_failed">Konnte nicht im Speicher gesichert werden</string>
+    <string name="local_import_files">Videos importieren</string>
+    <string name="local_no_files_title">Keine lokalen Videos</string>
+    <string name="local_no_files_body">Importiere Videodateien von deinem Gerät, um sie in OpenStream anzusehen</string>
+    <string name="local_file">Lokales Video</string>
+    <string name="local_delete_confirm_title">Lokales Video entfernen?</string>
+    <string name="local_delete_confirm_body">Es verschwindet nur aus dieser Liste. Die Datei bleibt auf deinem Gerät.</string>
+    <string name="local_search_hint">Lokale Videos durchsuchen</string>
+    <string name="sort_name_asc">Name (A–Z)</string>
+    <string name="sort_name_desc">Name (Z–A)</string>
+    <string name="sort_date_added_desc">Zuletzt hinzugefügt</string>
+    <string name="sort_date_added_asc">Zuerst hinzugefügt</string>
+    <string name="sort_size_desc">Größte zuerst</string>
+    <string name="sort_size_asc">Kleinste zuerst</string>
+    <string name="sort_duration_desc">Längste zuerst</string>
+    <string name="sort_duration_asc">Kürzeste zuerst</string>
+    <string name="dl_save_in_progress">Wird bereits in Downloads gesichert</string>
+    <string name="dl_storage_permission_needed">Erlaube den Speicherzugriff, um Videos in deinem Download-Ordner zu sichern</string>
+    <string name="dl_save_unsupported">Dieser Download lässt sich nicht als einzelne Videodatei sichern</string>
+    <string name="dl_save_protected">Dieser Stream ist geschützt und lässt sich nur in OpenStream abspielen</string>
+    <plurals name="local_import_success">
+        <item quantity="one">%1$d Video importiert</item>
+        <item quantity="other">%1$d Videos importiert</item>
+    </plurals>
+    <string name="dl_delete_confirm">Download löschen?</string>
+    <string name="dl_delete_body">%1$s von diesem Gerät entfernen? Zum Offline-Ansehen musst du es erneut herunterladen.</string>
+    <string name="dl_cancel_confirm">Download abbrechen?</string>
+    <string name="dl_cancel_body">Download von %1$s stoppen? Die unvollständige Datei wird entfernt.</string>
+    <string name="action_keep">Behalten</string>
+    <string name="season_episode_format">Staffel %1$d, Folge %2$d</string>
+    <string name="dl_pick_source_title">Download-Quelle wählen</string>
+    <string name="dl_pick_source_hint">Wähle, wovon heruntergeladen wird.</string>
+    <string name="dl_pick_batch_hint">Wir nutzen den Anbieter und die Qualität, die du antippst, für jede Folge, wo verfügbar.</string>
+    <string name="dl_batch_queued">%1$d Folgen werden heruntergeladen… Du findest sie unter Downloads.</string>
+    <string name="dl_season_already">Alle Folgen hier sind bereits heruntergeladen oder werden geladen</string>
+    <string name="dl_hold_options">Halten, um die Quelle zu wählen</string>
+    <string name="dl_hold_tip">Tipp: Halte Download gedrückt, um Quelle und Qualität zu wählen.</string>
+    <string name="dl_choose_source">Download-Quelle wählen</string>
+    <string name="dl_no_quality_match">Noch keine Quellen in dieser Qualität.</string>
+    <string name="action_show_all">Alle zeigen</string>
+    <plurals name="dl_delete_group_body">
+        <item quantity="one">%1$d Folge von %2$s von diesem Gerät entfernen? Zum Offline-Ansehen musst du sie erneut herunterladen.</item>
+        <item quantity="other">%1$d Folgen von %2$s von diesem Gerät entfernen? Zum Offline-Ansehen musst du sie erneut herunterladen.</item>
+    </plurals>
+    <plurals name="dl_delete_episodes">
+        <item quantity="one">1 Folge löschen?</item>
+        <item quantity="other">%1$d Folgen löschen?</item>
+    </plurals>
+    <plurals name="dl_batch_count">
+        <item quantity="one">%1$d Folge</item>
+        <item quantity="other">%1$d Folgen</item>
+    </plurals>
+
+    <string name="sheet_volume_boost">Lautstärke-Boost</string>
+    <string name="sheet_volume_boost_desc">Macht leise Videos lauter. Ein Limiter verhindert, dass laute Stellen verzerren. Gilt für alles, was du abspielst, bis du wieder Normal wählst.</string>
+    <string name="sheet_external_player">Externer Player</string>
+    <string name="action_open_external_player">In externem Player öffnen</string>
+
+    <string name="st_stream_cap">Qualitätslimit</string>
+    <string name="st_stream_cap_hint">Höchste Qualität, die ein Stream nutzen darf. Standard: 1080p.</string>
+    <string name="st_stream_cap_none">Ohne Limit</string>
+    <string name="tv_hold_to_delete">OK gedrückt halten zum Löschen</string>
+    <string name="tv_st_network">Netzwerk</string>
+    <string name="tv_st_storage">Speicher</string>
+    <string name="tv_hold_to_remove">OK gedrückt halten zum Entfernen</string>
+    <string name="tv_key_space">Leerzeichen</string>
+
+    <!-- Calendar -->
+    <string name="calendar_title">Demnächst</string>
+    <string name="calendar_subtitle">Neue Folgen und Filme von dem, was du verfolgst</string>
+    <string name="calendar_next_up">Als Nächstes</string>
+    <string name="calendar_out_now">Jetzt verfügbar</string>
+    <string name="calendar_new_badge">Neu</string>
+    <string name="calendar_watch_now_cd">%1$s jetzt ansehen</string>
+    <string name="calendar_day_cd">%1$s, geplant: %2$d</string>
+    <string name="calendar_empty_title">Noch nichts im Kalender</string>
+    <string name="calendar_empty_body">Speichere eine Serie oder schau sie an, dann erscheinen neue Folgen hier.</string>
+    <string name="calendar_nothing_scheduled">Für deine Titel sind keine Termine angekündigt.</string>
+    <string name="calendar_nothing_filter">Mit diesem Filter gibt es nichts.</string>
+    <string name="calendar_suggestions">Diese Woche im Programm</string>
+    <string name="calendar_some_failed">Einige Titel konnten nicht geprüft werden. Zum Wiederholen nach unten ziehen.</string>
+    <string name="calendar_error">Kalender konnte nicht geladen werden</string>
+    <string name="st_section_quality">Qualität und Daten</string>
+    <string name="st_section_network">Netzwerk</string>
+    <string name="st_search_hint">Einstellungen durchsuchen</string>
+    <string name="st_search_none">Keine Einstellung passt zu „%1$s“</string>
+    <string name="st_search_none_hint">Versuch es mit einem anderen Wort, etwa Design, Untertitel oder Qualität.</string>
+    <plurals name="st_search_results">
+        <item quantity="one">%1$d Einstellung gefunden</item>
+        <item quantity="other">%1$d Einstellungen gefunden</item>
+    </plurals>
+    <string name="st_cat_personalization">Personalisierung</string>
+    <string name="st_cat_player">Player und Gesten</string>
+    <string name="st_cat_library">Profile und Mediathek</string>
+    <string name="st_cat_about">Hilfe und Info</string>
+    <string name="st_group_gestures">Gesten</string>
 </resources>

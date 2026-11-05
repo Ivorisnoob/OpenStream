@@ -89,6 +89,7 @@
     <string name="home_recently_watched">हाल में देखा गया</string>
     <string name="home_weekend_movies">वीकेंड फ़िल्में</string>
     <string name="home_anime_movies">ऐनिमे फ़िल्में</string>
+    <string name="home_popular_on_service">%1$s पर लोकप्रिय</string>
     <string name="home_critically_acclaimed">समालोचकों की पसंद</string>
     <string name="home_top_result">शीर्ष परिणाम</string>
     <string name="home_rank_this_week">इस सप्ताह %1$d</string>
@@ -152,6 +153,7 @@
     <string name="details_play">चलाएं</string>
     <string name="details_trailer">ट्रेलर</string>
     <string name="details_episodes">एपिसोड</string>
+    <string name="details_latest">नवीनतम</string>
     <string name="details_more_like_this">इसी तरह के और</string>
     <string name="details_known_for">जाने जाते हैं</string>
     <string name="details_first_aired">पहली बार प्रसारित</string>
@@ -220,6 +222,7 @@
     <string name="player_enter_fullscreen">फ़ुलस्क्रीन में जाएं</string>
     <string name="player_exit_fullscreen">फ़ुलस्क्रीन से बाहर निकलें</string>
     <string name="player_pip">पिक्चर इन पिक्चर</string>
+    <string name="player_shader_look">शेडर इफ़ेक्ट</string>
     <string name="player_zoom_fill">भरने के लिए ज़ूम करें</string>
     <string name="player_playback_settings">प्लेबैक सेटिंग</string>
     <string name="player_waiting_tracks">वीडियो ट्रैक की प्रतीक्षा है</string>
@@ -259,6 +262,8 @@
     <string name="sheet_caption_style">कैप्शन शैली</string>
     <string name="sheet_text_size">अक्षर आकार</string>
     <string name="sheet_background">पृष्ठभूमि</string>
+    <string name="sheet_caption_position">स्थिति</string>
+    <string name="sheet_caption_position_raised">%1$d%% ऊपर</string>
     <string name="sheet_background_opacity">पृष्ठभूमि अपारदर्शिता</string>
     <string name="sheet_bold">मोटा</string>
     <string name="sheet_source">स्रोत</string>
@@ -340,6 +345,10 @@
     <string name="st_theme_system">सिस्टम</string>
     <string name="st_theme_light">हल्का</string>
     <string name="st_theme_dark">गहरा</string>
+    <string name="st_amoled_black">AMOLED काला</string>
+    <string name="st_amoled_black_hint">ऐप के गहरे रहने पर पूरी तरह काली सतहें।</string>
+    <string name="st_floating_nav_bar">फ़्लोटिंग नेविगेशन बार</string>
+    <string name="st_floating_nav_bar_hint">बंद होने पर नीचे किनारे पर सामान्य बार दिखता है।</string>
     <string name="st_dynamic_color">डायनामिक रंग</string>
     <string name="st_dynamic_hint">वॉलपेपर से रंग मिलाएं</string>
     <string name="st_language">भाषा</string>
@@ -364,9 +373,14 @@
     <string name="st_history_cleared">देखने का इतिहास और प्रगति साफ़ हो गई</string>
     <string name="st_clear_crash">क्रैश रिपोर्ट साफ़ करें</string>
     <string name="st_crash_cleared">क्रैश रिपोर्ट साफ़ हो गईं</string>
-    <string name="st_clear_cache">छवि कैश साफ़ करें</string>
-    <string name="st_cache_cleared">छवि कैश साफ़ हो गया</string>
-    <string name="st_cache_size">%1$s आर्टवर्क</string>
+    <string name="st_clear_all_cache">कैश साफ़ करें</string>
+    <string name="st_cache_used">आर्टवर्क और टाइटल जानकारी के लिए %1$s इस्तेमाल हुआ</string>
+    <string name="st_cache_hint">पेज जल्दी खुलें, इसलिए आर्टवर्क और टाइटल जानकारी रखी जाती है</string>
+    <string name="st_cache_cleared_all">कैश साफ़ हो गया</string>
+    <string name="st_cache_limit">कैश का आकार</string>
+    <string name="st_cache_limit_hint">आर्टवर्क और टाइटल जानकारी कितनी जगह ले सकती है। ऐप अगली बार खुलने पर लागू होगा।</string>
+    <string name="st_preload_artwork">आर्टवर्क पहले से लोड करें</string>
+    <string name="st_preload_artwork_hint">Wi-Fi पर, स्क्रॉल करने से पहले ही पंक्तियों के पोस्टर लोड करें</string>
     <string name="st_show_hidden">छिपे टाइटल दिखाएं</string>
     <string name="st_backup">लाइब्रेरी बैकअप लें</string>
     <string name="st_backup_hint">हर प्रोफ़ाइल का बाद में देखें, सूचियां, इतिहास और छिपे टाइटल, तथा सेटिंग</string>
@@ -400,7 +414,6 @@
     <string name="st_allow_install_note">पहले OpenStream को अपडेट इंस्टॉल करने दें, फिर वापस आकर इंस्टॉल पर टैप करें।</string>
     <string name="st_storage_help">संग्रहण और सहायता</string>
     <string name="st_on_device">इस डिवाइस पर</string>
-    <string name="st_posters_cache">तेज़ लोडिंग के लिए रखे गए पोस्टर और बैकड्रॉप</string>
     <string name="st_crash_include">%1$d क्रैश रिपोर्ट सहित</string>
     <string name="st_repo_data_note">रिपॉज़िटरी कोड नहीं, डेटा देती हैं</string>
     <string name="st_repo_data_body">एक्सटेंशन केवल ऐसा रिज़ॉल्वर चुनता और कॉन्फ़िगर करता है जो OpenStream में पहले से है, इसलिए कोई तृतीय-पक्ष सूची आपके डिवाइस पर अपना कोड नहीं चला सकती।</string>
@@ -430,6 +443,8 @@
     <string name="st_index_not_json">रिपॉज़िटरी इंडेक्स JSON ऑब्जेक्ट या ऐरे नहीं है</string>
     <string name="st_repo_lists_unreadable">रिपॉज़िटरी सूचियां पढ़ी नहीं जा सकीं</string>
     <string name="st_repo_no_extensions">रिपॉज़िटरी ने कोई एक्सटेंशन प्रकाशित नहीं किया</string>
+    <string name="st_repo_no_internet">इंटरनेट कनेक्शन नहीं है</string>
+    <string name="st_repo_not_valid">यह लिंक कोई रिपॉज़िटरी या Stremio ऐड-ऑन नहीं है</string>
     <string name="st_no_catalog">अभी कोई कैटलॉग नहीं</string>
     <string name="st_pull_repo_hint">रिपॉज़िटरी टैब में कोई रिपॉज़िटरी लाएं, या आधिकारिक कैटलॉग के लिए रीफ़्रेश करें।</string>
     <string name="st_official_repo">आधिकारिक एक्सटेंशन</string>
@@ -679,6 +694,7 @@
     <string name="player_rewind_seconds">%1$d सेकंड पीछे जाएं</string>
     <string name="src_up_to_quality">%1$s तक</string>
     <string name="src_adaptive">अडैप्टिव</string>
+    <string name="src_repo_official">आधिकारिक</string>
     <string name="src_available_count">%1$d उपलब्ध</string>
     <string name="src_progress">%1$s तैयार · %2$s में से %3$s जांचा गया</string>
     <string name="sub_checking_all">वीडियो के स्रोत, OpenSubtitles और SubSource की जांच हो रही है…</string>
@@ -858,4 +874,102 @@
     <string name="match_rail">आपके लिए टॉप मैच</string>
     <string name="match_percent">%1$d%% मैच</string>
     <string name="match_because">क्योंकि आपको %1$s पसंद आया</string>
+    <string name="dl_tab_downloads">डाउनलोड</string>
+    <string name="dl_tab_local_files">लोकल फ़ाइलें</string>
+    <string name="dl_save_to_storage_failed">स्टोरेज में सेव नहीं हो सका</string>
+    <string name="local_import_files">वीडियो इंपोर्ट करें</string>
+    <string name="local_no_files_title">कोई लोकल वीडियो नहीं</string>
+    <string name="local_no_files_body">OpenStream में देखने के लिए अपने डिवाइस से वीडियो फ़ाइलें इंपोर्ट करें</string>
+    <string name="local_file">लोकल वीडियो</string>
+    <string name="local_delete_confirm_title">लोकल वीडियो हटाएँ?</string>
+    <string name="local_delete_confirm_body">यह सिर्फ़ इस सूची से हटेगा। फ़ाइल आपके डिवाइस पर रहेगी।</string>
+    <string name="local_search_hint">लोकल वीडियो खोजें</string>
+    <string name="sort_name_asc">नाम (A–Z)</string>
+    <string name="sort_name_desc">नाम (Z–A)</string>
+    <string name="sort_date_added_desc">हाल में जोड़े गए</string>
+    <string name="sort_date_added_asc">पहले जोड़े गए</string>
+    <string name="sort_size_desc">सबसे बड़े</string>
+    <string name="sort_size_asc">सबसे छोटे</string>
+    <string name="sort_duration_desc">सबसे लंबे</string>
+    <string name="sort_duration_asc">सबसे छोटे (अवधि)</string>
+    <string name="dl_save_in_progress">यह पहले से डाउनलोड में सेव हो रहा है</string>
+    <string name="dl_storage_permission_needed">वीडियो को डाउनलोड फ़ोल्डर में सेव करने के लिए स्टोरेज की अनुमति दें</string>
+    <string name="dl_save_unsupported">यह डाउनलोड एक वीडियो फ़ाइल के रूप में सेव नहीं हो सकता</string>
+    <string name="dl_save_protected">यह स्ट्रीम सुरक्षित है, इसलिए यह सिर्फ़ OpenStream में चल सकती है</string>
+    <plurals name="local_import_success">
+        <item quantity="one">%1$d वीडियो इंपोर्ट हुआ</item>
+        <item quantity="other">%1$d वीडियो इंपोर्ट हुए</item>
+    </plurals>
+    <string name="dl_delete_confirm">डाउनलोड हटाएँ?</string>
+    <string name="dl_delete_body">%1$s को इस डिवाइस से हटाएँ? ऑफ़लाइन देखने के लिए इसे फिर से डाउनलोड करना होगा।</string>
+    <string name="dl_cancel_confirm">डाउनलोड रद्द करें?</string>
+    <string name="dl_cancel_body">%1$s का डाउनलोड रोकें? अधूरी फ़ाइल हटा दी जाएगी।</string>
+    <string name="action_keep">रखें</string>
+    <string name="season_episode_format">सीज़न %1$d, एपिसोड %2$d</string>
+    <string name="dl_pick_source_title">डाउनलोड स्रोत चुनें</string>
+    <string name="dl_pick_source_hint">चुनें कि कहाँ से डाउनलोड करना है।</string>
+    <string name="dl_pick_batch_hint">जहाँ उपलब्ध हो, हर एपिसोड के लिए वही प्रोवाइडर और क्वालिटी इस्तेमाल होगी जिसे आप टैप करेंगे।</string>
+    <string name="dl_batch_queued">%1$d एपिसोड डाउनलोड हो रहे हैं… इन्हें डाउनलोड में देखें।</string>
+    <string name="dl_season_already">यहाँ के सभी एपिसोड पहले से डाउनलोड हैं या हो रहे हैं</string>
+    <string name="dl_hold_options">स्रोत चुनने के लिए दबाकर रखें</string>
+    <string name="dl_hold_tip">टिप: स्रोत और क्वालिटी चुनने के लिए डाउनलोड को दबाकर रखें।</string>
+    <string name="dl_choose_source">डाउनलोड स्रोत चुनें</string>
+    <string name="dl_no_quality_match">इस क्वालिटी में अभी कोई स्रोत नहीं है।</string>
+    <string name="action_show_all">सभी दिखाएँ</string>
+    <plurals name="dl_delete_group_body">
+        <item quantity="one">%2$s का %1$d एपिसोड इस डिवाइस से हटाएँ? ऑफ़लाइन देखने के लिए इसे फिर से डाउनलोड करना होगा।</item>
+        <item quantity="other">%2$s के %1$d एपिसोड इस डिवाइस से हटाएँ? ऑफ़लाइन देखने के लिए इन्हें फिर से डाउनलोड करना होगा।</item>
+    </plurals>
+    <plurals name="dl_delete_episodes">
+        <item quantity="one">1 एपिसोड हटाएँ?</item>
+        <item quantity="other">%1$d एपिसोड हटाएँ?</item>
+    </plurals>
+    <plurals name="dl_batch_count">
+        <item quantity="one">%1$d एपिसोड</item>
+        <item quantity="other">%1$d एपिसोड</item>
+    </plurals>
+
+    <string name="sheet_volume_boost">वॉल्यूम बूस्ट</string>
+    <string name="sheet_volume_boost_desc">धीमी आवाज़ वाले वीडियो को तेज़ करता है। लिमिटर तेज़ हिस्सों को बिगड़ने नहीं देता। सामान्य पर वापस करने तक हर वीडियो पर लागू रहता है।</string>
+    <string name="sheet_external_player">बाहरी प्लेयर</string>
+    <string name="action_open_external_player">बाहरी प्लेयर में खोलें</string>
+
+    <string name="st_stream_cap">गुणवत्ता सीमा</string>
+    <string name="st_stream_cap_hint">स्ट्रीम जिस उच्चतम गुणवत्ता तक उपयोग कर सकती है। डिफ़ॉल्ट 1080p.</string>
+    <string name="st_stream_cap_none">कोई सीमा नहीं</string>
+    <string name="tv_hold_to_delete">हटाने के लिए OK दबाकर रखें</string>
+    <string name="tv_st_network">नेटवर्क</string>
+    <string name="tv_st_storage">स्टोरेज</string>
+    <string name="tv_hold_to_remove">हटाने के लिए OK दबाकर रखें</string>
+    <string name="tv_key_space">स्पेस</string>
+
+    <!-- Calendar -->
+    <string name="calendar_title">आने वाले</string>
+    <string name="calendar_subtitle">आपके फ़ॉलो किए गए शीर्षकों के नए एपिसोड और फ़िल्में</string>
+    <string name="calendar_next_up">आगे</string>
+    <string name="calendar_out_now">अभी उपलब्ध</string>
+    <string name="calendar_new_badge">नया</string>
+    <string name="calendar_watch_now_cd">%1$s अभी देखें</string>
+    <string name="calendar_day_cd">%1$s, निर्धारित: %2$d</string>
+    <string name="calendar_empty_title">कैलेंडर में अभी कुछ नहीं है</string>
+    <string name="calendar_empty_body">कोई शो सहेजें या देखना शुरू करें, उसके नए एपिसोड यहां दिखेंगे।</string>
+    <string name="calendar_nothing_scheduled">आपके फ़ॉलो किए गए शीर्षकों की कोई तारीख घोषित नहीं हुई है।</string>
+    <string name="calendar_nothing_filter">इस फ़िल्टर में कुछ नहीं है।</string>
+    <string name="calendar_suggestions">इस हफ़्ते प्रसारित</string>
+    <string name="calendar_some_failed">कुछ शीर्षक जांचे नहीं जा सके। फिर कोशिश करने के लिए नीचे खींचें।</string>
+    <string name="calendar_error">कैलेंडर लोड नहीं हो सका</string>
+    <string name="st_section_quality">गुणवत्ता और डेटा</string>
+    <string name="st_section_network">नेटवर्क</string>
+    <string name="st_search_hint">सेटिंग खोजें</string>
+    <string name="st_search_none">“%1$s” से कोई सेटिंग मेल नहीं खाती</string>
+    <string name="st_search_none_hint">कोई दूसरा शब्द आज़माएं, जैसे थीम, सबटाइटल या क्वालिटी।</string>
+    <plurals name="st_search_results">
+        <item quantity="one">%1$d सेटिंग मिली</item>
+        <item quantity="other">%1$d सेटिंग मिलीं</item>
+    </plurals>
+    <string name="st_cat_personalization">निजीकरण</string>
+    <string name="st_cat_player">प्लेयर और जेस्चर</string>
+    <string name="st_cat_library">प्रोफ़ाइल और लाइब्रेरी</string>
+    <string name="st_cat_about">मदद और जानकारी</string>
+    <string name="st_group_gestures">जेस्चर</string>
 </resources>

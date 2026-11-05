@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.player
 
+import com.ivor.openstream.ui.theme.onScrim
 import com.ivor.openstream.presentation.lists.AddToListSheet
 import com.ivor.openstream.presentation.player.components.PlayerInfoSections
 import androidx.compose.ui.unit.min
@@ -13,8 +14,6 @@ import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ContentTransform
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -41,6 +40,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -72,6 +72,11 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
+import com.ivor.openstream.presentation.tv.TvButton
+import com.ivor.openstream.presentation.tv.TvOutlinedButton
+import com.ivor.openstream.presentation.tv.TV_BACKDROP_BASE
+import com.ivor.openstream.presentation.tv.TvPlayerLoading
+import com.ivor.openstream.presentation.tv.TvPlayerLoadingStatus
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
@@ -124,14 +129,17 @@ import com.ivor.openstream.presentation.player.components.SourcesPanel
 import com.ivor.openstream.presentation.player.components.UpNextOverlay
 import com.ivor.openstream.presentation.player.components.PlayerInfoPanel
 import com.ivor.openstream.presentation.components.ExpressiveBackButton
+import com.ivor.openstream.presentation.components.ExpressiveMotion
+import com.ivor.openstream.presentation.components.LocalWindowWidthClass
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 import androidx.compose.runtime.key
 
-// Expressive Motion Tokens
-private val ExpressiveDefaultSpatial = CubicBezierEasing(0.38f, 1.21f, 0.22f, 1.00f)
-private val ExpressiveDefaultEffects = CubicBezierEasing(0.34f, 0.80f, 0.34f, 1.00f)
-private const val DurationSpatialDefault = 500
-private const val DurationEffectsDefault = 200
+/**
+ * How far into a title a resume has to be before the chip offers to start over. A few seconds in is
+ * not a decision the viewer made, and a chip for it would only be in the way.
+ */
+private const val RESUME_CHIP_MIN_MS = 15_000L
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @kotlin.OptIn(ExperimentalMaterial3ExpressiveApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -142,6 +150,7 @@ fun PlayerScreen(
     season: Int,
     episode: Int,
     downloadId: String? = null,
+    localMediaId: Long? = null,
     onBackClick: () -> Unit,
     onEpisodeClick: (season: Int, episode: Int) -> Unit,
     onOpenDetails: (mediaType: String, id: Int) -> Unit = { _, _ -> },
@@ -160,6 +169,8 @@ fun PlayerScreen(
     val mediaDetails by viewModel.mediaDetails.collectAsState()
     val currentEpisode by viewModel.currentEpisode.collectAsState()
     val captionSettings by viewModel.captionSettings.collectAsState()
+    val videoShaders by viewModel.videoShaders.collectAsState()
+    val videoShaderHidden by viewModel.videoShaderHidden.collectAsState()
     val serversState by viewModel.serversState.collectAsState()
     val activeServer by viewModel.activeServer.collectAsState()
     val currentDownload by viewModel.currentDownload.collectAsState()
@@ -180,17 +191,26 @@ fun PlayerScreen(
     val castError by viewModel.castError.collectAsState()
     val castLoading by viewModel.castLoading.collectAsState()
     val castSubtitles by viewModel.castSubtitles.collectAsState()
+    val castStreamOptions by viewModel.castStreamOptions.collectAsState()
     val isCasting = castStatus.isCasting
     var showCastSheet by remember { mutableStateOf(false) }
     val enterPictureInPicture = rememberEnterPictureInPicture()
 
+    val isLocalOrDownloaded = downloadId != null || localMediaId != null
     var localVideoUrl by rememberSaveable { mutableStateOf<String?>(null) }
-    var isResolvingLocalUri by remember { mutableStateOf(downloadId != null) }
+    var downloadMimeType by rememberSaveable { mutableStateOf<String?>(null) }
+    var isResolvingLocalUri by remember { mutableStateOf(isLocalOrDownloaded) }
     var showServerPicker by rememberSaveable { mutableStateOf(false) }
-    var resumePositionMs by rememberSaveable(tmdbId, season, episode, downloadId) {
+    var resumePositionMs by rememberSaveable(tmdbId, season, episode, downloadId, localMediaId) {
         mutableLongStateOf(0L)
     }
-    var sessionPlaybackSpeed by rememberSaveable(tmdbId, season, episode, downloadId) {
+    // The position this session actually resumed from, for the chip that offers to start over. Not
+    // saveable on purpose: after a rotation the chip has had its chance, and the position itself is
+    // kept by [resumePositionMs].
+    var resumedFromMs by remember(tmdbId, season, episode, downloadId, localMediaId) {
+        mutableStateOf<Long?>(null)
+    }
+    var sessionPlaybackSpeed by rememberSaveable(tmdbId, season, episode, downloadId, localMediaId) {
         mutableFloatStateOf(viewModel.appSettings.value.defaultSpeed)
     }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -223,7 +243,10 @@ fun PlayerScreen(
 
     LaunchedEffect(startPositionMs) {
         val saved = startPositionMs ?: return@LaunchedEffect
-        if (resumePositionMs == 0L && saved > 0L) resumePositionMs = saved
+        if (resumePositionMs == 0L && saved > 0L) {
+            resumePositionMs = saved
+            if (saved >= RESUME_CHIP_MIN_MS) resumedFromMs = saved
+        }
     }
 
     // Fullscreen state
@@ -231,7 +254,8 @@ fun PlayerScreen(
     var isRotationLocked by rememberSaveable { mutableStateOf(false) }
     val isInPictureInPicture = rememberIsInPictureInPicture()
     // Picture-in-picture shows the bare video, exactly like fullscreen minus the chrome.
-    val isImmersive = isFullscreen || isInPictureInPicture
+    // A TV never shows the phone's info panel under the video, not even while a source is found.
+    val isImmersive = isFullscreen || isInPictureInPicture || tvControls
     var isVideoPlaying by remember { mutableStateOf(false) }
     var togglePlaybackSignal by remember { mutableIntStateOf(0) }
 
@@ -263,22 +287,33 @@ fun PlayerScreen(
     )
 
     // Trigger data fetch
-    LaunchedEffect(tmdbId, season, episode, downloadId) {
-        if (downloadId != null) {
+    LaunchedEffect(tmdbId, season, episode, downloadId, localMediaId) {
+        if (localMediaId != null) {
             isResolvingLocalUri = true
-            val uri = viewModel.getPlaybackUri(downloadId)
-            if (uri != null) {
-                localVideoUrl = uri
+            val item = viewModel.getLocalMedia(localMediaId)
+            if (item != null) {
+                localVideoUrl = item.uri
             }
             isResolvingLocalUri = false
+            viewModel.loadLocalMedia(localMediaId)
+        } else {
+            if (downloadId != null) {
+                isResolvingLocalUri = true
+                val uri = viewModel.getPlaybackUri(downloadId)
+                downloadMimeType = viewModel.getPlaybackMimeType(downloadId)
+                if (uri != null) {
+                    localVideoUrl = uri
+                }
+                isResolvingLocalUri = false
+            }
+            viewModel.loadSeasonDetails(
+                mediaType = mediaType,
+                tmdbId = tmdbId,
+                seasonNumber = season,
+                currentEpisodeNumber = episode,
+                resolveStreams = downloadId == null
+            )
         }
-        viewModel.loadSeasonDetails(
-            mediaType = mediaType,
-            tmdbId = tmdbId,
-            seasonNumber = season,
-            currentEpisodeNumber = episode,
-            resolveStreams = downloadId == null
-        )
     }
 
     // Read in composition: the snackbar is shown from a coroutine where stringResource is unavailable.
@@ -299,12 +334,14 @@ fun PlayerScreen(
     }
     
     // Dynamic Title for Player HUD
-    val playerTitle = if (mediaType == "movie") {
+    val playerTitle = if (localMediaId != null) {
+        mediaDetails?.name ?: stringResource(R.string.local_file)
+    } else if (mediaType == "movie") {
         mediaDetails?.name ?: stringResource(R.string.details_movie)
     } else {
         mediaDetails?.name ?: stringResource(R.string.player_show_fallback)
     }
-    val playerSubtitle = if (mediaType == "movie") "" else {
+    val playerSubtitle = if (localMediaId != null || mediaType == "movie") "" else {
         val epName = currentEpisode?.name ?: stringResource(R.string.misc_episode_number, episode)
         "S$season:E$episode • $epName"
     }
@@ -359,13 +396,17 @@ fun PlayerScreen(
     }
 
     // On a TV the player opens immersive: a 10-foot screen has no use for the surrounding chrome.
-    LaunchedEffect(tvControls, videoUrl) {
-        if (tvControls && videoUrl != null && !isFullscreen) enterFullscreen()
+    LaunchedEffect(tvControls) {
+        if (tvControls && !isFullscreen) enterFullscreen()
     }
 
     // Handle back press in fullscreen -- exit fullscreen instead of navigating back
-    BackHandler(enabled = isFullscreen) {
+    BackHandler(enabled = !tvControls && isFullscreen) {
         exitFullscreen()
+    }
+    // Android TV: closing an open source picker leaves the player.
+    BackHandler(enabled = tvControls && showServerPicker) {
+        showServerPicker = false
     }
 
     // Clean up on dispose
@@ -399,7 +440,62 @@ fun PlayerScreen(
         }
     }
     if (showDataWarning) {
-        AlertDialog(
+        if (tvControls) {
+            // TV: the same question as an in-place overlay with a focus ring on each
+            // answer, instead of an AlertDialog — a remote cannot dismiss a dialog
+            // window, and focus would be trapped behind the video surface.
+            val dataWarningTitle = stringResource(R.string.st_data_mobile_now)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.65f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.widthIn(max = 520.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(28.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.DataUsage,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Text(dataWarningTitle, style = MaterialTheme.typography.headlineSmall)
+                        }
+                        Text(dataWarningMessage, style = MaterialTheme.typography.bodyMedium)
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            TvButton(onClick = {
+                                viewModel.markDataWarningAnswered()
+                                showDataWarning = false
+                            }) {
+                                Text(stringResource(R.string.action_continue_anyway))
+                            }
+                            TvOutlinedButton(onClick = {
+                                // Lower the ceiling for this playback and stop asking on this network.
+                                viewModel.markDataWarningAnswered()
+                                viewModel.setWarnBeforeMeteredStream(false)
+                                viewModel.capVideoHeight(480)
+                                showDataWarning = false
+                            }) {
+                                Text(stringResource(R.string.action_play_small, 480))
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // Phone only (guarded above by the tvControls branch): an AlertDialog
+            // window works under touch, and a TV never reaches this branch.
+            AlertDialog(
             onDismissRequest = { viewModel.markDataWarningAnswered(); showDataWarning = false },
             icon = { Icon(Icons.Default.DataUsage, contentDescription = null) },
             title = { Text(stringResource(R.string.st_data_mobile_now)) },
@@ -420,6 +516,7 @@ fun PlayerScreen(
                 }) { Text(stringResource(R.string.action_play_small, 480)) }
             }
         )
+        }
     }
 
     val sourceActions = SourcesPageActions(
@@ -448,7 +545,8 @@ fun PlayerScreen(
             // Wide windows (tablets in landscape, desktop) use YouTube's desktop layout: the video in
             // the top-left corner with what's playing under it, and the queue in a column on the right.
             // Narrower ones stack everything under a full-width 16:9 video.
-            val wide = maxWidth >= 840.dp
+            // Expanded starts at 840.dp, matching the previous hand-rolled breakpoint exactly.
+            val wide = LocalWindowWidthClass.current == WindowWidthSizeClass.Expanded
             val sideBySide = !isImmersive && wide
             val gutter = if (wide) 16.dp else 0.dp
             val queueWidth = if (wide) (maxWidth * 0.32f).coerceIn(340.dp, 420.dp) else 0.dp
@@ -463,6 +561,8 @@ fun PlayerScreen(
             val videoWidth = if (wide) videoHeight * 16f / 9f else maxWidth
 
             // 1. Video Player Area - Always present, size depends on isFullscreen
+            // Fades follow the theme (instant with reduced motion).
+            val videoFade = ExpressiveMotion.finiteEffectsSpec()
             val videoModifier = if (isImmersive) {
                 Modifier.fillMaxSize()
             } else {
@@ -474,13 +574,13 @@ fun PlayerScreen(
 
             Box(
                 modifier = videoModifier
-                    .background(Color.Black)
+                    .background(MaterialTheme.colorScheme.scrim)
             ) {
             AnimatedContent(
                 targetState = videoUrl != null,
                 transitionSpec = {
-                    fadeIn(tween(DurationEffectsDefault, easing = ExpressiveDefaultEffects)) togetherWith 
-                    fadeOut(tween(DurationEffectsDefault, easing = ExpressiveDefaultEffects))
+                    fadeIn(videoFade) togetherWith
+                    fadeOut(videoFade)
                 },
                 label = "PlayerState"
             ) { hasUrl ->
@@ -499,13 +599,16 @@ fun PlayerScreen(
                         isLoading = castLoading,
                         error = castError,
                         subtitles = castSubtitles,
+                        streamOptions = castStreamOptions,
                         seekStepSeconds = appSettings.seekStepSeconds,
                         onSelectSubtitle = viewModel::selectCastSubtitle,
+                        onSelectQuality = viewModel::selectCastQuality,
+                        onSelectAudio = viewModel::selectCastAudio,
                         onRetry = viewModel::retryCast,
-                        onChooseSource = { showServerPicker = true }.takeIf { downloadId == null },
+                        onChooseSource = { showServerPicker = true }.takeIf { !isLocalOrDownloaded },
                         onNextClick = onNextClick,
                         onBackClick = onBackClick,
-                        onCastClick = { showCastSheet = true },
+                        onCastClick = { showCastSheet = true }.takeIf { !tvControls },
                         onPlaybackEnded = {
                             val stoppedBySleepTimer = viewModel.consumeEndedBySleepTimer()
                             showUpNext = nextEpisode != null && appSettings.autoPlayNext && !stoppedBySleepTimer
@@ -532,18 +635,17 @@ fun PlayerScreen(
                             },
                             modifier = Modifier.fillMaxSize(),
                             remoteSubtitles = allSubtitles,
-                            sourceLabel = if (downloadId != null) {
-                                stringResource(R.string.dl_offline_copy)
-                            } else {
-                                activeServer?.name
+                            sourceLabel = when {
+                                localMediaId != null -> stringResource(R.string.local_file)
+                                downloadId != null -> stringResource(R.string.dl_offline_copy)
+                                else -> activeServer?.name
                             },
-                            sourceSummary = if (downloadId != null) {
-                                stringResource(R.string.dl_stored_device)
-                            } else {
-                                activeServer?.let { "${it.providerName} · ${it.sourceSummary(LocalContext.current)}" }
+                            sourceSummary = when {
+                                localMediaId != null || downloadId != null -> stringResource(R.string.dl_stored_device)
+                                else -> activeServer?.sourceDetails(LocalContext.current)
                             },
                             serversState = serversState,
-                            canChangeSource = downloadId == null,
+                            canChangeSource = !isLocalOrDownloaded,
                             initialPositionMs = resumePositionMs,
                             onPositionChanged = { resumePositionMs = it },
                             onPlaybackEnded = {
@@ -561,6 +663,7 @@ fun PlayerScreen(
                             // Times from the source itself beat AniSkip's crowd-sourced ones.
                             skipSegments = activeServer?.skipSegments?.takeIf { it.isNotEmpty() } ?: skipSegments,
                             showSkipButton = appSettings.showSkipButton,
+                            upNextVisible = showUpNext && nextEpisode != null,
                             episodes = if (mediaType == "movie") emptyList() else seasonEpisodes,
                             currentEpisodeNumber = episode,
                             episodeProgress = episodeProgress,
@@ -578,22 +681,84 @@ fun PlayerScreen(
                             onAudioLanguageChosen = viewModel::setPreferredAudioLanguage,
                             onCaptionSettingsChange = viewModel::updateCaptionSettings,
                             onPlaybackError = { error ->
-                                if (downloadId == null) {
+                                if (!isLocalOrDownloaded) {
                                     viewModel.onPlaybackError(error)
                                     showServerPicker = viewModel.activeServer.value == null
                                 }
                             },
                             onPlaybackReady = viewModel::onPlaybackReady,
-                            onCastClick = { showCastSheet = true }.takeIf { castStatus.supported },
+                            // TV: no cast sheet (a ModalBottomSheet a remote cannot operate);
+                            // casting starts on the phone, and ''play here'' is the TV answer.
+                            onCastClick = { showCastSheet = true }.takeIf { castStatus.supported && !tvControls },
                             onPictureInPictureClick = enterPictureInPicture,
                             loadSubtitleText = viewModel::loadSubtitleText,
                             keepPlayingInBackground = appSettings.keepPlayingInBackground,
+                            volumeBoostPercent = appSettings.volumeBoostPercent,
+                            onVolumeBoostChange = viewModel::setVolumeBoostPercent,
+                            // No shader stage in this player: the row would change nothing until a restart.
+                            videoShaders = if (viewModel.shadersApplyNow) videoShaders else videoShaders.copy(masterEnabled = false),
+                            onPreviewVideoShaders = viewModel::previewVideoShaders,
+                            onVideoShadersChange = viewModel::setVideoShaders,
+                            videoShaderHidden = videoShaderHidden,
+                            onVideoShaderHiddenChange = viewModel::setVideoShaderHidden,
+                            videoGestures = appSettings.videoGestures,
+                            resumedFromMs = resumedFromMs,
+                            onPlayFromStart = {
+                                resumedFromMs = null
+                                resumePositionMs = 0L
+                                viewModel.player.seekTo(0L)
+                                viewModel.player.play()
+                            },
+                            // Downloads and local files have no stream another app could open.
+                            onOpenExternalPlayer = if (activeServer != null) {
+                                { viewModel.openInExternalPlayer(context) }
+                            } else {
+                                null
+                            },
                             dpadControls = tvControls,
                             artworkUri = (currentEpisode?.stillPath ?: mediaDetails?.backdropPath)
                                 ?.let { "https://image.tmdb.org/t/p/w1280$it" },
-                            mimeType = activeServer?.mimeType.takeIf { downloadId == null }
+                            mimeType = if (isLocalOrDownloaded) downloadMimeType else activeServer?.mimeType
                         )
                     }
+                } else if (tvControls) {
+                    val isMovie = mediaType == "movie" || localMediaId != null
+                    val runtime = if (isMovie) mediaDetails?.runtime else currentEpisode?.runtime
+                    val rating = (if (isMovie) mediaDetails?.voteAverage else currentEpisode?.voteAverage)
+                        ?.takeIf { it > 0 }
+                    TvPlayerLoading(
+                        showName = mediaDetails?.name.takeIf { !isMovie },
+                        title = if (isMovie) playerTitle else {
+                            currentEpisode?.name ?: stringResource(R.string.misc_episode_number, episode)
+                        },
+                        meta = listOfNotNull(
+                            if (isMovie) mediaDetails?.date?.take(4)?.takeIf { it.isNotBlank() }
+                            else stringResource(R.string.li_episode_code, season, episode),
+                            runtime?.let { stringResource(R.string.misc_runtime_min, it) },
+                            rating?.let { "★ %.1f".format(it) }
+                        ).joinToString("  ·  "),
+                        overview = (if (isMovie) mediaDetails?.overview else currentEpisode?.overview)
+                            ?.takeIf { it.isNotBlank() } ?: mediaDetails?.overview,
+                        imageUrl = (currentEpisode?.stillPath?.takeIf { !isMovie } ?: mediaDetails?.backdropPath)
+                            ?.let { "$TV_BACKDROP_BASE$it" },
+                        status = if (isResolvingLocalUri) TvPlayerLoadingStatus.OpeningOffline else when (val state = serversState) {
+                            is ServersState.Resolving -> TvPlayerLoadingStatus.Searching(
+                                found = state.servers.size,
+                                checked = state.completedProviders,
+                                total = state.totalProviders
+                            )
+                            // A picked source is only waiting for the saved position.
+                            is ServersState.Ready -> if (activeServer == null) {
+                                TvPlayerLoadingStatus.ChooseSource
+                            } else {
+                                TvPlayerLoadingStatus.Preparing
+                            }
+                            is ServersState.Empty -> TvPlayerLoadingStatus.NothingFound
+                            ServersState.Idle -> TvPlayerLoadingStatus.Preparing
+                        },
+                        onChooseSource = { showServerPicker = true },
+                        onRetry = viewModel::retryResolution
+                    )
                 } else {
                     Box(Modifier.fillMaxSize()) {
                         // Resolution / Loading Overlay (Cinematic)
@@ -604,10 +769,12 @@ fun PlayerScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .background(Color.Black)
+                                    .background(MaterialTheme.colorScheme.scrim)
                             ) {
                                 // Blurred Backdrop
                                 val backdropPath = mediaDetails?.backdropPath
+                                // Hoisted: draw blocks aren't composable and can't read the theme.
+                                val backdropScrim = MaterialTheme.colorScheme.scrim
                                 if (backdropPath != null) {
                                     AsyncImage(
                                         model = "https://image.tmdb.org/t/p/w1280$backdropPath",
@@ -620,8 +787,8 @@ fun PlayerScreen(
                                                 drawRect(
                                                     brush = Brush.verticalGradient(
                                                         colors = listOf(
-                                                            Color.Black.copy(alpha = 0.5f),
-                                                            Color.Black.copy(alpha = 0.8f)
+                                                            backdropScrim.copy(alpha = 0.5f),
+                                                            backdropScrim.copy(alpha = 0.8f)
                                                         )
                                                     ),
                                                     blendMode = BlendMode.SrcOver
@@ -649,7 +816,7 @@ fun PlayerScreen(
                                     }
                                     Text(
                                         text = playerTitle,
-                                        color = Color.White,
+                                        color = MaterialTheme.colorScheme.onScrim,
                                         style = if (isFullscreen) {
                                             MaterialTheme.typography.headlineSmall
                                         } else {
@@ -663,7 +830,7 @@ fun PlayerScreen(
                                     if (playerSubtitle.isNotEmpty()) {
                                         Text(
                                             text = playerSubtitle,
-                                            color = Color.White.copy(alpha = 0.7f),
+                                            color = MaterialTheme.colorScheme.onScrim.copy(alpha = 0.7f),
                                             style = if (isFullscreen) {
                                                 MaterialTheme.typography.titleSmall
                                             } else {
@@ -691,7 +858,7 @@ fun PlayerScreen(
                                                 stringResource(R.string.player_preparing_sources)
                                             }
                                         },
-                                        color = Color.White.copy(alpha = 0.6f),
+                                        color = MaterialTheme.colorScheme.onScrim.copy(alpha = 0.6f),
                                         style = MaterialTheme.typography.labelMedium,
                                         textAlign = TextAlign.Center
                                     )
@@ -719,8 +886,8 @@ fun PlayerScreen(
                                 ) {
                                     ExpressiveBackButton(
                                         onClick = onBackClick,
-                                        containerColor = Color.White.copy(alpha = 0.1f),
-                                        contentColor = Color.White
+                                        containerColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.1f),
+                                        contentColor = MaterialTheme.colorScheme.onScrim
                                     )
                                 }
                             }
@@ -730,6 +897,8 @@ fun PlayerScreen(
             }
             val target = nextEpisode
             if (showUpNext && target != null && !isInPictureInPicture) {
+                // Composed after the player's own handler, so Back dismisses this first.
+                BackHandler(enabled = tvControls) { showUpNext = false }
                 UpNextOverlay(
                     target = target,
                     onPlayNow = {
@@ -737,6 +906,8 @@ fun PlayerScreen(
                         onEpisodeClick(target.season, target.episode)
                     },
                     onCancel = { showUpNext = false },
+                    autoAdvance = !tvControls,
+                    dpadControls = tvControls,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(if (isFullscreen) 32.dp else 12.dp)
@@ -746,8 +917,10 @@ fun PlayerScreen(
             // Once a stream plays, Sources is a page inside the player's settings panel.
             SourcesPanel(
                 // While casting there is no in-player settings panel, so sources open here too.
-                visible = showServerPicker && (videoUrl == null || isCasting) && downloadId == null,
+                visible = showServerPicker && (videoUrl == null || isCasting) && !isLocalOrDownloaded,
                 isFullscreen = isFullscreen,
+                // TV: the side-panel rendering instead of a ModalBottomSheet.
+                tvControls = tvControls,
                 state = serversState,
                 actions = sourceActions,
                 onDismiss = { showServerPicker = false }
@@ -757,13 +930,15 @@ fun PlayerScreen(
             // Under the video: what's playing, what's next, and the rest of the season. Wide windows
             // split it: the "about" part under the video, the queue in the right-hand column.
             val infoPanel: @Composable (Modifier, PlayerInfoSections) -> Unit = { panelModifier, sections ->
+                val infoFade = ExpressiveMotion.finiteEffectsSpec()
+                val infoSlide = ExpressiveMotion.finiteSpatialSpec()
                 AnimatedVisibility(
                     visible = !isImmersive,
                     modifier = panelModifier,
-                    enter = fadeIn(tween(DurationEffectsDefault, easing = ExpressiveDefaultEffects)) +
-                        slideInVertically(tween(DurationSpatialDefault, easing = ExpressiveDefaultSpatial)) { it / 4 },
-                    exit = fadeOut(tween(DurationEffectsDefault, easing = ExpressiveDefaultEffects)) +
-                        slideOutVertically(tween(DurationSpatialDefault, easing = ExpressiveDefaultSpatial)) { it / 4 }
+                    enter = fadeIn(infoFade) +
+                        slideInVertically(infoSlide) { it / 4 },
+                    exit = fadeOut(infoFade) +
+                        slideOutVertically(infoSlide) { it / 4 }
                 ) {
                     PlayerInfoPanel(
                         mediaType = mediaType,
@@ -776,12 +951,16 @@ fun PlayerScreen(
                         episodeProgress = episodeProgress,
                         nextEpisode = nextEpisode,
                         download = currentDownload,
-                        canDownload = downloadId == null && activeServer?.isDownloadable == true,
+                        canDownload = !isLocalOrDownloaded && activeServer?.isDownloadable == true,
                         isSaved = isSaved || memberOf.isNotEmpty(),
                         onPlayEpisode = onEpisodeClick,
                         onDownload = { activeServer?.let(viewModel::downloadVideo) },
                         onRemoveDownload = { currentDownload?.let { viewModel.removeDownload(it.downloadId) } },
-                        onSave = { showListSheet = true },
+                        onSave = {
+                            // TV: the tile toggles saved in place; the "Save to" sheet
+                            // (a ModalBottomSheet) is a phone affordance.
+                            if (tvControls) viewModel.toggleSaved() else showListSheet = true
+                        },
                         onOpenDetails = { onOpenDetails(mediaType, tmdbId) },
                         onOpenTitle = onOpenTitle,
                         sections = sections

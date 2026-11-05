@@ -17,10 +17,7 @@ import okhttp3.Request
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.IOException
-import java.nio.ByteBuffer
-import java.nio.charset.CharacterCodingException
 import java.net.URI
-import java.nio.charset.CodingErrorAction
 import java.util.zip.GZIPInputStream
 import java.util.zip.ZipInputStream
 import javax.inject.Inject
@@ -38,9 +35,17 @@ class SubtitleFetcher @Inject constructor(
     @ApplicationContext private val context: Context,
     @Named("StreamingClient") private val client: OkHttpClient
 ) {
-    /** The subtitle's text. [headers] are the stream's (Referer...), sent only to the stream's hosts. */
-    suspend fun fetchText(url: String, headers: Map<String, String> = emptyMap()): String = withContext(Dispatchers.IO) {
-        if (url.startsWith("file:")) return@withContext readSaved(url)
+    /**
+     * The subtitle's text. [headers] are the stream's (Referer...), sent only to the stream's hosts.
+     * [language] (a code or English name, as the source gives it) picks the codepage for files that
+     * are not UTF-8.
+     */
+    suspend fun fetchText(
+        url: String,
+        headers: Map<String, String> = emptyMap(),
+        language: String? = null
+    ): String = withContext(Dispatchers.IO) {
+        if (url.startsWith("file:")) return@withContext readSaved(url, language)
         val bytes = when {
             SubSourceRepository.isSubSourceUrl(url) -> download(SubSourceRepository.resolveDownloadUrl(context, client, url), emptyMap())
             url.toHttpUrlOrNull()?.host?.endsWith("opensubtitles.org") == true ->
@@ -48,8 +53,8 @@ class SubtitleFetcher @Inject constructor(
                 download(url, mapOf("User-Agent" to OpenSubtitlesRepository.USER_AGENT))
             else -> download(url, mapOf("User-Agent" to BROWSER_USER_AGENT) + headers)
         }
-        val text = textOf(bytes)
-        if (text.isPlaylist()) joinPlaylist(url, text, headers) else text
+        val text = textOf(bytes, language)
+        if (text.isPlaylist()) joinPlaylist(url, text, headers, language) else text
     }
 
     /**
@@ -61,6 +66,7 @@ class SubtitleFetcher @Inject constructor(
         playlistUrl: String,
         playlist: String,
         headers: Map<String, String>,
+        language: String?,
         depth: Int = 0
     ): String = coroutineScope {
         val base = playlistUrl.toHttpUrlOrNull() ?: throw IOException(context.getString(R.string.dl_bad_sub_address))
@@ -72,16 +78,16 @@ class SubtitleFetcher @Inject constructor(
 
         if (depth == 0 && Regex("#EXT-X-STREAM-INF|#EXT-X-MEDIA").containsMatchIn(playlist)) {
             val media = entries.first()
-            val text = textOf(download(media, requestHeaders))
+            val text = textOf(download(media, requestHeaders), language)
             if (!text.isPlaylist()) return@coroutineScope text
-            return@coroutineScope joinPlaylist(media, text, headers, depth + 1)
+            return@coroutineScope joinPlaylist(media, text, headers, language, depth + 1)
         }
 
         val parts = entries.take(MAX_PLAYLIST_SEGMENTS).chunked(PLAYLIST_PARALLELISM).flatMap { batch ->
             batch.map { segmentUrl ->
                 async(Dispatchers.IO) {
                     // An empty segment (no cues in that stretch) is normal; skip it.
-                    runCatching { textOf(download(segmentUrl, requestHeaders)) }
+                    runCatching { textOf(download(segmentUrl, requestHeaders), language) }
                         .getOrElse { error -> if (error is IOException && error.message == EMPTY_FILE) null else throw error }
                 }
             }.awaitAll()
@@ -92,9 +98,12 @@ class SubtitleFetcher @Inject constructor(
 
     private fun String.isPlaylist() = trimStart().startsWith("#EXTM3U")
 
-    /** Subtitle text from raw file bytes: unzips or gunzips when needed, then guesses the charset. */
-    fun textOf(bytes: ByteArray): String {
-        val text = decode(unwrap(bytes))
+    /**
+     * Subtitle text from raw file bytes: unzips or gunzips when needed, then works out the charset
+     * ([SubtitleCharset]), using [language] for files that are not UTF-8.
+     */
+    fun textOf(bytes: ByteArray, language: String? = null): String {
+        val text = SubtitleCharset.decode(unwrap(bytes), SavedSubtitleRepository.normalizeLanguage(language))
         if (text.isBlank()) throw IOException(EMPTY_FILE)
         return text
     }
@@ -103,13 +112,14 @@ class SubtitleFetcher @Inject constructor(
      * Saved subtitles only. The cast proxy hands any URL it is given to [fetchText], so a file
      * path from anywhere else on the device must never be read.
      */
-    private fun readSaved(url: String): String {
+    private fun readSaved(url: String, language: String?): String {
         val file = File(URI(url)).canonicalFile
         val root = SavedSubtitleRepository.rootDirectory(context).canonicalPath + File.separator
         if (!file.path.startsWith(root) || file.extension.lowercase() !in SavedSubtitleRepository.FILE_EXTENSIONS) {
             throw IOException(context.getString(R.string.dl_not_saved_sub))
         }
-        return file.readText()
+        // Saved as UTF-8; decoding like any other file also covers copies kept in another charset.
+        return SubtitleCharset.decode(file.readBytes(), SavedSubtitleRepository.normalizeLanguage(language))
     }
 
     private fun download(url: String, headers: Map<String, String>): ByteArray {
@@ -143,19 +153,6 @@ class SubtitleFetcher @Inject constructor(
             }
         }
         return best ?: throw IOException(context.getString(R.string.dl_no_sub_in_archive))
-    }
-
-    /** UTF-8 when the file is valid UTF-8, otherwise Windows-1252 (common for older SRTs). */
-    private fun decode(bytes: ByteArray): String {
-        val strict = Charsets.UTF_8.newDecoder()
-            .onMalformedInput(CodingErrorAction.REPORT)
-            .onUnmappableCharacter(CodingErrorAction.REPORT)
-        val text = try {
-            strict.decode(ByteBuffer.wrap(bytes)).toString()
-        } catch (_: CharacterCodingException) {
-            String(bytes, charset("windows-1252"))
-        }
-        return text.removePrefix("﻿")
     }
 
     private companion object {

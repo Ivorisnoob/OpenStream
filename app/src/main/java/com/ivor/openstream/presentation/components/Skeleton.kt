@@ -17,7 +17,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.unit.dp
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 
 /**
@@ -27,6 +29,12 @@ import com.ivor.openstream.ui.theme.ExpressiveShapes
 fun Modifier.shimmer(): Modifier = composed {
     val base = MaterialTheme.colorScheme.surfaceContainerHighest
     val highlight = MaterialTheme.colorScheme.surfaceContainerHigh
+    // "Remove animations" shows a static placeholder instead of an endless sweep.
+    if (ExpressiveMotion.reducedMotion()) {
+        return@composed background(base)
+    }
+    // Span in dp, not raw pixels, so the sweep travels the same distance on every density.
+    val span = with(LocalDensity.current) { 500.dp.toPx() }
     val progress by rememberInfiniteTransition(label = "shimmer").animateFloat(
         initialValue = -1f,
         targetValue = 2f,
@@ -36,8 +44,8 @@ fun Modifier.shimmer(): Modifier = composed {
     background(
         Brush.linearGradient(
             colors = listOf(base, highlight, base),
-            start = Offset(progress * 1_000f, 0f),
-            end = Offset(progress * 1_000f + 600f, 600f)
+            start = Offset(progress * span, 0f),
+            end = Offset(progress * span + span * 0.6f, span * 0.6f)
         )
     )
 }

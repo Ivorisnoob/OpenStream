@@ -1,4 +1,8 @@
 package com.ivor.openstream.presentation.marketplace
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 
 import com.ivor.openstream.presentation.components.CenteredListBox
 import androidx.compose.animation.AnimatedVisibility
@@ -44,7 +48,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -81,12 +85,13 @@ import com.ivor.openstream.R
 import com.ivor.openstream.domain.model.MarketplaceExtension
 import com.ivor.openstream.domain.model.MarketplaceSort
 import com.ivor.openstream.presentation.components.ExpressiveBackButton
+import com.ivor.openstream.presentation.components.ExpressiveMotion
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 
-private enum class MarketplaceTab(val label: String, @StringRes val labelRes: Int) {
-    BROWSE("Browse", R.string.mk_tab_browse),
-    INSTALLED("Installed", R.string.mk_tab_installed),
-    REPOSITORIES("Repositories", R.string.mk_tab_repositories)
+private enum class MarketplaceTab(@StringRes val labelRes: Int) {
+    BROWSE(R.string.mk_tab_browse),
+    INSTALLED(R.string.mk_tab_installed),
+    REPOSITORIES(R.string.mk_tab_repositories)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -142,9 +147,20 @@ fun MarketplaceScreen(
                 containerColor = MaterialTheme.colorScheme.surface
             ) {
                 MarketplaceTab.entries.forEach { tab ->
+                    val tabInteractionSource = remember { MutableInteractionSource() }
+                    val isTabFocused by tabInteractionSource.collectIsFocusedAsState()
                     Tab(
                         selected = selectedTab == tab,
                         onClick = { selectedTab = tab },
+                        interactionSource = tabInteractionSource,
+                        modifier = Modifier
+                            .then(
+                                if (isTabFocused) {
+                                    Modifier
+                                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f), ExpressiveShapes.small)
+                                        .border(2.dp, MaterialTheme.colorScheme.primary, ExpressiveShapes.small)
+                                } else Modifier
+                            ),
                         text = {
                             Text(
                                 text = when (tab) {
@@ -152,7 +168,8 @@ fun MarketplaceScreen(
                                         "${stringResource(tab.labelRes)} (${state.installed.size})"
                                     else -> stringResource(tab.labelRes)
                                 },
-                                maxLines = 1
+                                maxLines = 1,
+                                fontWeight = if (isTabFocused || selectedTab == tab) FontWeight.Bold else FontWeight.Normal
                             )
                         }
                     )
@@ -160,7 +177,7 @@ fun MarketplaceScreen(
             }
 
             AnimatedVisibility(visible = state.catalog.isSyncing) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                LinearWavyProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
 
             when (selectedTab) {
@@ -415,7 +432,8 @@ private fun InstalledTab(
                         rank = index + 1,
                         onMoveUp = { viewModel.moveSource(extension, -1) }.takeIf { index > 0 },
                         onMoveDown = { viewModel.moveSource(extension, 1) }.takeIf { index < state.installed.lastIndex },
-                        showReorder = state.installed.size > 1
+                        showReorder = state.installed.size > 1,
+                        repoLabel = extensionRepoLabel(state.catalog.repos, extension.manifest.repoId)
                     )
                 }
             }
@@ -633,6 +651,8 @@ private fun SummaryStat(label: String, value: String) {
 
 @Composable
 private fun RefreshAction(isSyncing: Boolean, onClick: () -> Unit) {
+    // Static icon with "Remove animations": the syncing bar above already signals progress.
+    val reduced = ExpressiveMotion.reducedMotion()
     val transition = rememberInfiniteTransition(label = "MarketplaceRefresh")
     val rotation by transition.animateFloat(
         initialValue = 0f,
@@ -646,7 +666,7 @@ private fun RefreshAction(isSyncing: Boolean, onClick: () -> Unit) {
             contentDescription = stringResource(R.string.action_refresh_repositories),
             modifier = Modifier
                 .size(24.dp)
-                .rotate(if (isSyncing) rotation else 0f)
+                .rotate(if (isSyncing && !reduced) rotation else 0f)
         )
     }
 }

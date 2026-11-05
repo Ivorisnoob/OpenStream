@@ -1,6 +1,14 @@
 package com.ivor.openstream.presentation.player
 
+import com.ivor.openstream.data.local.entity.LOCAL_MEDIA_TYPE
+import com.ivor.openstream.data.local.entity.LocalMediaEntity
+import com.ivor.openstream.data.repository.LocalMediaRepository
+
 import android.content.Context
+import android.net.Uri
+import com.ivor.openstream.data.playback.ExternalPlayer
+import com.ivor.openstream.data.playback.ExternalPlayerRequest
+import com.ivor.openstream.data.playback.ExternalSubtitle
 import com.ivor.openstream.R
 import com.ivor.openstream.data.local.entity.CustomListItemEntity
 import com.ivor.openstream.data.local.dao.CustomListSummary
@@ -11,6 +19,8 @@ import androidx.lifecycle.viewModelScope
 import com.ivor.openstream.data.local.entity.DownloadEntity
 import com.ivor.openstream.domain.repository.SubtitleRepository
 import com.ivor.openstream.data.remote.TmdbApi
+import com.ivor.openstream.data.images.ArtworkPrefetcher
+import com.ivor.openstream.data.images.TmdbImages
 import com.ivor.openstream.data.playback.StreamDataGuard
 import com.ivor.openstream.data.remote.model.AnimeDetailsDto
 import com.ivor.openstream.data.remote.model.EpisodeDto
@@ -37,6 +47,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapLatest
@@ -56,23 +67,27 @@ import com.ivor.openstream.data.settings.AppSettings
 import com.ivor.openstream.domain.model.SkipSegment
 import com.ivor.openstream.data.repository.SkipTimesRepository
 import com.ivor.openstream.data.settings.AppSettingsStore
+import com.ivor.openstream.data.settings.VideoShaderCustomization
 import com.ivor.openstream.data.subtitles.SavedSubtitleRepository
 import com.ivor.openstream.data.subtitles.SubtitleFetcher
 import com.ivor.openstream.presentation.player.session.SleepTimer
+import com.ivor.openstream.presentation.player.session.CastAudioOption
 import com.ivor.openstream.presentation.player.session.CastError
 import com.ivor.openstream.presentation.player.session.CastStatus
 import com.ivor.openstream.presentation.player.session.CastSubtitleOption
+import com.ivor.openstream.presentation.player.session.CastStreamOptions
 import com.ivor.openstream.presentation.player.session.CastSubtitles
 import com.ivor.openstream.presentation.player.components.SUBTITLES_OFF
+import com.ivor.openstream.data.settings.CaptionStyleSettings
+import com.ivor.openstream.data.settings.PlayerPreferences
 import androidx.media3.common.Player
 import androidx.mediarouter.media.MediaRouteSelector
 import javax.inject.Inject
 
-private const val KEY_CAPTION_STYLE = "caption_style"
-private const val KEY_PREFERRED_AUDIO = "preferred_audio_language"
-private const val KEY_PREFERRED_SUBTITLE = "preferred_subtitle_language"
 private const val MAX_AUTOMATIC_FAILOVERS = 3
 private const val STREAM_REFRESH_AGE_MS = 6 * 60 * 60 * 1_000L
+/** Episode stills preloaded behind the player, so the Up Next card and panel have them ready. */
+private const val UP_NEXT_PRELOAD_EPISODES = 3
 
 /** The episode playback continues with, possibly the first episode of the next season. */
 data class NextEpisodeTarget(
@@ -113,17 +128,20 @@ class PlayerViewModel @Inject constructor(
     private val watchLaterRepository: WatchLaterRepository,
     private val listRepository: CustomListRepository,
     private val sharedPreferences: SharedPreferences,
+    private val playerPreferences: PlayerPreferences,
     private val json: Json,
     private val playbackSession: PlaybackSession,
     private val appSettingsStore: AppSettingsStore,
     private val skipTimesRepository: SkipTimesRepository,    private val subtitleFetcher: SubtitleFetcher,
     private val savedSubtitleRepository: SavedSubtitleRepository,
+    private val artworkPrefetcher: ArtworkPrefetcher,
     @ApplicationContext private val context: Context,
-    private val streamDataGuard: StreamDataGuard
+    private val streamDataGuard: StreamDataGuard,
+    private val localMediaRepository: LocalMediaRepository
 ) : ViewModel() {
     /** A sideloaded subtitle's text, downloaded and unwrapped by the data layer. */
-    suspend fun loadSubtitleText(url: String, headers: Map<String, String>): String =
-        subtitleFetcher.fetchText(url, headers)
+    suspend fun loadSubtitleText(url: String, headers: Map<String, String>, language: String?): String =
+        subtitleFetcher.fetchText(url, headers, language)
 
     /** Intro/recap/credits times for the current anime episode; empty when unknown. */
     private val _skipSegments = MutableStateFlow<List<SkipSegment>>(emptyList())
@@ -138,6 +156,58 @@ class PlayerViewModel @Inject constructor(
 
     fun setSmoothMotionEnabled(enabled: Boolean) = appSettingsStore.setSmoothMotionEnabled(enabled)
     fun setSmoothMotionMaxFps(maxFps: Int) = appSettingsStore.setSmoothMotionMaxFps(maxFps)
+    fun setVolumeBoostPercent(percent: Int) = appSettingsStore.setVolumeBoostPercent(percent)
+
+    /** The look the video picture is drawn in, as the player's effect graph is reading it. */
+    val videoShaders: StateFlow<VideoShaderCustomization> = playbackSession.videoShaders
+
+    /** A slider mid-drag: on the picture at once, stored when the finger lifts. */
+    val shadersApplyNow: Boolean get() = playbackSession.shadersApplyNow
+
+    fun previewVideoShaders(settings: VideoShaderCustomization) =
+        playbackSession.previewVideoShaders(settings)
+
+    fun setVideoShaders(settings: VideoShaderCustomization) =
+        playbackSession.setVideoShaders(settings)
+
+    /** True while the controls' quick toggle has the look off the picture, for comparison. */
+    val videoShaderHidden: StateFlow<Boolean> = playbackSession.videoShaderHidden
+
+    fun setVideoShaderHidden(hidden: Boolean) = playbackSession.setVideoShaderHidden(hidden)
+
+    /**
+     * Pauses playback and hands the playing stream to another player app (VLC, mpv, MX Player,
+     * Just Player, Nova) through the system chooser. Only for streams: a download lives in this
+     * app's cache, which other apps can't read. Returns false when nothing could be handed over.
+     */
+    fun openInExternalPlayer(context: Context): Boolean {
+        val server = activeServer.value ?: return false
+        val details = _mediaDetails.value
+        val episode = _currentEpisode.value
+        val title = when {
+            details != null && episode != null && _mediaType.value != "movie" ->
+                "${details.name} S${episode.seasonNumber}E${episode.episodeNumber}"
+            else -> details?.name?.takeIf { it.isNotBlank() } ?: server.name
+        }
+        // The stream's own subtitles first; other apps can only open plain files on the web.
+        val candidates = server.subtitles.map { it.url to it.label } +
+            remoteSubtitles.value.map { it.url to (it.display ?: it.language ?: "Subtitle") }
+        val subtitles = candidates
+            .distinctBy { it.first }
+            .filter { (url, _) -> ExternalPlayer.canOpenSubtitle(url) }
+            .map { (url, name) -> ExternalSubtitle(uri = Uri.parse(url), name = name) }
+        val request = ExternalPlayerRequest(
+            mediaUri = Uri.parse(server.url),
+            mimeType = if (server.isHls) "application/x-mpegURL" else "video/*",
+            title = title,
+            positionMs = player.currentPosition.coerceAtLeast(0L),
+            headers = server.headers,
+            subtitles = subtitles
+        )
+        val launched = ExternalPlayer.launch(context, request, context.getString(R.string.sheet_external_player))
+        if (launched) player.pause()
+        return launched
+    }
 
     fun applyRequestHeaders(headers: Map<String, String>) = playbackSession.setRequestHeaders(headers)
 
@@ -162,6 +232,7 @@ class PlayerViewModel @Inject constructor(
     val castError: StateFlow<CastError?> = playbackSession.castError
     val castLoading: StateFlow<Boolean> = playbackSession.castLoading
     val castSubtitles: StateFlow<CastSubtitles> = playbackSession.castSubtitles
+    val castStreamOptions: StateFlow<CastStreamOptions> = playbackSession.castStreamOptions
 
     /** Plays on the TV while casting. */
     val castPlayer: Player? get() = playbackSession.castPlayer
@@ -185,6 +256,15 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    /** Quality picked on the casting screen (0 for automatic). */
+    fun selectCastQuality(height: Int) = playbackSession.selectCastQuality(height)
+
+    /** Audio picked on the casting screen: played on the TV and remembered like in the player. */
+    fun selectCastAudio(option: CastAudioOption) {
+        playbackSession.selectCastAudio(option.id)
+        option.language?.let(::setPreferredAudioLanguage)
+    }
+
     private val _mediaUri = MutableStateFlow<Pair<String, String?>?>(null)
 
     /** The screen reports what it handed to the player (stream URL, plus the download id offline). */
@@ -194,31 +274,27 @@ class PlayerViewModel @Inject constructor(
 
     /** A stream still playing from the mini player that this screen should continue, not reload. */
     private var adoptedServer: VideoServer? = null
+    private var userChosenServerId: String? = null
+
+    /** Set once the current stream has played; from then on a late answer never swaps servers. */
+    private var playbackStarted = false
 
 
-    private val _captionSettings = MutableStateFlow(loadCaptionSettings())
-    val captionSettings: StateFlow<CaptionStyleSettings> = _captionSettings.asStateFlow()
+    // Kept in PlayerPreferences, shared with Settings, so a change made there shows here at once.
+    val captionSettings: StateFlow<CaptionStyleSettings> = playerPreferences.captionStyle
 
     /** Audio language the user last picked (for example `en` for dubs); applied to new streams. */
-    private val _preferredAudioLanguage = MutableStateFlow(sharedPreferences.getString(KEY_PREFERRED_AUDIO, null))
-    val preferredAudioLanguage: StateFlow<String?> = _preferredAudioLanguage.asStateFlow()
+    val preferredAudioLanguage: StateFlow<String?> = playerPreferences.audioLanguage
 
-    fun setPreferredAudioLanguage(language: String?) {
-        _preferredAudioLanguage.value = language
-        sharedPreferences.edit().putString(KEY_PREFERRED_AUDIO, language).apply()
-    }
+    fun setPreferredAudioLanguage(language: String?) = playerPreferences.setAudioLanguage(language)
 
     /**
      * Subtitle language the user last picked, [SUBTITLES_OFF] if they turned subtitles off, or
      * null if they never chose; applied to every new stream.
      */
-    private val _preferredSubtitleLanguage = MutableStateFlow(sharedPreferences.getString(KEY_PREFERRED_SUBTITLE, null))
-    val preferredSubtitleLanguage: StateFlow<String?> = _preferredSubtitleLanguage.asStateFlow()
+    val preferredSubtitleLanguage: StateFlow<String?> = playerPreferences.subtitleLanguage
 
-    fun setPreferredSubtitleLanguage(language: String) {
-        _preferredSubtitleLanguage.value = language
-        sharedPreferences.edit().putString(KEY_PREFERRED_SUBTITLE, language).apply()
-    }
+    fun setPreferredSubtitleLanguage(language: String) = playerPreferences.setSubtitleLanguage(language)
 
     private val _nextEpisodes = MutableStateFlow<List<EpisodeDto>>(emptyList())
     val nextEpisodes = _nextEpisodes.asStateFlow()
@@ -365,23 +441,36 @@ class PlayerViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    private fun loadCaptionSettings(): CaptionStyleSettings = try {
-        sharedPreferences.getString(KEY_CAPTION_STYLE, null)
-            ?.let { json.decodeFromString<CaptionStyleSettings>(it) }
-            ?: CaptionStyleSettings()
-    } catch (_: Exception) {
-        CaptionStyleSettings()
-    }
+    fun updateCaptionSettings(settings: CaptionStyleSettings) = playerPreferences.setCaptionStyle(settings)
 
-    fun updateCaptionSettings(settings: CaptionStyleSettings) {
-        _captionSettings.value = settings
-        sharedPreferences.edit()
-            .putString(KEY_CAPTION_STYLE, json.encodeToString(settings))
-            .apply()
+    suspend fun getLocalMedia(id: Long): LocalMediaEntity? =
+        localMediaRepository.getLocalMediaById(id)
+
+    fun loadLocalMedia(id: Long) {
+        loadJob?.cancel()
+        resolutionJob?.cancel()
+        _mediaType.value = LOCAL_MEDIA_TYPE
+        currentSeason = 1
+        currentEpisodeNumber = 1
+        viewModelScope.launch {
+            val item = localMediaRepository.getLocalMediaById(id) ?: return@launch
+            _mediaDetails.value = AnimeDetailsDto(
+                id = item.id.toInt(),
+                movieTitle = item.displayName,
+                overview = "",
+                posterPath = null,
+                backdropPath = null,
+                voteAverage = 0.0
+            )
+            onMediaLoaded(item.uri, null)
+        }
     }
 
     suspend fun getPlaybackUri(downloadId: String): String? =
         downloadRepository.getPlaybackUri(downloadId)
+
+    suspend fun getPlaybackMimeType(downloadId: String): String? =
+        downloadRepository.getPlaybackMimeType(downloadId)
 
     fun removeDownload(downloadId: String) {
         viewModelScope.launch { downloadRepository.removeDownload(downloadId) }
@@ -481,6 +570,8 @@ class PlayerViewModel @Inject constructor(
         val continuing = playbackSession.nowPlaying.value
             ?.takeIf { it.matches(mediaType, tmdbId, seasonNumber, currentEpisodeNumber) }
         adoptedServer = continuing?.server?.takeIf { continuing.downloadId == null }
+        userChosenServerId = adoptedServer?.id
+        playbackStarted = adoptedServer != null
         adoptedServer?.let { _activeServer.value = it }
 
         loadJob = viewModelScope.launch {
@@ -524,6 +615,7 @@ class PlayerViewModel @Inject constructor(
                     return@launch
                 }
                 _isLoadingEpisodes.value = true
+                var nextTarget: NextEpisodeTarget? = null
                 runCatching { tmdbApi.getSeasonDetails(tmdbId, seasonNumber) }
                     .onSuccess { seasonDetails ->
                         _seasonEpisodes.value = seasonDetails.episodes
@@ -531,13 +623,19 @@ class PlayerViewModel @Inject constructor(
                             .find { it.episodeNumber == currentEpisodeNumber }
                         _nextEpisodes.value = seasonDetails.episodes
                             .filter { it.episodeNumber > currentEpisodeNumber }
-                        _nextEpisode.value = findNextEpisode(
+                        nextTarget = findNextEpisode(
                             tmdbId = tmdbId,
                             seasonNumber = seasonNumber,
                             remaining = _nextEpisodes.value
                         )
                     }
                 _isLoadingEpisodes.value = false
+                val target = nextTarget
+                if (target != null) {
+                    _nextEpisode.value = target
+                    // After the list is shown: offline, the next season's request only times out.
+                    warmUpNext(target, seasonNumber, tmdbId)
+                }
             }
 
             launch {
@@ -605,20 +703,42 @@ class PlayerViewModel @Inject constructor(
         return runCatching { !LocalDate.parse(airDate).isAfter(LocalDate.now()) }.getOrDefault(true)
     }
 
+    /**
+     * Pre-warms what Up Next will need the moment it counts down, while this episode still plays.
+     * The stills of the episodes ahead go into Coil's disk cache in the background, and when the
+     * target is in the next season ([findNextEpisode] hands that back without a name or still),
+     * that season's page is fetched now so the switch lands on a complete card.
+     */
+    private suspend fun warmUpNext(target: NextEpisodeTarget, seasonNumber: Int, tmdbId: Int) {
+        artworkPrefetcher.prefetch(
+            _nextEpisodes.value.take(UP_NEXT_PRELOAD_EPISODES).map { TmdbImages.url("w300", it.stillPath) }
+        )
+        if (target.season == seasonNumber) return
+        val first = runCatching { tmdbApi.getSeasonDetails(tmdbId, target.season) }
+            .getOrNull()?.episodes?.firstOrNull { it.episodeNumber == target.episode } ?: return
+        // A newer episode load owns the card by now; this fill-in is for the one that asked.
+        if (_nextEpisode.value !== target) return
+        _nextEpisode.value = target.copy(title = first.name, stillPath = first.stillPath)
+        artworkPrefetcher.prefetch(listOf(TmdbImages.url("w300", first.stillPath)))
+    }
+
     /** The stream the user switched away from; restored if their pick refuses to play. */
     private var switchedFrom: VideoServer? = null
 
     fun selectServer(serverId: String) {
         val server = availableServers().firstOrNull { it.id == serverId } ?: return
+        userChosenServerId = serverId
         switchedFrom = _activeServer.value?.takeIf { it.id != serverId }
         failedServerIds.remove(serverId)
         automaticFailovers = 0
         _activeServer.value = server
         setActiveId(serverId)
+        // Remembered as working only once it plays (onPlaybackReady).
         currentIdentity?.let { streamingRepository.rememberServer(it, server) }
     }
 
     fun onPlaybackReady() {
+        playbackStarted = true
         val identity = currentIdentity ?: return
         val server = _activeServer.value ?: return
         streamingRepository.rememberServer(identity, server)
@@ -626,8 +746,12 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun onPlaybackError(error: PlaybackException? = null) {
+        // A connection drop mid-episode: the session is reconnecting to this same stream.
+        if (playbackSession.isRecoveringFromNetworkDrop) return
         val failed = _activeServer.value ?: return
         failedServerIds += failed.id
+        // Its links may have expired: the next open of this episode searches the sources again.
+        currentIdentity?.let(streamingRepository::forgetResolvedServers)
         // A source the user picked by hand (often a dub) failed: go back to what was playing rather
         // than jumping to an arbitrary server. Some dub hosts lock links to Vidking's own servers.
         val previous = switchedFrom?.takeIf { it.id !in failedServerIds }
@@ -677,21 +801,30 @@ class PlayerViewModel @Inject constructor(
     private fun startResolution(identity: MediaIdentity, includeFallbacks: Boolean = false) {
         resolutionJob?.cancel()
         resolutionJob = viewModelScope.launch {
-            // The automatic search asks the source that played last time first; a widened search
-            // ("Find more", failover) goes to everything.
+            // The automatic search asks the source that played this title last time first; a
+            // widened search ("Find more", failover) goes to everything.
             streamingRepository.resolveServers(
                 identity,
                 includeFallbacks,
                 preferLastWorking = !includeFallbacks
-            ).collect { progress ->
+            ).catch { error ->
+                // The search itself broke, as opposed to sources finding nothing. Say so through
+                // the same state, so the screen offers a retry instead of spinning or crashing.
+                android.util.Log.w("PlayerViewModel", "Source search failed", error)
+                _serversState.value = ServersState.Empty(emptyList())
+            }.collect { progress ->
+                // The server the user picked (or last picked for this episode) wins when it shows
+                // up, but only before playback starts: switching later would restart the video.
+                val rememberedId = currentIdentity?.let { streamingRepository.getRememberedServerId(it) }
+                val targetServerId = (userChosenServerId ?: rememberedId).takeUnless { playbackStarted }
                 // Keep the stream the mini player is already playing at the top of the list.
                 val candidates = adoptedServer?.let { adopted ->
                     listOf(adopted) + progress.servers.filterNot { it.id == adopted.id }
                 } ?: progress.servers
                 val healthyServers = candidates.filterNot { it.id in failedServerIds }
-                val active = _activeServer.value?.takeIf { current ->
-                    healthyServers.any { it.id == current.id }
-                } ?: healthyServers.firstOrNull()
+                val active = healthyServers.firstOrNull { it.id == targetServerId }
+                    ?: _activeServer.value?.takeIf { current -> healthyServers.any { it.id == current.id } }
+                    ?: healthyServers.firstOrNull()
                 _activeServer.value = active
 
                 _serversState.value = when {

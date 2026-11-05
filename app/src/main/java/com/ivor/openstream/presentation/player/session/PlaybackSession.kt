@@ -24,6 +24,7 @@ import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.LoadEventInfo
@@ -39,14 +40,23 @@ import com.ivor.openstream.BuildConfig
 import com.ivor.openstream.MainActivity
 import com.ivor.openstream.data.cast.CastMediaItemConverter
 import com.ivor.openstream.data.cast.CastMediaProxy
+import com.ivor.openstream.data.cast.HlsAudioRendition
+import com.ivor.openstream.data.cast.HlsRenditionSelector
+import com.ivor.openstream.data.cast.HlsSelection
 import com.ivor.openstream.data.playback.DeviceDecoders
 import com.ivor.openstream.data.playback.StreamDataGuard
+import com.ivor.openstream.data.playback.VideoShaderControl
+import com.ivor.openstream.data.playback.VideoShaderEffect
+import com.ivor.openstream.data.settings.VideoShaderCustomization
+import com.ivor.openstream.data.local.entity.LOCAL_MEDIA_TYPE
+import com.ivor.openstream.data.playback.VolumeBooster
 import com.ivor.openstream.data.remote.model.SubtitleDto
 import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.data.streaming.DownloadRequestHeaderStore
 import com.ivor.openstream.data.streaming.BROWSER_USER_AGENT
 import com.ivor.openstream.data.streaming.ImagePrefixStrippingDataSource
 import com.ivor.openstream.domain.model.VideoServer
+import com.ivor.openstream.domain.model.StreamQuality
 import com.ivor.openstream.domain.model.WatchProgress
 import com.ivor.openstream.domain.repository.WatchProgressRepository
 import com.ivor.openstream.presentation.player.NextEpisodeTarget
@@ -68,6 +78,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.net.InetAddress
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
@@ -123,6 +134,20 @@ data class CastSubtitleOption(val id: String, val label: String, val language: S
 
 data class CastSubtitles(val options: List<CastSubtitleOption> = emptyList(), val activeId: String? = null)
 
+/** An audio rendition of the stream on the TV, by its playlist NAME and LANGUAGE. */
+data class CastAudioOption(val id: String, val label: String, val name: String?, val language: String?)
+
+/**
+ * The renditions the stream on the TV offers and the ones it plays: [qualities] are heights,
+ * tallest first, and a [selectedHeight] of 0 means automatic.
+ */
+data class CastStreamOptions(
+    val qualities: List<Int> = emptyList(),
+    val selectedHeight: Int = 0,
+    val audios: List<CastAudioOption> = emptyList(),
+    val selectedAudioId: String? = null
+)
+
 /** A pending stop: after a set time, or when the current episode or movie ends. */
 sealed interface SleepTimer {
     data class After(val minutes: Int, val endsAtMs: Long) : SleepTimer
@@ -155,6 +180,9 @@ class PlaybackSession @Inject constructor(
     private val appSettingsStore: AppSettingsStore
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var streamHasPlayed = false
+    private var reconnectAttempts = 0
+    private var reconnectJob: Job? = null
 
     /** Headers the current stream needs (Referer, Origin...). Applied to every request it makes. */
     @Volatile
@@ -175,9 +203,40 @@ class PlaybackSession @Inject constructor(
     private var completionRecordedFor: String? = null
 
         private var localPlayerCreated = false
+    private var shaderStageInstalled = true
+
+    /** False once the player was built without the shader stage: a look then waits for a restart. */
+    val shadersApplyNow: Boolean get() = !localPlayerCreated || shaderStageInstalled
 
     var smoothMotion: SmoothMotion? = null
         private set
+
+    /**
+     * The live look on the video picture. The stage in the effect graph reads it once per frame, so
+     * a change is on screen immediately; the panel's sliders write here while a finger is down and
+     * only the release is stored.
+     */
+    val videoShaderControl = VideoShaderControl().apply {
+        settings = appSettingsStore.current.videoShaders
+    }
+
+    private val _videoShaders = MutableStateFlow(appSettingsStore.current.videoShaders)
+
+    /** What the shader stage is drawing from: the switch, the preset and the picture sliders. */
+    val videoShaders: StateFlow<VideoShaderCustomization> = _videoShaders.asStateFlow()
+
+    private val _videoShaderHidden = MutableStateFlow(false)
+
+    /**
+     * Whether the player's quick toggle has taken the look off the picture to compare it with the
+     * original. Nothing is stored: the chosen look and its sliders stay as they are, and the look
+     * comes back with the next change to it or the next title.
+     */
+    val videoShaderHidden: StateFlow<Boolean> = _videoShaderHidden.asStateFlow()
+
+    private var shaderRedrawJob: Job? = null
+
+    private val volumeBooster = VolumeBooster()
 
     init {
         // Follow the network so a cap set for mobile data applies as soon as one is joined.
@@ -188,6 +247,8 @@ class PlaybackSession @Inject constructor(
             appSettingsStore.settings.collect { settings ->
                 smoothMotion?.enabled = settings.smoothMotionEnabled
                 smoothMotion?.maxFps = settings.smoothMotionMaxFps
+                volumeBooster.setBoostPercentage(settings.volumeBoostPercent)
+                applyVideoShaders(settings.videoShaders)
             }
         }
         // Saves progress every few seconds, and remembers where the TV is (its state is gone once
@@ -209,10 +270,72 @@ class PlaybackSession @Inject constructor(
         }
     }
 
-    /** Created on first use, on the main thread, by whichever surface shows video first. */
-    val player: ExoPlayer by lazy { buildPlayer().also { localPlayerCreated = true } }
+    /**
+     * Puts [settings] on the picture without storing them: a slider mid-drag, which is judged by
+     * watching and stored once, when the finger lifts.
+     */
+    fun previewVideoShaders(settings: VideoShaderCustomization) = applyVideoShaders(settings)
+
+    fun setVideoShaders(settings: VideoShaderCustomization) {
+        applyVideoShaders(settings)
+        appSettingsStore.setVideoShaders(settings)
+    }
+
+    /** Takes the look off the picture, or puts it back, without changing what is chosen. */
+    fun setVideoShaderHidden(hidden: Boolean) {
+        if (hidden == _videoShaderHidden.value) return
+        _videoShaderHidden.value = hidden
+        drawVideoShaders()
+    }
+
+    private fun applyVideoShaders(settings: VideoShaderCustomization) {
+        if (settings == _videoShaders.value) return
+        _videoShaders.value = settings
+        // A change to the look is made to be seen.
+        _videoShaderHidden.value = false
+        drawVideoShaders()
+    }
+
+    private fun drawVideoShaders() {
+        val settings = _videoShaders.value
+        videoShaderControl.settings = if (_videoShaderHidden.value) settings.copy(masterEnabled = false) else settings
+        // A paused player draws nothing new, so a look changed while it is paused would wait for Play.
+        redrawPausedFrame()
+    }
+
+    /**
+     * Asks a paused player for a fresh frame through the effect graph.
+     *
+     * With a graph installed Media3 stops drawing once playback pauses, and a new look is not one of
+     * the events that makes it draw again: without this, choosing a preset over a paused video shows
+     * nothing until Play, and entering fullscreen while paused leaves the frame at the size the last
+     * surface had. Media3's own redraw needs a replayable frame cache that playback never builds
+     * [verified September 2026 against the 1.11.0 bytecode], so an exact seek to where playback
+     * already is renders the frame afresh without moving it. Settled first, because a surface
+     * hand-off reports sizes in a burst.
+     */
+    private fun redrawPausedFrame() {
+        if (!localPlayerCreated) return
+        shaderRedrawJob?.cancel()
+        shaderRedrawJob = scope.launch {
+            delay(GRAPH_REDRAW_SETTLE_MS)
+            val current = player
+            if (current.isPlaying || current.playbackState != Player.STATE_READY ||
+                current.isCurrentMediaItemLive
+            ) {
+                return@launch
+            }
+            val previousSeekParameters = current.seekParameters
+            current.setSeekParameters(SeekParameters.EXACT)
+            current.seekTo(current.currentPosition)
+            current.setSeekParameters(previousSeekParameters)
+        }
+    }
 
     // region Media session (notification, lock screen, headset buttons)
+
+    /** Created on first use, on the main thread, by whichever surface shows video first. */
+    val player: ExoPlayer by lazy { buildPlayer().also { localPlayerCreated = true } }
 
     private var mediaSessionInstance: MediaSession? = null
 
@@ -297,17 +420,29 @@ class PlaybackSession @Inject constructor(
      */
     fun applyNetworkConstraints() {
         if (!localPlayerCreated) return
-        val cap = meteredHeightCap()
+        val cap = heightCap()
         player.trackSelectionParameters = player.trackSelectionParameters
             .buildUpon()
             .setMaxVideoSize(Int.MAX_VALUE, if (cap > 0) cap else Int.MAX_VALUE)
             .build()
     }
 
-    /** Tallest rendition allowed right now: the metered cap, or the source's best (0). */
-    fun meteredHeightCap(): Int {
-        if (!streamDataGuard.meteredNow) return Int.MAX_VALUE
-        return appSettingsStore.current.meteredMaxHeight.takeIf { it > 0 } ?: Int.MAX_VALUE
+    /**
+     * Tallest rendition allowed right now.
+     *
+     * The stricter of the two caps wins: [AppSettings.streamMaxHeight] applies on every network,
+     * and [AppSettings.meteredMaxHeight] applies on top of it while on mobile data. Either being 0
+     * means "no limit".
+     */
+    fun heightCap(): Int {
+        val always = appSettingsStore.current.streamMaxHeight
+        val metered = if (streamDataGuard.meteredNow) {
+            appSettingsStore.current.meteredMaxHeight
+        } else {
+            0
+        }
+        val caps = listOf(always, metered).filter { it > 0 }
+        return caps.minOrNull() ?: Int.MAX_VALUE
     }
 
     /** Applies a one-off cap for this playback, for example after the user chose 480p. */
@@ -324,8 +459,8 @@ class PlaybackSession @Inject constructor(
         .setSelectUndeterminedTextLanguage(true)
         // No HEVC decoder: prefer H.264 variants so a source never picks an unplayable track.
         .apply { if (!deviceDecoders.supportsHevc) setPreferredVideoMimeType(MimeTypes.VIDEO_H264) }
-        // Mobile data: start inside the cap straight away, not only after a network change.
-        .apply { meteredHeightCap().takeIf { it != Int.MAX_VALUE }?.let { setMaxVideoSize(Int.MAX_VALUE, it) } }
+        // Start inside the cap straight away, not only after a network or settings change.
+        .apply { heightCap().takeIf { it != Int.MAX_VALUE }?.let { setMaxVideoSize(Int.MAX_VALUE, it) } }
         .build()
 
     // endregion
@@ -352,6 +487,15 @@ class PlaybackSession @Inject constructor(
 
     private val _castSubtitles = MutableStateFlow(CastSubtitles())
     val castSubtitles: StateFlow<CastSubtitles> = _castSubtitles.asStateFlow()
+
+    private val _castStreamOptions = MutableStateFlow(CastStreamOptions())
+    val castStreamOptions: StateFlow<CastStreamOptions> = _castStreamOptions.asStateFlow()
+
+    /**
+     * The quality and audio the TV plays: taken from the phone's player when casting starts, then
+     * changed from the casting screen. Kept across episodes and sources for the whole session.
+     */
+    private var castSelection = HlsSelection()
 
     /** What was last sent to the receiver (NowPlaying.key and source URL). */
     private var castRequestedKey: String? = null
@@ -394,6 +538,7 @@ class PlaybackSession @Inject constructor(
             lastSavedPositionMs = -1L
             completionRecordedFor = null
             endedBySleepTimer = false
+            setVideoShaderHidden(false)
         }
         _nowPlaying.value = nowPlaying
         refreshSessionActivity()
@@ -431,6 +576,7 @@ class PlaybackSession @Inject constructor(
 
     /** Ends the session: saves where the user stopped and unloads the stream (on the TV too). */
     fun stop() {
+        reconnectJob?.cancel()
         setSleepTimer(null)
         recordProgress(force = true)
         if (castConnected) {
@@ -441,6 +587,7 @@ class PlaybackSession @Inject constructor(
             castRequestedUri = null
             castLoadedTracks = emptyMap()
             _castSubtitles.value = CastSubtitles()
+            _castStreamOptions.value = CastStreamOptions()
             _castLoading.value = false
             _castError.value = null
         }
@@ -448,6 +595,7 @@ class PlaybackSession @Inject constructor(
             player.stop()
             player.clearMediaItems()
         }
+        volumeBooster.release()
         _nowPlaying.value = null
         requestHeaders = emptyMap()
     }
@@ -531,6 +679,22 @@ class PlaybackSession @Inject constructor(
     /** Tries the current stream on the TV again, from where it was. */
     fun retryCast() = reloadOnCast(forcedSubtitleId = _castSubtitles.value.activeId)
 
+    /** Plays [height] on the TV (0 for automatic, inside the data cap). */
+    fun selectCastQuality(height: Int) {
+        castSelection = castSelection.copy(
+            height = height.coerceAtLeast(0),
+            maxHeight = heightCap().takeIf { it != Int.MAX_VALUE } ?: 0
+        )
+        reloadOnCast(forcedSubtitleId = _castSubtitles.value.activeId)
+    }
+
+    /** Plays the audio rendition [id] (a [CastAudioOption.id]) on the TV. */
+    fun selectCastAudio(id: String) {
+        val option = _castStreamOptions.value.audios.firstOrNull { it.id == id } ?: return
+        castSelection = castSelection.copy(audioLanguage = option.language, audioName = option.name)
+        reloadOnCast(forcedSubtitleId = _castSubtitles.value.activeId)
+    }
+
     private fun currentCastSession(): CastSession? =
         runCatching { castContext?.sessionManager?.currentCastSession }.getOrNull()
 
@@ -560,14 +724,19 @@ class PlaybackSession @Inject constructor(
             return
         }
         val position = if (localPlayerCreated) player.currentPosition else item.startPositionMs
+        castSelection = localSelection()
         if (localPlayerCreated) {
             player.pause()
             // Keep the item (to resume locally later) but stop buffering it.
             player.stop()
         }
         val remote = castPlayer
-        if (remote?.currentMediaItem?.mediaId == item.key) {
-            // Rejoined a session already playing this: keep going.
+        val remoteItem = remote?.currentMediaItem
+        val sameStreamOnTv = remoteItem?.mediaId == item.key &&
+            remoteItem?.mediaMetadata?.extras?.getString(EXTRA_SOURCE_URI) == item.mediaUri
+        if (sameStreamOnTv) {
+            // Rejoined a session already playing this stream: keep going. A different server
+            // picked on the phone meanwhile falls through and is loaded instead.
             castRequestedKey = item.key
             castRequestedUri = item.mediaUri
             return
@@ -583,6 +752,8 @@ class PlaybackSession @Inject constructor(
         castRequestedUri = null
         castLoadedTracks = emptyMap()
         _castSubtitles.value = CastSubtitles(activeId = null)
+        _castStreamOptions.value = CastStreamOptions()
+        castSelection = HlsSelection()
         _castLoading.value = false
         _castError.value = null
         refreshCastStatus()
@@ -627,16 +798,19 @@ class PlaybackSession @Inject constructor(
         val headers = headersFor(item)
         val subtitles = pickCastSubtitles(forcedSubtitleId)
         val receiver = currentCastSession()?.castDevice?.inetAddress
+        // A download holds one rendition: let the receiver play what is there.
+        val selection = castSelection.takeIf { item.downloadId == null }
         castLoadJob?.cancel()
         castLoadJob = scope.launch {
             val built = withContext(Dispatchers.IO) {
-                runCatching { buildCastItem(item, headers, subtitles.first, subtitles.second, receiver) }
+                runCatching { buildCastItem(item, headers, subtitles.first, subtitles.second, receiver, selection) }
             }
             if (!castConnected || castRequestedKey != item.key) return@launch
-            built.onSuccess { (mediaItem, tracks) ->
+            built.onSuccess { (mediaItem, tracks, probe) ->
                 castLoadedTracks = tracks
                 _castSubtitles.value = _castSubtitles.value.copy(activeId = subtitles.second?.takeIf { it in tracks })
                 updateCastSubtitleOptions()
+                _castStreamOptions.value = if (selection != null) streamOptions(probe, selection) else CastStreamOptions()
                 remote.setMediaItem(mediaItem, startPositionMs.coerceAtLeast(0L))
                 remote.playWhenReady = true
                 remote.prepare()
@@ -675,20 +849,76 @@ class PlaybackSession @Inject constructor(
         _castSubtitles.value = _castSubtitles.value.copy(options = options)
     }
 
+    /**
+     * The quality and audio the phone's player is on: a quality picked by hand (the player pins
+     * its minimum size to it) or automatic under the ceiling it has, and the audio it plays, else
+     * the audio language the user prefers. Picking Auto on the phone clears its ceiling; the quality
+     * cap from Settings still applies then, as it does when Auto is picked on the casting screen.
+     */
+    private fun localSelection(): HlsSelection {
+        if (!localPlayerCreated) return HlsSelection(maxHeight = heightCap().takeIf { it != Int.MAX_VALUE } ?: 0)
+        val parameters = player.trackSelectionParameters
+        val pinnedHeight = parameters.minVideoHeight.takeIf { it in 1 until Int.MAX_VALUE } ?: 0
+        val ceiling = parameters.maxVideoHeight.takeIf { it in 1 until Int.MAX_VALUE }
+            ?: heightCap().takeIf { it != Int.MAX_VALUE }
+            ?: 0
+        val audio = player.audioFormat
+        return HlsSelection(
+            height = pinnedHeight,
+            maxHeight = ceiling,
+            audioLanguage = audio?.language ?: parameters.preferredAudioLanguages.firstOrNull(),
+            audioName = audio?.label
+        )
+    }
+
+    private fun streamOptions(probe: CastMediaProxy.StreamProbe, selection: HlsSelection): CastStreamOptions {
+        val audios = probe.audioRenditions.mapIndexed { index, rendition ->
+            CastAudioOption(
+                id = "${rendition.language.orEmpty()}|${rendition.name.orEmpty()}",
+                label = audioLabel(rendition, index),
+                name = rendition.name,
+                language = rendition.language
+            )
+        }
+        val chosen = HlsRenditionSelector.pickAudio(probe.audioRenditions, selection)
+        return CastStreamOptions(
+            qualities = probe.heights,
+            selectedHeight = HlsRenditionSelector.resolveHeight(probe.heights, selection),
+            audios = audios,
+            selectedAudioId = chosen?.let { "${it.language.orEmpty()}|${it.name.orEmpty()}" }
+                ?: audios.firstOrNull()?.id?.takeIf { audios.size == 1 }
+        )
+    }
+
+    private fun audioLabel(rendition: HlsAudioRendition, index: Int): String {
+        val name = rendition.name?.takeIf { it.any(Char::isLetter) }
+        val language = rendition.language
+            ?.let { Locale.forLanguageTag(it.replace('_', '-')).getDisplayLanguage(Locale.getDefault()) }
+            ?.takeIf { it.isNotBlank() && !it.equals(rendition.language, ignoreCase = true) }
+        return name ?: language ?: context.getString(R.string.track_number, index + 1)
+    }
+
+    private data class CastBuild(
+        val mediaItem: MediaItem,
+        val tracks: Map<String, Long>,
+        val probe: CastMediaProxy.StreamProbe
+    )
+
     /** Blocking: probes the stream and builds proxied URLs. Runs on the IO dispatcher. */
     private fun buildCastItem(
         item: NowPlaying,
         headers: Map<String, String>,
         subtitles: List<SubtitleDto>,
         activeSubtitleId: String?,
-        receiver: InetAddress?
-    ): Pair<MediaItem, Map<String, Long>> {
-        val url = castProxy.mediaUrl(item.mediaUri, headers, receiver)
+        receiver: InetAddress?,
+        selection: HlsSelection?
+    ): CastBuild {
+        val url = castProxy.mediaUrl(item.mediaUri, headers, receiver, selection)
             ?: throw IOException(context.getString(R.string.player_cast_same_wifi))
-        val probe = castProxy.probe(item.mediaUri, headers)
+        val probe = castProxy.probe(item.mediaUri, headers, selection)
         val tracks = linkedMapOf<String, Long>()
         val configurations = subtitles.mapNotNull { subtitle ->
-            val subtitleUrl = castProxy.subtitleUrl(subtitle.url, headers, receiver) ?: return@mapNotNull null
+            val subtitleUrl = castProxy.subtitleUrl(subtitle.url, headers, receiver, subtitle.language) ?: return@mapNotNull null
             tracks[subtitle.id] = tracks.size + 1L
             MediaItem.SubtitleConfiguration.Builder(Uri.parse(subtitleUrl))
                 .setMimeType("text/vtt")
@@ -712,6 +942,13 @@ class PlaybackSession @Inject constructor(
             item.posterPath?.let { putString(EXTRA_POSTER, it) }
             item.backdropPath?.let { putString(EXTRA_BACKDROP, it) }
             item.stillPath?.let { putString(EXTRA_STILL, it) }
+            item.server?.let { s ->
+                putString(EXTRA_SERVER_ID, s.id)
+                putString(EXTRA_PROVIDER_ID, s.providerId)
+                putString(EXTRA_PROVIDER_NAME, s.providerName)
+                putString(EXTRA_SERVER_NAME, s.name)
+                putString(EXTRA_SERVER_QUALITY, s.quality.name)
+            }
         }
         val artwork = (item.backdropPath ?: item.stillPath ?: item.posterPath)
             ?.let { Uri.parse("https://image.tmdb.org/t/p/w1280$it") }
@@ -729,7 +966,7 @@ class PlaybackSession @Inject constructor(
             .setMediaMetadata(metadata)
             .setSubtitleConfigurations(configurations)
             .build()
-        return mediaItem to tracks
+        return CastBuild(mediaItem, tracks, probe)
     }
 
     /** After an app restart the TV may still be playing: rebuild what's playing from its extras. */
@@ -738,6 +975,19 @@ class PlaybackSession @Inject constructor(
         val mediaItem = remote.currentMediaItem ?: return
         val extras = mediaItem.mediaMetadata.extras ?: return
         val source = extras.getString(EXTRA_SOURCE_URI) ?: return
+        val serverId = extras.getString(EXTRA_SERVER_ID)
+        val server = if (serverId != null) {
+            val qualityName = extras.getString(EXTRA_SERVER_QUALITY)
+            val quality = qualityName?.let { runCatching { StreamQuality.valueOf(it) }.getOrNull() } ?: StreamQuality.UNKNOWN
+            VideoServer(
+                id = serverId,
+                name = extras.getString(EXTRA_SERVER_NAME) ?: "Stream",
+                url = source,
+                providerId = extras.getString(EXTRA_PROVIDER_ID) ?: "",
+                providerName = extras.getString(EXTRA_PROVIDER_NAME) ?: "",
+                quality = quality
+            )
+        } else null
         val item = NowPlaying(
             mediaType = extras.getString(EXTRA_MEDIA_TYPE) ?: return,
             tmdbId = extras.getInt(EXTRA_TMDB_ID),
@@ -751,7 +1001,7 @@ class PlaybackSession @Inject constructor(
             backdropPath = extras.getString(EXTRA_BACKDROP),
             stillPath = extras.getString(EXTRA_STILL),
             next = null,
-            server = null
+            server = server
         )
         castRequestedKey = item.key
         castRequestedUri = item.mediaUri
@@ -810,6 +1060,21 @@ class PlaybackSession @Inject constructor(
 
     // endregion
 
+    /**
+     * True while a stream that was playing is being reconnected after its connection dropped. A
+     * link that never played is not given this: that is a dead source, and failing over is the cure.
+     * The player keeps its position in the error state, so prepare() carries on from the same spot.
+     */
+    val isRecoveringFromNetworkDrop: Boolean
+        get() = reconnectJob?.isActive == true
+
+    private fun PlaybackException.isConnectionDrop(): Boolean = when (errorCode) {
+        PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+        PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
+        PlaybackException.ERROR_CODE_TIMEOUT -> true
+        else -> false
+    }
+
     private fun buildPlayer(): ExoPlayer {
         val http = DefaultHttpDataSource.Factory()
             .setUserAgent(BROWSER_USER_AGENT)
@@ -845,19 +1110,40 @@ class PlaybackSession @Inject constructor(
             )
             .setTrackSelector(trackSelector)
             .build()
+        // Media3 picks the effect pipeline once, on the first prepare. Where Smooth motion runs the
+        // pipeline exists anyway and the shader stage costs one copy pass; elsewhere the pipeline
+        // alone makes every video slow to start and stutter, so it is only added for a look in use.
+        shaderStageInstalled = SmoothMotion.isSupported(context) ||
+            appSettingsStore.current.videoShaders.isEffectActive
         smoothMotion = SmoothMotion.install(
             basePlayer,
             context,
             SmoothMotionConfig(
                 enabled = appSettingsStore.current.smoothMotionEnabled,
                 maxFps = appSettingsStore.current.smoothMotionMaxFps
-            )
+            ),
+            // The shader stage runs before interpolation, so a look is drawn from the frames the
+            // source sent and Smooth motion interpolates the result. It stays in the graph when the
+            // switch is off and copies each frame, as Smooth motion itself does, which is what lets
+            // the switch in Settings and the panel act on a player that is already open - this
+            // app's player is built once and kept for the life of the process.
+            otherEffects = if (shaderStageInstalled) listOf(VideoShaderEffect(videoShaderControl)) else emptyList()
         )
+        volumeBooster.setBoostPercentage(appSettingsStore.current.volumeBoostPercent)
+        volumeBooster.attachSession(basePlayer.audioSessionId)
         return basePlayer.apply {
                 playWhenReady = true
-                applyNetworkConstraints()                // Debug builds log load errors, format switches and dropped frames under "EventLogger".
+                applyNetworkConstraints()
+                // Debug builds log load errors, format switches and dropped frames under "EventLogger".
                 if (BuildConfig.DEBUG) addAnalyticsListener(EventLogger())
                 addAnalyticsListener(object : AnalyticsListener {
+                    override fun onAudioSessionIdChanged(
+                        eventTime: AnalyticsListener.EventTime,
+                        audioSessionId: Int
+                    ) {
+                        volumeBooster.attachSession(audioSessionId)
+                    }
+
                     override fun onLoadCompleted(
                         eventTime: AnalyticsListener.EventTime,
                         loadEventInfo: LoadEventInfo,
@@ -871,11 +1157,37 @@ class PlaybackSession @Inject constructor(
                         if (castConnected) return
                         _isPlaying.value = isPlaying
                         if (!isPlaying) recordProgress(force = true)
-                        if (isPlaying) startPlaybackService()
+                        if (isPlaying) {
+                            streamHasPlayed = true
+                            reconnectAttempts = 0
+                            startPlaybackService()
+                        }
+                    }
+
+                    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                        streamHasPlayed = false
+                        reconnectAttempts = 0
+                        reconnectJob?.cancel()
+                    }
+
+                    // Registered before the screen's listener, so a drop being ridden out is known
+                    // by the time the screen decides whether this source has failed.
+                    override fun onPlayerError(error: PlaybackException) {
+                        if (castConnected || !streamHasPlayed || !error.isConnectionDrop()) return
+                        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) return
+                        reconnectAttempts++
+                        val wait = RECONNECT_STEP_MS * reconnectAttempts
+                        reconnectJob = scope.launch {
+                            delay(wait)
+                            if (playerError != null) prepare()
+                        }
                     }
 
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         if (castConnected) return
+                        if (playbackState == Player.STATE_READY) {
+                            volumeBooster.attachSession(audioSessionId)
+                        }
                         if (playbackState == Player.STATE_ENDED) {
                             recordProgress(force = true, ended = true)
                             // Registered before the screen's listener, so this is set by the time it asks.
@@ -917,6 +1229,11 @@ class PlaybackSession @Inject constructor(
 
     private fun saveProgress(item: NowPlaying, position: Long, duration: Long, force: Boolean) {
         if (position < WatchProgress.MIN_SAVED_POSITION_MS) return
+        // An imported file is not a title: it would show up in Continue Watching and History with
+        // nothing to open.
+        if (item.mediaType == LOCAL_MEDIA_TYPE) return
+        // Watch history is paused: nothing is recorded, so nothing is queued next either.
+        if (appSettingsStore.current.pauseWatchHistory) return
 
         val key = item.key
         val completed = position.toFloat() / duration >= WatchProgress.COMPLETION_FRACTION
@@ -974,7 +1291,11 @@ class PlaybackSession @Inject constructor(
         val sessionLock = Any()
         const val TAG = "PlaybackSession"
         const val PROGRESS_TICK_MS = 1_000L
+        const val MAX_RECONNECT_ATTEMPTS = 3
+        const val RECONNECT_STEP_MS = 3_000L
         const val PROGRESS_SAVE_INTERVAL_MS = 10_000L
+        /** How long a surface change is given to settle before a paused frame is asked for again. */
+        const val GRAPH_REDRAW_SETTLE_MS = 250L
         const val VOLUME_STEP = 0.05
         /** Receivers load every track with the media; keep the list short. */
         const val MAX_CAST_SUBTITLES = 12
@@ -994,5 +1315,10 @@ class PlaybackSession @Inject constructor(
         const val EXTRA_POSTER = "openstream.poster"
         const val EXTRA_BACKDROP = "openstream.backdrop"
         const val EXTRA_STILL = "openstream.still"
+        const val EXTRA_SERVER_ID = "openstream.server_id"
+        const val EXTRA_PROVIDER_ID = "openstream.provider_id"
+        const val EXTRA_PROVIDER_NAME = "openstream.provider_name"
+        const val EXTRA_SERVER_NAME = "openstream.server_name"
+        const val EXTRA_SERVER_QUALITY = "openstream.server_quality"
     }
 }

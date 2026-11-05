@@ -1,4 +1,10 @@
 package com.ivor.openstream.presentation.marketplace
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.scale
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 
 import androidx.compose.animation.AnimatedVisibility
 import com.ivor.openstream.R
@@ -28,8 +34,6 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.outlined.DeleteOutline
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -130,25 +134,35 @@ fun ExtensionRow(
     /** Installed tab only: move this source up or down the search order (null at either end). */
     onMoveUp: (() -> Unit)? = null,
     onMoveDown: (() -> Unit)? = null,
-    showReorder: Boolean = false
+    showReorder: Boolean = false,
+    /** Installed tab only: the repository the source came from, so the order reads unambiguously. */
+    repoLabel: String? = null
 ) {
     val manifest = extension.manifest
+    val rowInteractionSource = remember { MutableInteractionSource() }
+    val isRowFocused by rowInteractionSource.collectIsFocusedAsState()
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(ExpressiveShapes.large)
-            .clickable(onClick = onClick),
+        onClick = onClick,
+        interactionSource = rowInteractionSource,
         shape = ExpressiveShapes.large,
-        color = if (extension.isInstalled) {
+        color = if (isRowFocused) {
+            MaterialTheme.colorScheme.surfaceContainerHighest
+        } else if (extension.isInstalled) {
             MaterialTheme.colorScheme.surfaceContainerHigh
         } else {
             MaterialTheme.colorScheme.surfaceContainerLow
         },
-        border = if (extension.hasUpdate) {
+        border = if (isRowFocused) {
+            BorderStroke(2.5.dp, MaterialTheme.colorScheme.primary)
+        } else if (extension.hasUpdate) {
             BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.7f))
         } else {
             null
-        }
+        },
+        shadowElevation = if (isRowFocused) 8.dp else 0.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (isRowFocused) Modifier.scale(1.02f) else Modifier)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -185,7 +199,7 @@ fun ExtensionRow(
                     }
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        text = extensionSubtitle(extension),
+                        text = extensionSubtitle(extension, repoLabel),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -274,10 +288,20 @@ private fun ExtensionAction(
     onUpdate: () -> Unit
 ) {
     when {
-        extension.hasUpdate -> FilledTonalButton(onClick = onUpdate, shape = ExpressiveShapes.small) {
-            Icon(Icons.Default.Update, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.action_update))
+        extension.hasUpdate -> {
+            val updateInteractionSource = remember { MutableInteractionSource() }
+            val isUpdateFocused by updateInteractionSource.collectIsFocusedAsState()
+            FilledTonalButton(
+                onClick = onUpdate,
+                interactionSource = updateInteractionSource,
+                shape = ExpressiveShapes.small,
+                border = if (isUpdateFocused) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+                modifier = if (isUpdateFocused) Modifier.scale(1.08f) else Modifier
+            ) {
+                Icon(Icons.Default.Update, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.action_update))
+            }
         }
 
         extension.isInstalled -> Icon(
@@ -292,10 +316,20 @@ private fun ExtensionAction(
             color = MaterialTheme.colorScheme.error
         )
 
-        else -> Button(onClick = onInstall, shape = ExpressiveShapes.small) {
-            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.action_install))
+        else -> {
+            val installInteractionSource = remember { MutableInteractionSource() }
+            val isInstallFocused by installInteractionSource.collectIsFocusedAsState()
+            Button(
+                onClick = onInstall,
+                interactionSource = installInteractionSource,
+                shape = ExpressiveShapes.small,
+                border = if (isInstallFocused) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+                modifier = if (isInstallFocused) Modifier.scale(1.08f) else Modifier
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.action_install))
+            }
         }
     }
 }
@@ -309,13 +343,18 @@ fun ChartTile(
     onInstall: () -> Unit
 ) {
     val manifest = extension.manifest
+    val tileInteractionSource = remember { MutableInteractionSource() }
+    val isTileFocused by tileInteractionSource.collectIsFocusedAsState()
     Surface(
+        onClick = onClick,
+        interactionSource = tileInteractionSource,
+        shape = ExpressiveShapes.large,
+        color = if (isTileFocused) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = if (isTileFocused) BorderStroke(2.5.dp, MaterialTheme.colorScheme.primary) else null,
+        shadowElevation = if (isTileFocused) 8.dp else 0.dp,
         modifier = Modifier
             .width(212.dp)
-            .clip(ExpressiveShapes.large)
-            .clickable(onClick = onClick),
-        shape = ExpressiveShapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh
+            .then(if (isTileFocused) Modifier.scale(1.04f) else Modifier)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -413,24 +452,10 @@ fun RepoCard(
             }
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AssistChip(
-                    onClick = {},
-                    enabled = false,
-                    label = { Text(stringResource(R.string.st_extensions_count, extensionCount)) },
-                    colors = AssistChipDefaults.assistChipColors(
-                        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                )
-                AssistChip(
-                    onClick = {},
-                    enabled = false,
-                    label = { Text(lastSyncLabel(repo.lastSyncedAt)) },
-                    colors = AssistChipDefaults.assistChipColors(
-                        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                )
+                // Static facts, not actions: plain pills instead of disabled chips, so
+                // screen readers hear text rather than a disabled button.
+                StaticMetaChip(stringResource(R.string.st_extensions_count, extensionCount))
+                StaticMetaChip(lastSyncLabel(repo.lastSyncedAt))
             }
             if (repo.error != null) {
                 Spacer(Modifier.height(10.dp))
@@ -441,6 +466,21 @@ fun RepoCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun StaticMetaChip(text: String) {
+    Surface(
+        shape = ExpressiveShapes.small,
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+        )
     }
 }
 
@@ -646,13 +686,30 @@ fun EmptyState(icon: ImageVector, title: String, body: String) {
 }
 
 @Composable
-fun extensionSubtitle(extension: MarketplaceExtension): String {
+fun extensionSubtitle(extension: MarketplaceExtension, repoLabel: String? = null): String {
     val manifest = extension.manifest
-    val parts = mutableListOf(manifest.language, "v${manifest.versionName}")
+    val parts = mutableListOf<String>()
+    repoLabel?.takeIf { it.isNotBlank() }?.let { parts += it }
+    parts += manifest.language
+    parts += "v${manifest.versionName}"
     if (manifest.installs > 0) parts += stringResource(R.string.misc_installs, formatCount(manifest.installs))
     extension.usage.successRate?.let { parts += stringResource(R.string.misc_success_rate, (it * 100).roundToInt()) }
     if (manifest.isFallback) parts += stringResource(R.string.mk_fallback_tag)
     return parts.joinToString(" · ")
+}
+
+/**
+ * The repository an extension was installed from, as shown beside it: "Official" for the one that
+ * ships with the app, otherwise the repository's own name.
+ */
+@Composable
+fun extensionRepoLabel(repos: List<ExtensionRepo>, repoId: String): String {
+    val repo = repos.firstOrNull { it.id == repoId }
+    return if (repo?.isBuiltIn == true) {
+        stringResource(R.string.src_repo_official)
+    } else {
+        repo?.name.orEmpty().ifEmpty { stringResource(R.string.st_unknown_repo) }
+    }
 }
 
 @Composable

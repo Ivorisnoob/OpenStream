@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.person
 
+import com.ivor.openstream.presentation.components.bottomContentPadding
 import com.ivor.openstream.presentation.components.isCompactWidth
 import com.ivor.openstream.R
 import androidx.compose.foundation.layout.widthIn
@@ -85,7 +86,7 @@ fun PersonScreen(
             is PersonUiState.Success -> LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = byWidth(compact = 108.dp, medium = 128.dp, expanded = 140.dp)),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 136.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = bottomContentPadding),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -161,7 +162,7 @@ private fun PersonHeader(person: PersonDto) {
 private fun PersonPhoto(person: PersonDto, size: androidx.compose.ui.unit.Dp) {
     AsyncImage(
         model = person.profilePath?.let { "https://image.tmdb.org/t/p/h632$it" },
-        contentDescription = null,
+        contentDescription = person.name,
         contentScale = ContentScale.Crop,
         modifier = Modifier
             .size(size)

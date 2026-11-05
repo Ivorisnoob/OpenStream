@@ -1,5 +1,6 @@
 package com.ivor.openstream.presentation.navigation
 
+import com.ivor.openstream.data.local.entity.LOCAL_MEDIA_TYPE
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -39,9 +40,12 @@ import com.ivor.openstream.presentation.watch_history.WatchHistoryScreen
 import com.ivor.openstream.presentation.watch_later.WatchLaterScreen
 import com.ivor.openstream.presentation.update.UpdateScreen
 import com.ivor.openstream.presentation.settings.SettingsScreen
+import com.ivor.openstream.presentation.settings.VideoShaderSettingsScreen
 import com.ivor.openstream.presentation.marketplace.MarketplaceScreen
 import com.ivor.openstream.presentation.player.session.MiniPlayer
 import com.ivor.openstream.presentation.lists.CustomListScreen
+import com.ivor.openstream.data.settings.NavBarStyle
+import com.ivor.openstream.data.settings.StartScreen
 import com.ivor.openstream.presentation.profiles.ManageProfilesScreen
 import com.ivor.openstream.presentation.profiles.ProfilesViewModel
 import com.ivor.openstream.presentation.profiles.WhoIsWatchingScreen
@@ -59,6 +63,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 import com.ivor.openstream.presentation.player.session.MiniPlayerViewModel
@@ -80,6 +85,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalFloatingToolbar
+import androidx.compose.material3.ShortNavigationBar
+import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -99,8 +106,6 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 
 sealed class Screen(
@@ -116,7 +121,9 @@ sealed class Screen(
     data object History : Screen("history", "History", R.string.nav_history, Icons.Default.History)
     data object Update : Screen("update")
     data object Settings : Screen("settings")
+    data object VideoShaders : Screen("video_shaders")
     data object Marketplace : Screen("marketplace")
+    data object Calendar : Screen("calendar")
     data object Person : Screen("person/{personId}") {
         fun createRoute(personId: Int) = "person/$personId"
     }
@@ -131,16 +138,20 @@ sealed class Screen(
         fun createRoute(mediaType: String, animeId: Int) = "details/$mediaType/$animeId"
     }
 
-    data object Player : Screen("player/{mediaType}/{animeId}/{season}/{episode}?downloadId={downloadId}") {
+    data object Player : Screen("player/{mediaType}/{animeId}/{season}/{episode}?downloadId={downloadId}&localMediaId={localMediaId}") {
         fun createRoute(
-            mediaType: String,
-            animeId: Int,
-            season: Int,
-            episode: Int,
-            downloadId: String? = null
+            mediaType: String = "tv",
+            animeId: Int = 0,
+            season: Int = 0,
+            episode: Int = 0,
+            downloadId: String? = null,
+            localMediaId: Long? = null
         ): String {
             val base = "player/$mediaType/$animeId/$season/$episode"
-            return if (downloadId != null) "$base?downloadId=$downloadId" else base
+            val params = mutableListOf<String>()
+            if (downloadId != null) params.add("downloadId=$downloadId")
+            if (localMediaId != null) params.add("localMediaId=$localMediaId")
+            return if (params.isNotEmpty()) "$base?${params.joinToString("&")}" else base
         }
     }
 }
@@ -165,13 +176,26 @@ fun AppNavigation(
     val miniPlayerViewModel: MiniPlayerViewModel = hiltViewModel()
     val nowPlaying by miniPlayerViewModel.session.nowPlaying.collectAsState()
     val appViewModel: AppViewModel = hiltViewModel()
+    // The tab Settings says to open on; fixed for this NavHost, which can't change its start.
+    val startRoute = remember {
+        when (appViewModel.startScreen) {
+            StartScreen.HOME -> Screen.Home.route
+            StartScreen.SEARCH -> Screen.Search.route
+            StartScreen.SAVED -> Screen.WatchLater.route
+            StartScreen.DOWNLOADS -> Screen.Downloads.route
+            StartScreen.HISTORY -> Screen.History.route
+        }
+    }
     val profilesViewModel: ProfilesViewModel = hiltViewModel()
     val profiles by profilesViewModel.profiles.collectAsState()
     val activeProfile by profilesViewModel.activeProfile.collectAsState()
     val showLaunchPicker by profilesViewModel.showLaunchPicker.collectAsState()
     var showProfilePicker by rememberSaveable { mutableStateOf(false) }
     val isOnline by appViewModel.isOnline.collectAsState()
+    val navBarStyle by appViewModel.navBarStyle.collectAsState()
+    val dockedNavBar = navBarStyle == NavBarStyle.DOCKED
     var toolbarHeightPx by remember { mutableIntStateOf(0) }
+    var dockedBarHeightPx by remember { mutableIntStateOf(0) }
 
     fun openTab(screen: Screen) {
         navController.navigate(screen.route) {
@@ -213,6 +237,8 @@ fun AppNavigation(
     }
     // Tablets keep the rail on every screen but the player; phones only show the toolbar on tabs.
     val showRail = !isCompact && !isOnPlayer
+    // "Remove animations" kills screen transitions as well as in-screen motion.
+    val animatedNav = !com.ivor.openstream.presentation.components.ExpressiveMotion.reducedMotion()
 
     CompositionLocalProvider(LocalWindowWidthClass provides windowSizeClass) {
     Row(modifier = Modifier.fillMaxSize()) {
@@ -256,12 +282,12 @@ fun AppNavigation(
         ) {
             NavHost(
                 navController = navController,
-                startDestination = Screen.Home.route,
+                startDestination = startRoute,
                 modifier = Modifier.fillMaxSize(),
-                enterTransition = NavTransitions.enter,
-                exitTransition = NavTransitions.exit,
-                popEnterTransition = NavTransitions.popEnter,
-                popExitTransition = NavTransitions.popExit
+                enterTransition = { with(NavTransitions) { enter(animatedNav) } },
+                exitTransition = { with(NavTransitions) { exit(animatedNav) } },
+                popEnterTransition = { with(NavTransitions) { popEnter(animatedNav) } },
+                popExitTransition = { with(NavTransitions) { popExit(animatedNav) } }
             ) {
                 composable(Screen.Home.route) {
                     HomeScreen(
@@ -282,7 +308,6 @@ fun AppNavigation(
                             navController.navigate(Screen.Details.createRoute(mediaType, id))
                         },
                         onSettingsClick = { navController.navigate(Screen.Settings.route) },
-                        onUpdateClick = { navController.navigate(Screen.Update.route) },
                         profile = activeProfile,
                         onSwitchProfile = { showProfilePicker = true }
                     )
@@ -308,6 +333,26 @@ fun AppNavigation(
                         },
                         onOpenList = { listId ->
                             navController.navigate(Screen.CustomList.createRoute(listId))
+                        },
+                        onOpenCalendar = { navController.navigate(Screen.Calendar.route) }
+                    )
+                }
+
+                composable(Screen.Calendar.route) {
+                    com.ivor.openstream.presentation.calendar.CalendarScreen(
+                        onBackClick = { navController.popBackStack() },
+                        onOpenDetails = { id, type ->
+                            navController.navigate(Screen.Details.createRoute(type, id))
+                        },
+                        onPlay = { item ->
+                            navController.navigate(
+                                Screen.Player.createRoute(
+                                    mediaType = item.mediaType,
+                                    animeId = item.tmdbId,
+                                    season = item.season ?: 0,
+                                    episode = item.episode ?: 0
+                                )
+                            )
                         }
                     )
                 }
@@ -335,6 +380,17 @@ fun AppNavigation(
                                     season = download.season,
                                     episode = download.episode,
                                     downloadId = download.downloadId
+                                )
+                            )
+                        },
+                        onLocalMediaClick = { localMedia ->
+                            navController.navigate(
+                                Screen.Player.createRoute(
+                                    mediaType = LOCAL_MEDIA_TYPE,
+                                    animeId = localMedia.id.toInt(),
+                                    season = 0,
+                                    episode = 0,
+                                    localMediaId = localMedia.id
                                 )
                             )
                         }
@@ -365,7 +421,15 @@ fun AppNavigation(
                     SettingsScreen(
                         onBackClick = { navController.popBackStack() },
                         onOpenMarketplace = { navController.navigate(Screen.Marketplace.route) },
-                        onOpenProfiles = { navController.navigate(Screen.Profiles.route) }
+                        onOpenProfiles = { navController.navigate(Screen.Profiles.route) },
+                        onOpenVideoShaders = { navController.navigate(Screen.VideoShaders.route) },
+                        onOpenUpdates = { navController.navigate(Screen.Update.route) }
+                    )
+                }
+
+                composable(Screen.VideoShaders.route) {
+                    VideoShaderSettingsScreen(
+                        onBackClick = { navController.popBackStack() }
                     )
                 }
 
@@ -436,6 +500,10 @@ fun AppNavigation(
                             type = NavType.StringType
                             nullable = true
                             defaultValue = null
+                        },
+                        navArgument("localMediaId") {
+                            type = NavType.LongType
+                            defaultValue = -1L
                         }
                     )
                 ) { backStackEntry ->
@@ -444,6 +512,7 @@ fun AppNavigation(
                     val season = backStackEntry.arguments?.getInt("season") ?: return@composable
                     val episode = backStackEntry.arguments?.getInt("episode") ?: return@composable
                     val downloadId = backStackEntry.arguments?.getString("downloadId")
+                    val localMediaIdArg = backStackEntry.arguments?.getLong("localMediaId")?.takeIf { it != -1L }
 
                     PlayerScreen(
                         mediaType = mediaType,
@@ -451,6 +520,7 @@ fun AppNavigation(
                         season = season,
                         episode = episode,
                         downloadId = downloadId,
+                        localMediaId = localMediaIdArg,
                         onBackClick = { navController.popBackStack() },
                         onOpenDetails = { type, id ->
                             navController.navigate(Screen.Details.createRoute(type, id)) { launchSingleTop = true }
@@ -493,16 +563,23 @@ fun AppNavigation(
             val toolbarTop = with(LocalDensity.current) {
                 ToolbarBottomOffset + if (toolbarHeightPx > 0) toolbarHeightPx.toDp() else 66.dp
             }
+            // The docked bar's measured height already includes the navigation bar inset.
+            val dockedBarTop = with(LocalDensity.current) { dockedBarHeightPx.toDp() }
+            val miniPlayerOffset = when {
+                showToolbar && dockedNavBar && dockedBarHeightPx > 0 ->
+                    Modifier.padding(bottom = dockedBarTop + 8.dp)
+                showToolbar && dockedNavBar ->
+                    Modifier.navigationBarsPadding().padding(bottom = DockedBarFallbackHeight + 8.dp)
+                showToolbar -> Modifier.padding(bottom = toolbarTop + 12.dp)
+                else -> Modifier.navigationBarsPadding().padding(bottom = 16.dp)
+            }
             androidx.compose.animation.AnimatedVisibility(
                 visible = !isOnPlayer && nowPlaying != null,
                 enter = slideInVertically { it } + fadeIn(),
                 exit = slideOutVertically { it } + fadeOut(),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .then(
-                        if (showToolbar) Modifier.padding(bottom = toolbarTop + 12.dp)
-                        else Modifier.navigationBarsPadding().padding(bottom = 16.dp)
-                    )
+                    .then(miniPlayerOffset)
                     .padding(horizontal = 16.dp)
                     // A phone-width bar on tablets instead of a strip across the whole window.
                     .widthIn(max = 560.dp)
@@ -516,16 +593,51 @@ fun AppNavigation(
                                 animeId = item.tmdbId,
                                 season = item.season,
                                 episode = item.episode,
-                                downloadId = item.downloadId
+                                downloadId = item.downloadId,
+                                // A local file plays under its row id; reopen it as that file.
+                                localMediaId = item.tmdbId.toLong().takeIf { item.mediaType == LOCAL_MEDIA_TYPE }
                             )
                         ) { launchSingleTop = true }
                     }
                 )
             }
 
+            // Standard bar docked to the bottom edge, chosen in Settings instead of the toolbar.
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showToolbar && dockedNavBar,
+                enter = slideInVertically { it } + fadeIn(),
+                exit = slideOutVertically { it } + fadeOut(),
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                val currentIndex = bottomNavItems.indexOfFirst { screen ->
+                    currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                }
+                ShortNavigationBar(
+                    modifier = Modifier.onSizeChanged { dockedBarHeightPx = it.height }
+                ) {
+                    bottomNavItems.forEachIndexed { index, screen ->
+                        val isSelected = index == currentIndex
+                        ShortNavigationBarItem(
+                            selected = isSelected,
+                            onClick = {
+                                if (isSelected && screen.route == Screen.Search.route) {
+                                    navController.currentBackStackEntry?.savedStateHandle?.set(
+                                        "focusSearch",
+                                        System.currentTimeMillis()
+                                    )
+                                }
+                                openTab(screen)
+                            },
+                            icon = { Icon(screen.icon!!, contentDescription = null) },
+                            label = { Text(screen.labelRes?.let { stringResource(it) } ?: screen.label) }
+                        )
+                    }
+                }
+            }
+
             // Expressive Floating Navigation for Mobile (Compact screens)
             androidx.compose.animation.AnimatedVisibility(
-                visible = showBottomBar && isCompact,
+                visible = showToolbar && !dockedNavBar,
                 enter = slideInVertically { it } + fadeIn(),
                 exit = slideOutVertically { it } + fadeOut(),
                 modifier = Modifier.align(Alignment.BottomCenter)
@@ -572,9 +684,9 @@ fun AppNavigation(
                     content = {
                         val shownIndex = scrubIndex ?: currentIndex
                         bottomNavItems.forEachIndexed { index, screen ->
-                            val selected = index == shownIndex
+                            val isSelected = index == shownIndex
                             val onClick = {
-                                if (selected && screen.route == Screen.Search.route) {
+                                if (isSelected && screen.route == Screen.Search.route) {
                                     navController.currentBackStackEntry?.savedStateHandle?.set(
                                         "focusSearch",
                                         System.currentTimeMillis()
@@ -582,12 +694,15 @@ fun AppNavigation(
                                 }
                                 openTab(screen)
                             }
-                            if (selected) {
-                                FilledIconButton(onClick = onClick, modifier = Modifier.size(50.dp)) {
+                            // Icon-only tabs: expose which one is active so screen readers
+                            // announce e.g. "Home, selected" instead of five bare buttons.
+                            val tabSemantics = Modifier.semantics { selected = isSelected }
+                            if (isSelected) {
+                                FilledIconButton(onClick = onClick, modifier = Modifier.size(50.dp).then(tabSemantics)) {
                                     Icon(screen.icon!!, contentDescription = screen.labelRes?.let { stringResource(it) } ?: screen.label)
                                 }
                             } else {
-                                IconButton(onClick = onClick, modifier = Modifier.size(50.dp)) {
+                                IconButton(onClick = onClick, modifier = Modifier.size(50.dp).then(tabSemantics)) {
                                     Icon(screen.icon!!, contentDescription = screen.labelRes?.let { stringResource(it) } ?: screen.label)
                                 }
                             }
@@ -626,6 +741,9 @@ fun AppNavigation(
 
 /** Gap between the floating toolbar and the bottom edge of the window. */
 private val ToolbarBottomOffset = 50.dp
+
+/** Height of the docked bar above the navigation bar inset, used until it has been measured. */
+private val DockedBarFallbackHeight = 64.dp
 
 @Composable
 private fun OfflineBanner(showDownloadsAction: Boolean, onOpenDownloads: () -> Unit) {

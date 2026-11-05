@@ -19,6 +19,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -47,7 +49,15 @@ class SmartDownloads @Inject constructor(
         if (started) return
         started = true
         scope.launch {
-            combine(appSettingsStore.settings, watchProgressRepository.allProgress()) { _, _ -> Unit }
+            // Only what a run decides on: the player saves positions every few seconds, and a run
+            // per save would ask TMDB about every show while something is streaming.
+            val watched = watchProgressRepository.allProgress()
+                .map { rows -> rows.map { listOf(it.tmdbId, it.season, it.episode, it.completed) }.toSet() }
+                .distinctUntilChanged()
+            val smartSettings = appSettingsStore.settings
+                .map { it.smartDownloads to it.smartKeepAhead }
+                .distinctUntilChanged()
+            combine(smartSettings, watched) { _, _ -> Unit }
                 .debounce(2.seconds)
                 .collect { reconcile() }
         }
@@ -74,8 +84,14 @@ class SmartDownloads @Inject constructor(
         val keepAhead = settings.smartKeepAhead
 
         val all = watchProgressRepository.allProgress().first()
-        val completedKeys = all
-            .filter { it.completed }
+        val now = System.currentTimeMillis()
+        val completed = all.filter { it.completed }
+        val completedKeys = completed
+            .map { progressKey(it.mediaType, it.tmdbId, it.season, it.episode) }
+            .toSet()
+        // Watched a moment ago: the player may still be showing its credits from this very file.
+        val justCompletedKeys = completed
+            .filter { now - it.updatedAt < DELETE_GRACE_MS }
             .map { progressKey(it.mediaType, it.tmdbId, it.season, it.episode) }
             .toSet()
 
@@ -84,7 +100,8 @@ class SmartDownloads @Inject constructor(
             val smartRows = downloadRepository.getAllDownloads().first().filter { it.isSmart }
             for (row in smartRows) {
                 try {
-                    if (progressKey(row.mediaType, row.tmdbId, row.season, row.episode) in completedKeys) {
+                    val key = progressKey(row.mediaType, row.tmdbId, row.season, row.episode)
+                    if (key in completedKeys && key !in justCompletedKeys) {
                         downloadRepository.removeDownload(row.downloadId)
                     }
                 } catch (_: Exception) {
@@ -93,28 +110,44 @@ class SmartDownloads @Inject constructor(
             }
         }
 
+        // Nobody asked for these episodes right now, so they wait for Wi-Fi whatever the setting
+        // for downloads the user starts by hand.
         val metered = runCatching {
             context.getSystemService(ConnectivityManager::class.java)?.isActiveNetworkMetered == true
-        }.getOrDefault(false)
-        if (settings.wifiOnlyDownloads && metered) return
+        }.getOrDefault(true)
+        if (metered) return
 
+        // Shows being watched: anything played lately, most recent first. A finished episode
+        // counts, since the next one is exactly what should be waiting.
         val series = all.filter { !it.isMovie }
             .groupBy { it.tmdbId }
-            .filterValues { rows -> rows.any { !it.completed } }
+            .mapValues { (_, rows) -> rows.maxBy { it.updatedAt } }
+            .filterValues { now - it.updatedAt < ACTIVE_WINDOW_MS }
+            .entries
+            .sortedByDescending { it.value.updatedAt }
+            .take(MAX_SHOWS_PER_RUN)
 
-        for ((tmdbId, rows) in series.entries.take(MAX_SHOWS_PER_RUN)) {
+        for ((tmdbId, latest) in series) {
             try {
-                reconcileShow(tmdbId, rows, keepAhead)
+                reconcileShow(tmdbId, latest, completedKeys, keepAhead)
             } catch (_: Exception) {
                 // One bad show never blocks the rest.
             }
         }
     }
 
-    private suspend fun reconcileShow(tmdbId: Int, rows: List<WatchProgress>, keepAhead: Int) {
+    private suspend fun reconcileShow(
+        tmdbId: Int,
+        current: WatchProgress,
+        completedKeys: Set<String>,
+        keepAhead: Int
+    ) {
+        // Cached answers are fine: they are a few hours old at most, and the episode notifier
+        // refreshes them when new episodes air.
         val details = animeRepository.getMediaDetails(tmdbId, "tv").getOrNull() ?: return
-        val current = rows.maxByOrNull { it.updatedAt } ?: return
         val (curS, curE) = current.season to current.episode
+        // An episode started (or queued as up next) is kept too; a finished one is not.
+        val fromEpisode = if (current.completed) curE + 1 else curE
 
         val existing = downloadRepository.getDownloadsForTitle(tmdbId, "tv").first()
             // Completed, active, failed (retry is manual) and user-paused rows all block
@@ -136,9 +169,12 @@ class SmartDownloads @Inject constructor(
         val targets = mutableListOf<Pair<Int, EpisodeDto>>()
         var season = curS
         while (targets.size < keepAhead) {
+            val seasonNumber = season
             val episodes = animeRepository.getSeasonDetails(tmdbId, season).getOrNull()?.episodes.orEmpty()
                 .filter { isReleased(it.airDate) }
-                .filter { if (season == curS) it.episodeNumber > curE else true }
+                .filter { if (seasonNumber == curS) it.episodeNumber >= fromEpisode else true }
+                // Already seen: a rewatch further back must not bring these down again.
+                .filter { progressKey("tv", tmdbId, seasonNumber, it.episodeNumber) !in completedKeys }
                 .sortedBy { it.episodeNumber }
             for (episode in episodes) {
                 if (targets.size >= keepAhead) break
@@ -175,7 +211,11 @@ class SmartDownloads @Inject constructor(
     }
 
     private companion object {
-        const val MAX_SHOWS_PER_RUN = 25
+        const val MAX_SHOWS_PER_RUN = 5
+        /** A show counts as being watched for this long after it was last played. */
+        const val ACTIVE_WINDOW_MS = 21L * 24 * 60 * 60 * 1000
+        /** How long a just-watched smart episode is kept before it is deleted. */
+        const val DELETE_GRACE_MS = 30L * 60 * 1000
         const val MIN_FREE_BYTES = 500L * 1024L * 1024L
 
         fun progressKey(mediaType: String, tmdbId: Int, season: Int, episode: Int) =
