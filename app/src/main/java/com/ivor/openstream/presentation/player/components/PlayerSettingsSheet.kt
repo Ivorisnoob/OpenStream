@@ -432,7 +432,8 @@ private fun LazyListScope.mainPage(
                 onClick = { onNavigate(PlayerSettingsPage.QUALITY) }
             )
         )
-        if (model.smoothMotion != null) {
+        // Only where the GPU can run it: elsewhere the switch would read "on" and do nothing.
+        if (model.smoothMotion?.isSupported == true) {
             val sm = model.smoothMotion
             add(
                 MainRow(

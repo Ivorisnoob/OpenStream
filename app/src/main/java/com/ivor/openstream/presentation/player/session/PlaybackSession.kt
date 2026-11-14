@@ -202,10 +202,21 @@ class PlaybackSession @Inject constructor(
     private var lastSavedPositionMs = -1L
     private var completionRecordedFor: String? = null
 
-        private var localPlayerCreated = false
+    /** The phone's player once built; read it through [player]. */
+    private var localPlayer: ExoPlayer? = null
+    private var localPlayerCreated = false
     private var shaderStageInstalled = true
 
-    /** False once the player was built without the shader stage: a look then waits for a restart. */
+    /**
+     * Set when a look was turned on while the player in use has no shader stage. The player is
+     * rebuilt with one as soon as nothing is loaded in it ([addShaderStageWhenIdle]).
+     */
+    private var shaderStageRebuildPending = false
+
+    /**
+     * False while the player in use was built without the shader stage: a look then waits until
+     * the current playback ends, when the player is rebuilt with the stage.
+     */
     val shadersApplyNow: Boolean get() = !localPlayerCreated || shaderStageInstalled
 
     var smoothMotion: SmoothMotion? = null
@@ -294,6 +305,38 @@ class PlaybackSession @Inject constructor(
         // A change to the look is made to be seen.
         _videoShaderHidden.value = false
         drawVideoShaders()
+        addShaderStageWhenIdle()
+    }
+
+    /**
+     * Gives a player built without the shader stage one, once a look is on.
+     *
+     * Media3 settles whether video goes through the effect graph on the renderer's first enable and
+     * never revisits it, so adding the stage means a new player. Built here only while nothing is
+     * loaded (no title, not casting, an empty playlist): every screen that shows video reads
+     * [player] afresh when it opens, and the media session is moved to the new one. With something
+     * loaded the rebuild waits for [stop], which ends the session.
+     */
+    private fun addShaderStageWhenIdle() {
+        val current = localPlayer
+        if (current == null || shaderStageInstalled || !_videoShaders.value.isEffectActive) {
+            shaderStageRebuildPending = false
+            return
+        }
+        if (_nowPlaying.value != null || castConnected || current.mediaItemCount > 0) {
+            shaderStageRebuildPending = true
+            return
+        }
+        shaderStageRebuildPending = false
+        shaderRedrawJob?.cancel()
+        reconnectJob?.cancel()
+        // One SmoothMotion per player, released before its player.
+        smoothMotion?.release()
+        smoothMotion = null
+        localPlayer = null
+        localPlayerCreated = false
+        player // builds the new one and hands it to the media session
+        current.release()
     }
 
     private fun drawVideoShaders() {
@@ -334,8 +377,16 @@ class PlaybackSession @Inject constructor(
 
     // region Media session (notification, lock screen, headset buttons)
 
-    /** Created on first use, on the main thread, by whichever surface shows video first. */
-    val player: ExoPlayer by lazy { buildPlayer().also { localPlayerCreated = true } }
+    /**
+     * Created on first use, on the main thread, by whichever surface shows video first. Replaced
+     * only to add the shader stage, and only while nothing is loaded ([addShaderStageWhenIdle]).
+     */
+    val player: ExoPlayer
+        get() = localPlayer ?: buildPlayer().also { built ->
+            localPlayer = built
+            localPlayerCreated = true
+            mediaSessionInstance?.player = built
+        }
 
     private var mediaSessionInstance: MediaSession? = null
 
@@ -598,6 +649,7 @@ class PlaybackSession @Inject constructor(
         volumeBooster.release()
         _nowPlaying.value = null
         requestHeaders = emptyMap()
+        if (shaderStageRebuildPending) addShaderStageWhenIdle()
     }
 
     // region Casting

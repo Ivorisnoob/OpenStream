@@ -1004,7 +1004,7 @@
 
     <!-- Video shaders: the settings page, the player's Shaders page and the sliders -->
     <string name="sp_video_shaders">Video shaders</string>
-    <string name="sp_video_shaders_restart">Close and reopen the app to see looks on videos.</string>
+    <string name="sp_video_shaders_restart">Looks start once the video playing now is closed.</string>
     <string name="sp_video_shaders_sub_off">Give videos a look: film, retro and drawn styles, plus sharpening and colour</string>
     <string name="sp_video_shaders_sub_on">Change the look here, or from the video player\'s settings while you watch</string>
     <string name="sp_video_shaders_note">Takes effect on the next frame. HDR videos play in standard range while this is on.</string>
