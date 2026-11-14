@@ -82,6 +82,7 @@ import com.ivor.openstream.BuildConfig
 import com.ivor.openstream.R
 import com.ivor.openstream.presentation.components.ExpressiveBackButton
 import com.ivor.openstream.presentation.components.isCompactWidth
+import com.ivor.openstream.ui.theme.groupedPageColor
 
 // region Model
 
@@ -288,7 +289,7 @@ private fun CategoryListPane(
         modifier = modifier
             .nestedScroll(scrollBehavior.nestedScrollConnection)
             .semantics { paneTitle = title },
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        containerColor = groupedPageColor(),
         snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
         topBar = {
             LargeFlexibleTopAppBar(
@@ -298,8 +299,8 @@ private fun CategoryListPane(
                     ExpressiveBackButton(onClick = onBackClick, modifier = Modifier.padding(start = 8.dp))
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
+                    containerColor = groupedPageColor(),
+                    scrolledContainerColor = groupedPageColor()
                 ),
                 scrollBehavior = scrollBehavior
             )
@@ -631,7 +632,7 @@ private fun CategoryPane(
             .fillMaxSize()
             .nestedScroll(scrollBehavior.nestedScrollConnection)
             .semantics { paneTitle = category.title },
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        containerColor = groupedPageColor(),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             LargeFlexibleTopAppBar(
@@ -651,8 +652,8 @@ private fun CategoryPane(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
+                    containerColor = groupedPageColor(),
+                    scrolledContainerColor = groupedPageColor()
                 ),
                 scrollBehavior = scrollBehavior
             )

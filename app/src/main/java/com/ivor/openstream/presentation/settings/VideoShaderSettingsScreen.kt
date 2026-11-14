@@ -72,6 +72,8 @@ import com.ivor.openstream.presentation.components.ExpressiveBackButton
 import com.ivor.openstream.presentation.player.components.ShaderPictureSliders
 import com.ivor.openstream.presentation.player.components.icon
 import com.ivor.openstream.ui.theme.ExpressiveShapes
+import com.ivor.openstream.ui.theme.LocalAmoledBlack
+import com.ivor.openstream.ui.theme.groupedPageColor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -97,7 +99,7 @@ fun VideoShaderSettingsScreen(
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        containerColor = groupedPageColor(),
         topBar = {
             LargeFlexibleTopAppBar(
                 title = { Text(stringResource(R.string.sp_video_shaders)) },
@@ -105,8 +107,9 @@ fun VideoShaderSettingsScreen(
                     ExpressiveBackButton(onClick = onBackClick, modifier = Modifier.padding(start = 8.dp))
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    containerColor = groupedPageColor(),
+                    scrolledContainerColor = if (LocalAmoledBlack.current) groupedPageColor()
+                        else MaterialTheme.colorScheme.surfaceContainerHigh
                 ),
                 scrollBehavior = scrollBehavior
             )
