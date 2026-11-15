@@ -171,6 +171,7 @@ fun PlayerScreen(
     val captionSettings by viewModel.captionSettings.collectAsState()
     val videoShaders by viewModel.videoShaders.collectAsState()
     val videoShaderHidden by viewModel.videoShaderHidden.collectAsState()
+    val playerGeneration by viewModel.playerGeneration.collectAsState()
     val serversState by viewModel.serversState.collectAsState()
     val activeServer by viewModel.activeServer.collectAsState()
     val currentDownload by viewModel.currentDownload.collectAsState()
@@ -617,7 +618,9 @@ fun PlayerScreen(
                         modifier = Modifier.fillMaxSize()
                     )
                 } else if (hasUrl && currentUrl != null) {
-                    key(activeServer?.id ?: currentUrl) {
+                    // A new player (shaders switched on mid-playback) is attached to the way a new
+                    // source is; it already holds the stream, so nothing reloads.
+                    key(activeServer?.id ?: currentUrl, playerGeneration) {
                         ExoPlayerView(
                             videoUrl = currentUrl,
                             title = playerTitle,
@@ -695,8 +698,7 @@ fun PlayerScreen(
                             keepPlayingInBackground = appSettings.keepPlayingInBackground,
                             volumeBoostPercent = appSettings.volumeBoostPercent,
                             onVolumeBoostChange = viewModel::setVolumeBoostPercent,
-                            // No shader stage in this player: the row would change nothing until a restart.
-                            videoShaders = if (viewModel.shadersApplyNow) videoShaders else videoShaders.copy(masterEnabled = false),
+                            videoShaders = videoShaders,
                             onPreviewVideoShaders = viewModel::previewVideoShaders,
                             onVideoShadersChange = viewModel::setVideoShaders,
                             videoShaderHidden = videoShaderHidden,

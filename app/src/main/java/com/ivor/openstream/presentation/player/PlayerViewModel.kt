@@ -152,6 +152,9 @@ class PlayerViewModel @Inject constructor(
 
     /** The app-wide player; the screen attaches to it rather than owning one. */
     val player: ExoPlayer get() = playbackSession.player
+
+    /** Changes when [player] is replaced; the video view is keyed on it. */
+    val playerGeneration: StateFlow<Int> = playbackSession.playerGeneration
     val smoothMotion: SmoothMotion? get() = playbackSession.smoothMotion
 
     fun setSmoothMotionEnabled(enabled: Boolean) = appSettingsStore.setSmoothMotionEnabled(enabled)
@@ -162,13 +165,18 @@ class PlayerViewModel @Inject constructor(
     val videoShaders: StateFlow<VideoShaderCustomization> = playbackSession.videoShaders
 
     /** A slider mid-drag: on the picture at once, stored when the finger lifts. */
-    val shadersApplyNow: Boolean get() = playbackSession.shadersApplyNow
-
     fun previewVideoShaders(settings: VideoShaderCustomization) =
         playbackSession.previewVideoShaders(settings)
 
-    fun setVideoShaders(settings: VideoShaderCustomization) =
+    /**
+     * Stores a look chosen in the player and puts it on the picture now. A player built while
+     * shaders were off has no shader stage, so it is swapped for one that has, at the same spot.
+     */
+    fun setVideoShaders(settings: VideoShaderCustomization) {
         playbackSession.setVideoShaders(settings)
+        // Not for "no look": swapping the player would reload the stream to show nothing new.
+        if (settings.isEffectActive) playbackSession.addShaderStageNow()
+    }
 
     /** True while the controls' quick toggle has the look off the picture, for comparison. */
     val videoShaderHidden: StateFlow<Boolean> = playbackSession.videoShaderHidden

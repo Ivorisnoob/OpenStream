@@ -448,25 +448,24 @@ private fun LazyListScope.mainPage(
                 )
             )
         }
-        if (model.videoShaders.masterEnabled) {
-            add(
-                MainRow(
-                    icon = Icons.Default.Palette,
-                    key = "shaders",
-                    title = { stringResource(R.string.vpc_shaders) },
-                    value = {
-                        val shaders = model.videoShaders
-                        when {
-                            shaders.activePreset != VideoShaderPreset.NONE ->
-                                stringResource(shaders.activePreset.titleRes)
-                            !shaders.isPictureNeutral -> stringResource(R.string.vpc_shaders_adjusted)
-                            else -> stringResource(R.string.cz_video_shaders_off)
-                        }
-                    },
-                    onClick = { onNavigate(PlayerSettingsPage.SHADERS) }
-                )
+        add(
+            MainRow(
+                icon = Icons.Default.Palette,
+                key = "shaders",
+                title = { stringResource(R.string.vpc_shaders) },
+                value = {
+                    val shaders = model.videoShaders
+                    when {
+                        !shaders.masterEnabled -> stringResource(R.string.cz_video_shaders_off)
+                        shaders.activePreset != VideoShaderPreset.NONE ->
+                            stringResource(shaders.activePreset.titleRes)
+                        !shaders.isPictureNeutral -> stringResource(R.string.vpc_shaders_adjusted)
+                        else -> stringResource(R.string.cz_video_shaders_off)
+                    }
+                },
+                onClick = { onNavigate(PlayerSettingsPage.SHADERS) }
             )
-        }
+        )
         if (model.zoomToFillAvailable) {
             add(
                 MainRow(
@@ -1130,15 +1129,21 @@ private fun LazyListScope.captionsPage(
  * The panel's Shaders page: the looks, the sliders that tune every built-in one, and a way back to
  * a neutral picture.
  *
- * The master switch is in Settings rather than here, so this page is only offered while it is on:
- * the stage costs a little battery on every video, and that is not a choice to make by accident
- * while watching.
+ * Always offered. With shaders switched off it reads as no look and a neutral picture, and choosing
+ * a look or moving a slider switches them on (Settings has the switch to turn them off again).
  */
 private fun LazyListScope.shadersPage(
     model: PlayerSettingsModel,
     actions: PlayerSettingsActions
 ) {
-    val settings = model.videoShaders
+    // What is stored while switched off is not on the picture, so it is not shown either.
+    val settings = model.videoShaders.let { stored ->
+        if (stored.masterEnabled) {
+            stored
+        } else {
+            stored.copy(masterEnabled = true, activePreset = VideoShaderPreset.NONE).withNeutralPicture()
+        }
+    }
     item(key = "shader-presets") {
         // Four to a row: the names are one or two words on purpose, so a wider cell would only
         // stretch them.
