@@ -1127,6 +1127,9 @@ fun ExoPlayerView(
         // Re-attaching to a stream that kept playing (from the mini player): pick up its state.
         isPlaying = exoPlayer.isPlaying
         if (exoPlayer.playbackState == Player.STATE_READY) isBuffering = false
+        // The screen needs it too: picture-in-picture only arms auto-enter while it hears "playing",
+        // and no change event follows for a stream that was already playing.
+        latestIsPlayingChanged(exoPlayer.isPlaying)
         parseTracksFromPlayer(exoPlayer.currentTracks)
         onDispose {
             latestPositionChanged(exoPlayer.currentPosition.coerceAtLeast(0L))
