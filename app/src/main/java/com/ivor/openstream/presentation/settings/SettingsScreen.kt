@@ -36,12 +36,18 @@ import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Theaters
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.Vibration
-import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.ui.platform.LocalUriHandler
 import com.ivor.openstream.data.playback.VolumeBooster
 import com.ivor.openstream.data.settings.AutoDeleteWatched
 import com.ivor.openstream.data.settings.CaptionStyleSettings
 import com.ivor.openstream.data.settings.CaptionTextColor
+import com.ivor.openstream.data.settings.CaptionEdge
+import com.ivor.openstream.data.settings.CaptionFont
+import com.ivor.openstream.presentation.player.components.captionPositionLabel
+import androidx.compose.material.icons.filled.BorderStyle
+import androidx.compose.material.icons.filled.FontDownload
+import androidx.compose.material.icons.filled.FormatBold
+import androidx.compose.material.icons.filled.UnfoldMore
 import com.ivor.openstream.data.settings.HomeRows
 import com.ivor.openstream.data.settings.PlayerPreferences
 import com.ivor.openstream.data.settings.SourceSearchMode
@@ -1362,7 +1368,7 @@ private fun homeRowLabel(key: String): Pair<ImageVector, String> = when (key) {
     }
 }
 
-/** The caption look: a live preview, then size, plate, colour and position, and a reset. */
+/** The caption look: a live preview, then size, plate, colour, edge, font, weight and position, and a reset. */
 @Composable
 private fun captionEntries(
     style: CaptionStyleSettings,
@@ -1374,12 +1380,7 @@ private fun captionEntries(
     val positionTitle = stringResource(R.string.st_caption_position)
     val sizeLabel = stringResource(R.string.st_caption_size_value, style.textSizeSp.toInt())
     val backgroundLabel = stringResource(R.string.st_caption_background_value, (style.backgroundOpacity * 100).toInt())
-    val raised = (style.verticalOffset * 100).toInt()
-    val positionLabel = if (raised == 0) {
-        stringResource(R.string.sheet_default)
-    } else {
-        stringResource(R.string.sheet_caption_position_raised, raised)
-    }
+    val positionLabel = captionPositionLabel(style.verticalOffset)
     return listOf(
         SettingEntry(
             key = "caption-preview",
@@ -1417,11 +1418,38 @@ private fun captionEntries(
             selected = style.textColor,
             onSelect = { onChange(style.copy(textColor = it)) }
         ),
-        SettingEntry(key = "caption-position", icon = Icons.Default.VerticalAlignTop, title = positionTitle, summary = null, value = positionLabel) { index, count, modifier, highlight ->
+        entry.choice(
+            key = "caption-edge",
+            icon = Icons.Default.BorderStyle,
+            title = stringResource(R.string.caption_edge),
+            options = CaptionEdge.entries.map { it to stringResource(it.labelRes) },
+            selected = style.edge,
+            onSelect = { onChange(style.copy(edge = it)) }
+        ),
+        entry.choice(
+            key = "caption-font",
+            icon = Icons.Default.FontDownload,
+            title = stringResource(R.string.caption_font),
+            options = CaptionFont.entries.map { it to stringResource(it.labelRes) },
+            selected = style.font,
+            onSelect = { onChange(style.copy(font = it)) }
+        ),
+        entry.choice(
+            key = "caption-weight",
+            icon = Icons.Default.FormatBold,
+            title = stringResource(R.string.caption_weight),
+            options = listOf(
+                false to stringResource(R.string.caption_weight_regular),
+                true to stringResource(R.string.caption_weight_bold)
+            ),
+            selected = style.bold,
+            onSelect = { onChange(style.copy(bold = it)) }
+        ),
+        SettingEntry(key = "caption-position", icon = Icons.Default.UnfoldMore, title = positionTitle, summary = null, value = positionLabel) { index, count, modifier, highlight ->
             SliderRow(
-                index = index, count = count, icon = Icons.Default.VerticalAlignTop, title = positionTitle, valueLabel = positionLabel,
+                index = index, count = count, icon = Icons.Default.UnfoldMore, title = positionTitle, valueLabel = positionLabel,
                 value = style.verticalOffset,
-                range = 0f..CaptionStyleSettings.MAX_VERTICAL_OFFSET,
+                range = CaptionStyleSettings.MIN_VERTICAL_OFFSET..CaptionStyleSettings.MAX_VERTICAL_OFFSET,
                 steps = CaptionStyleSettings.VERTICAL_OFFSET_STEPS,
                 onChange = { onChange(style.copy(verticalOffset = it)) },
                 modifier = modifier, highlight = highlight

@@ -35,6 +35,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -1126,10 +1127,10 @@ fun ExoPlayerView(
         exoPlayer.addListener(listener)
         // Re-attaching to a stream that kept playing (from the mini player): pick up its state.
         isPlaying = exoPlayer.isPlaying
-        if (exoPlayer.playbackState == Player.STATE_READY) isBuffering = false
         // The screen needs it too: picture-in-picture only arms auto-enter while it hears "playing",
         // and no change event follows for a stream that was already playing.
         latestIsPlayingChanged(exoPlayer.isPlaying)
+        if (exoPlayer.playbackState == Player.STATE_READY) isBuffering = false
         parseTracksFromPlayer(exoPlayer.currentTracks)
         onDispose {
             latestPositionChanged(exoPlayer.currentPosition.coerceAtLeast(0L))
@@ -1639,52 +1640,38 @@ fun ExoPlayerView(
             // lands in the same place inline, fullscreen and on a TV, whether or not the
             // controls are showing.
             BoxWithConstraints(modifier = Modifier.matchParentSize()) {
-                val captionRaise = if (isInPictureInPicture) {
-                    0.dp
+                val captionBottom = if (isInPictureInPicture) {
+                    4.dp
                 } else {
-                    maxHeight * captionSettings.verticalOffset
-                        .coerceIn(0f, CaptionStyleSettings.MAX_VERTICAL_OFFSET)
+                    captionBottomPadding(
+                        base = if (isFullscreen) 64.dp else 40.dp,
+                        height = maxHeight,
+                        offset = captionSettings.verticalOffset
+                    )
                 }
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(
-                            bottom = when {
-                                isInPictureInPicture -> 4.dp
-                                isFullscreen -> 64.dp
-                                else -> 40.dp
-                            } + captionRaise,
+                            bottom = captionBottom,
                             start = if (isInPictureInPicture) 4.dp else 12.dp,
                             end = if (isInPictureInPicture) 4.dp else 12.dp
                         )
                         .fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
+                    CaptionText(
                         text = displaySubtitleText,
-                        style = TextStyle(
-                            color = Color(captionSettings.textColor.argb),
-                            fontSize = if (isInPictureInPicture) {
-                                (captionSettings.textSizeSp * PIP_CAPTION_SCALE).coerceAtLeast(9f).sp
-                            } else {
-                                captionSettings.textSizeSp.sp
-                            },
-                            fontWeight = FontWeight.SemiBold,
-                            textAlign = TextAlign.Center,
-                            shadow = Shadow(
-                                color = Color.Black,
-                                blurRadius = 4f
-                            )
-                        ),
-                        modifier = Modifier
-                            .background(
-                                Color.Black.copy(alpha = captionSettings.backgroundOpacity),
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
-                            )
-                            .padding(
-                                horizontal = if (isInPictureInPicture) 4.dp else 12.dp,
-                                vertical = if (isInPictureInPicture) 1.dp else 6.dp
-                            )
+                        style = captionSettings,
+                        fontSize = if (isInPictureInPicture) {
+                            (captionSettings.textSizeSp * PIP_CAPTION_SCALE).coerceAtLeast(9f).sp
+                        } else {
+                            captionSettings.textSizeSp.sp
+                        },
+                        contentPadding = PaddingValues(
+                            horizontal = if (isInPictureInPicture) 4.dp else 12.dp,
+                            vertical = if (isInPictureInPicture) 1.dp else 6.dp
+                        )
                     )
                 }
             }

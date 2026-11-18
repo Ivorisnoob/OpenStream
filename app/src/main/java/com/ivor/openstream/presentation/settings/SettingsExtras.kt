@@ -1,5 +1,9 @@
 package com.ivor.openstream.presentation.settings
 
+import com.ivor.openstream.presentation.player.components.CaptionText
+import com.ivor.openstream.presentation.player.components.captionBottomPadding
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
 import android.text.format.Formatter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -115,22 +119,19 @@ internal fun CaptionPreviewRow(
                 .clearAndSetSemantics { contentDescription = sample },
             contentAlignment = Alignment.BottomCenter
         ) {
-            Text(
-                text = sample,
-                style = TextStyle(
-                    color = Color(style.textColor.argb),
+            // The position setting moves captions by a share of the picture's height, as in the player.
+            BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+                CaptionText(
+                    text = sample,
+                    style = style,
                     fontSize = style.textSizeSp.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.Center,
-                    shadow = Shadow(color = Color.Black, blurRadius = 4f)
-                ),
-                modifier = Modifier
-                    .padding(start = 16.dp, end = 16.dp, bottom = 14.dp)
-                    // The position setting raises captions by a share of the picture's height.
-                    .padding(bottom = (style.verticalOffset * 140).dp)
-                    .background(Color.Black.copy(alpha = style.backgroundOpacity), RoundedCornerShape(6.dp))
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            )
+                    modifier = Modifier.padding(
+                        start = 16.dp,
+                        end = 16.dp,
+                        bottom = captionBottomPadding(base = 14.dp, height = maxHeight, offset = style.verticalOffset)
+                    )
+                )
+            }
         }
     }
 }
