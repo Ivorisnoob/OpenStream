@@ -250,6 +250,9 @@
     <string name="sheet_caption_position_lowered">下移 %1$d%%</string>
     <string name="caption_color_cyan">青色</string>
     <string name="caption_color_green">绿色</string>
+    <string name="caption_placement">位置</string>
+    <string name="caption_placement_bottom">底部</string>
+    <string name="caption_placement_top">顶部</string>
     <string name="caption_edge">边缘</string>
     <string name="caption_edge_shadow">阴影</string>
     <string name="caption_edge_outline">描边</string>

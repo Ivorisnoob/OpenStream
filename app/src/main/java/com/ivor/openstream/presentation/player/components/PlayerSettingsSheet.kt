@@ -9,6 +9,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.ivor.openstream.data.settings.CaptionEdge
 import com.ivor.openstream.data.settings.CaptionFont
+import com.ivor.openstream.data.settings.CaptionPlacement
 import com.ivor.openstream.data.settings.CaptionTextColor
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.semantics.heading
@@ -1083,6 +1084,15 @@ private fun LazyListScope.captionsPage(
             onSelect = { change(settings.copy(bold = it)) }
         )
     }
+    item(key = "caption-placement") {
+        CaptionChipRow(
+            title = stringResource(R.string.caption_placement),
+            options = CaptionPlacement.entries,
+            selected = settings.placement,
+            label = { stringResource(it.labelRes) },
+            onSelect = { change(settings.copy(placement = it)) }
+        )
+    }
     item(key = "caption-size") {
         LabeledSlider(
             label = stringResource(R.string.sheet_text_size),
@@ -1104,7 +1114,7 @@ private fun LazyListScope.captionsPage(
     item(key = "caption-position") {
         LabeledSlider(
             label = stringResource(R.string.sheet_caption_position),
-            valueLabel = captionPositionLabel(settings.verticalOffset),
+            valueLabel = captionPositionLabel(settings.verticalOffset, settings.placement),
             value = settings.verticalOffset,
             range = CaptionStyleSettings.MIN_VERTICAL_OFFSET..CaptionStyleSettings.MAX_VERTICAL_OFFSET,
             steps = CaptionStyleSettings.VERTICAL_OFFSET_STEPS,

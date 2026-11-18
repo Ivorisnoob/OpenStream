@@ -250,6 +250,9 @@
     <string name="sheet_caption_position_lowered">%1$d%% más abajo</string>
     <string name="caption_color_cyan">Cian</string>
     <string name="caption_color_green">Verde</string>
+    <string name="caption_placement">Ubicación</string>
+    <string name="caption_placement_bottom">Abajo</string>
+    <string name="caption_placement_top">Arriba</string>
     <string name="caption_edge">Borde</string>
     <string name="caption_edge_shadow">Sombra</string>
     <string name="caption_edge_outline">Contorno</string>

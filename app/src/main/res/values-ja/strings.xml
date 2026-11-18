@@ -250,6 +250,9 @@
     <string name="sheet_caption_position_lowered">%1$d%%下</string>
     <string name="caption_color_cyan">シアン</string>
     <string name="caption_color_green">緑</string>
+    <string name="caption_placement">表示位置</string>
+    <string name="caption_placement_bottom">下</string>
+    <string name="caption_placement_top">上</string>
     <string name="caption_edge">縁取り</string>
     <string name="caption_edge_shadow">影</string>
     <string name="caption_edge_outline">輪郭</string>

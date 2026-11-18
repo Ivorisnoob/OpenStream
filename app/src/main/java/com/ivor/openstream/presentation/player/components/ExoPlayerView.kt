@@ -36,6 +36,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
+import com.ivor.openstream.data.settings.CaptionPlacement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -1640,20 +1641,28 @@ fun ExoPlayerView(
             // lands in the same place inline, fullscreen and on a TV, whether or not the
             // controls are showing.
             BoxWithConstraints(modifier = Modifier.matchParentSize()) {
-                val captionBottom = if (isInPictureInPicture) {
+                val atTop = captionSettings.placement == CaptionPlacement.TOP
+                val captionGap = if (isInPictureInPicture) {
                     4.dp
                 } else {
-                    captionBottomPadding(
-                        base = if (isFullscreen) 64.dp else 40.dp,
+                    captionEdgePadding(
+                        // The bottom default clears the seek bar; the top one the title bar.
+                        base = when {
+                            atTop && isFullscreen -> 56.dp
+                            atTop -> 16.dp
+                            isFullscreen -> 64.dp
+                            else -> 40.dp
+                        },
                         height = maxHeight,
                         offset = captionSettings.verticalOffset
                     )
                 }
                 Box(
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
+                        .align(if (atTop) Alignment.TopCenter else Alignment.BottomCenter)
                         .padding(
-                            bottom = captionBottom,
+                            top = if (atTop) captionGap else 0.dp,
+                            bottom = if (atTop) 0.dp else captionGap,
                             start = if (isInPictureInPicture) 4.dp else 12.dp,
                             end = if (isInPictureInPicture) 4.dp else 12.dp
                         )

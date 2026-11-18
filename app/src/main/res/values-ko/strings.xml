@@ -267,6 +267,9 @@
     <string name="sheet_caption_position_lowered">%1$d%% 아래로</string>
     <string name="caption_color_cyan">청록</string>
     <string name="caption_color_green">초록</string>
+    <string name="caption_placement">배치</string>
+    <string name="caption_placement_bottom">아래</string>
+    <string name="caption_placement_top">위</string>
     <string name="caption_edge">테두리</string>
     <string name="caption_edge_shadow">그림자</string>
     <string name="caption_edge_outline">외곽선</string>

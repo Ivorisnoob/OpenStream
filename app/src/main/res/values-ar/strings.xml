@@ -267,6 +267,9 @@
     <string name="sheet_caption_position_lowered">أدنى بنسبة %1$d%%</string>
     <string name="caption_color_cyan">سماوي</string>
     <string name="caption_color_green">أخضر</string>
+    <string name="caption_placement">الموضع</string>
+    <string name="caption_placement_bottom">أسفل</string>
+    <string name="caption_placement_top">أعلى</string>
     <string name="caption_edge">الحافة</string>
     <string name="caption_edge_shadow">ظل</string>
     <string name="caption_edge_outline">إطار</string>

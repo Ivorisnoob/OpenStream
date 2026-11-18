@@ -1,7 +1,8 @@
 package com.ivor.openstream.presentation.settings
 
 import com.ivor.openstream.presentation.player.components.CaptionText
-import com.ivor.openstream.presentation.player.components.captionBottomPadding
+import com.ivor.openstream.presentation.player.components.captionEdgePadding
+import com.ivor.openstream.data.settings.CaptionPlacement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import android.text.format.Formatter
@@ -120,7 +121,12 @@ internal fun CaptionPreviewRow(
             contentAlignment = Alignment.BottomCenter
         ) {
             // The position setting moves captions by a share of the picture's height, as in the player.
-            BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+            val atTop = style.placement == CaptionPlacement.TOP
+            BoxWithConstraints(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = if (atTop) Alignment.TopCenter else Alignment.BottomCenter
+            ) {
+                val gap = captionEdgePadding(base = 14.dp, height = maxHeight, offset = style.verticalOffset)
                 CaptionText(
                     text = sample,
                     style = style,
@@ -128,7 +134,8 @@ internal fun CaptionPreviewRow(
                     modifier = Modifier.padding(
                         start = 16.dp,
                         end = 16.dp,
-                        bottom = captionBottomPadding(base = 14.dp, height = maxHeight, offset = style.verticalOffset)
+                        top = if (atTop) gap else 0.dp,
+                        bottom = if (atTop) 0.dp else gap
                     )
                 )
             }

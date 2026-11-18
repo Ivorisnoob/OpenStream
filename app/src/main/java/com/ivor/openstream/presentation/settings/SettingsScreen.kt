@@ -43,6 +43,8 @@ import com.ivor.openstream.data.settings.CaptionStyleSettings
 import com.ivor.openstream.data.settings.CaptionTextColor
 import com.ivor.openstream.data.settings.CaptionEdge
 import com.ivor.openstream.data.settings.CaptionFont
+import com.ivor.openstream.data.settings.CaptionPlacement
+import androidx.compose.material.icons.filled.VerticalAlignCenter
 import com.ivor.openstream.presentation.player.components.captionPositionLabel
 import androidx.compose.material.icons.filled.BorderStyle
 import androidx.compose.material.icons.filled.FontDownload
@@ -1368,7 +1370,7 @@ private fun homeRowLabel(key: String): Pair<ImageVector, String> = when (key) {
     }
 }
 
-/** The caption look: a live preview, then size, plate, colour, edge, font, weight and position, and a reset. */
+/** The caption look: a live preview, then size, plate, colour, edge, font, weight, placement and position, and a reset. */
 @Composable
 private fun captionEntries(
     style: CaptionStyleSettings,
@@ -1380,7 +1382,7 @@ private fun captionEntries(
     val positionTitle = stringResource(R.string.st_caption_position)
     val sizeLabel = stringResource(R.string.st_caption_size_value, style.textSizeSp.toInt())
     val backgroundLabel = stringResource(R.string.st_caption_background_value, (style.backgroundOpacity * 100).toInt())
-    val positionLabel = captionPositionLabel(style.verticalOffset)
+    val positionLabel = captionPositionLabel(style.verticalOffset, style.placement)
     return listOf(
         SettingEntry(
             key = "caption-preview",
@@ -1417,6 +1419,14 @@ private fun captionEntries(
             options = CaptionTextColor.entries.map { it to stringResource(it.labelRes) },
             selected = style.textColor,
             onSelect = { onChange(style.copy(textColor = it)) }
+        ),
+        entry.choice(
+            key = "caption-placement",
+            icon = Icons.Default.VerticalAlignCenter,
+            title = stringResource(R.string.caption_placement),
+            options = CaptionPlacement.entries.map { it to stringResource(it.labelRes) },
+            selected = style.placement,
+            onSelect = { onChange(style.copy(placement = it)) }
         ),
         entry.choice(
             key = "caption-edge",

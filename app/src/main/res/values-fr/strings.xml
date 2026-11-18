@@ -250,6 +250,9 @@
     <string name="sheet_caption_position_lowered">%1$d%% plus bas</string>
     <string name="caption_color_cyan">Cyan</string>
     <string name="caption_color_green">Vert</string>
+    <string name="caption_placement">Emplacement</string>
+    <string name="caption_placement_bottom">En bas</string>
+    <string name="caption_placement_top">En haut</string>
     <string name="caption_edge">Bordure</string>
     <string name="caption_edge_shadow">Ombre</string>
     <string name="caption_edge_outline">Contour</string>

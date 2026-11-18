@@ -27,6 +27,7 @@ import com.ivor.openstream.R
 import kotlin.math.roundToInt
 import com.ivor.openstream.data.settings.CaptionEdge
 import com.ivor.openstream.data.settings.CaptionFont
+import com.ivor.openstream.data.settings.CaptionPlacement
 import com.ivor.openstream.data.settings.CaptionStyleSettings
 
 /**
@@ -77,10 +78,10 @@ fun CaptionText(
 }
 
 /**
- * The space under a caption: [base] moved by the chosen offset as a share of [height]. Lowering
- * stops short of the bottom edge, so the result is never negative.
+ * The space between a caption and its edge: [base] moved by the chosen offset as a share of
+ * [height]. Moving toward the edge stops short of it, so the result is never negative.
  */
-fun captionBottomPadding(base: Dp, height: Dp, offset: Float): Dp {
+fun captionEdgePadding(base: Dp, height: Dp, offset: Float): Dp {
     val share = offset.coerceIn(CaptionStyleSettings.MIN_VERTICAL_OFFSET, CaptionStyleSettings.MAX_VERTICAL_OFFSET)
     return (base + height * share).coerceAtLeast(MIN_CAPTION_BOTTOM)
 }
@@ -88,13 +89,17 @@ fun captionBottomPadding(base: Dp, height: Dp, offset: Float): Dp {
 private const val OUTLINE_WIDTH_RATIO = 0.16f
 private val MIN_CAPTION_BOTTOM = 4.dp
 
-/** "Default", "10% higher" or "5% lower", for the position slider's value. */
+/**
+ * "Default", "10% higher" or "5% lower", for the position slider's value. The offset moves away
+ * from the caption's edge, so at the top a positive one reads as lower.
+ */
 @Composable
-fun captionPositionLabel(offset: Float): String {
+fun captionPositionLabel(offset: Float, placement: CaptionPlacement): String {
     val percent = (offset * 100).roundToInt()
+    val up = if (placement == CaptionPlacement.TOP) -percent else percent
     return when {
-        percent > 0 -> stringResource(R.string.sheet_caption_position_raised, percent)
-        percent < 0 -> stringResource(R.string.sheet_caption_position_lowered, -percent)
+        up > 0 -> stringResource(R.string.sheet_caption_position_raised, up)
+        up < 0 -> stringResource(R.string.sheet_caption_position_lowered, -up)
         else -> stringResource(R.string.sheet_default)
     }
 }

@@ -250,6 +250,9 @@
     <string name="sheet_caption_position_lowered">Ниже на %1$d%%</string>
     <string name="caption_color_cyan">Голубой</string>
     <string name="caption_color_green">Зелёный</string>
+    <string name="caption_placement">Расположение</string>
+    <string name="caption_placement_bottom">Снизу</string>
+    <string name="caption_placement_top">Сверху</string>
     <string name="caption_edge">Края</string>
     <string name="caption_edge_shadow">Тень</string>
     <string name="caption_edge_outline">Обводка</string>

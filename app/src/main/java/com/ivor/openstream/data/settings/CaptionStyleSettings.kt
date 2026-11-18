@@ -15,10 +15,12 @@ data class CaptionStyleSettings(
     val backgroundOpacity: Float = DEFAULT_BACKGROUND_OPACITY,
     /** The text's own colour; the plate behind it is what keeps either one readable. */
     val textColor: CaptionTextColor = CaptionTextColor.WHITE,
+    /** Which edge of the picture captions sit against. */
+    val placement: CaptionPlacement = CaptionPlacement.BOTTOM,
     /**
      * How far captions move from their default spot, as a fraction of the player's height.
-     * Positive raises them (clearing subtitles burnt into the video), negative lowers them toward
-     * the bottom edge. 0 keeps the default position.
+     * Positive moves them away from their edge (at the bottom, clearing subtitles burnt into the
+     * video), negative toward it. 0 keeps the default position.
      */
     val verticalOffset: Float = DEFAULT_VERTICAL_OFFSET,
     val edge: CaptionEdge = CaptionEdge.SHADOW,
@@ -52,6 +54,12 @@ enum class CaptionTextColor(val argb: Int, @StringRes val labelRes: Int) {
     YELLOW(0xFFFFEB3B.toInt(), R.string.caption_color_yellow),
     CYAN(0xFF4DD0E1.toInt(), R.string.caption_color_cyan),
     GREEN(0xFF69F0AE.toInt(), R.string.caption_color_green)
+}
+
+@Serializable
+enum class CaptionPlacement(@StringRes val labelRes: Int) {
+    BOTTOM(R.string.caption_placement_bottom),
+    TOP(R.string.caption_placement_top)
 }
 
 /** What surrounds each letter. An outline keeps captions readable with the plate turned off. */

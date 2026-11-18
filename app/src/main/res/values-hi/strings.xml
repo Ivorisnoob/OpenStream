@@ -267,6 +267,9 @@
     <string name="sheet_caption_position_lowered">%1$d%% नीचे</string>
     <string name="caption_color_cyan">सियान</string>
     <string name="caption_color_green">हरा</string>
+    <string name="caption_placement">जगह</string>
+    <string name="caption_placement_bottom">नीचे</string>
+    <string name="caption_placement_top">ऊपर</string>
     <string name="caption_edge">किनारा</string>
     <string name="caption_edge_shadow">छाया</string>
     <string name="caption_edge_outline">आउटलाइन</string>
