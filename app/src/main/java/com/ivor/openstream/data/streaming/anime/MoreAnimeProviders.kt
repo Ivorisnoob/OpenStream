@@ -150,11 +150,13 @@ class AnimeGGProvider(
         val html = client.fetch(embed, mapOf("Referer" to episodeUrl))
         val sources = Regex("""file:\s*"(/play/[^"]+)",\s*label:\s*"(\d+)p"""").findAll(html)
             .map { it.groupValues[1] to it.groupValues[2].toInt() }
+            .distinctBy { it.first }
             .sortedByDescending { it.second }
             .toList()
         return sources.map { (path, height) ->
             VideoServer(
-                id = "$id-$embedId-$height",
+                // An embed can list two files at the same height, so the path keeps ids unique.
+                id = "$id-$embedId-$height-${path.hashCode()}",
                 providerId = id,
                 providerName = spec.name,
                 name = "Animegg ${height}p · ${audio.label}",

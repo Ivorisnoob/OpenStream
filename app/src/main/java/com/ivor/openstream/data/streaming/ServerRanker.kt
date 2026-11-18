@@ -30,6 +30,9 @@ internal object ServerRanker {
                 else -> compare(left, right, providerPriorities, providerFirst, qualityCapHeight)
             }
         }
+            // Source lists key their rows by id and crash on a repeat, so a provider that hands out
+            // the same id for two different URLs keeps only its best-ranked one.
+            .distinctBy { it.id }
     }
 
     /**

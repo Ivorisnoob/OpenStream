@@ -547,14 +547,17 @@ fun PlayerScreen(
             // the top-left corner with what's playing under it, and the queue in a column on the right.
             // Narrower ones stack everything under a full-width 16:9 video.
             // Expanded starts at 840.dp, matching the previous hand-rolled breakpoint exactly.
-            val wide = LocalWindowWidthClass.current == WindowWidthSizeClass.Expanded
+            // The window class can still say Expanded for a frame while this box is far smaller (the
+            // window growing back from picture-in-picture), so the box's own width must fit too;
+            // otherwise the queue column is wider than the box and the sizes below go negative.
+            val wide = LocalWindowWidthClass.current == WindowWidthSizeClass.Expanded && maxWidth >= 840.dp
             val sideBySide = !isImmersive && wide
             val gutter = if (wide) 16.dp else 0.dp
             val queueWidth = if (wide) (maxWidth * 0.32f).coerceIn(340.dp, 420.dp) else 0.dp
-            val columnWidth = maxWidth - queueWidth - gutter
+            val columnWidth = (maxWidth - queueWidth - gutter).coerceAtLeast(0.dp)
             val videoHeight = if (wide) {
                 // Leaves room under the video for the title and actions.
-                min((columnWidth - gutter) * 9f / 16f, maxHeight * 0.66f)
+                min((columnWidth - gutter) * 9f / 16f, maxHeight * 0.66f).coerceAtLeast(0.dp)
             } else {
                 // Tall tablets in portrait would otherwise give the video half the screen.
                 min(maxWidth * 9f / 16f, maxHeight * 0.45f)
