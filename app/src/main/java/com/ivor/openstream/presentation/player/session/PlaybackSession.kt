@@ -12,22 +12,32 @@ import androidx.media3.cast.CastPlayer
 import androidx.media3.cast.SessionAvailabilityListener
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.Format
+import androidx.media3.common.Tracks
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.TransferListener
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.exoplayer.source.LoadEventInfo
+import com.ivor.openstream.data.streaming.RewindDataSource
+import com.ivor.openstream.data.playback.requiresHdrOutput
+import com.ivor.openstream.data.playback.selectedVideoRanges
+import com.ivor.openstream.di.PlaybackBuffer
+import java.util.UUID
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.util.EventLogger
 import androidx.media3.session.MediaSession
@@ -174,6 +184,7 @@ class PlaybackSession @Inject constructor(
     private val cache: Cache,
     private val watchProgressRepository: WatchProgressRepository,
     private val castProxy: CastMediaProxy,
+    @PlaybackBuffer private val rewindBuffer: Cache,
     private val downloadHeaders: DownloadRequestHeaderStore,
     private val deviceDecoders: DeviceDecoders,
     private val streamDataGuard: StreamDataGuard,
@@ -187,6 +198,7 @@ class PlaybackSession @Inject constructor(
     /** Headers the current stream needs (Referer, Origin...). Applied to every request it makes. */
     @Volatile
     private var requestHeaders: Map<String, String> = emptyMap()
+    @Volatile private var bufferSessionId = UUID.randomUUID().toString()
 
     private val _nowPlaying = MutableStateFlow<NowPlaying?>(null)
     val nowPlaying: StateFlow<NowPlaying?> = _nowPlaying.asStateFlow()
@@ -202,11 +214,34 @@ class PlaybackSession @Inject constructor(
     private var lastSavedPositionMs = -1L
     private var completionRecordedFor: String? = null
 
-        private var localPlayerCreated = false
+    /** The phone's player once built; read it through [player]. */
+    private var localPlayer: ExoPlayer? = null
+    private var localPlayerCreated = false
     private var shaderStageInstalled = true
+    private val supportsInterpolation by lazy { SmoothMotion.isSupported(context) }
+    private val _nativeHdr = MutableStateFlow(false)
+    val nativeHdr = _nativeHdr.asStateFlow()
 
-    /** False once the player was built without the shader stage: a look then waits for a restart. */
+    /**
+     * Set when shaders were turned on while the player in use has no shader stage. The player is
+     * rebuilt with one as soon as nothing is loaded in it ([addShaderStageWhenIdle]), or at once
+     * when the change came from the player screen ([addShaderStageNow]).
+     */
+    private var shaderStageRebuildPending = false
+
+    /**
+     * False while the player in use was built without the shader stage: a look turned on outside
+     * the player screen then waits until the current playback ends.
+     */
     val shadersApplyNow: Boolean get() = !localPlayerCreated || shaderStageInstalled
+
+    private val _playerGeneration = MutableStateFlow(0)
+
+    /**
+     * Bumped when [player] is replaced by a new instance. The player screen keys its video view on
+     * it, so it attaches to the new player the way it does after a source switch.
+     */
+    val playerGeneration: StateFlow<Int> = _playerGeneration.asStateFlow()
 
     var smoothMotion: SmoothMotion? = null
         private set
@@ -294,6 +329,102 @@ class PlaybackSession @Inject constructor(
         // A change to the look is made to be seen.
         _videoShaderHidden.value = false
         drawVideoShaders()
+        addShaderStageWhenIdle()
+    }
+
+    /**
+     * Gives a player built without the shader stage one, once shaders are switched on.
+     *
+     * Media3 settles whether video goes through the effect graph on the renderer's first enable and
+     * never revisits it, so adding the stage means a new player. Built here only while nothing is
+     * loaded (no title, not casting, an empty playlist): every screen that shows video reads
+     * [player] afresh when it opens, and the media session is moved to the new one. With something
+     * loaded the rebuild waits for [stop], which ends the session, unless the player screen asks
+     * for it at once ([addShaderStageNow]).
+     */
+    private fun addShaderStageWhenIdle() {
+        val current = localPlayer
+        if (current == null || _nativeHdr.value || shaderStageInstalled || !_videoShaders.value.masterEnabled) {
+            shaderStageRebuildPending = false
+            return
+        }
+        if (_nowPlaying.value != null || castConnected || current.mediaItemCount > 0) {
+            shaderStageRebuildPending = true
+            return
+        }
+        shaderStageRebuildPending = false
+        shaderRedrawJob?.cancel()
+        reconnectJob?.cancel()
+        // One SmoothMotion per player, released before its player.
+        smoothMotion?.release()
+        smoothMotion = null
+        localPlayer = null
+        localPlayerCreated = false
+        player // builds the new one and hands it to the media session
+        current.release()
+        _playerGeneration.value++
+    }
+
+    /**
+     * Gives the player the shader stage while a title plays, for a look chosen in the player.
+     *
+     * Only the player screen calls this: it keys its video view on [playerGeneration] and attaches
+     * to the new player as it does after a source switch. The new player takes the old one's items,
+     * position, play state, track choices and speed, and is prepared before the screen sees it, so
+     * the screen finds its stream already loaded and does not reset it. The old player is paused
+     * rather than released at once: the screen's video view still holds it and reads its position
+     * as it goes, so it and its SmoothMotion are released a moment later. Not while casting, where
+     * the phone's player is idle anyway and is rebuilt when the session ends.
+     */
+    fun addShaderStageNow() {
+        if (_nativeHdr.value || shaderStageInstalled || !_videoShaders.value.masterEnabled || castConnected) return
+        replacePlayer()
+    }
+
+    private fun replacePlayer() {
+        val old = localPlayer ?: return
+        shaderStageRebuildPending = false
+        shaderRedrawJob?.cancel()
+        reconnectJob?.cancel()
+
+        val items = (0 until old.mediaItemCount).map(old::getMediaItemAt)
+        val index = old.currentMediaItemIndex
+        val position = old.currentPosition.coerceAtLeast(0L)
+        val playWhenReady = old.playWhenReady
+        val trackParameters = old.trackSelectionParameters
+        val playbackParameters = old.playbackParameters
+        val volume = old.volume
+        val repeatMode = old.repeatMode
+        val seekParameters = old.seekParameters
+        // Freeze the outgoing decoder while its view detaches.
+        old.pause()
+        old.stop()
+
+        val oldSmoothMotion = smoothMotion
+        smoothMotion = null
+        localPlayer = null
+        localPlayerCreated = false
+        val fresh = player // builds the new one and hands it to the media session
+        fresh.trackSelectionParameters = trackParameters
+        fresh.playbackParameters = playbackParameters
+        fresh.volume = volume
+        fresh.repeatMode = repeatMode
+        fresh.setSeekParameters(seekParameters)
+        if (items.isNotEmpty()) {
+            fresh.setMediaItems(items, index, position)
+            fresh.playWhenReady = playWhenReady
+            fresh.prepare()
+        } else {
+            fresh.playWhenReady = playWhenReady
+        }
+        _playerGeneration.value++
+
+        scope.launch {
+            delay(OLD_PLAYER_RELEASE_DELAY_MS)
+            // One SmoothMotion per player, released before its player.
+            oldSmoothMotion?.release()
+            old.release()
+        }
     }
 
     private fun drawVideoShaders() {
@@ -334,8 +465,16 @@ class PlaybackSession @Inject constructor(
 
     // region Media session (notification, lock screen, headset buttons)
 
-    /** Created on first use, on the main thread, by whichever surface shows video first. */
-    val player: ExoPlayer by lazy { buildPlayer().also { localPlayerCreated = true } }
+    /**
+     * Created on first use, on the main thread, by whichever surface shows video first. Replaced
+     * only to add the shader stage, and only while nothing is loaded ([addShaderStageWhenIdle]).
+     */
+    val player: ExoPlayer
+        get() = localPlayer ?: buildPlayer().also { built ->
+            localPlayer = built
+            localPlayerCreated = true
+            mediaSessionInstance?.player = built
+        }
 
     private var mediaSessionInstance: MediaSession? = null
 
@@ -528,6 +667,7 @@ class PlaybackSession @Inject constructor(
     // endregion
 
     fun setRequestHeaders(headers: Map<String, String>) {
+        bufferSessionId = UUID.randomUUID().toString()
         requestHeaders = headers
     }
 
@@ -598,6 +738,12 @@ class PlaybackSession @Inject constructor(
         volumeBooster.release()
         _nowPlaying.value = null
         requestHeaders = emptyMap()
+        bufferSessionId = UUID.randomUUID().toString()
+        if (_nativeHdr.value) {
+            _nativeHdr.value = false
+            if (supportsInterpolation || _videoShaders.value.masterEnabled) replacePlayer()
+        }
+        if (shaderStageRebuildPending) addShaderStageWhenIdle()
     }
 
     // region Casting
@@ -1075,11 +1221,46 @@ class PlaybackSession @Inject constructor(
         else -> false
     }
 
+    private fun updateOutput(player: ExoPlayer, hdr: Boolean) {
+        val media = player.currentMediaItem ?: return
+        // Let the track event finish before detaching its renderer or changing session ownership.
+        scope.launch(Dispatchers.Main) {
+            if (player !== localPlayer || player.currentMediaItem !== media || castConnected || _nativeHdr.value == hdr) {
+                return@launch
+            }
+            _nativeHdr.value = hdr
+            val needsEffects = !hdr && (supportsInterpolation || _videoShaders.value.masterEnabled)
+            if (shaderStageInstalled != needsEffects) replacePlayer()
+        }
+    }
+
     private fun buildPlayer(): ExoPlayer {
         val http = DefaultHttpDataSource.Factory()
             .setUserAgent(BROWSER_USER_AGENT)
             .setAllowCrossProtocolRedirects(true)
-        val upstream = ResolvingDataSource.Factory(DefaultDataSource.Factory(context, http)) { spec ->
+        val network = DataSource.Factory {
+            http.createDataSource().apply {
+                addTransferListener(object : TransferListener {
+                    override fun onTransferInitializing(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) = Unit
+                    override fun onTransferStart(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) = Unit
+                    override fun onTransferEnd(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) = Unit
+
+                    override fun onBytesTransferred(
+                        source: DataSource, dataSpec: DataSpec, isNetwork: Boolean, bytesTransferred: Int
+                    ) {
+                        if (isNetwork) streamDataGuard.addBytesLoaded(bytesTransferred.toLong())
+                    }
+                })
+            }
+        }
+        val rewind = CacheDataSource.Factory()
+            .setCache(rewindBuffer)
+            .setUpstreamDataSourceFactory(network)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        val playbackHttp = DataSource.Factory {
+            RewindDataSource(network.createDataSource(), rewind.createDataSource()) { bufferSessionId }
+        }
+        val upstream = ResolvingDataSource.Factory(DefaultDataSource.Factory(context, playbackHttp)) { spec ->
             spec.withAdditionalHeaders(requestHeaders)
         }
         // Downloads live in this cache, so offline copies play without a connection.
@@ -1112,10 +1293,11 @@ class PlaybackSession @Inject constructor(
             .build()
         // Media3 picks the effect pipeline once, on the first prepare. Where Smooth motion runs the
         // pipeline exists anyway and the shader stage costs one copy pass; elsewhere the pipeline
-        // alone makes every video slow to start and stutter, so it is only added for a look in use.
-        shaderStageInstalled = SmoothMotion.isSupported(context) ||
-            appSettingsStore.current.videoShaders.isEffectActive
-        smoothMotion = SmoothMotion.install(
+        // alone makes every video slow to start and stutter, so it is only added while shaders are
+        // switched on. That is the switch, not whether a look is chosen: with the switch on the
+        // player panel's looks must apply on the spot, including the first one after a restart.
+        shaderStageInstalled = !_nativeHdr.value && (supportsInterpolation || _videoShaders.value.masterEnabled)
+        smoothMotion = if (!shaderStageInstalled) null else SmoothMotion.install(
             basePlayer,
             context,
             SmoothMotionConfig(
@@ -1127,7 +1309,7 @@ class PlaybackSession @Inject constructor(
             // switch is off and copies each frame, as Smooth motion itself does, which is what lets
             // the switch in Settings and the panel act on a player that is already open - this
             // app's player is built once and kept for the life of the process.
-            otherEffects = if (shaderStageInstalled) listOf(VideoShaderEffect(videoShaderControl)) else emptyList()
+            otherEffects = listOf(VideoShaderEffect(videoShaderControl))
         )
         volumeBooster.setBoostPercentage(appSettingsStore.current.volumeBoostPercent)
         volumeBooster.attachSession(basePlayer.audioSessionId)
@@ -1141,20 +1323,28 @@ class PlaybackSession @Inject constructor(
                         eventTime: AnalyticsListener.EventTime,
                         audioSessionId: Int
                     ) {
-                        volumeBooster.attachSession(audioSessionId)
+                        if (basePlayer === localPlayer) volumeBooster.attachSession(audioSessionId)
                     }
 
-                    override fun onLoadCompleted(
+                    override fun onVideoInputFormatChanged(
                         eventTime: AnalyticsListener.EventTime,
-                        loadEventInfo: LoadEventInfo,
-                        mediaLoadData: androidx.media3.exoplayer.source.MediaLoadData
+                        format: Format,
+                        decoderReuseEvaluation: DecoderReuseEvaluation?
                     ) {
-                        streamDataGuard.addBytesLoaded(loadEventInfo.bytesLoaded)
+                        if (eventTime.mediaPeriodId != eventTime.currentMediaPeriodId) return
+                        if (basePlayer.currentTracks.selectedVideoRanges().size > 1) {
+                            updateOutput(basePlayer, format.requiresHdrOutput())
+                        }
                     }
+
                 })
                 addListener(object : Player.Listener {
+                    override fun onTracksChanged(tracks: Tracks) {
+                        tracks.selectedVideoRanges().singleOrNull()?.let { updateOutput(basePlayer, it) }
+                    }
+
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        if (castConnected) return
+                        if (basePlayer !== localPlayer || castConnected) return
                         _isPlaying.value = isPlaying
                         if (!isPlaying) recordProgress(force = true)
                         if (isPlaying) {
@@ -1165,6 +1355,7 @@ class PlaybackSession @Inject constructor(
                     }
 
                     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                        if (basePlayer !== localPlayer) return
                         streamHasPlayed = false
                         reconnectAttempts = 0
                         reconnectJob?.cancel()
@@ -1173,7 +1364,7 @@ class PlaybackSession @Inject constructor(
                     // Registered before the screen's listener, so a drop being ridden out is known
                     // by the time the screen decides whether this source has failed.
                     override fun onPlayerError(error: PlaybackException) {
-                        if (castConnected || !streamHasPlayed || !error.isConnectionDrop()) return
+                        if (basePlayer !== localPlayer || castConnected || !streamHasPlayed || !error.isConnectionDrop()) return
                         if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) return
                         reconnectAttempts++
                         val wait = RECONNECT_STEP_MS * reconnectAttempts
@@ -1184,7 +1375,7 @@ class PlaybackSession @Inject constructor(
                     }
 
                     override fun onPlaybackStateChanged(playbackState: Int) {
-                        if (castConnected) return
+                        if (basePlayer !== localPlayer || castConnected) return
                         if (playbackState == Player.STATE_READY) {
                             volumeBooster.attachSession(audioSessionId)
                         }
@@ -1296,6 +1487,9 @@ class PlaybackSession @Inject constructor(
         const val PROGRESS_SAVE_INTERVAL_MS = 10_000L
         /** How long a surface change is given to settle before a paused frame is asked for again. */
         const val GRAPH_REDRAW_SETTLE_MS = 250L
+
+        /** How long a player replaced mid-playback is kept for the views still detaching from it. */
+        const val OLD_PLAYER_RELEASE_DELAY_MS = 2_000L
         const val VOLUME_STEP = 0.05
         /** Receivers load every track with the media; keep the list short. */
         const val MAX_CAST_SUBTITLES = 12

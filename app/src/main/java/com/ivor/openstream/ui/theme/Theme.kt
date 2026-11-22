@@ -8,8 +8,13 @@ import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -52,11 +57,27 @@ fun OpenStreamTheme(
         }
     }
 
-    MaterialExpressiveTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        shapes = ExpressiveShapes,
-        motionScheme = MotionScheme.expressive(),
-        content = content
-    )
+    CompositionLocalProvider(LocalAmoledBlack provides (darkTheme && amoled)) {
+        MaterialExpressiveTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            shapes = ExpressiveShapes,
+            motionScheme = MotionScheme.expressive(),
+            content = content
+        )
+    }
 }
+
+/** Whether the app is drawing the AMOLED variant: a dark theme with true-black pages. */
+val LocalAmoledBlack = staticCompositionLocalOf { false }
+
+/**
+ * The page behind grouped lists such as Settings. Normally a step above the background so the
+ * rows on it read as one sheet; true black under AMOLED, where a grey page is what the setting
+ * promises to remove. The rows themselves stay raised, so they still separate from it.
+ */
+@Composable
+@ReadOnlyComposable
+fun groupedPageColor(): Color =
+    if (LocalAmoledBlack.current) MaterialTheme.colorScheme.background
+    else MaterialTheme.colorScheme.surfaceContainer

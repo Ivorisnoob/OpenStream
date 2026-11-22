@@ -148,6 +148,7 @@ fun PlayerPanelHost(
                                 WindowInsets.safeDrawing.only(WindowInsetsSides.End + WindowInsetsSides.Vertical)
                             )
                             .padding(top = 12.dp)
+                            .fillMaxHeight()
                     ) {
                         content(Modifier.weight(1f), onDismiss)
                     }

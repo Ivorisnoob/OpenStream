@@ -7,7 +7,13 @@ import com.ivor.openstream.R
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import com.ivor.openstream.data.settings.CaptionEdge
+import com.ivor.openstream.data.settings.CaptionFont
+import com.ivor.openstream.data.settings.CaptionPlacement
 import com.ivor.openstream.data.settings.CaptionTextColor
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -432,7 +438,8 @@ private fun LazyListScope.mainPage(
                 onClick = { onNavigate(PlayerSettingsPage.QUALITY) }
             )
         )
-        if (model.smoothMotion != null) {
+        // Only where the GPU can run it: elsewhere the switch would read "on" and do nothing.
+        if (model.smoothMotion?.isSupported == true) {
             val sm = model.smoothMotion
             add(
                 MainRow(
@@ -447,25 +454,24 @@ private fun LazyListScope.mainPage(
                 )
             )
         }
-        if (model.videoShaders.masterEnabled) {
-            add(
-                MainRow(
-                    icon = Icons.Default.Palette,
-                    key = "shaders",
-                    title = { stringResource(R.string.vpc_shaders) },
-                    value = {
-                        val shaders = model.videoShaders
-                        when {
-                            shaders.activePreset != VideoShaderPreset.NONE ->
-                                stringResource(shaders.activePreset.titleRes)
-                            !shaders.isPictureNeutral -> stringResource(R.string.vpc_shaders_adjusted)
-                            else -> stringResource(R.string.cz_video_shaders_off)
-                        }
-                    },
-                    onClick = { onNavigate(PlayerSettingsPage.SHADERS) }
-                )
+        add(
+            MainRow(
+                icon = Icons.Default.Palette,
+                key = "shaders",
+                title = { stringResource(R.string.vpc_shaders) },
+                value = {
+                    val shaders = model.videoShaders
+                    when {
+                        !shaders.masterEnabled -> stringResource(R.string.cz_video_shaders_off)
+                        shaders.activePreset != VideoShaderPreset.NONE ->
+                            stringResource(shaders.activePreset.titleRes)
+                        !shaders.isPictureNeutral -> stringResource(R.string.vpc_shaders_adjusted)
+                        else -> stringResource(R.string.cz_video_shaders_off)
+                    }
+                },
+                onClick = { onNavigate(PlayerSettingsPage.SHADERS) }
             )
-        }
+        )
         if (model.zoomToFillAvailable) {
             add(
                 MainRow(
@@ -1025,6 +1031,7 @@ private fun LazyListScope.captionsPage(
     actions: PlayerSettingsActions
 ) {
     val settings = model.captionSettings
+    val change = actions.onCaptionSettingsChange
     item(key = "caption-preview") {
         Box(
             modifier = Modifier
@@ -1034,59 +1041,57 @@ private fun LazyListScope.captionsPage(
                 .padding(vertical = 28.dp, horizontal = 16.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(
+            CaptionText(
                 text = stringResource(R.string.pf_where_going),
-                color = androidx.compose.ui.graphics.Color(settings.textColor.argb),
-                fontWeight = FontWeight.SemiBold,
-                fontSize = settings.textSizeSp.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = settings.backgroundOpacity), ExpressiveShapes.extraSmall)
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                style = settings,
+                fontSize = settings.textSizeSp.sp
             )
         }
     }
     item(key = "caption-color") {
-        Column(modifier = Modifier.padding(bottom = 8.dp)) {
-            Text(
-                text = stringResource(R.string.sheet_caption_color),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                CaptionTextColor.entries.forEach { option ->
-                    Surface(
-                        selected = option == settings.textColor,
-                        onClick = {
-                            actions.onCaptionSettingsChange(settings.copy(textColor = option))
-                        },
-                        shape = ExpressiveShapes.medium,
-                        color = if (option == settings.textColor) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.surfaceContainer
-                        },
-                        contentColor = if (option == settings.textColor) {
-                            MaterialTheme.colorScheme.onPrimary
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = stringResource(option.labelRes),
-                            style = MaterialTheme.typography.labelLarge,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(vertical = 10.dp)
-                        )
-                    }
-                }
-            }
-        }
+        CaptionChipRow(
+            title = stringResource(R.string.sheet_caption_color),
+            options = CaptionTextColor.entries,
+            selected = settings.textColor,
+            label = { stringResource(it.labelRes) },
+            onSelect = { change(settings.copy(textColor = it)) }
+        )
+    }
+    item(key = "caption-edge") {
+        CaptionChipRow(
+            title = stringResource(R.string.caption_edge),
+            options = CaptionEdge.entries,
+            selected = settings.edge,
+            label = { stringResource(it.labelRes) },
+            onSelect = { change(settings.copy(edge = it)) }
+        )
+    }
+    item(key = "caption-font") {
+        CaptionChipRow(
+            title = stringResource(R.string.caption_font),
+            options = CaptionFont.entries,
+            selected = settings.font,
+            label = { stringResource(it.labelRes) },
+            onSelect = { change(settings.copy(font = it)) }
+        )
+    }
+    item(key = "caption-weight") {
+        CaptionChipRow(
+            title = stringResource(R.string.caption_weight),
+            options = listOf(false, true),
+            selected = settings.bold,
+            label = { stringResource(if (it) R.string.caption_weight_bold else R.string.caption_weight_regular) },
+            onSelect = { change(settings.copy(bold = it)) }
+        )
+    }
+    item(key = "caption-placement") {
+        CaptionChipRow(
+            title = stringResource(R.string.caption_placement),
+            options = CaptionPlacement.entries,
+            selected = settings.placement,
+            label = { stringResource(it.labelRes) },
+            onSelect = { change(settings.copy(placement = it)) }
+        )
     }
     item(key = "caption-size") {
         LabeledSlider(
@@ -1094,7 +1099,7 @@ private fun LazyListScope.captionsPage(
             valueLabel = "${settings.textSizeSp.toInt()} sp",
             value = settings.textSizeSp,
             range = CaptionStyleSettings.MIN_TEXT_SIZE_SP..CaptionStyleSettings.MAX_TEXT_SIZE_SP,
-            onChange = { actions.onCaptionSettingsChange(settings.copy(textSizeSp = it)) }
+            onChange = { change(settings.copy(textSizeSp = it)) }
         )
     }
     item(key = "caption-background") {
@@ -1103,23 +1108,68 @@ private fun LazyListScope.captionsPage(
             valueLabel = "${(settings.backgroundOpacity * 100).toInt()}%",
             value = settings.backgroundOpacity,
             range = 0f..1f,
-            onChange = { actions.onCaptionSettingsChange(settings.copy(backgroundOpacity = it)) }
+            onChange = { change(settings.copy(backgroundOpacity = it)) }
         )
     }
     item(key = "caption-position") {
-        val raisedPercent = (settings.verticalOffset * 100).roundToInt()
         LabeledSlider(
             label = stringResource(R.string.sheet_caption_position),
-            valueLabel = if (raisedPercent == 0) {
-                stringResource(R.string.sheet_default)
-            } else {
-                stringResource(R.string.sheet_caption_position_raised, raisedPercent)
-            },
+            valueLabel = captionPositionLabel(settings.verticalOffset, settings.placement),
             value = settings.verticalOffset,
-            range = 0f..CaptionStyleSettings.MAX_VERTICAL_OFFSET,
+            range = CaptionStyleSettings.MIN_VERTICAL_OFFSET..CaptionStyleSettings.MAX_VERTICAL_OFFSET,
             steps = CaptionStyleSettings.VERTICAL_OFFSET_STEPS,
-            onChange = { actions.onCaptionSettingsChange(settings.copy(verticalOffset = it)) }
+            onChange = { change(settings.copy(verticalOffset = it)) }
         )
+    }
+}
+
+/** A titled row of equal chips, one per option, the selected one filled. */
+@Composable
+private fun <T> CaptionChipRow(
+    title: String,
+    options: List<T>,
+    selected: T,
+    label: @Composable (T) -> String,
+    onSelect: (T) -> Unit
+) {
+    Column(modifier = Modifier.padding(bottom = 8.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .padding(start = 4.dp, bottom = 8.dp)
+                .semantics { heading() }
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            options.forEach { option ->
+                val isSelected = option == selected
+                Surface(
+                    selected = isSelected,
+                    onClick = { onSelect(option) },
+                    shape = ExpressiveShapes.medium,
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainer,
+                    contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = label(option),
+                            style = MaterialTheme.typography.labelLarge,
+                            textAlign = TextAlign.Center,
+                            // Four to a row in a side panel: longer translations take a second line.
+                            maxLines = 2,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 10.dp)
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1129,15 +1179,21 @@ private fun LazyListScope.captionsPage(
  * The panel's Shaders page: the looks, the sliders that tune every built-in one, and a way back to
  * a neutral picture.
  *
- * The master switch is in Settings rather than here, so this page is only offered while it is on:
- * the stage costs a little battery on every video, and that is not a choice to make by accident
- * while watching.
+ * Always offered. With shaders switched off it reads as no look and a neutral picture, and choosing
+ * a look or moving a slider switches them on (Settings has the switch to turn them off again).
  */
 private fun LazyListScope.shadersPage(
     model: PlayerSettingsModel,
     actions: PlayerSettingsActions
 ) {
-    val settings = model.videoShaders
+    // What is stored while switched off is not on the picture, so it is not shown either.
+    val settings = model.videoShaders.let { stored ->
+        if (stored.masterEnabled) {
+            stored
+        } else {
+            stored.selectPreset(VideoShaderPreset.NONE).copy(masterEnabled = true)
+        }
+    }
     item(key = "shader-presets") {
         // Four to a row: the names are one or two words on purpose, so a wider cell would only
         // stretch them.
@@ -1155,7 +1211,7 @@ private fun LazyListScope.shadersPage(
                             preset = preset,
                             selected = settings.activePreset == preset,
                             onClick = {
-                                actions.onVideoShadersChange(settings.copy(activePreset = preset))
+                                actions.onVideoShadersChange(settings.selectPreset(preset))
                             },
                             modifier = Modifier.weight(1f)
                         )

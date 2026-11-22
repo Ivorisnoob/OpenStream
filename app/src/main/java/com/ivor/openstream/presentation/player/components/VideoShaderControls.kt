@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material.icons.rounded.AutoFixOff
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Brush
@@ -217,6 +218,8 @@ internal val VideoShaderPreset.icon: ImageVector
         VideoShaderPreset.COMIC -> Icons.Rounded.ChatBubble
         VideoShaderPreset.SKETCH -> Icons.Rounded.Draw
         VideoShaderPreset.NIGHT_VISION -> Icons.Rounded.Visibility
+        VideoShaderPreset.ANIMATION_RESTORE -> Icons.Rounded.AutoAwesome
+        VideoShaderPreset.ANIMATION_DENOISE -> Icons.Rounded.WaterDrop
         VideoShaderPreset.CUSTOM -> Icons.Rounded.Code
     }
 

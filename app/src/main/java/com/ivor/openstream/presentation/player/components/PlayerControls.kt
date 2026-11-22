@@ -18,12 +18,20 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -39,6 +47,8 @@ import androidx.compose.material.icons.filled.Forward5
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
@@ -52,6 +62,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.rounded.AutoFixHigh
 import androidx.compose.material.icons.rounded.AutoFixOff
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledIconButton
@@ -71,12 +83,22 @@ import androidx.compose.material3.rememberSliderState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.focusGroup
@@ -109,7 +131,7 @@ private data class ControlMetrics(
 
 private val InlineMetrics = ControlMetrics(
     edgePadding = 4.dp,
-    centerGap = 28.dp,
+    centerGap = 16.dp,
     seekButton = 48.dp,
     seekIcon = 26.dp,
     playButton = 60.dp,
@@ -118,17 +140,16 @@ private val InlineMetrics = ControlMetrics(
 
 private val FullscreenMetrics = ControlMetrics(
     edgePadding = 16.dp,
-    centerGap = 56.dp,
+    centerGap = 28.dp,
     seekButton = 56.dp,
     seekIcon = 32.dp,
-    playButton = 80.dp,
+    playButton = 72.dp,
     playIcon = 42.dp
 )
 
 /**
- * Player chrome in three bands over the video: identity and tools on top, transport in the
- * optical centre, and the timeline on the bottom edge. The same structure scales between the
- * inline player and fullscreen, so muscle memory carries over when the phone is rotated.
+ * Keep transport between the title and timeline. Short players use one footer row to leave
+ * space for the video. Taller players give the timeline a row of its own.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -151,6 +172,9 @@ fun PlayerControls(
     currentTime: Long,
     totalTime: Long,
     onPauseToggle: () -> Unit,
+    onChromeInteraction: (Boolean) -> Unit = {},
+    onHeaderHeight: (Dp) -> Unit = {},
+    onFooterHeight: (Dp) -> Unit = {},
     onSeek: (Long) -> Unit,
     onForward: () -> Unit,
     onRewind: () -> Unit,
@@ -174,9 +198,16 @@ fun PlayerControls(
     controlsFocusRequester: FocusRequester? = null,
     onBackClick: () -> Unit
 ) {
-    val metrics = if (isFullscreen) FullscreenMetrics else InlineMetrics
-    // Video chrome fades on the theme's effects spec (instant with reduced motion).
     val chromeFade = ExpressiveMotion.finiteEffectsSpec()
+    val latestInteraction by rememberUpdatedState(onChromeInteraction)
+    var overflowOpen by remember { mutableStateOf(false) }
+    var draggingTimeline by remember { mutableStateOf(false) }
+    LaunchedEffect(overflowOpen, draggingTimeline, isVisible) {
+        latestInteraction(isVisible && (overflowOpen || draggingTimeline))
+        if (!isVisible) overflowOpen = false
+    }
+    DisposableEffect(Unit) { onDispose { latestInteraction(false) } }
+    val density = LocalDensity.current
 
     AnimatedVisibility(
         visible = isVisible,
@@ -185,170 +216,199 @@ fun PlayerControls(
         modifier = modifier
     ) {
         val scrim = MaterialTheme.colorScheme.scrim
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        0f to scrim.copy(alpha = 0.72f),
-                        0.3f to scrim.copy(alpha = 0.28f),
-                        0.7f to scrim.copy(alpha = 0.28f),
-                        1f to scrim.copy(alpha = 0.8f)
+                        0f to scrim.copy(alpha = 0.84f),
+                        0.33f to Color.Transparent,
+                        0.62f to Color.Transparent,
+                        1f to scrim.copy(alpha = 0.88f)
                     )
                 )
-                // Explicitly a focus group while shown, so the video surface can hand focus over.
                 .then(
-                    controlsFocusRequester?.let { requester ->
-                        Modifier.focusRequester(requester).focusGroup()
-                    } ?: Modifier
+                    controlsFocusRequester?.let { Modifier.focusRequester(it).focusGroup() } ?: Modifier
                 )
-                // Fullscreen ignores the display cutout: controls keep their normal edge margin instead of
-                // shifting sideways around the notch, and the bars are hidden anyway.
+                .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
         ) {
-            TopBar(
-                isFullscreen = isFullscreen,
-                metrics = metrics,
-                title = title,
-                subtitle = subtitle,
-                sourceLabel = sourceLabel,
-                qualityLabel = qualityLabel,
-                hasSubtitles = hasSubtitles,
-                subtitlesEnabled = subtitlesEnabled,
-                onShaderLookToggle = onShaderLookToggle,
-                shaderLookShown = shaderLookShown,
-                onBackClick = onBackClick,
-                onSourcesClick = onSourcesClick,
-                onQualityClick = onQualityClick,
-                onSubtitlesClick = onSubtitlesClick,
-                onSettingsClick = onSettingsClick,
-                onLockClick = onLockClick,
-                isRotationLocked = isRotationLocked,
-                onRotationLockToggle = onRotationLockToggle,
-                onCastClick = onCastClick,
-                onPictureInPictureClick = onPictureInPictureClick,
-                modifier = Modifier.align(Alignment.TopCenter)
+            val footerHasToolbar = maxHeight >= 248.dp
+            val expanded = isFullscreen && footerHasToolbar
+            val showTextActions = footerHasToolbar && maxWidth >= 640.dp
+            val metrics = if (expanded) FullscreenMetrics else InlineMetrics
+            val captionIcon = if (subtitlesEnabled) Icons.Default.ClosedCaption else Icons.Default.ClosedCaptionDisabled
+            val fullscreenIcon = if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen
+            val fullscreenLabel = stringResource(
+                if (isFullscreen) R.string.player_exit_fullscreen else R.string.player_enter_fullscreen
             )
+            val rotationIcon = if (isRotationLocked) Icons.Default.ScreenLockRotation else Icons.Default.ScreenRotation
+            val rotationLabel = stringResource(
+                if (isRotationLocked) R.string.player_unlock_rotation else R.string.player_lock_rotation
+            )
+            val shaderIcon = if (shaderLookShown) Icons.Rounded.AutoFixHigh else Icons.Rounded.AutoFixOff
+            val shaderLabel = stringResource(R.string.player_shader_look)
+            val qualityAction = stringResource(R.string.player_quality_action, qualityLabel)
+            val showCastInHeader = maxWidth >= 440.dp
+            val hasOverflow = isFullscreen || onPictureInPictureClick != null ||
+                (!showCastInHeader && onCastClick != null) ||
+                !footerHasToolbar ||
+                (!showTextActions && onShaderLookToggle != null)
 
-            TransportControls(
-                metrics = metrics,
-                seekStepSeconds = seekStepSeconds,
-                isPlaying = isPlaying,
-                isBuffering = isBuffering,
-                onRewind = onRewind,
-                onPauseToggle = onPauseToggle,
-                onForward = onForward,
-                modifier = Modifier.align(Alignment.Center)
-            )
+            Column(Modifier.fillMaxSize()) {
+                PlayerHeader(
+                    title = title,
+                    subtitle = subtitle,
+                    expanded = expanded,
+                    onBackClick = onBackClick,
+                    modifier = Modifier
+                        .onSizeChanged { onHeaderHeight(with(density) { it.height.toDp() }) }
+                        .padding(horizontal = metrics.edgePadding)
+                ) {
+                    if (!footerHasToolbar && hasSubtitles) {
+                        HudIconButton(captionIcon, stringResource(R.string.player_subtitles), onSubtitlesClick)
+                    }
+                    if (showCastInHeader) onCastClick?.let {
+                        HudIconButton(Icons.Default.Cast, stringResource(R.string.player_cast_to_tv), it)
+                    }
+                    HudIconButton(Icons.Default.Settings, stringResource(R.string.player_playback_settings), onSettingsClick)
+                    if (hasOverflow) Box {
+                        HudIconButton(Icons.Default.MoreVert, stringResource(R.string.misc_more_options)) { overflowOpen = true }
+                        DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }) {
+                            val close = { overflowOpen = false }
+                            if (!footerHasToolbar) {
+                                sourceLabel?.let { label ->
+                                    PlayerMenuItem(Icons.Default.Dns, stringResource(R.string.player_change_source, label), close, onSourcesClick)
+                                }
+                                PlayerMenuItem(Icons.Default.HighQuality, qualityAction, close, onQualityClick)
+                            }
+                            if (!showCastInHeader) onCastClick?.let {
+                                PlayerMenuItem(Icons.Default.Cast, stringResource(R.string.player_cast_to_tv), close, it)
+                            }
+                            onPictureInPictureClick?.let {
+                                PlayerMenuItem(Icons.Default.PictureInPictureAlt, stringResource(R.string.player_pip), close, it)
+                            }
+                            if (isFullscreen) {
+                                PlayerMenuItem(Icons.Default.Lock, stringResource(R.string.player_lock_screen), close, onLockClick)
+                                PlayerMenuItem(rotationIcon, rotationLabel, close, onRotationLockToggle)
+                                if (!footerHasToolbar) {
+                                    val label = stringResource(R.string.cd_video_size, stringResource(videoScale.labelRes))
+                                    PlayerMenuItem(videoScale.icon, label, close, onVideoScaleClick)
+                                }
+                            }
+                            if (!showTextActions) onShaderLookToggle?.let {
+                                val label = stringResource(
+                                    if (shaderLookShown) R.string.player_hide_shader_look else R.string.player_show_shader_look
+                                )
+                                PlayerMenuItem(shaderIcon, label, close, it)
+                            }
+                        }
+                    }
+                }
 
-            Timeline(
-                isFullscreen = isFullscreen,
-                metrics = metrics,
-                currentTime = currentTime,
-                totalTime = totalTime,
-                onSeek = onSeek,
-                onNextClick = onNextClick,
-                onFullscreenToggle = onFullscreenToggle,
-                videoScale = videoScale,
-                onVideoScaleClick = onVideoScaleClick,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    TransportControls(
+                        metrics = metrics,
+                        seekStepSeconds = seekStepSeconds,
+                        isPlaying = isPlaying,
+                        isBuffering = isBuffering,
+                        onRewind = onRewind,
+                        onPauseToggle = onPauseToggle,
+                        onForward = onForward
+                    )
+                }
+
+                Column(
+                    Modifier.fillMaxWidth()
+                        .onSizeChanged { onFooterHeight(with(density) { it.height.toDp() }) }
+                        .padding(horizontal = metrics.edgePadding, vertical = if (expanded) 8.dp else 0.dp)
+                ) {
+                    Timeline(
+                        expanded = footerHasToolbar,
+                        currentTime = currentTime,
+                        totalTime = totalTime,
+                        onSeek = onSeek,
+                        onTimelineDrag = { draggingTimeline = it }
+                    ) {
+                        if (!footerHasToolbar) {
+                            onNextClick?.let { HudIconButton(Icons.Default.SkipNext, stringResource(R.string.action_next_episode), it) }
+                            HudIconButton(fullscreenIcon, fullscreenLabel, onFullscreenToggle)
+                        }
+                    }
+                    if (footerHasToolbar) {
+                        Row(
+                            Modifier.fillMaxWidth().background(scrim.copy(alpha = 0.42f), ExpressiveShapes.large)
+                                .padding(horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (hasSubtitles) HudIconButton(captionIcon, stringResource(R.string.player_subtitles), onSubtitlesClick)
+                            sourceLabel?.let { label ->
+                                if (showTextActions) HudChip(label = label, icon = Icons.Default.Dns, onClick = onSourcesClick)
+                                else HudIconButton(Icons.Default.Dns, stringResource(R.string.player_change_source, label), onSourcesClick)
+                            }
+                            if (showTextActions) HudChip(label = qualityLabel, onClick = onQualityClick)
+                            else HudIconButton(Icons.Default.HighQuality, qualityAction, onQualityClick)
+                            if (showTextActions) onShaderLookToggle?.let {
+                                HudIconToggleButton(shaderIcon, shaderLabel, shaderLookShown) { _ -> it() }
+                            }
+                            Spacer(Modifier.weight(1f))
+                            onNextClick?.let { HudIconButton(Icons.Default.SkipNext, stringResource(R.string.action_next_episode), it) }
+                            if (isFullscreen) {
+                                val label = stringResource(R.string.cd_video_size, stringResource(videoScale.labelRes))
+                                HudIconButton(videoScale.icon, label, onVideoScaleClick)
+                            }
+                            HudIconButton(fullscreenIcon, fullscreenLabel, onFullscreenToggle)
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun TopBar(
-    isFullscreen: Boolean,
-    metrics: ControlMetrics,
+private fun PlayerHeader(
     title: String,
     subtitle: String,
-    sourceLabel: String?,
-    qualityLabel: String,
-    hasSubtitles: Boolean,
-    subtitlesEnabled: Boolean,
-    onShaderLookToggle: (() -> Unit)?,
-    shaderLookShown: Boolean,
+    expanded: Boolean,
     onBackClick: () -> Unit,
-    onSourcesClick: () -> Unit,
-    onQualityClick: () -> Unit,
-    onSubtitlesClick: () -> Unit,
-    onSettingsClick: () -> Unit,
-    onLockClick: () -> Unit,
-    isRotationLocked: Boolean,
-    onRotationLockToggle: () -> Unit,
-    onCastClick: (() -> Unit)?,
-    onPictureInPictureClick: (() -> Unit)?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    actions: @Composable RowScope.() -> Unit
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = metrics.edgePadding, vertical = if (isFullscreen) 8.dp else 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        ExpressiveBackButton(
-            onClick = onBackClick,
-            containerColor = Color.Transparent,
-            contentColor = MaterialTheme.colorScheme.onScrim
-        )
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 4.dp, end = 8.dp)
-        ) {
+    Row(modifier.fillMaxWidth().padding(vertical = if (expanded) 8.dp else 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        ExpressiveBackButton(onClick = onBackClick, containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onScrim)
+        Column(Modifier.weight(1f).padding(start = 6.dp, end = 8.dp)) {
             Text(
                 text = title,
-                style = if (isFullscreen) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleSmall,
+                style = if (expanded) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onScrim,
-                fontWeight = FontWeight.Black,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             if (subtitle.isNotBlank()) {
                 Text(
                     text = subtitle,
-                    style = if (isFullscreen) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onScrim.copy(alpha = 0.72f),
+                    style = if (expanded) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onScrim.copy(alpha = 0.82f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
         }
-
-        if (isFullscreen) {
-            HudIconButton(Icons.Default.Lock, stringResource(R.string.player_lock_screen), onLockClick)
-            HudIconButton(
-                icon = if (isRotationLocked) Icons.Default.ScreenLockRotation else Icons.Default.ScreenRotation,
-                contentDescription = if (isRotationLocked) stringResource(R.string.player_unlock_rotation) else stringResource(R.string.player_lock_rotation),
-                onClick = onRotationLockToggle
-            )
-            sourceLabel?.let { label ->
-                HudChip(icon = Icons.Default.Dns, label = label, onClick = onSourcesClick)
-            }
-            HudChip(label = qualityLabel, onClick = onQualityClick)
-        } else if (sourceLabel != null && (onCastClick == null || onPictureInPictureClick == null)) {
-            // Inline space is tight: with Cast and PiP showing, sources stay under Settings.
-            HudIconButton(Icons.Default.Dns, stringResource(R.string.player_change_source, sourceLabel), onSourcesClick)
-        }
-        if (hasSubtitles) {
-            HudIconButton(
-                icon = if (subtitlesEnabled) Icons.Default.ClosedCaption else Icons.Default.ClosedCaptionDisabled,
-                contentDescription = stringResource(R.string.player_subtitles),
-                onClick = onSubtitlesClick
-            )
-        }
-        onShaderLookToggle?.let { toggle ->
-            HudIconToggleButton(
-                icon = if (shaderLookShown) Icons.Rounded.AutoFixHigh else Icons.Rounded.AutoFixOff,
-                contentDescription = stringResource(R.string.player_shader_look),
-                checked = shaderLookShown,
-                onCheckedChange = { toggle() }
-            )
-        }
-        onPictureInPictureClick?.let { HudIconButton(Icons.Default.PictureInPictureAlt, stringResource(R.string.player_pip), it) }
-        onCastClick?.let { HudIconButton(Icons.Default.Cast, stringResource(R.string.player_cast_to_tv), it) }
-        HudIconButton(Icons.Default.Settings, stringResource(R.string.player_playback_settings), onSettingsClick)
+        actions()
     }
+}
+
+@Composable
+private fun PlayerMenuItem(icon: ImageVector, label: String, close: () -> Unit, action: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(label) },
+        leadingIcon = { Icon(icon, contentDescription = null) },
+        onClick = {
+            close()
+            action()
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -468,22 +528,22 @@ private fun SeekButton(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Timeline(
-    isFullscreen: Boolean,
-    metrics: ControlMetrics,
+    expanded: Boolean,
     currentTime: Long,
     totalTime: Long,
     onSeek: (Long) -> Unit,
-    onNextClick: (() -> Unit)?,
-    onFullscreenToggle: () -> Unit,
-    videoScale: VideoScale,
-    onVideoScaleClick: () -> Unit,
-    modifier: Modifier = Modifier
+    onTimelineDrag: (Boolean) -> Unit,
+    actions: @Composable RowScope.() -> Unit
 ) {
     val duration = totalTime.coerceAtLeast(0L)
     var isDragging by remember { mutableStateOf(false) }
-    var dragProgress by remember { mutableFloatStateOf(0f) }
+    var dragTarget by remember { mutableLongStateOf(0L) }
+    var dragOrigin by remember { mutableLongStateOf(0L) }
+    val haptics = LocalHapticFeedback.current
+    val dragStateChanged by rememberUpdatedState(onTimelineDrag)
+    DisposableEffect(Unit) { onDispose { dragStateChanged(false) } }
     val playedProgress = if (duration > 0) (currentTime.toFloat() / duration).coerceIn(0f, 1f) else 0f
-    val shownTime = if (isDragging) (dragProgress * duration).toLong() else currentTime
+    val shownTime = if (isDragging) dragTarget else currentTime
 
     val colors = SliderDefaults.colors(
         thumbColor = MaterialTheme.colorScheme.primary,
@@ -497,33 +557,30 @@ private fun Timeline(
         if (!isDragging) sliderState.value = playedProgress
     }
 
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(
-                start = metrics.edgePadding + 8.dp,
-                end = metrics.edgePadding,
-                bottom = if (isFullscreen) 8.dp else 0.dp
-            ),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "${formatTime(shownTime)} / ${formatTime(duration)}",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onScrim,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1
-        )
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        TimelineTime(if (expanded) formatTime(shownTime) else "${formatTime(shownTime)} / ${formatTime(duration)}")
         Slider(
             state = sliderState,
             onValueChange = {
-                isDragging = true
-                dragProgress = it
-                sliderState.value = it
+                if (!isDragging) {
+                    dragOrigin = currentTime
+                    dragTarget = currentTime
+                    isDragging = true
+                    onTimelineDrag(true)
+                }
+                val target = snapSeekPosition((it * duration).toLong(), dragOrigin, duration)
+                if (duration > 0L) {
+                    if (target * 50 / duration != dragTarget * 50 / duration) {
+                        haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                    }
+                    sliderState.value = target.toFloat() / duration
+                }
+                dragTarget = target
             },
             onValueChangeFinished = {
+                if (isDragging && duration > 0) onSeek(dragTarget)
                 isDragging = false
-                if (duration > 0) onSeek((dragProgress * duration).toLong())
+                onTimelineDrag(false)
             },
             enabled = duration > 0,
             colors = colors,
@@ -532,21 +589,29 @@ private fun Timeline(
                 SliderDefaults.Thumb(
                     interactionSource = interactionSource,
                     colors = colors,
-                    thumbSize = DpSize(4.dp, if (isFullscreen) 22.dp else 18.dp)
+                    thumbSize = DpSize(4.dp, if (expanded) 22.dp else 18.dp)
                 )
             },
             track = { state ->
+                val markerColor = MaterialTheme.colorScheme.onScrim
                 SliderDefaults.Track(
                     sliderState = state,
                     colors = colors,
                     drawStopIndicator = null,
                     thumbTrackGapSize = 3.dp,
-                    modifier = Modifier.height(if (isFullscreen) 6.dp else 4.dp)
+                    modifier = Modifier.height(if (expanded) 6.dp else 4.dp).drawWithContent {
+                        drawContent()
+                        if (isDragging && duration > 0) {
+                            val fraction = (dragOrigin.toFloat() / duration).coerceIn(0f, 1f)
+                            val x = size.width * if (layoutDirection == LayoutDirection.Ltr) fraction else 1f - fraction
+                            drawLine(markerColor, Offset(x, 0f), Offset(x, size.height), strokeWidth = 2.dp.toPx())
+                        }
+                    }
                 )
             },
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = 12.dp)
+                .padding(horizontal = if (expanded) 12.dp else 8.dp)
                 // TalkBack announces position as a percentage; the time text beside it
                 // carries the exact value, so no new string resource is needed.
                 .semantics {
@@ -554,23 +619,22 @@ private fun Timeline(
                     progressBarRangeInfo = ProgressBarRangeInfo(playedProgress, 0f..1f)
                 }
         )
-        onNextClick?.let { next ->
-            HudIconButton(Icons.Default.SkipNext, stringResource(R.string.action_next_episode), next)
-        }
-        // The inline player is already 16:9, so resizing only matters in fullscreen.
-        if (isFullscreen) {
-            HudIconButton(
-                icon = videoScale.icon,
-                contentDescription = stringResource(R.string.cd_video_size, stringResource(videoScale.labelRes)),
-                onClick = onVideoScaleClick
-            )
-        }
-        HudIconButton(
-            icon = if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-            contentDescription = if (isFullscreen) stringResource(R.string.player_exit_fullscreen) else stringResource(R.string.player_enter_fullscreen),
-            onClick = onFullscreenToggle
-        )
+        if (expanded) TimelineTime(formatTime(duration))
+        actions()
     }
+}
+
+@Composable
+private fun TimelineTime(time: String) {
+    val style: TextStyle = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum")
+    Text(
+        text = time,
+        style = style,
+        color = MaterialTheme.colorScheme.onScrim,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(horizontal = 4.dp),
+        maxLines = 1
+    )
 }
 
 @Composable
@@ -590,8 +654,9 @@ private fun HudChip(
         border = if (isFocused) BorderStroke(2.5.dp, MaterialTheme.colorScheme.primary) else null,
         shadowElevation = if (isFocused) 8.dp else 0.dp,
         modifier = Modifier
-            .padding(end = 8.dp)
-            .widthIn(max = 160.dp)
+            .padding(end = 6.dp)
+            .widthIn(max = 144.dp)
+            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
             .then(if (isFocused) Modifier.scale(1.08f) else Modifier)
     ) {
         Row(

@@ -459,6 +459,8 @@ private fun lookSource(preset: VideoShaderPreset): String = when (preset) {
     VideoShaderPreset.COMIC -> LOOK_COMIC
     VideoShaderPreset.SKETCH -> LOOK_SKETCH
     VideoShaderPreset.NIGHT_VISION -> LOOK_NIGHT_VISION
+    VideoShaderPreset.ANIMATION_RESTORE -> LINE_RESTORE
+    VideoShaderPreset.ANIMATION_DENOISE -> FLAT_COLOR_DENOISE
 }
 
 /** The frame as it is, for Sharpen and the picture sliders on their own. */
@@ -731,5 +733,45 @@ vec3 look(vec2 uv) {
   l += (hash(uv * 400.0 + uTime * 8.0) - 0.5) * 0.16;
   l *= 0.9 + 0.1 * sin(scanlinesAt(uv.y));
   return vec3(0.10, 1.0, 0.30) * l * vignetteAt(uv, 0.55);
+}
+"""
+
+
+// A local-contrast pass for line art. Limit the output to the sampled colour range.
+private const val LINE_RESTORE = """
+vec3 look(vec2 uv) {
+  vec2 stepSize = 1.0 / max(uResolution, vec2(1.0));
+  vec3 center = frameAt(uv);
+  vec3 left = texture2D(uTex, uv - vec2(stepSize.x, 0.0)).rgb;
+  vec3 right = texture2D(uTex, uv + vec2(stepSize.x, 0.0)).rgb;
+  vec3 top = texture2D(uTex, uv - vec2(0.0, stepSize.y)).rgb;
+  vec3 bottom = texture2D(uTex, uv + vec2(0.0, stepSize.y)).rgb;
+  vec3 lower = min(center, min(min(left, right), min(top, bottom)));
+  vec3 upper = max(center, max(max(left, right), max(top, bottom)));
+  vec3 detail = center - (left + right + top + bottom) * 0.25;
+  float strength = smoothstep(0.015, 0.12, length(detail));
+  return clamp(center + detail * strength * 0.45, lower, upper);
+}
+"""
+
+// A bilateral filter to smooth grain within a flat region while preserving colour edges.
+private const val FLAT_COLOR_DENOISE = """
+vec3 look(vec2 uv) {
+  vec2 stepSize = 1.0 / max(uResolution, vec2(1.0));
+  vec3 center = texture2D(uTex, uv).rgb;
+  vec3 result = center;
+  float total = 1.0;
+  for (int row = -1; row <= 1; row++) {
+    for (int col = -1; col <= 1; col++) {
+      if (row == 0 && col == 0) continue;
+      vec2 offset = vec2(float(col), float(row));
+      vec3 sampleColor = texture2D(uTex, uv + offset * stepSize).rgb;
+      vec3 delta = sampleColor - center;
+      float weight = exp(-42.0 * dot(delta, delta)) / (1.0 + dot(offset, offset));
+      result += sampleColor * weight;
+      total += weight;
+    }
+  }
+  return result / total;
 }
 """

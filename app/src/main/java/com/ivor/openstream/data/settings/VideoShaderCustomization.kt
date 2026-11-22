@@ -52,6 +52,9 @@ enum class VideoShaderPreset(
         "night_vision", R.string.vsp_preset_night, R.string.vsp_preset_night_sub, sharpens = false
     ),
 
+    ANIMATION_RESTORE("animation_restore", R.string.vsp_restore, R.string.vsp_restore_description),
+    ANIMATION_DENOISE("animation_denoise", R.string.vsp_denoise, R.string.vsp_denoise_description, sharpens = false),
+
     /** The user's own fragment shader, which is the whole picture: no slider reaches it. */
     CUSTOM("custom", R.string.vsp_preset_custom, R.string.vsp_preset_custom_sub, sharpens = false);
 
@@ -74,6 +77,14 @@ object VideoShaderPresetSerializer : KSerializer<VideoShaderPreset> {
     override fun deserialize(decoder: Decoder): VideoShaderPreset =
         VideoShaderPreset.fromId(decoder.decodeString())
 }
+
+@Serializable
+data class PictureAdjustments(
+    val sharpness: Float = 0f,
+    val contrast: Float = 1f,
+    val brightness: Float = 0f,
+    val saturation: Float = 1f
+)
 
 /** A shader to start a custom one from. */
 class VideoShaderTemplate(@StringRes val titleRes: Int, val source: String)
@@ -100,8 +111,24 @@ data class VideoShaderCustomization(
     /** 0 is black and white, 1 the video's own colour, [SATURATION_RANGE]. */
     val saturation: Float = NEUTRAL_SATURATION,
     /** The fragment shader [VideoShaderPreset.CUSTOM] runs. */
-    val customShaderSource: String = DEFAULT_CUSTOM_SHADER
+    val customShaderSource: String = DEFAULT_CUSTOM_SHADER,
+    val presetAdjustments: Map<String, PictureAdjustments> = emptyMap()
 ) {
+    fun selectPreset(preset: VideoShaderPreset): VideoShaderCustomization {
+        if (preset == activePreset) return this
+        val next = presetAdjustments[preset.id] ?: PictureAdjustments()
+        return copy(
+            activePreset = preset,
+            sharpness = next.sharpness,
+            contrast = next.contrast,
+            brightness = next.brightness,
+            saturation = next.saturation,
+            presetAdjustments = presetAdjustments + (
+                activePreset.id to PictureAdjustments(sharpness, contrast, brightness, saturation)
+            )
+        )
+    }
+
     /** Every slider where it leaves the picture alone. */
     val isPictureNeutral: Boolean
         get() = sharpness == SHARPNESS_OFF &&

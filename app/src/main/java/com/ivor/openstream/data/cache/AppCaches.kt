@@ -10,6 +10,8 @@ import kotlinx.coroutines.withContext
 import okhttp3.Cache
 import com.ivor.openstream.data.streaming.IdMappingService
 import javax.inject.Inject
+import androidx.media3.common.util.UnstableApi
+import com.ivor.openstream.di.PlaybackBuffer
 import javax.inject.Singleton
 
 /**
@@ -18,10 +20,12 @@ import javax.inject.Singleton
  * None of it is user data; downloads, progress and saved subtitles live elsewhere and are never
  * touched here.
  */
+@UnstableApi
 @Singleton
 class AppCaches @Inject constructor(
     @ApplicationContext private val context: Context,
     private val metadataCache: Cache,
+    @PlaybackBuffer private val playbackBuffer: androidx.media3.datasource.cache.Cache,
     private val animeRepository: AnimeRepository,
     private val streamingRepository: StreamingRepository,
     private val idMappingService: IdMappingService
@@ -30,7 +34,9 @@ class AppCaches @Inject constructor(
     suspend fun sizeBytes(): Long? = withContext(Dispatchers.IO) {
         val images = runCatching { SingletonImageLoader.get(context).diskCache?.size }.getOrNull()
         val metadata = runCatching { metadataCache.size() }.getOrNull()
-        if (images == null && metadata == null) null else (images ?: 0L) + (metadata ?: 0L)
+        val video = runCatching { playbackBuffer.cacheSpace }.getOrNull()
+        if (images == null && metadata == null && video == null) null
+        else (images ?: 0L) + (metadata ?: 0L) + (video ?: 0L)
     }
 
     /** Clears everything; each part on its own, so one failing doesn't keep the rest. */
@@ -41,6 +47,7 @@ class AppCaches @Inject constructor(
             loader.diskCache?.clear()
         }
         runCatching { metadataCache.evictAll() }
+        runCatching { playbackBuffer.keys.forEach(playbackBuffer::removeResource) }
         animeRepository.clearCachedCatalogs()
         streamingRepository.clearResolvedServers()
         runCatching { idMappingService.clear() }

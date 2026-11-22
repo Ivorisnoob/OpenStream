@@ -85,7 +85,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -171,6 +170,8 @@ fun PlayerScreen(
     val captionSettings by viewModel.captionSettings.collectAsState()
     val videoShaders by viewModel.videoShaders.collectAsState()
     val videoShaderHidden by viewModel.videoShaderHidden.collectAsState()
+    val nativeHdr by viewModel.nativeHdr.collectAsState()
+    val playerGeneration by viewModel.playerGeneration.collectAsState()
     val serversState by viewModel.serversState.collectAsState()
     val activeServer by viewModel.activeServer.collectAsState()
     val currentDownload by viewModel.currentDownload.collectAsState()
@@ -257,12 +258,13 @@ fun PlayerScreen(
     // A TV never shows the phone's info panel under the video, not even while a source is found.
     val isImmersive = isFullscreen || isInPictureInPicture || tvControls
     var isVideoPlaying by remember { mutableStateOf(false) }
-    var togglePlaybackSignal by remember { mutableIntStateOf(0) }
 
     PictureInPictureEffect(
         enabled = videoUrl != null && !isCasting,
         isPlaying = isVideoPlaying,
-        onTogglePlayback = { togglePlaybackSignal++ },
+        onTogglePlayback = {
+            viewModel.player.playWhenReady = !viewModel.player.playWhenReady
+        },
         leftAction = appSettings.pipLeftAction,
         rightAction = appSettings.pipRightAction,
         seekStepSeconds = appSettings.seekStepSeconds,
@@ -400,6 +402,15 @@ fun PlayerScreen(
         if (tvControls && !isFullscreen) enterFullscreen()
     }
 
+    DisposableEffect(activity, nativeHdr, isCasting) {
+        val window = activity?.window
+        val previous = window?.colorMode
+        if (nativeHdr && !isCasting) window?.colorMode = ActivityInfo.COLOR_MODE_HDR
+        onDispose {
+            if (window != null && previous != null && nativeHdr && !isCasting) window.colorMode = previous
+        }
+    }
+
     // Handle back press in fullscreen -- exit fullscreen instead of navigating back
     BackHandler(enabled = !tvControls && isFullscreen) {
         exitFullscreen()
@@ -424,6 +435,12 @@ fun PlayerScreen(
                     screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
                 }
             }
+        }
+    }
+
+    LaunchedEffect(mediaType, tmdbId, season, episode, nextEpisode?.season, nextEpisode?.episode, isLocalOrDownloaded) {
+        if (!isLocalOrDownloaded) nextEpisode?.let { upcoming ->
+            viewModel.warmNextEpisode(mediaType, tmdbId, season, episode, upcoming)
         }
     }
 
@@ -546,14 +563,17 @@ fun PlayerScreen(
             // the top-left corner with what's playing under it, and the queue in a column on the right.
             // Narrower ones stack everything under a full-width 16:9 video.
             // Expanded starts at 840.dp, matching the previous hand-rolled breakpoint exactly.
-            val wide = LocalWindowWidthClass.current == WindowWidthSizeClass.Expanded
+            // The window class can still say Expanded for a frame while this box is far smaller (the
+            // window growing back from picture-in-picture), so the box's own width must fit too;
+            // otherwise the queue column is wider than the box and the sizes below go negative.
+            val wide = LocalWindowWidthClass.current == WindowWidthSizeClass.Expanded && maxWidth >= 840.dp
             val sideBySide = !isImmersive && wide
             val gutter = if (wide) 16.dp else 0.dp
             val queueWidth = if (wide) (maxWidth * 0.32f).coerceIn(340.dp, 420.dp) else 0.dp
-            val columnWidth = maxWidth - queueWidth - gutter
+            val columnWidth = (maxWidth - queueWidth - gutter).coerceAtLeast(0.dp)
             val videoHeight = if (wide) {
                 // Leaves room under the video for the title and actions.
-                min((columnWidth - gutter) * 9f / 16f, maxHeight * 0.66f)
+                min((columnWidth - gutter) * 9f / 16f, maxHeight * 0.66f).coerceAtLeast(0.dp)
             } else {
                 // Tall tablets in portrait would otherwise give the video half the screen.
                 min(maxWidth * 9f / 16f, maxHeight * 0.45f)
@@ -617,13 +637,14 @@ fun PlayerScreen(
                         modifier = Modifier.fillMaxSize()
                     )
                 } else if (hasUrl && currentUrl != null) {
-                    key(activeServer?.id ?: currentUrl) {
+                    val localPlayer = remember(viewModel, playerGeneration) { viewModel.player }
+                    key(currentUrl) {
                         ExoPlayerView(
                             videoUrl = currentUrl,
                             title = playerTitle,
                             subtitle = playerSubtitle,
                             requestHeaders = activeServer?.headers.orEmpty(),
-                            exoPlayer = viewModel.player,
+                            exoPlayer = localPlayer,
                             smoothMotion = viewModel.smoothMotion,
                             applyRequestHeaders = viewModel::applyRequestHeaders,
                             isFullscreen = isFullscreen,
@@ -670,7 +691,7 @@ fun PlayerScreen(
                             onEpisodeSelected = { picked -> onEpisodeClick(picked.seasonNumber, picked.episodeNumber) },
                             onIsPlayingChanged = { isVideoPlaying = it },
                             isInPictureInPicture = isInPictureInPicture,
-                            togglePlaybackSignal = togglePlaybackSignal,
+                            nativeHdr = nativeHdr,
                             initialPlaybackSpeed = sessionPlaybackSpeed,
                             onPlaybackSpeedChanged = { sessionPlaybackSpeed = it },
                             sourceActions = sourceActions,
@@ -695,8 +716,7 @@ fun PlayerScreen(
                             keepPlayingInBackground = appSettings.keepPlayingInBackground,
                             volumeBoostPercent = appSettings.volumeBoostPercent,
                             onVolumeBoostChange = viewModel::setVolumeBoostPercent,
-                            // No shader stage in this player: the row would change nothing until a restart.
-                            videoShaders = if (viewModel.shadersApplyNow) videoShaders else videoShaders.copy(masterEnabled = false),
+                            videoShaders = videoShaders,
                             onPreviewVideoShaders = viewModel::previewVideoShaders,
                             onVideoShadersChange = viewModel::setVideoShaders,
                             videoShaderHidden = videoShaderHidden,

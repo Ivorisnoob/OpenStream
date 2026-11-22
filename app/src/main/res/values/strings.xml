@@ -193,6 +193,9 @@
     <string name="player_hosts_change">Streaming hosts change often. Search again for fresh links.</string>
     <string name="player_sources_change">Streams come from sources that change often, so some titles or episodes may not play yet.</string>
     <string name="player_not_everything">Not everything plays yet</string>
+    <string name="player_quality_action">Quality: %1$s</string>
+    <string name="player_hide_shader_look">Hide picture preset</string>
+    <string name="player_show_shader_look">Show picture preset</string>
     <string name="player_quality_unknown">Quality unknown</string>
     <string name="player_quality_once_started">Quality options appear once the stream starts.</string>
     <string name="player_fixed_quality">This source has one fixed quality</string>
@@ -264,6 +267,23 @@
     <string name="sheet_background">Background</string>
     <string name="sheet_caption_position">Position</string>
     <string name="sheet_caption_position_raised">%1$d%% higher</string>
+    <string name="sheet_caption_position_lowered">%1$d%% lower</string>
+    <string name="caption_color_cyan">Cyan</string>
+    <string name="caption_color_green">Green</string>
+    <string name="caption_placement">Placement</string>
+    <string name="caption_placement_bottom">Bottom</string>
+    <string name="caption_placement_top">Top</string>
+    <string name="caption_edge">Edge</string>
+    <string name="caption_edge_shadow">Shadow</string>
+    <string name="caption_edge_outline">Outline</string>
+    <string name="caption_edge_none">None</string>
+    <string name="caption_font">Font</string>
+    <string name="caption_font_default">Default</string>
+    <string name="caption_font_serif">Serif</string>
+    <string name="caption_font_monospace">Monospace</string>
+    <string name="caption_weight">Weight</string>
+    <string name="caption_weight_regular">Regular</string>
+    <string name="caption_weight_bold">Bold</string>
     <string name="sheet_background_opacity">Background opacity</string>
     <string name="sheet_bold">Bold</string>
     <string name="sheet_source">Source</string>
@@ -374,8 +394,8 @@
     <string name="st_clear_crash">Clear crash reports</string>
     <string name="st_crash_cleared">Crash reports cleared</string>
     <string name="st_clear_all_cache">Clear cache</string>
-    <string name="st_cache_used">%1$s used for artwork and title info</string>
-    <string name="st_cache_hint">Artwork and title info kept so pages open faster</string>
+    <string name="st_cache_used">%1$s used for artwork, title info and playback</string>
+    <string name="st_cache_hint">Cached artwork, title info and streamed video</string>
     <string name="st_cache_cleared_all">Cache cleared</string>
     <string name="st_cache_limit">Cache size</string>
     <string name="st_cache_limit_hint">Space artwork and title info may use. Takes effect the next time the app starts.</string>
@@ -1004,7 +1024,7 @@
 
     <!-- Video shaders: the settings page, the player's Shaders page and the sliders -->
     <string name="sp_video_shaders">Video shaders</string>
-    <string name="sp_video_shaders_restart">Close and reopen the app to see looks on videos.</string>
+    <string name="sp_video_shaders_restart">Looks start once the video playing now is closed.</string>
     <string name="sp_video_shaders_sub_off">Give videos a look: film, retro and drawn styles, plus sharpening and colour</string>
     <string name="sp_video_shaders_sub_on">Change the look here, or from the video player\'s settings while you watch</string>
     <string name="sp_video_shaders_note">Takes effect on the next frame. HDR videos play in standard range while this is on.</string>
@@ -1199,4 +1219,8 @@
     <string name="st_group_cleanup">Clean up</string>
     <string name="st_group_privacy">Privacy</string>
     <string name="st_group_support">Support</string>
+    <string name="vsp_restore">Anime Restore</string>
+    <string name="vsp_restore_description">Brings out fine lines with restrained sharpening</string>
+    <string name="vsp_denoise">Anime Denoise</string>
+    <string name="vsp_denoise_description">Softens grain while retaining colour edges</string>
 </resources>

@@ -81,7 +81,7 @@ fun SourcesPanel(
             actions = { SourcesRefreshAction(state, actions.onRetry) }
         )
         LazyColumn(
-            modifier = listModifier,
+            modifier = listModifier.fillMaxWidth(),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)
         ) {

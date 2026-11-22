@@ -68,7 +68,19 @@ import androidx.compose.ui.semantics.semantics
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 import com.ivor.openstream.presentation.player.session.MiniPlayerViewModel
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.ui.unit.IntOffset
+import com.ivor.openstream.presentation.components.ExpressiveMotion
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -239,6 +251,13 @@ fun AppNavigation(
     val showRail = !isCompact && !isOnPlayer
     // "Remove animations" kills screen transitions as well as in-screen motion.
     val animatedNav = !com.ivor.openstream.presentation.components.ExpressiveMotion.reducedMotion()
+    // Set when the mini player opens the player, so it rises out of the card instead of fading in.
+    var playerFromMini by remember { mutableStateOf(false) }
+    LaunchedEffect(isOnPlayer) { if (!isOnPlayer) playerFromMini = false }
+    // The player stays in this list until its exit animation ends. The mini player waits for that:
+    // its video view would take the surface from the player while it is still sliding away.
+    val visibleEntries by navController.visibleEntries.collectAsState()
+    val playerOnScreen = visibleEntries.any { it.destination.route == Screen.Player.route }
 
     CompositionLocalProvider(LocalWindowWidthClass provides windowSizeClass) {
     Row(modifier = Modifier.fillMaxSize()) {
@@ -251,6 +270,8 @@ fun AppNavigation(
             // edge: it reads as part of the screen rather than a separate drawer strip.
             WideNavigationRail(
                 modifier = Modifier.fillMaxHeight(),
+                // Clear of a display cutout too, which sits on this edge when a phone is on its side.
+                windowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical + WindowInsetsSides.Start),
                 colors = WideNavigationRailDefaults.colors(
                     containerColor = MaterialTheme.colorScheme.background
                 ),
@@ -278,14 +299,21 @@ fun AppNavigation(
         }
 
         Box(
-            modifier = Modifier.weight(1f).fillMaxHeight()
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                // The rail already sits on the start edge, so screens beside it don't pad for it.
+                .then(
+                    if (showRail) Modifier.consumeWindowInsets(WindowInsets.safeDrawing.only(WindowInsetsSides.Start))
+                    else Modifier
+                )
         ) {
             NavHost(
                 navController = navController,
                 startDestination = startRoute,
                 modifier = Modifier.fillMaxSize(),
-                enterTransition = { with(NavTransitions) { enter(animatedNav) } },
-                exitTransition = { with(NavTransitions) { exit(animatedNav) } },
+                enterTransition = { with(NavTransitions) { enter(animatedNav, playerFromMini) } },
+                exitTransition = { with(NavTransitions) { exit(animatedNav, playerFromMini) } },
                 popEnterTransition = { with(NavTransitions) { popEnter(animatedNav) } },
                 popExitTransition = { with(NavTransitions) { popExit(animatedNav) } }
             ) {
@@ -556,37 +584,44 @@ fun AppNavigation(
                 )
             }
 
-            // Keeps the stream going while browsing; sits just above the floating toolbar. The
-            // toolbar is placed from the window edge, so stack on its measured height rather than
-            // on the navigation bar inset (which shrinks in dp at higher display densities).
             val showToolbar = showBottomBar && isCompact
-            val toolbarTop = with(LocalDensity.current) {
-                ToolbarBottomOffset + if (toolbarHeightPx > 0) toolbarHeightPx.toDp() else 66.dp
+            val miniPlayerInsets = WindowInsets.safeDrawing.union(WindowInsets.navigationBarsIgnoringVisibility)
+            val safeBottom = miniPlayerInsets.asPaddingValues().calculateBottomPadding()
+            val floatingBottom = maxOf(ToolbarBottomOffset, safeBottom + 8.dp)
+            val floatingHeight = with(LocalDensity.current) {
+                if (toolbarHeightPx > 0) toolbarHeightPx.toDp() else 66.dp
             }
-            // The docked bar's measured height already includes the navigation bar inset.
-            val dockedBarTop = with(LocalDensity.current) { dockedBarHeightPx.toDp() }
-            val miniPlayerOffset = when {
-                showToolbar && dockedNavBar && dockedBarHeightPx > 0 ->
-                    Modifier.padding(bottom = dockedBarTop + 8.dp)
-                showToolbar && dockedNavBar ->
-                    Modifier.navigationBarsPadding().padding(bottom = DockedBarFallbackHeight + 8.dp)
-                showToolbar -> Modifier.padding(bottom = toolbarTop + 12.dp)
-                else -> Modifier.navigationBarsPadding().padding(bottom = 16.dp)
+            val dockedHeight = with(LocalDensity.current) {
+                if (dockedBarHeightPx > 0) dockedBarHeightPx.toDp() else safeBottom + DockedBarFallbackHeight
             }
+            // Keep the system clearance fixed while the card settles above the app's toolbar.
+            val miniPlayerBase = safeBottom + 8.dp
+            val miniPlayerBottom = when {
+                showToolbar && dockedNavBar -> dockedHeight + 8.dp
+                showToolbar -> floatingBottom + floatingHeight + 12.dp
+                else -> safeBottom + 16.dp
+            }
+            val miniPlayerLift by animateDpAsState(
+                targetValue = (miniPlayerBottom - miniPlayerBase).coerceAtLeast(0.dp),
+                animationSpec = ExpressiveMotion.spatialSpec(),
+                label = "Mini-player toolbar clearance"
+            )
+            val miniPlayerFade = ExpressiveMotion.finiteEffectsSpec()
             androidx.compose.animation.AnimatedVisibility(
-                visible = !isOnPlayer && nowPlaying != null,
-                enter = slideInVertically { it } + fadeIn(),
-                exit = slideOutVertically { it } + fadeOut(),
+                visible = !isOnPlayer && !playerOnScreen && nowPlaying != null,
+                enter = fadeIn(miniPlayerFade),
+                exit = fadeOut(miniPlayerFade),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .then(miniPlayerOffset)
-                    .padding(horizontal = 16.dp)
-                    // A phone-width bar on tablets instead of a strip across the whole window.
+                    .windowInsetsPadding(miniPlayerInsets.only(WindowInsetsSides.Horizontal))
+                    .padding(start = 16.dp, end = 16.dp, bottom = miniPlayerBase)
+                    .offset { IntOffset(0, -miniPlayerLift.coerceAtLeast(0.dp).roundToPx()) }
                     .widthIn(max = 560.dp)
             ) {
                 MiniPlayer(
                     viewModel = miniPlayerViewModel,
                     onExpand = { item ->
+                        playerFromMini = true
                         navController.navigate(
                             Screen.Player.createRoute(
                                 mediaType = item.mediaType,
@@ -655,7 +690,7 @@ fun AppNavigation(
                 HorizontalFloatingToolbar(
                     expanded = true,
                     modifier = Modifier
-                        .padding(bottom = ToolbarBottomOffset)
+                        .padding(bottom = floatingBottom)
                         .onSizeChanged { toolbarHeightPx = it.height }
                         .pointerInput(Unit) {
                             detectHorizontalDragGestures(
@@ -686,6 +721,7 @@ fun AppNavigation(
                         bottomNavItems.forEachIndexed { index, screen ->
                             val isSelected = index == shownIndex
                             val onClick = {
+                                if (!isSelected) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                                 if (isSelected && screen.route == Screen.Search.route) {
                                     navController.currentBackStackEntry?.savedStateHandle?.set(
                                         "focusSearch",
