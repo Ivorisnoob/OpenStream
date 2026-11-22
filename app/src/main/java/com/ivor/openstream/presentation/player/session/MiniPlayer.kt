@@ -2,6 +2,13 @@ package com.ivor.openstream.presentation.player.session
 
 import com.ivor.openstream.ui.theme.onScrim
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import com.ivor.openstream.presentation.components.ExpressiveMotion
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.graphicsLayer
@@ -41,6 +48,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -90,6 +98,8 @@ fun MiniPlayer(
     val nowPlaying by session.nowPlaying.collectAsState()
     val isPlaying by session.isPlaying.collectAsState()
     val castStatus by session.castStatus.collectAsState()
+    val nativeHdr by session.nativeHdr.collectAsState()
+    val generation by session.playerGeneration.collectAsState()
     val item = nowPlaying ?: return
 
     var progress by remember { mutableFloatStateOf(0f) }
@@ -101,6 +111,13 @@ fun MiniPlayer(
             delay(500)
         }
     }
+
+    val reduceMotion = ExpressiveMotion.reducedMotion()
+    val smoothedProgress by animateFloatAsState(
+        progress,
+        animationSpec = tween(if (reduceMotion || !isPlaying) 0 else 500, easing = LinearEasing),
+        label = "Mini-player progress"
+    )
 
     // Outside the player screen nothing else pauses on backgrounding; do it here, unless the user
     // asked for background playback (the media notification takes over then).
@@ -122,7 +139,26 @@ fun MiniPlayer(
     // Swipe sideways to dismiss (stops playback), swipe up to open the player.
     val scope = rememberCoroutineScope()
     val offsetX = remember(item.mediaUri) { Animatable(0f) }
-    var dragY by remember { mutableFloatStateOf(0f) }
+    var dragX by remember(item.key) { mutableFloatStateOf(0f) }
+    var dragY by remember(item.key) { mutableFloatStateOf(0f) }
+    var dragging by remember(item.key) { mutableStateOf(false) }
+    var dismissing by remember(item.key) { mutableStateOf(false) }
+    val expand by rememberUpdatedState(onExpand)
+    val haptics = LocalHapticFeedback.current
+    var settleJob by remember(item.key) { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
+    fun settle(horizontalTarget: Float, dismiss: Boolean) {
+        settleJob?.cancel()
+        val start = dragX
+        dismissing = dismiss
+        settleJob = scope.launch {
+            offsetX.snapTo(start)
+            dragging = false
+            dragY = 0f
+            offsetX.animateTo(horizontalTarget, tween(if (reduceMotion) 0 else 180))
+            if (dismiss && session.nowPlaying.value?.key == item.key) session.stop()
+        }
+    }
     val density = LocalDensity.current
     val expandThresholdPx = with(density) { 48.dp.toPx() }
 
@@ -135,31 +171,46 @@ fun MiniPlayer(
         modifier = modifier
             .fillMaxWidth()
             .graphicsLayer {
-                translationX = offsetX.value
-                alpha = 1f - (kotlin.math.abs(offsetX.value) / size.width.coerceAtLeast(1f)).coerceIn(0f, 0.8f)
+                val horizontal = if (dragging) dragX else offsetX.value
+                translationX = if (reduceMotion) 0f else horizontal
+                translationY = if (reduceMotion || !dragging) 0f else (dragY * 0.3f).coerceIn(-size.height * 0.25f, 0f)
+                alpha = 1f - (kotlin.math.abs(horizontal) / size.width.coerceAtLeast(1f)).coerceIn(0f, 0.8f)
             }
-            .pointerInput(item.mediaUri) {
+            .pointerInput(item.key) {
                 detectDragGestures(
-                    onDragStart = { dragY = 0f },
-                    onDragEnd = {
-                        val dismissAt = size.width * 0.35f
-                        when {
-                            kotlin.math.abs(offsetX.value) > dismissAt -> scope.launch {
-                                offsetX.animateTo(if (offsetX.value > 0) size.width.toFloat() else -size.width.toFloat())
-                                session.stop()
-                            }
-                            dragY < -expandThresholdPx -> {
-                                scope.launch { offsetX.animateTo(0f) }
-                                onExpand(item)
-                            }
-                            else -> scope.launch { offsetX.animateTo(0f) }
+                    onDragStart = {
+                        if (!dismissing) {
+                            settleJob?.cancel()
+                            dragX = offsetX.value
+                            dragY = 0f
+                            dragging = true
                         }
                     },
-                    onDragCancel = { scope.launch { offsetX.animateTo(0f) } }
+                    onDragEnd = {
+                        if (dragging && !dismissing) {
+                            val horizontal = kotlin.math.abs(dragX)
+                            val vertical = kotlin.math.abs(dragY)
+                            when {
+                                dragY < -expandThresholdPx && vertical > horizontal -> {
+                                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                    settle(0f, dismiss = false)
+                                    expand(item)
+                                }
+                                horizontal > size.width * 0.3f && horizontal > vertical * 1.2f -> {
+                                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                    settle(if (dragX > 0) size.width.toFloat() else -size.width.toFloat(), dismiss = true)
+                                }
+                                else -> settle(0f, dismiss = false)
+                            }
+                        }
+                    },
+                    onDragCancel = { if (dragging && !dismissing) settle(0f, dismiss = false) }
                 ) { change, drag ->
-                    change.consume()
-                    dragY += drag.y
-                    scope.launch { offsetX.snapTo(offsetX.value + drag.x) }
+                    if (dragging && !dismissing) {
+                        change.consume()
+                        dragX += drag.x
+                        dragY += drag.y
+                    }
                 }
             }
     ) {
@@ -174,7 +225,7 @@ fun MiniPlayer(
                         .clip(ExpressiveShapes.medium)
                         .background(Color.Black)
                 ) {
-                    if (castStatus.isCasting) {
+                    if (castStatus.isCasting || nativeHdr) {
                         AsyncImage(
                             model = (item.stillPath ?: item.backdropPath ?: item.posterPath)
                                 ?.let { "https://image.tmdb.org/t/p/w300$it" },
@@ -182,7 +233,7 @@ fun MiniPlayer(
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
                         )
-                        Icon(
+                        if (castStatus.isCasting) Icon(
                             Icons.Default.CastConnected,
                             // Decorative: the row text already says where it's casting to.
                             contentDescription = null,
@@ -196,32 +247,34 @@ fun MiniPlayer(
                                 .padding(6.dp)
                                 .size(28.dp)
                         )
-                    } else AndroidView(
-                        factory = { context ->
-                            // Inflated for its texture_view surface (only settable from XML).
-                            (LayoutInflater.from(context).inflate(R.layout.mini_player_view, null) as PlayerView).apply {
-                                layoutParams = FrameLayout.LayoutParams(
-                                    FrameLayout.LayoutParams.MATCH_PARENT,
-                                    FrameLayout.LayoutParams.MATCH_PARENT
-                                )
-                                player = session.player
-                                session.smoothMotion?.let { bindSmoothMotion(it) }
-                            }
-                        },
-                        update = { view ->
-                            val sm = session.smoothMotion
-                            if (sm != null) {
-                                view.bindSmoothMotion(sm)
-                            } else {
+                    } else androidx.compose.runtime.key(generation) {
+                        AndroidView(
+                            factory = { context ->
+                                // Inflated for its texture_view surface (only settable from XML).
+                                (LayoutInflater.from(context).inflate(R.layout.mini_player_view, null) as PlayerView).apply {
+                                    layoutParams = FrameLayout.LayoutParams(
+                                        FrameLayout.LayoutParams.MATCH_PARENT,
+                                        FrameLayout.LayoutParams.MATCH_PARENT
+                                    )
+                                    player = session.player
+                                    session.smoothMotion?.let { bindSmoothMotion(it) }
+                                }
+                            },
+                            update = { view ->
+                                val sm = session.smoothMotion
+                                if (sm != null) {
+                                    view.bindSmoothMotion(sm)
+                                } else {
+                                    view.unbindSmoothMotion()
+                                }
+                            },
+                            onRelease = { view ->
                                 view.unbindSmoothMotion()
-                            }
-                        },
-                        onRelease = { view ->
-                            view.unbindSmoothMotion()
-                            view.player = null
-                        },
-                        modifier = Modifier.fillMaxSize()
-                    )
+                                view.player = null
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
                 Column(
                     modifier = Modifier
@@ -266,7 +319,7 @@ fun MiniPlayer(
                 }
             }
             LinearWavyProgressIndicator(
-                progress = { progress },
+                progress = { smoothedProgress },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)

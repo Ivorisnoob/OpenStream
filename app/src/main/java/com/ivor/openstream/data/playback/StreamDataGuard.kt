@@ -9,6 +9,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -71,7 +72,7 @@ class StreamDataGuard @Inject constructor(
     }
 
     fun addBytesLoaded(bytes: Long) {
-        if (bytes > 0L) _dataUsedBytes.value += bytes
+        if (bytes > 0L) _dataUsedBytes.update { it + bytes }
     }
 
     private fun isActiveNetworkMetered(): Boolean {

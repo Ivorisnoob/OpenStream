@@ -1191,7 +1191,7 @@ private fun LazyListScope.shadersPage(
         if (stored.masterEnabled) {
             stored
         } else {
-            stored.copy(masterEnabled = true, activePreset = VideoShaderPreset.NONE).withNeutralPicture()
+            stored.selectPreset(VideoShaderPreset.NONE).copy(masterEnabled = true)
         }
     }
     item(key = "shader-presets") {
@@ -1211,7 +1211,7 @@ private fun LazyListScope.shadersPage(
                             preset = preset,
                             selected = settings.activePreset == preset,
                             onClick = {
-                                actions.onVideoShadersChange(settings.copy(activePreset = preset))
+                                actions.onVideoShadersChange(settings.selectPreset(preset))
                             },
                             modifier = Modifier.weight(1f)
                         )

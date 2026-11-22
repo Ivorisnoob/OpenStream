@@ -178,7 +178,7 @@ fun VideoShaderSettingsScreen(
                                                 selected = shaders.activePreset == preset,
                                                 onClick = {
                                                     if (shaders.activePreset != preset) {
-                                                        save(shaders.copy(activePreset = preset))
+                                                        save(shaders.selectPreset(preset))
                                                     }
                                                 },
                                                 modifier = Modifier
@@ -501,14 +501,8 @@ private fun CustomShaderCard(
                             if (problem == null) HapticFeedbackType.Confirm else HapticFeedbackType.LongPress
                         )
                         onSave(
-                            stored.copy(
-                                customShaderSource = source,
-                                activePreset = if (problem == null) {
-                                    VideoShaderPreset.CUSTOM
-                                } else {
-                                    stored.activePreset
-                                }
-                            )
+                            (if (problem == null) stored.selectPreset(VideoShaderPreset.CUSTOM) else stored)
+                                .copy(customShaderSource = source)
                         )
                     }
                 },

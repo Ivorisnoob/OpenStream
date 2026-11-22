@@ -12,22 +12,32 @@ import androidx.media3.cast.CastPlayer
 import androidx.media3.cast.SessionAvailabilityListener
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.Format
+import androidx.media3.common.Tracks
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.TransferListener
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.exoplayer.source.LoadEventInfo
+import com.ivor.openstream.data.streaming.RewindDataSource
+import com.ivor.openstream.data.playback.requiresHdrOutput
+import com.ivor.openstream.data.playback.selectedVideoRanges
+import com.ivor.openstream.di.PlaybackBuffer
+import java.util.UUID
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.util.EventLogger
 import androidx.media3.session.MediaSession
@@ -174,6 +184,7 @@ class PlaybackSession @Inject constructor(
     private val cache: Cache,
     private val watchProgressRepository: WatchProgressRepository,
     private val castProxy: CastMediaProxy,
+    @PlaybackBuffer private val rewindBuffer: Cache,
     private val downloadHeaders: DownloadRequestHeaderStore,
     private val deviceDecoders: DeviceDecoders,
     private val streamDataGuard: StreamDataGuard,
@@ -187,6 +198,7 @@ class PlaybackSession @Inject constructor(
     /** Headers the current stream needs (Referer, Origin...). Applied to every request it makes. */
     @Volatile
     private var requestHeaders: Map<String, String> = emptyMap()
+    @Volatile private var bufferSessionId = UUID.randomUUID().toString()
 
     private val _nowPlaying = MutableStateFlow<NowPlaying?>(null)
     val nowPlaying: StateFlow<NowPlaying?> = _nowPlaying.asStateFlow()
@@ -206,6 +218,9 @@ class PlaybackSession @Inject constructor(
     private var localPlayer: ExoPlayer? = null
     private var localPlayerCreated = false
     private var shaderStageInstalled = true
+    private val supportsInterpolation by lazy { SmoothMotion.isSupported(context) }
+    private val _nativeHdr = MutableStateFlow(false)
+    val nativeHdr = _nativeHdr.asStateFlow()
 
     /**
      * Set when shaders were turned on while the player in use has no shader stage. The player is
@@ -329,7 +344,7 @@ class PlaybackSession @Inject constructor(
      */
     private fun addShaderStageWhenIdle() {
         val current = localPlayer
-        if (current == null || shaderStageInstalled || !_videoShaders.value.masterEnabled) {
+        if (current == null || _nativeHdr.value || shaderStageInstalled || !_videoShaders.value.masterEnabled) {
             shaderStageRebuildPending = false
             return
         }
@@ -362,8 +377,12 @@ class PlaybackSession @Inject constructor(
      * the phone's player is idle anyway and is rebuilt when the session ends.
      */
     fun addShaderStageNow() {
+        if (_nativeHdr.value || shaderStageInstalled || !_videoShaders.value.masterEnabled || castConnected) return
+        replacePlayer()
+    }
+
+    private fun replacePlayer() {
         val old = localPlayer ?: return
-        if (shaderStageInstalled || !_videoShaders.value.masterEnabled || castConnected) return
         shaderStageRebuildPending = false
         shaderRedrawJob?.cancel()
         reconnectJob?.cancel()
@@ -376,7 +395,10 @@ class PlaybackSession @Inject constructor(
         val playbackParameters = old.playbackParameters
         val volume = old.volume
         val repeatMode = old.repeatMode
+        val seekParameters = old.seekParameters
+        // Freeze the outgoing decoder while its view detaches.
         old.pause()
+        old.stop()
 
         val oldSmoothMotion = smoothMotion
         smoothMotion = null
@@ -387,6 +409,7 @@ class PlaybackSession @Inject constructor(
         fresh.playbackParameters = playbackParameters
         fresh.volume = volume
         fresh.repeatMode = repeatMode
+        fresh.setSeekParameters(seekParameters)
         if (items.isNotEmpty()) {
             fresh.setMediaItems(items, index, position)
             fresh.playWhenReady = playWhenReady
@@ -644,6 +667,7 @@ class PlaybackSession @Inject constructor(
     // endregion
 
     fun setRequestHeaders(headers: Map<String, String>) {
+        bufferSessionId = UUID.randomUUID().toString()
         requestHeaders = headers
     }
 
@@ -714,6 +738,11 @@ class PlaybackSession @Inject constructor(
         volumeBooster.release()
         _nowPlaying.value = null
         requestHeaders = emptyMap()
+        bufferSessionId = UUID.randomUUID().toString()
+        if (_nativeHdr.value) {
+            _nativeHdr.value = false
+            if (supportsInterpolation || _videoShaders.value.masterEnabled) replacePlayer()
+        }
         if (shaderStageRebuildPending) addShaderStageWhenIdle()
     }
 
@@ -1192,11 +1221,46 @@ class PlaybackSession @Inject constructor(
         else -> false
     }
 
+    private fun updateOutput(player: ExoPlayer, hdr: Boolean) {
+        val media = player.currentMediaItem ?: return
+        // Let the track event finish before detaching its renderer or changing session ownership.
+        scope.launch(Dispatchers.Main) {
+            if (player !== localPlayer || player.currentMediaItem !== media || castConnected || _nativeHdr.value == hdr) {
+                return@launch
+            }
+            _nativeHdr.value = hdr
+            val needsEffects = !hdr && (supportsInterpolation || _videoShaders.value.masterEnabled)
+            if (shaderStageInstalled != needsEffects) replacePlayer()
+        }
+    }
+
     private fun buildPlayer(): ExoPlayer {
         val http = DefaultHttpDataSource.Factory()
             .setUserAgent(BROWSER_USER_AGENT)
             .setAllowCrossProtocolRedirects(true)
-        val upstream = ResolvingDataSource.Factory(DefaultDataSource.Factory(context, http)) { spec ->
+        val network = DataSource.Factory {
+            http.createDataSource().apply {
+                addTransferListener(object : TransferListener {
+                    override fun onTransferInitializing(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) = Unit
+                    override fun onTransferStart(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) = Unit
+                    override fun onTransferEnd(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) = Unit
+
+                    override fun onBytesTransferred(
+                        source: DataSource, dataSpec: DataSpec, isNetwork: Boolean, bytesTransferred: Int
+                    ) {
+                        if (isNetwork) streamDataGuard.addBytesLoaded(bytesTransferred.toLong())
+                    }
+                })
+            }
+        }
+        val rewind = CacheDataSource.Factory()
+            .setCache(rewindBuffer)
+            .setUpstreamDataSourceFactory(network)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        val playbackHttp = DataSource.Factory {
+            RewindDataSource(network.createDataSource(), rewind.createDataSource()) { bufferSessionId }
+        }
+        val upstream = ResolvingDataSource.Factory(DefaultDataSource.Factory(context, playbackHttp)) { spec ->
             spec.withAdditionalHeaders(requestHeaders)
         }
         // Downloads live in this cache, so offline copies play without a connection.
@@ -1232,8 +1296,8 @@ class PlaybackSession @Inject constructor(
         // alone makes every video slow to start and stutter, so it is only added while shaders are
         // switched on. That is the switch, not whether a look is chosen: with the switch on the
         // player panel's looks must apply on the spot, including the first one after a restart.
-        shaderStageInstalled = SmoothMotion.isSupported(context) || _videoShaders.value.masterEnabled
-        smoothMotion = SmoothMotion.install(
+        shaderStageInstalled = !_nativeHdr.value && (supportsInterpolation || _videoShaders.value.masterEnabled)
+        smoothMotion = if (!shaderStageInstalled) null else SmoothMotion.install(
             basePlayer,
             context,
             SmoothMotionConfig(
@@ -1245,7 +1309,7 @@ class PlaybackSession @Inject constructor(
             // switch is off and copies each frame, as Smooth motion itself does, which is what lets
             // the switch in Settings and the panel act on a player that is already open - this
             // app's player is built once and kept for the life of the process.
-            otherEffects = if (shaderStageInstalled) listOf(VideoShaderEffect(videoShaderControl)) else emptyList()
+            otherEffects = listOf(VideoShaderEffect(videoShaderControl))
         )
         volumeBooster.setBoostPercentage(appSettingsStore.current.volumeBoostPercent)
         volumeBooster.attachSession(basePlayer.audioSessionId)
@@ -1259,20 +1323,28 @@ class PlaybackSession @Inject constructor(
                         eventTime: AnalyticsListener.EventTime,
                         audioSessionId: Int
                     ) {
-                        volumeBooster.attachSession(audioSessionId)
+                        if (basePlayer === localPlayer) volumeBooster.attachSession(audioSessionId)
                     }
 
-                    override fun onLoadCompleted(
+                    override fun onVideoInputFormatChanged(
                         eventTime: AnalyticsListener.EventTime,
-                        loadEventInfo: LoadEventInfo,
-                        mediaLoadData: androidx.media3.exoplayer.source.MediaLoadData
+                        format: Format,
+                        decoderReuseEvaluation: DecoderReuseEvaluation?
                     ) {
-                        streamDataGuard.addBytesLoaded(loadEventInfo.bytesLoaded)
+                        if (eventTime.mediaPeriodId != eventTime.currentMediaPeriodId) return
+                        if (basePlayer.currentTracks.selectedVideoRanges().size > 1) {
+                            updateOutput(basePlayer, format.requiresHdrOutput())
+                        }
                     }
+
                 })
                 addListener(object : Player.Listener {
+                    override fun onTracksChanged(tracks: Tracks) {
+                        tracks.selectedVideoRanges().singleOrNull()?.let { updateOutput(basePlayer, it) }
+                    }
+
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        if (castConnected) return
+                        if (basePlayer !== localPlayer || castConnected) return
                         _isPlaying.value = isPlaying
                         if (!isPlaying) recordProgress(force = true)
                         if (isPlaying) {
@@ -1283,6 +1355,7 @@ class PlaybackSession @Inject constructor(
                     }
 
                     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                        if (basePlayer !== localPlayer) return
                         streamHasPlayed = false
                         reconnectAttempts = 0
                         reconnectJob?.cancel()
@@ -1291,7 +1364,7 @@ class PlaybackSession @Inject constructor(
                     // Registered before the screen's listener, so a drop being ridden out is known
                     // by the time the screen decides whether this source has failed.
                     override fun onPlayerError(error: PlaybackException) {
-                        if (castConnected || !streamHasPlayed || !error.isConnectionDrop()) return
+                        if (basePlayer !== localPlayer || castConnected || !streamHasPlayed || !error.isConnectionDrop()) return
                         if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) return
                         reconnectAttempts++
                         val wait = RECONNECT_STEP_MS * reconnectAttempts
@@ -1302,7 +1375,7 @@ class PlaybackSession @Inject constructor(
                     }
 
                     override fun onPlaybackStateChanged(playbackState: Int) {
-                        if (castConnected) return
+                        if (basePlayer !== localPlayer || castConnected) return
                         if (playbackState == Player.STATE_READY) {
                             volumeBooster.attachSession(audioSessionId)
                         }

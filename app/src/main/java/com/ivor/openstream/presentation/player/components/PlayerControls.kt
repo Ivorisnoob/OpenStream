@@ -71,10 +71,17 @@ import androidx.compose.material3.rememberSliderState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -151,6 +158,7 @@ fun PlayerControls(
     currentTime: Long,
     totalTime: Long,
     onPauseToggle: () -> Unit,
+    onTimelineDrag: (Boolean) -> Unit = {},
     onSeek: (Long) -> Unit,
     onForward: () -> Unit,
     onRewind: () -> Unit,
@@ -246,6 +254,7 @@ fun PlayerControls(
                 currentTime = currentTime,
                 totalTime = totalTime,
                 onSeek = onSeek,
+                onTimelineDrag = onTimelineDrag,
                 onNextClick = onNextClick,
                 onFullscreenToggle = onFullscreenToggle,
                 videoScale = videoScale,
@@ -473,6 +482,7 @@ private fun Timeline(
     currentTime: Long,
     totalTime: Long,
     onSeek: (Long) -> Unit,
+    onTimelineDrag: (Boolean) -> Unit,
     onNextClick: (() -> Unit)?,
     onFullscreenToggle: () -> Unit,
     videoScale: VideoScale,
@@ -481,9 +491,13 @@ private fun Timeline(
 ) {
     val duration = totalTime.coerceAtLeast(0L)
     var isDragging by remember { mutableStateOf(false) }
-    var dragProgress by remember { mutableFloatStateOf(0f) }
+    var dragTarget by remember { mutableLongStateOf(0L) }
+    var dragOrigin by remember { mutableLongStateOf(0L) }
+    val haptics = LocalHapticFeedback.current
+    val dragStateChanged by rememberUpdatedState(onTimelineDrag)
+    DisposableEffect(Unit) { onDispose { dragStateChanged(false) } }
     val playedProgress = if (duration > 0) (currentTime.toFloat() / duration).coerceIn(0f, 1f) else 0f
-    val shownTime = if (isDragging) (dragProgress * duration).toLong() else currentTime
+    val shownTime = if (isDragging) dragTarget else currentTime
 
     val colors = SliderDefaults.colors(
         thumbColor = MaterialTheme.colorScheme.primary,
@@ -517,13 +531,25 @@ private fun Timeline(
         Slider(
             state = sliderState,
             onValueChange = {
-                isDragging = true
-                dragProgress = it
-                sliderState.value = it
+                if (!isDragging) {
+                    dragOrigin = currentTime
+                    dragTarget = currentTime
+                    isDragging = true
+                    onTimelineDrag(true)
+                }
+                val target = snapSeekPosition((it * duration).toLong(), dragOrigin, duration)
+                if (duration > 0L) {
+                    if (target * 50 / duration != dragTarget * 50 / duration) {
+                        haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                    }
+                    sliderState.value = target.toFloat() / duration
+                }
+                dragTarget = target
             },
             onValueChangeFinished = {
+                if (isDragging && duration > 0) onSeek(dragTarget)
                 isDragging = false
-                if (duration > 0) onSeek((dragProgress * duration).toLong())
+                onTimelineDrag(false)
             },
             enabled = duration > 0,
             colors = colors,
@@ -536,12 +562,20 @@ private fun Timeline(
                 )
             },
             track = { state ->
+                val markerColor = MaterialTheme.colorScheme.onScrim
                 SliderDefaults.Track(
                     sliderState = state,
                     colors = colors,
                     drawStopIndicator = null,
                     thumbTrackGapSize = 3.dp,
-                    modifier = Modifier.height(if (isFullscreen) 6.dp else 4.dp)
+                    modifier = Modifier.height(if (isFullscreen) 6.dp else 4.dp).drawWithContent {
+                        drawContent()
+                        if (isDragging && duration > 0) {
+                            val fraction = (dragOrigin.toFloat() / duration).coerceIn(0f, 1f)
+                            val x = size.width * if (layoutDirection == LayoutDirection.Ltr) fraction else 1f - fraction
+                            drawLine(markerColor, Offset(x, 0f), Offset(x, size.height), strokeWidth = 2.dp.toPx())
+                        }
+                    }
                 )
             },
             modifier = Modifier

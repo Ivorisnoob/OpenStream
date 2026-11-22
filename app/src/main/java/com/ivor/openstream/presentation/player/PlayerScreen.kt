@@ -85,7 +85,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -171,6 +170,7 @@ fun PlayerScreen(
     val captionSettings by viewModel.captionSettings.collectAsState()
     val videoShaders by viewModel.videoShaders.collectAsState()
     val videoShaderHidden by viewModel.videoShaderHidden.collectAsState()
+    val nativeHdr by viewModel.nativeHdr.collectAsState()
     val playerGeneration by viewModel.playerGeneration.collectAsState()
     val serversState by viewModel.serversState.collectAsState()
     val activeServer by viewModel.activeServer.collectAsState()
@@ -258,12 +258,13 @@ fun PlayerScreen(
     // A TV never shows the phone's info panel under the video, not even while a source is found.
     val isImmersive = isFullscreen || isInPictureInPicture || tvControls
     var isVideoPlaying by remember { mutableStateOf(false) }
-    var togglePlaybackSignal by remember { mutableIntStateOf(0) }
 
     PictureInPictureEffect(
         enabled = videoUrl != null && !isCasting,
         isPlaying = isVideoPlaying,
-        onTogglePlayback = { togglePlaybackSignal++ },
+        onTogglePlayback = {
+            viewModel.player.playWhenReady = !viewModel.player.playWhenReady
+        },
         leftAction = appSettings.pipLeftAction,
         rightAction = appSettings.pipRightAction,
         seekStepSeconds = appSettings.seekStepSeconds,
@@ -401,6 +402,15 @@ fun PlayerScreen(
         if (tvControls && !isFullscreen) enterFullscreen()
     }
 
+    DisposableEffect(activity, nativeHdr, isCasting) {
+        val window = activity?.window
+        val previous = window?.colorMode
+        if (nativeHdr && !isCasting) window?.colorMode = ActivityInfo.COLOR_MODE_HDR
+        onDispose {
+            if (window != null && previous != null && nativeHdr && !isCasting) window.colorMode = previous
+        }
+    }
+
     // Handle back press in fullscreen -- exit fullscreen instead of navigating back
     BackHandler(enabled = !tvControls && isFullscreen) {
         exitFullscreen()
@@ -425,6 +435,12 @@ fun PlayerScreen(
                     screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
                 }
             }
+        }
+    }
+
+    LaunchedEffect(mediaType, tmdbId, season, episode, nextEpisode?.season, nextEpisode?.episode, isLocalOrDownloaded) {
+        if (!isLocalOrDownloaded) nextEpisode?.let { upcoming ->
+            viewModel.warmNextEpisode(mediaType, tmdbId, season, episode, upcoming)
         }
     }
 
@@ -621,15 +637,14 @@ fun PlayerScreen(
                         modifier = Modifier.fillMaxSize()
                     )
                 } else if (hasUrl && currentUrl != null) {
-                    // A new player (shaders switched on mid-playback) is attached to the way a new
-                    // source is; it already holds the stream, so nothing reloads.
-                    key(activeServer?.id ?: currentUrl, playerGeneration) {
+                    val localPlayer = remember(viewModel, playerGeneration) { viewModel.player }
+                    key(currentUrl) {
                         ExoPlayerView(
                             videoUrl = currentUrl,
                             title = playerTitle,
                             subtitle = playerSubtitle,
                             requestHeaders = activeServer?.headers.orEmpty(),
-                            exoPlayer = viewModel.player,
+                            exoPlayer = localPlayer,
                             smoothMotion = viewModel.smoothMotion,
                             applyRequestHeaders = viewModel::applyRequestHeaders,
                             isFullscreen = isFullscreen,
@@ -676,7 +691,7 @@ fun PlayerScreen(
                             onEpisodeSelected = { picked -> onEpisodeClick(picked.seasonNumber, picked.episodeNumber) },
                             onIsPlayingChanged = { isVideoPlaying = it },
                             isInPictureInPicture = isInPictureInPicture,
-                            togglePlaybackSignal = togglePlaybackSignal,
+                            nativeHdr = nativeHdr,
                             initialPlaybackSpeed = sessionPlaybackSpeed,
                             onPlaybackSpeedChanged = { sessionPlaybackSpeed = it },
                             sourceActions = sourceActions,

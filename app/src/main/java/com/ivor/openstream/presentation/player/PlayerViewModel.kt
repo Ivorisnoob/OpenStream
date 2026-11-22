@@ -48,6 +48,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapLatest
@@ -154,6 +155,8 @@ class PlayerViewModel @Inject constructor(
     val player: ExoPlayer get() = playbackSession.player
 
     /** Changes when [player] is replaced; the video view is keyed on it. */
+    val nativeHdr = playbackSession.nativeHdr
+
     val playerGeneration: StateFlow<Int> = playbackSession.playerGeneration
     val smoothMotion: SmoothMotion? get() = playbackSession.smoothMotion
 
@@ -557,6 +560,7 @@ class PlayerViewModel @Inject constructor(
         _mediaType.value = mediaType
         currentSeason = seasonNumber
         this.currentEpisodeNumber = currentEpisodeNumber
+        currentIdentity = null
         _mediaUri.value = null
         _startPositionMs.value = null
         _nextEpisode.value = null
@@ -717,6 +721,37 @@ class PlayerViewModel @Inject constructor(
      * target is in the next season ([findNextEpisode] hands that back without a name or still),
      * that season's page is fetched now so the switch lands on a complete card.
      */
+    suspend fun warmNextEpisode(mediaType: String, id: Int, season: Int, episode: Int, next: NextEpisodeTarget) {
+        while (true) {
+            val identity = currentIdentity
+            val playing = playbackSession.nowPlaying.value
+            if (identity != null && playing?.matches(mediaType, id, season, episode) == true &&
+                identity.tmdbId == id && identity.season == season && identity.episode == episode
+            ) {
+                val active = playbackSession.activePlayer
+                val matchesItem = if (playbackSession.castStatus.value.isCasting) {
+                    active.currentMediaItem?.mediaId == playing.key
+                } else {
+                    active.currentMediaItem?.localConfiguration?.uri == Uri.parse(playing.mediaUri)
+                }
+                val duration = active.duration
+                if (matchesItem && active.isPlaying && duration > 0L &&
+                    duration - active.currentPosition in 0L..300_000L
+                ) {
+                    // Use the same bounded, provider-aware cache as foreground resolution.
+                    streamingRepository.resolveServers(
+                        identity.copy(season = next.season, episode = next.episode),
+                        includeFallbacks = false,
+                        preferLastWorking = true
+                    ).catch { error -> android.util.Log.w("PlayerViewModel", "Next episode lookup failed", error) }
+                        .collect { }
+                    return
+                }
+            }
+            delay(2_000)
+        }
+    }
+
     private suspend fun warmUpNext(target: NextEpisodeTarget, seasonNumber: Int, tmdbId: Int) {
         artworkPrefetcher.prefetch(
             _nextEpisodes.value.take(UP_NEXT_PRELOAD_EPISODES).map { TmdbImages.url("w300", it.stillPath) }

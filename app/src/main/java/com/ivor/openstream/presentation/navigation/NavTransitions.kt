@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.navigation.NavBackStackEntry
@@ -44,6 +45,9 @@ internal object NavTransitions {
 
     fun AnimatedContentTransitionScope<NavBackStackEntry>.enter(animated: Boolean): EnterTransition {
         if (!animated) return EnterTransition.None
+        if (targetState.destination.route == Screen.Player.route) {
+            return fadeIn(tween(FADE_IN_MS)) + scaleIn(tween(FADE_IN_MS, easing = Emphasized), initialScale = 0.98f)
+        }
         return if (betweenTabs()) {
             fadeThroughIn
         } else {
@@ -53,6 +57,9 @@ internal object NavTransitions {
 
     fun AnimatedContentTransitionScope<NavBackStackEntry>.exit(animated: Boolean): ExitTransition {
         if (!animated) return ExitTransition.None
+        if (targetState.destination.route == Screen.Player.route) {
+            return fadeOut(tween(FADE_OUT_MS))
+        }
         return if (betweenTabs()) {
             fadeThroughOut
         } else {
@@ -62,6 +69,9 @@ internal object NavTransitions {
 
     fun AnimatedContentTransitionScope<NavBackStackEntry>.popEnter(animated: Boolean): EnterTransition {
         if (!animated) return EnterTransition.None
+        if (initialState.destination.route == Screen.Player.route) {
+            return fadeIn(tween(FADE_IN_MS))
+        }
         return if (betweenTabs()) {
             fadeThroughIn
         } else {
@@ -71,6 +81,9 @@ internal object NavTransitions {
 
     fun AnimatedContentTransitionScope<NavBackStackEntry>.popExit(animated: Boolean): ExitTransition {
         if (!animated) return ExitTransition.None
+        if (initialState.destination.route == Screen.Player.route) {
+            return fadeOut(tween(FADE_IN_MS)) + scaleOut(tween(FADE_IN_MS, easing = Emphasized), targetScale = 0.98f)
+        }
         return if (betweenTabs()) {
             fadeThroughOut
         } else {

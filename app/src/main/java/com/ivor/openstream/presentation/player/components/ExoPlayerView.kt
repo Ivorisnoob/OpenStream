@@ -58,6 +58,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clipToBounds
+import com.ivor.openstream.presentation.components.ExpressiveMotion
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -90,6 +92,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -149,6 +152,8 @@ import com.ivor.openstream.data.settings.VideoShaderCustomization
 import com.ivor.openstream.ui.theme.ExpressiveShapes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import java.net.URL
 import kotlin.math.ceil
@@ -159,6 +164,8 @@ import androidx.media3.ui.PlayerView
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.rememberCoroutineScope
 import com.ivor.openstream.data.streaming.BROWSER_USER_AGENT
 import com.ivor.openstream.domain.model.forDuration
 import com.ivor.openstream.data.subtitles.SavedSubtitleRepository
@@ -195,7 +202,7 @@ fun ExoPlayerView(
     onPlaybackEnded: () -> Unit = {},
     onIsPlayingChanged: (Boolean) -> Unit = {},
     isInPictureInPicture: Boolean = false,
-    togglePlaybackSignal: Int = 0,
+    nativeHdr: Boolean = false,
     initialPlaybackSpeed: Float = 1f,
     onPlaybackSpeedChanged: (Float) -> Unit = {},
     onNextClick: (() -> Unit)? = null,
@@ -331,10 +338,38 @@ fun ExoPlayerView(
     var verticalMode by remember { mutableStateOf(VerticalSwipe.NONE) }
     var verticalTravel by remember { mutableFloatStateOf(0f) }
     // Follows the finger during a fullscreen/minimize swipe, then springs back.
-    val swipeOffset by animateFloatAsState(
-        targetValue = if (verticalMode == VerticalSwipe.FULLSCREEN) (verticalTravel * 0.25f).coerceIn(-120f, 120f) else 0f,
-        label = "swipeOffset"
-    )
+    val reduceMotion = ExpressiveMotion.reducedMotion()
+    var pinchPreview by remember { mutableFloatStateOf(1f) }
+    var timelineDrag by remember { mutableStateOf(false) }
+    val showLoading by produceState(false, isBuffering) {
+        value = false
+        if (isBuffering) {
+            delay(300)
+            value = true
+        }
+    }
+    val gestureScope = rememberCoroutineScope()
+    val swipeReturn = remember { Animatable(0f) }
+    var returningSwipe by remember { mutableStateOf(false) }
+    var returnJob by remember { mutableStateOf<Job?>(null) }
+
+    fun releaseVerticalSwipe() {
+        val travel = verticalTravel * 0.33f
+        if (verticalMode != VerticalSwipe.FULLSCREEN || reduceMotion || travel == 0f) {
+            verticalMode = VerticalSwipe.NONE
+            verticalTravel = 0f
+            return
+        }
+        returnJob = gestureScope.launch {
+            swipeReturn.snapTo(travel)
+            returningSwipe = true
+            verticalMode = VerticalSwipe.NONE
+            verticalTravel = 0f
+            swipeReturn.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
+            returningSwipe = false
+        }
+    }
+
     val latestIsFullscreen by rememberUpdatedState(isFullscreen)
     val latestFullscreenToggle by rememberUpdatedState(onFullscreenToggle)
     val latestMinimize by rememberUpdatedState(onMinimize)
@@ -352,6 +387,7 @@ fun ExoPlayerView(
     var isScrubbing by remember { mutableStateOf(false) }
     var scrubStartMs by remember { mutableLongStateOf(0L) }
     var scrubTargetMs by remember { mutableLongStateOf(0L) }
+    var rawScrubPosition by remember { mutableLongStateOf(0L) }
     /** Positive delays sideloaded subtitles, negative shows them earlier. */
     var subtitleOffsetMs by remember { mutableLongStateOf(0L) }
     /** Set once this video's subtitle is settled, by the user or the remembered choice. */
@@ -479,16 +515,24 @@ fun ExoPlayerView(
     val currentGestures by rememberUpdatedState(videoGestures)
 
     // Seeks in the same direction while the feedback is still up add together (10s, 20s, 30s...).
-    fun showSeekFeedback(direction: Int) {
-        seekStackSeconds = if (direction == seekFeedbackDirection) seekStackSeconds + currentSeekStep else currentSeekStep
+    fun showSeekFeedback(direction: Int, seconds: Int) {
+        seekStackSeconds = if (direction == seekFeedbackDirection) seekStackSeconds + seconds else seconds
         seekFeedbackDirection = direction
         seekFeedbackSequence++
     }
 
     fun seekStep(direction: Int) {
-        exoPlayer.seekTo((exoPlayer.currentPosition + direction * currentSeekStep * 1_000L).coerceAtLeast(0L))
-        showSeekFeedback(direction)
-        currentTime = exoPlayer.currentPosition
+        val before = exoPlayer.currentPosition
+        val proposed = (before + direction * currentSeekStep * 1_000L).coerceAtLeast(0L)
+        val target = exoPlayer.duration.takeIf { it > 0L }?.let { proposed.coerceAtMost(it) } ?: proposed
+        if (target == before) {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            return
+        }
+        exoPlayer.seekTo(target)
+        currentTime = target
+        val wholeSeconds = (kotlin.math.abs(target - before) / 1_000L).toInt()
+        if (wholeSeconds > 0) showSeekFeedback(direction, wholeSeconds)
     }
 
     /** Starts the hold's rate change, from wherever the held finger's slide has reached. */
@@ -917,7 +961,8 @@ fun ExoPlayerView(
                 .setMimeType(mimeType)
                 .setMediaMetadata(mediaMetadata)
 
-    LaunchedEffect(videoUrl, remoteSubtitles) {
+    var appliedHeaders by remember(videoUrl) { mutableStateOf(requestHeaders) }
+    LaunchedEffect(exoPlayer, videoUrl, remoteSubtitles, requestHeaders) {
         val currentMediaItem = exoPlayer.currentMediaItem
         val currentUri = currentMediaItem?.localConfiguration?.uri
         val newUri = android.net.Uri.parse(videoUrl)
@@ -943,8 +988,9 @@ fun ExoPlayerView(
         }
 
         // CASE 1: Video URL changed (Episode switch) -> Full Reset
-        if (currentUri != newUri) {
+        if (currentUri != newUri || appliedHeaders != requestHeaders) {
             applyRequestHeaders(requestHeaders)
+            appliedHeaders = requestHeaders
             val mediaItemBuilder = buildMediaItem()
             val configs = buildSubtitleConfigs(remoteSubtitles)
             if (configs.isNotEmpty()) {
@@ -988,13 +1034,6 @@ fun ExoPlayerView(
     val latestPlaybackEnded by rememberUpdatedState(onPlaybackEnded)
     val latestIsPlayingChanged by rememberUpdatedState(onIsPlayingChanged)
 
-    // Play/pause requests from outside the player surface (the picture-in-picture window).
-    LaunchedEffect(togglePlaybackSignal) {
-        if (togglePlaybackSignal > 0) {
-            if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
-        }
-    }
-
     // Polling for position updates. The parent keeps a lightweight checkpoint so
     // changing route after an error can resume instead of restarting the episode.
     LaunchedEffect(exoPlayer) {
@@ -1018,8 +1057,8 @@ fun ExoPlayerView(
 
     // Auto-hide controls. On a TV each remote key press while the chrome is up restarts the
     // countdown, so moving through the bar one stop at a time never races it.
-    LaunchedEffect(areControlsVisible, isPlaying, videoGestures.controlsHideSeconds, controlsInteraction) {
-        if (areControlsVisible && isPlaying) {
+    LaunchedEffect(areControlsVisible, isPlaying, videoGestures.controlsHideSeconds, controlsInteraction, timelineDrag) {
+        if (areControlsVisible && isPlaying && !timelineDrag) {
             delay(if (dpadControls) 6000 else videoGestures.controlsHideSeconds * 1_000L)
             areControlsVisible = false
         }
@@ -1225,7 +1264,8 @@ fun ExoPlayerView(
                 surfaceHeight = it.height
             }
             .then(dpadModifier)
-            .pointerInput(Unit) {
+            .pointerInput(exoPlayer, showSettingsDialog) {
+                if (showSettingsDialog) return@pointerInput
                 detectTapGestures(
                     onPress = {
                         tryAwaitRelease()
@@ -1270,9 +1310,12 @@ fun ExoPlayerView(
                     }
                 )
             }
-            .pointerInput(Unit) {
+            .pointerInput(exoPlayer, showSettingsDialog) {
+                if (showSettingsDialog) return@pointerInput
                 detectVerticalDragGestures(
                     onDragStart = { offset ->
+                        returnJob?.cancel()
+                        returningSwipe = false
                         verticalTravel = 0f
                         verticalMode = when {
                             isLocked -> VerticalSwipe.NONE
@@ -1315,14 +1358,12 @@ fun ExoPlayerView(
                                 }
                             }
                         }
-                        verticalMode = VerticalSwipe.NONE
-                        verticalTravel = 0f
+                        releaseVerticalSwipe()
                         showBrightnessOverlay = false
                         showVolumeOverlay = false
                     },
                     onDragCancel = {
-                        verticalMode = VerticalSwipe.NONE
-                        verticalTravel = 0f
+                        releaseVerticalSwipe()
                         showBrightnessOverlay = false
                         showVolumeOverlay = false
                     },
@@ -1358,7 +1399,8 @@ fun ExoPlayerView(
                     }
                 )
             }
-            .pointerInput(Unit) {
+            .pointerInput(exoPlayer, showSettingsDialog) {
+                if (showSettingsDialog) return@pointerInput
                 detectHorizontalDragGestures(
                     onDragStart = {
                         if (isLocked) {
@@ -1372,6 +1414,7 @@ fun ExoPlayerView(
                         } else if (exoPlayer.duration > 0) {
                             scrubStartMs = exoPlayer.currentPosition
                             scrubTargetMs = scrubStartMs
+                            rawScrubPosition = scrubStartMs
                             isScrubbing = true
                             areControlsVisible = false
                             // A scrub says where the viewer decided to be, so the offer to start
@@ -1381,8 +1424,9 @@ fun ExoPlayerView(
                     },
                     onDragEnd = {
                         if (isScrubbing) {
-                            exoPlayer.seekTo(scrubTargetMs)
-                            currentTime = scrubTargetMs
+                            val target = scrubTargetMs
+                            exoPlayer.seekTo(target)
+                            currentTime = target
                             isScrubbing = false
                         }
                     },
@@ -1433,26 +1477,38 @@ fun ExoPlayerView(
                             val duration = exoPlayer.duration.coerceAtLeast(0L)
                             // A full-width swipe covers up to three minutes, so short swipes stay precise.
                             val msPerPx = duration.coerceAtMost(SCRUB_FULL_WIDTH_MS).toFloat() / size.width
-                            scrubTargetMs = (scrubTargetMs + (dragAmount * msPerPx).toLong()).coerceIn(0L, duration)
+                            rawScrubPosition = (rawScrubPosition + (dragAmount * msPerPx).toLong()).coerceIn(0L, duration)
+                            val target = snapSeekPosition(rawScrubPosition, scrubStartMs, duration)
+                            if (target == scrubStartMs && scrubTargetMs != scrubStartMs) {
+                                haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                            }
+                            scrubTargetMs = target
                         }
                     }
                 )
             }
             // Declared last so it sees events first: once a second finger lands it consumes the
             // gesture, which cancels the tap and brightness/volume detectors above.
-            .pointerInput(Unit) {
+            .pointerInput(exoPlayer, showSettingsDialog) {
+                if (showSettingsDialog) return@pointerInput
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
+                    if (isLocked || dpadControls) return@awaitEachGesture
                     var zoom = 1f
                     var pinching = false
-                    do {
-                        val event = awaitPointerEvent()
-                        if (event.changes.count { it.pressed } >= 2) {
-                            pinching = true
-                            zoom *= event.calculateZoom()
-                            event.changes.forEach { it.consume() }
-                        }
-                    } while (event.changes.any { it.pressed })
+                    try {
+                        do {
+                            val event = awaitPointerEvent()
+                            if (event.changes.count { it.pressed } >= 2 && !isLocked) {
+                                pinching = true
+                                zoom = (zoom * event.calculateZoom()).coerceIn(0.85f, 1.3f)
+                                pinchPreview = zoom
+                                event.changes.forEach { it.consume() }
+                            }
+                        } while (event.changes.any { it.pressed })
+                    } finally {
+                        pinchPreview = 1f
+                    }
                     if (pinching && !isLocked) {
                         when {
                             zoom > 1.1f && videoScale != VideoScale.ZOOM -> {
@@ -1478,41 +1534,54 @@ fun ExoPlayerView(
                 }
             }
     ) {
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    player = exoPlayer
-                    smoothMotion?.let { bindSmoothMotion(it) }
-                    layoutParams = FrameLayout.LayoutParams(
-                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                        android.view.ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                    useController = false
-                    subtitleView?.visibility = android.view.View.GONE
-                }
-            },
-            update = { view ->
-                view.resizeMode = videoScale.resizeMode
-                if (smoothMotion != null) {
-                    view.bindSmoothMotion(smoothMotion)
-                } else {
+        key(nativeHdr, exoPlayer) {
+            AndroidView(
+                factory = { ctx ->
+                    val videoView = if (nativeHdr) PlayerView(ctx) else {
+                        android.view.LayoutInflater.from(ctx).inflate(R.layout.mini_player_view, null) as PlayerView
+                    }
+                    videoView.apply {
+                        player = exoPlayer
+                        smoothMotion?.let { bindSmoothMotion(it) }
+                        layoutParams = FrameLayout.LayoutParams(
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                        useController = false
+                        subtitleView?.visibility = android.view.View.GONE
+                    }
+                },
+                update = { view ->
+                    view.resizeMode = videoScale.resizeMode
+                    if (smoothMotion != null) {
+                        view.bindSmoothMotion(smoothMotion)
+                    } else {
+                        view.unbindSmoothMotion()
+                    }
+                },
+                // Hand the video surface back so the mini player can take it over.
+                onRelease = { view ->
                     view.unbindSmoothMotion()
-                }
-            },
-            // Hand the video surface back so the mini player can take it over.
-            onRelease = { view ->
-                view.unbindSmoothMotion()
-                view.player = null
-            },
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    translationY = swipeOffset
-                    val shrink = 1f - (kotlin.math.abs(swipeOffset) / 1200f)
-                    scaleX = shrink
-                    scaleY = shrink
-                }
-        )
+                    view.player = null
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clipToBounds()
+                    .graphicsLayer {
+                        if (!nativeHdr) {
+                            val travel = when {
+                                returningSwipe -> swipeReturn.value
+                                verticalMode == VerticalSwipe.FULLSCREEN -> verticalTravel * 0.33f
+                                else -> 0f
+                            }
+                            translationY = if (reduceMotion) 0f else travel.coerceIn(-size.height * 0.15f, size.height * 0.15f)
+                            val shrink = if (size.height > 0f) 1f - kotlin.math.abs(translationY) / size.height else 1f
+                            scaleX = shrink * pinchPreview
+                            scaleY = shrink * pinchPreview
+                        }
+                    }
+            )
+        }
 
         // Resumed position: an offer to skip it, gone as soon as it is taken or scrubbed past.
         AnimatedVisibility(
@@ -1564,9 +1633,9 @@ fun ExoPlayerView(
         // Gesture Overlays
         androidx.compose.animation.AnimatedVisibility(
             visible = showBrightnessOverlay,
-            enter = scaleIn() + fadeIn(),
-            exit = scaleOut() + fadeOut(),
-            modifier = Modifier.align(Alignment.Center)
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.CenterStart).padding(horizontal = 16.dp)
         ) {
             GestureIndicator(
                 icon = Icons.Default.BrightnessLow,
@@ -1577,9 +1646,9 @@ fun ExoPlayerView(
 
         androidx.compose.animation.AnimatedVisibility(
             visible = showVolumeOverlay,
-            enter = scaleIn() + fadeIn(),
-            exit = scaleOut() + fadeOut(),
-            modifier = Modifier.align(Alignment.Center)
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.CenterEnd).padding(horizontal = 16.dp)
         ) {
             GestureIndicator(
                 icon = Icons.Default.VolumeUp,
@@ -1689,7 +1758,7 @@ fun ExoPlayerView(
         if (dpadControls) TvPlayerControls(
             isVisible = areControlsVisible && !isInPictureInPicture && !upNextVisible,
             isPlaying = isPlaying,
-            isBuffering = isBuffering,
+            isBuffering = showLoading,
             title = title,
             subtitle = subtitle,
             sourceLabel = sourceLabel,
@@ -1741,7 +1810,7 @@ fun ExoPlayerView(
         ) else PlayerControls(
             isVisible = areControlsVisible && !isInPictureInPicture && !isLocked,
             isPlaying = isPlaying,
-            isBuffering = isBuffering,
+            isBuffering = showLoading,
             title = title,
             subtitle = subtitle,
             sourceLabel = sourceLabel,
@@ -1757,7 +1826,9 @@ fun ExoPlayerView(
             } else null,
             shaderLookShown = !videoShaderHidden,
             currentTime = currentTime,
-            totalTime = totalTime,            onPauseToggle = {
+            totalTime = totalTime,
+            onTimelineDrag = { timelineDrag = it },
+            onPauseToggle = {
                 if (exoPlayer.isPlaying) {
                     exoPlayer.pause()
                 } else {
@@ -2073,7 +2144,7 @@ fun ExoPlayerView(
 
         // Buffering indicator overlay -- drawn AFTER controls so it renders on top
         AnimatedVisibility(
-            visible = isBuffering && !areControlsVisible && !isInPictureInPicture,
+            visible = showLoading && !areControlsVisible && !isInPictureInPicture,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.Center)
@@ -2219,8 +2290,7 @@ private fun GestureIndicator(
         color = Color.Black.copy(alpha = 0.5f),
         shape = ExpressiveShapes.extraLarge,
         modifier = Modifier
-            .size(140.dp)
-            .padding(16.dp)
+            .size(width = 96.dp, height = 112.dp)
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -2231,9 +2301,9 @@ private fun GestureIndicator(
                 imageVector = icon,
                 contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier.size(48.dp)
+                modifier = Modifier.size(24.dp)
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "$value%",
                 style = MaterialTheme.typography.titleLarge,
@@ -2243,7 +2313,14 @@ private fun GestureIndicator(
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
-                color = Color.White.copy(alpha = 0.7f)
+                color = Color.White.copy(alpha = 0.85f)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            androidx.compose.material3.LinearProgressIndicator(
+                progress = { value / 100f },
+                modifier = Modifier.size(width = 56.dp, height = 4.dp),
+                color = Color.White,
+                trackColor = Color.White.copy(alpha = 0.25f)
             )
         }
     }

@@ -686,6 +686,7 @@ fun AppNavigation(
                         bottomNavItems.forEachIndexed { index, screen ->
                             val isSelected = index == shownIndex
                             val onClick = {
+                                if (!isSelected) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                                 if (isSelected && screen.route == Screen.Search.route) {
                                     navController.currentBackStackEntry?.savedStateHandle?.set(
                                         "focusSearch",

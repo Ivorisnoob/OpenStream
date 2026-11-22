@@ -9,6 +9,7 @@ import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.NoOpCacheEvictor
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.scheduler.Requirements
@@ -26,6 +27,11 @@ import java.io.File
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import javax.inject.Singleton
+import javax.inject.Qualifier
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class PlaybackBuffer
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -43,6 +49,12 @@ object DownloadModule {
         // On the storage chosen in Settings (internal, or an SD card); see DownloadStorage.
         return SimpleCache(storage.downloadDirectory(), NoOpCacheEvictor(), databaseProvider)
     }
+
+    @Provides
+    @Singleton
+    @PlaybackBuffer
+    fun providePlaybackBuffer(@ApplicationContext context: Context, database: DatabaseProvider): Cache =
+        SimpleCache(File(context.cacheDir, "playback_buffer"), LeastRecentlyUsedCacheEvictor(1L shl 30), database)
 
     @Provides
     @Singleton
