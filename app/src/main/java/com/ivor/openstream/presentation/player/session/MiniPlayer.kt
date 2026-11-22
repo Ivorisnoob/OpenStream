@@ -2,6 +2,11 @@ package com.ivor.openstream.presentation.player.session
 
 import com.ivor.openstream.ui.theme.onScrim
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import kotlinx.coroutines.Job
+import kotlin.math.abs
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -50,6 +55,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -136,195 +143,236 @@ fun MiniPlayer(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // Swipe sideways to dismiss (stops playback), swipe up to open the player.
     val scope = rememberCoroutineScope()
-    val offsetX = remember(item.mediaUri) { Animatable(0f) }
-    var dragX by remember(item.key) { mutableFloatStateOf(0f) }
-    var dragY by remember(item.key) { mutableFloatStateOf(0f) }
-    var dragging by remember(item.key) { mutableStateOf(false) }
-    var dismissing by remember(item.key) { mutableStateOf(false) }
-    val expand by rememberUpdatedState(onExpand)
+    val position = remember(item.key) { Animatable(Offset.Zero, Offset.VectorConverter) }
+    var dragPosition by remember(item.key) { mutableStateOf<Offset?>(null) }
+    var settleJob by remember(item.key) { mutableStateOf<Job?>(null) }
+    var transitionStarted by remember(item.key) { mutableStateOf(false) }
+    var cardWidth by remember(item.key) { mutableIntStateOf(0) }
+    val latestExpand by rememberUpdatedState(onExpand)
     val haptics = LocalHapticFeedback.current
-    var settleJob by remember(item.key) { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    val returnSpring by rememberUpdatedState(ExpressiveMotion.spatialSpec<Offset>())
+    val density = LocalDensity.current
+    val expandDistance = with(density) { 44.dp.toPx() }
+    val flingSpeed = with(density) { 900.dp.toPx() }
 
-    fun settle(horizontalTarget: Float, dismiss: Boolean) {
+    fun settle(target: Offset, velocity: Offset = Offset.Zero, dismiss: Boolean = false) {
         settleJob?.cancel()
-        val start = dragX
-        dismissing = dismiss
+        val initialPosition = dragPosition ?: position.value
+        transitionStarted = dismiss
         settleJob = scope.launch {
-            offsetX.snapTo(start)
-            dragging = false
-            dragY = 0f
-            offsetX.animateTo(horizontalTarget, tween(if (reduceMotion) 0 else 180))
+            position.snapTo(initialPosition)
+            dragPosition = null
+            position.animateTo(target, returnSpring, initialVelocity = velocity)
             if (dismiss && session.nowPlaying.value?.key == item.key) session.stop()
         }
     }
-    val density = LocalDensity.current
-    val expandThresholdPx = with(density) { 48.dp.toPx() }
 
-    Surface(
-        onClick = { onExpand(item) },
-        shape = ExpressiveShapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        tonalElevation = 6.dp,
-        shadowElevation = 10.dp,
+    fun openPlayer() {
+        if (transitionStarted) return
+        transitionStarted = true
+        latestExpand(item)
+    }
+
+    // Track the pointer in the stationary parent so moving the card does not feed back into drag deltas.
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .graphicsLayer {
-                val horizontal = if (dragging) dragX else offsetX.value
-                translationX = if (reduceMotion) 0f else horizontal
-                translationY = if (reduceMotion || !dragging) 0f else (dragY * 0.3f).coerceIn(-size.height * 0.25f, 0f)
-                alpha = 1f - (kotlin.math.abs(horizontal) / size.width.coerceAtLeast(1f)).coerceIn(0f, 0.8f)
-            }
-            .pointerInput(item.key) {
+            .onSizeChanged { cardWidth = it.width }
+            .pointerInput(item.key, expandDistance, flingSpeed) {
+                val tracker = VelocityTracker()
+                var axis: DragAxis? = null
+                var total = Offset.Zero
+                var start = Offset.Zero
                 detectDragGestures(
                     onDragStart = {
-                        if (!dismissing) {
+                        if (!transitionStarted) {
                             settleJob?.cancel()
-                            dragX = offsetX.value
-                            dragY = 0f
-                            dragging = true
+                            start = dragPosition ?: position.value
+                            dragPosition = start
+                            tracker.resetTracking()
+                            axis = null
+                            total = Offset.Zero
                         }
                     },
                     onDragEnd = {
-                        if (dragging && !dismissing) {
-                            val horizontal = kotlin.math.abs(dragX)
-                            val vertical = kotlin.math.abs(dragY)
+                        if (dragPosition != null && !transitionStarted) {
+                            val velocity = tracker.calculateVelocity()
+                            val current = dragPosition ?: Offset.Zero
+                            val x = current.x
+                            val flyingSideways = abs(velocity.x) > flingSpeed &&
+                                abs(total.x) > expandDistance / 3f && velocity.x * x > 0
+                            val flyingUp = velocity.y < -flingSpeed && total.y < -expandDistance / 3f
                             when {
-                                dragY < -expandThresholdPx && vertical > horizontal -> {
+                                axis == DragAxis.Vertical && (total.y < -expandDistance || flyingUp) -> {
                                     haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                    settle(0f, dismiss = false)
-                                    expand(item)
+                                    openPlayer()
                                 }
-                                horizontal > size.width * 0.3f && horizontal > vertical * 1.2f -> {
+                                axis == DragAxis.Horizontal && (abs(x) > size.width * 0.30f || flyingSideways) -> {
                                     haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                    settle(if (dragX > 0) size.width.toFloat() else -size.width.toFloat(), dismiss = true)
+                                    val edge = if (x < 0) -size.width.toFloat() else size.width.toFloat()
+                                    settle(Offset(edge, 0f), Offset(velocity.x, 0f), dismiss = true)
                                 }
-                                else -> settle(0f, dismiss = false)
+                                else -> settle(Offset.Zero, when (axis) {
+                                    DragAxis.Horizontal -> Offset(velocity.x, 0f)
+                                    DragAxis.Vertical -> Offset(0f, velocity.y * 0.55f)
+                                    null -> Offset.Zero
+                                })
                             }
                         }
                     },
-                    onDragCancel = { if (dragging && !dismissing) settle(0f, dismiss = false) }
-                ) { change, drag ->
-                    if (dragging && !dismissing) {
+                    onDragCancel = { if (!transitionStarted && dragPosition != null) settle(Offset.Zero) }
+                ) { change, delta ->
+                    if (!transitionStarted && dragPosition != null) {
                         change.consume()
-                        dragX += drag.x
-                        dragY += drag.y
+                        tracker.addPosition(change.uptimeMillis, change.position)
+                        total += delta
+                        if (axis == null) {
+                            axis = if (abs(total.x) >= abs(total.y)) DragAxis.Horizontal else DragAxis.Vertical
+                        }
+                        dragPosition = when (axis) {
+                            DragAxis.Horizontal -> Offset(start.x + total.x, start.y)
+                            DragAxis.Vertical -> Offset(
+                                start.x,
+                                (start.y + total.y * 0.55f).coerceIn(-size.height * 0.65f, 0f)
+                            )
+                            null -> start
+                        }
                     }
                 }
             }
     ) {
-        Column {
-            Row(
-                modifier = Modifier.padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(width = 112.dp, height = 63.dp)
-                        .clip(ExpressiveShapes.medium)
-                        .background(Color.Black)
-                ) {
-                    if (castStatus.isCasting || nativeHdr) {
-                        AsyncImage(
-                            model = (item.stillPath ?: item.backdropPath ?: item.posterPath)
-                                ?.let { "https://image.tmdb.org/t/p/w300$it" },
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                        if (castStatus.isCasting) Icon(
-                            Icons.Default.CastConnected,
-                            // Decorative: the row text already says where it's casting to.
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onScrim,
-                            modifier = Modifier
-                                .align(Alignment.Center)
-                                .background(
-                                    MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f),
-                                    CircleShape
-                                )
-                                .padding(6.dp)
-                                .size(28.dp)
-                        )
-                    } else androidx.compose.runtime.key(generation) {
-                        AndroidView(
-                            factory = { context ->
-                                // Inflated for its texture_view surface (only settable from XML).
-                                (LayoutInflater.from(context).inflate(R.layout.mini_player_view, null) as PlayerView).apply {
-                                    layoutParams = FrameLayout.LayoutParams(
-                                        FrameLayout.LayoutParams.MATCH_PARENT,
-                                        FrameLayout.LayoutParams.MATCH_PARENT
-                                    )
-                                    player = session.player
-                                    session.smoothMotion?.let { bindSmoothMotion(it) }
-                                }
-                            },
-                            update = { view ->
-                                val sm = session.smoothMotion
-                                if (sm != null) {
-                                    view.bindSmoothMotion(sm)
-                                } else {
-                                    view.unbindSmoothMotion()
-                                }
-                            },
-                            onRelease = { view ->
-                                view.unbindSmoothMotion()
-                                view.player = null
-                            },
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
+        Surface(
+            onClick = ::openPlayer,
+            shape = ExpressiveShapes.large,
+            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+            tonalElevation = 6.dp,
+            shadowElevation = 10.dp,
+            modifier = Modifier.fillMaxWidth().graphicsLayer {
+                val shift = dragPosition ?: position.value
+                if (!reduceMotion) {
+                    translationX = shift.x
+                    translationY = shift.y.coerceAtMost(0f)
+                    alpha = 1f - (abs(shift.x) / size.width.coerceAtLeast(1f)).coerceIn(0f, 1f)
                 }
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 14.dp)
+            }
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier.padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = item.title,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    val detail = castStatus.deviceName?.let { stringResource(R.string.cast_casting_to, it) } ?: item.subtitle
-                    if (detail.isNotEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 112.dp, height = 63.dp)
+                            .clip(ExpressiveShapes.medium)
+                            .background(Color.Black)
+                    ) {
+                        if (castStatus.isCasting || nativeHdr) {
+                            AsyncImage(
+                                model = (item.stillPath ?: item.backdropPath ?: item.posterPath)
+                                    ?.let { "https://image.tmdb.org/t/p/w300$it" },
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            if (castStatus.isCasting) Icon(
+                                Icons.Default.CastConnected,
+                                // Decorative: the row text already says where it's casting to.
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onScrim,
+                                modifier = Modifier
+                                    .align(Alignment.Center)
+                                    .background(
+                                        MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f),
+                                        CircleShape
+                                    )
+                                    .padding(6.dp)
+                                    .size(28.dp)
+                            )
+                        } else androidx.compose.runtime.key(generation) {
+                            AndroidView(
+                                factory = { context ->
+                                    // Inflated for its texture_view surface (only settable from XML).
+                                    (LayoutInflater.from(context).inflate(R.layout.mini_player_view, null) as PlayerView).apply {
+                                        layoutParams = FrameLayout.LayoutParams(
+                                            FrameLayout.LayoutParams.MATCH_PARENT,
+                                            FrameLayout.LayoutParams.MATCH_PARENT
+                                        )
+                                        player = session.player
+                                        session.smoothMotion?.let { bindSmoothMotion(it) }
+                                    }
+                                },
+                                update = { view ->
+                                    val sm = session.smoothMotion
+                                    if (sm != null) {
+                                        view.bindSmoothMotion(sm)
+                                    } else {
+                                        view.unbindSmoothMotion()
+                                    }
+                                },
+                                onRelease = { view ->
+                                    view.unbindSmoothMotion()
+                                    view.player = null
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 14.dp)
+                    ) {
                         Text(
-                            text = detail,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            text = item.title,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                        val detail = castStatus.deviceName?.let { stringResource(R.string.cast_casting_to, it) } ?: item.subtitle
+                        if (detail.isNotEmpty()) {
+                            Text(
+                                text = detail,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
-                }
-                FilledIconButton(
-                    onClick = session::togglePlayback,
-                    shape = if (isPlaying) ExpressiveShapes.medium else ExpressiveShapes.large,
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                ) {
-                    AnimatedContent(targetState = isPlaying, label = "miniPlayPause") { playing ->
-                        Icon(
-                            if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (playing) stringResource(R.string.cd_pause) else stringResource(R.string.cd_play)
+                    FilledIconButton(
+                        onClick = session::togglePlayback,
+                        shape = if (isPlaying) ExpressiveShapes.medium else ExpressiveShapes.large,
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
                         )
+                    ) {
+                        AnimatedContent(targetState = isPlaying, label = "miniPlayPause") { playing ->
+                            Icon(
+                                if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = if (playing) stringResource(R.string.cd_pause) else stringResource(R.string.cd_play)
+                            )
+                        }
+                    }
+                    IconButton(onClick = {
+                        if (!transitionStarted) settle(Offset(cardWidth.toFloat(), 0f), dismiss = true)
+                    }) {
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_stop_playback))
                     }
                 }
-                IconButton(onClick = session::stop) {
-                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_stop_playback))
-                }
+                LinearWavyProgressIndicator(
+                    progress = { smoothedProgress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 6.dp)
+                )
             }
-            LinearWavyProgressIndicator(
-                progress = { smoothedProgress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 6.dp)
-            )
         }
     }
 }
+
+private enum class DragAxis { Horizontal, Vertical }
