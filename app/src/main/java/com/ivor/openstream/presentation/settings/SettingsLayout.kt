@@ -11,6 +11,14 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -46,6 +54,8 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
@@ -81,7 +91,6 @@ import androidx.compose.ui.unit.dp
 import com.ivor.openstream.BuildConfig
 import com.ivor.openstream.R
 import com.ivor.openstream.presentation.components.ExpressiveBackButton
-import com.ivor.openstream.presentation.components.isCompactWidth
 import com.ivor.openstream.ui.theme.groupedPageColor
 
 // region Model
@@ -151,9 +160,14 @@ private fun SettingsCategory.items(): List<CategoryItem> = buildList {
 // endregion
 
 /**
- * Settings as a parent page of categories and a page for each. On a phone in portrait a category
- * replaces the list and Back returns to it; on wider windows (landscape, tablets) the list stays
- * on the left and the chosen category fills the right.
+ * Settings as a parent page of categories and a page for each. In a narrow window a category
+ * replaces the list and Back returns to it; once there is room for both (most phones in
+ * landscape, tablets) the list stays at the start and the chosen category fills the rest.
+ *
+ * The decision uses the space Settings actually gets, not the window class: beside the app's
+ * navigation rail a landscape phone has far less width than its class suggests. A short window
+ * (a phone on its side) swaps the large collapsing bars for small ones so the settings keep most
+ * of the height.
  *
  * Search sits on the parent page and covers every setting. Picking a result opens its category,
  * scrolls to the setting, pulses it and moves the focus to it.
@@ -164,13 +178,18 @@ internal fun SettingsLayout(
     snackbarHostState: SnackbarHostState,
     onBackClick: () -> Unit
 ) {
-    val twoPane = !isCompactWidth
     var selectedKey by rememberSaveable { mutableStateOf<String?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
     // A setting picked from the search, waiting to be scrolled to once its category is showing.
     var pendingJump by rememberSaveable { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
+
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    val twoPane = maxWidth >= TwoPaneMinWidth
+    val short = maxHeight < ShortWindowHeight
+    // Wide enough for a category's name and preview, never so wide the page gets squeezed.
+    val listPaneWidth = (maxWidth * 0.36f).coerceIn(ListPaneMinWidth, ListPaneMaxWidth)
 
     // A category that disappears (none should, but options come and go) falls back to the list.
     val selected = categories.firstOrNull { it.key == selectedKey }
@@ -203,9 +222,12 @@ internal fun SettingsLayout(
                 onBackClick = onBackClick,
                 onOpen = openCategory,
                 onPickResult = pickResult,
+                short = short,
+                // The page beside it has no subtitle; matching it keeps both bars the same height.
+                showVersion = false,
+                edges = WindowInsetsSides.Start,
                 modifier = Modifier
-                    .widthIn(max = 400.dp)
-                    .fillMaxWidth(0.4f)
+                    .width(listPaneWidth)
                     .fillMaxHeight()
             )
             VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -219,7 +241,9 @@ internal fun SettingsLayout(
                             snackbarHostState = snackbarHostState,
                             pendingJump = pendingJump,
                             onJumpHandled = { pendingJump = null },
-                            onBackClick = {}
+                            onBackClick = {},
+                            short = short,
+                            edges = WindowInsetsSides.End
                         )
                     }
                 }
@@ -250,6 +274,9 @@ internal fun SettingsLayout(
                     onBackClick = onBackClick,
                     onOpen = openCategory,
                     onPickResult = pickResult,
+                    short = short,
+                    showVersion = !short,
+                    edges = WindowInsetsSides.Horizontal,
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
@@ -259,12 +286,75 @@ internal fun SettingsLayout(
                     snackbarHostState = snackbarHostState,
                     pendingJump = pendingJump,
                     onJumpHandled = { pendingJump = null },
-                    onBackClick = { selectedKey = null }
+                    onBackClick = { selectedKey = null },
+                    short = short,
+                    edges = WindowInsetsSides.Horizontal
                 )
             }
         }
     }
+    }
 }
+
+/** Below this much width Settings shows one page at a time. */
+private val TwoPaneMinWidth = 600.dp
+/** Below this much height the bars stay small instead of large and collapsing. */
+private val ShortWindowHeight = 480.dp
+private val ListPaneMinWidth = 280.dp
+private val ListPaneMaxWidth = 380.dp
+
+/**
+ * The bar on top of a pane. Large and collapsing when there is height to spare; a small pinned
+ * bar on a short window, where a large one would take a third of the screen.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun SettingsTopBar(
+    title: String,
+    subtitle: String?,
+    short: Boolean,
+    edges: WindowInsetsSides,
+    scrollBehavior: TopAppBarScrollBehavior,
+    navigationIcon: @Composable () -> Unit,
+    actions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {}
+) {
+    val colors = TopAppBarDefaults.topAppBarColors(
+        containerColor = groupedPageColor(),
+        scrolledContainerColor = groupedPageColor()
+    )
+    // Only the window edges this pane touches; the other pane, or the rail, covers the rest.
+    val insets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + edges)
+    if (short) {
+        TopAppBar(
+            title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            navigationIcon = navigationIcon,
+            actions = actions,
+            windowInsets = insets,
+            colors = colors,
+            scrollBehavior = scrollBehavior
+        )
+    } else {
+        LargeFlexibleTopAppBar(
+            title = { Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+            subtitle = subtitle?.let { { Text(it) } },
+            navigationIcon = navigationIcon,
+            actions = actions,
+            windowInsets = insets,
+            colors = colors,
+            scrollBehavior = scrollBehavior
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun settingsScrollBehavior(short: Boolean): TopAppBarScrollBehavior =
+    if (short) TopAppBarDefaults.pinnedScrollBehavior() else TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+/** What a pane's content keeps clear of: the bottom, and the window edges the pane touches. */
+@Composable
+private fun paneInsets(edges: WindowInsetsSides): WindowInsets =
+    WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + edges)
 
 // region Parent page
 
@@ -280,9 +370,12 @@ private fun CategoryListPane(
     onBackClick: () -> Unit,
     onOpen: (String) -> Unit,
     onPickResult: (String) -> Unit,
+    short: Boolean,
+    showVersion: Boolean,
+    edges: WindowInsetsSides,
     modifier: Modifier = Modifier
 ) {
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val scrollBehavior = settingsScrollBehavior(short)
     val focusManager = LocalFocusManager.current
     val title = stringResource(R.string.st_title)
     Scaffold(
@@ -290,41 +383,46 @@ private fun CategoryListPane(
             .nestedScroll(scrollBehavior.nestedScrollConnection)
             .semantics { paneTitle = title },
         containerColor = groupedPageColor(),
+        contentWindowInsets = paneInsets(edges),
         snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
         topBar = {
-            LargeFlexibleTopAppBar(
-                title = { Text(title) },
-                subtitle = { Text(stringResource(R.string.up_version_format, BuildConfig.VERSION_NAME)) },
+            SettingsTopBar(
+                title = title,
+                subtitle = if (showVersion) stringResource(R.string.up_version_format, BuildConfig.VERSION_NAME) else null,
+                short = short,
+                edges = edges,
+                scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     ExpressiveBackButton(onClick = onBackClick, modifier = Modifier.padding(start = 8.dp))
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = groupedPageColor(),
-                    scrolledContainerColor = groupedPageColor()
-                ),
-                scrollBehavior = scrollBehavior
+                }
             )
         }
     ) { innerPadding ->
-        val padding = PaddingValues(
-            start = 16.dp,
-            end = 16.dp,
-            top = innerPadding.calculateTopPadding(),
-            bottom = innerPadding.calculateBottomPadding() + 32.dp
-        )
+        val layoutDirection = LocalLayoutDirection.current
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = padding.calculateTopPadding()),
+                .padding(
+                    start = innerPadding.calculateStartPadding(layoutDirection),
+                    end = innerPadding.calculateEndPadding(layoutDirection),
+                    top = innerPadding.calculateTopPadding()
+                ),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             SettingsSearchField(
                 query = query,
                 onQueryChange = onQueryChange,
                 onSearch = { focusManager.clearFocus() },
-                modifier = Modifier.widthIn(max = 720.dp)
+                modifier = Modifier
+                    .widthIn(max = 720.dp)
+                    .padding(top = if (short) 4.dp else 0.dp)
             )
-            val listPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = padding.calculateBottomPadding())
+            val listPadding = PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = 12.dp,
+                bottom = innerPadding.calculateBottomPadding() + 32.dp
+            )
             if (query.isNotBlank()) {
                 SearchResults(
                     query = query,
@@ -593,9 +691,11 @@ private fun CategoryPane(
     snackbarHostState: SnackbarHostState,
     pendingJump: String?,
     onJumpHandled: () -> Unit,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    short: Boolean,
+    edges: WindowInsetsSides
 ) {
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val scrollBehavior = settingsScrollBehavior(short)
     val listState = rememberLazyListState()
     val items = category.items()
     val focusRequesters = remember { mutableMapOf<String, FocusRequester>() }
@@ -633,10 +733,15 @@ private fun CategoryPane(
             .nestedScroll(scrollBehavior.nestedScrollConnection)
             .semantics { paneTitle = category.title },
         containerColor = groupedPageColor(),
+        contentWindowInsets = paneInsets(edges),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            LargeFlexibleTopAppBar(
-                title = { Text(category.title) },
+            SettingsTopBar(
+                title = category.title,
+                subtitle = null,
+                short = short,
+                edges = edges,
+                scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     if (showBack) {
                         ExpressiveBackButton(onClick = onBackClick, modifier = Modifier.padding(start = 8.dp))
@@ -650,16 +755,20 @@ private fun CategoryPane(
                                 .size(24.dp)
                         )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = groupedPageColor(),
-                    scrolledContainerColor = groupedPageColor()
-                ),
-                scrollBehavior = scrollBehavior
+                }
             )
         }
     ) { innerPadding ->
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        val layoutDirection = LocalLayoutDirection.current
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(
+                    start = innerPadding.calculateStartPadding(layoutDirection),
+                    end = innerPadding.calculateEndPadding(layoutDirection)
+                ),
+            contentAlignment = Alignment.TopCenter
+        ) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier

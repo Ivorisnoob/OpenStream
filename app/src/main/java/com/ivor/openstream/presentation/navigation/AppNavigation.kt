@@ -78,6 +78,7 @@ import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.ui.unit.IntOffset
 import com.ivor.openstream.presentation.components.ExpressiveMotion
 import androidx.compose.foundation.layout.Box
@@ -269,6 +270,8 @@ fun AppNavigation(
             // edge: it reads as part of the screen rather than a separate drawer strip.
             WideNavigationRail(
                 modifier = Modifier.fillMaxHeight(),
+                // Clear of a display cutout too, which sits on this edge when a phone is on its side.
+                windowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical + WindowInsetsSides.Start),
                 colors = WideNavigationRailDefaults.colors(
                     containerColor = MaterialTheme.colorScheme.background
                 ),
@@ -296,7 +299,14 @@ fun AppNavigation(
         }
 
         Box(
-            modifier = Modifier.weight(1f).fillMaxHeight()
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                // The rail already sits on the start edge, so screens beside it don't pad for it.
+                .then(
+                    if (showRail) Modifier.consumeWindowInsets(WindowInsets.safeDrawing.only(WindowInsetsSides.Start))
+                    else Modifier
+                )
         ) {
             NavHost(
                 navController = navController,

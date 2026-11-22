@@ -1,5 +1,8 @@
 package com.ivor.openstream.presentation.settings
 
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.widthIn
 import com.ivor.openstream.presentation.player.components.CaptionText
 import com.ivor.openstream.presentation.player.components.captionEdgePadding
 import com.ivor.openstream.data.settings.CaptionPlacement
@@ -107,9 +110,15 @@ internal fun CaptionPreviewRow(
         color = highlightedContainer(highlight),
         modifier = modifier.fillMaxWidth()
     ) {
+        // A 16:9 frame as wide as the row would fill a phone held sideways; keep it under about
+        // half the window's height and centre it instead.
+        val windowHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
+        val maxPreviewWidth = (windowHeight * 0.45f) * (16f / 9f)
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
                 .padding(12.dp)
+                .widthIn(max = maxPreviewWidth)
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)
                 .background(
@@ -139,6 +148,7 @@ internal fun CaptionPreviewRow(
                     )
                 )
             }
+        }
         }
     }
 }
