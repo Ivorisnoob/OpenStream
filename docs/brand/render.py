@@ -26,6 +26,7 @@ EDGE_CANDIDATES = [
 # Each piece renders twice: with Japanese accents (the default) and English only ("-en").
 BASE = [
     ("cover", "cover.html", 1280, 640, [1, 2], False),
+    ("cover-2.3", "cover-2.3.html", 1280, 640, [1, 2], False),
     *[(f"card-{i}", f"card.html?card={i}", 1080, 1350, [1], True) for i in range(1, 7)],
     ("changelog", "changelog.html", 1080, 3056, [1], True),
 ]

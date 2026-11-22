@@ -1,6 +1,6 @@
 @import url("https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wdth,wght@8..144,25..151,100..1000&display=block");
-@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,600,1,0&icon_names=4k,auto_awesome,bookmark,check,closed_caption,download,high_quality,history,home,movie,picture_in_picture_alt,play_arrow,search,subtitles,tune&display=block");
-@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@900&text=%E7%AC%AC2%E5%B7%BB%E3%82%AA%E3%83%BC%E3%83%97%E3%83%B3%E3%82%B9%E3%83%88%E3%83%AA%E3%83%BC%E3%83%A0&display=block");
+@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,600,1,0&icon_names=4k,auto_awesome,bookmark,calendar_month,cast,check,closed_caption,download,folder,high_quality,history,home,movie,open_in_new,palette,picture_in_picture_alt,play_arrow,search,settings,subtitles,tune,tv,wifi&display=block");
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@900&text=%E7%AC%AC23%E5%B7%BB%E8%A9%B1%E6%96%B0%E3%82%AA%E3%83%BC%E3%83%97%E3%83%B3%E3%82%B9%E3%83%88%E3%83%AA%E3%83%BC%E3%83%A0&display=block");
 
 /* Brand colors plus a Material 3 tonal palette from the sakura seed. */
 :root {
