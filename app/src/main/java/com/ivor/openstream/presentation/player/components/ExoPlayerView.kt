@@ -340,7 +340,9 @@ fun ExoPlayerView(
     // Follows the finger during a fullscreen/minimize swipe, then springs back.
     val reduceMotion = ExpressiveMotion.reducedMotion()
     var pinchPreview by remember { mutableFloatStateOf(1f) }
-    var timelineDrag by remember { mutableStateOf(false) }
+    var chromeInteraction by remember { mutableStateOf(false) }
+    var touchHeaderHeight by remember { mutableStateOf(0.dp) }
+    var touchFooterHeight by remember { mutableStateOf(0.dp) }
     val showLoading by produceState(false, isBuffering) {
         value = false
         if (isBuffering) {
@@ -1057,8 +1059,8 @@ fun ExoPlayerView(
 
     // Auto-hide controls. On a TV each remote key press while the chrome is up restarts the
     // countdown, so moving through the bar one stop at a time never races it.
-    LaunchedEffect(areControlsVisible, isPlaying, videoGestures.controlsHideSeconds, controlsInteraction, timelineDrag) {
-        if (areControlsVisible && isPlaying && !timelineDrag) {
+    LaunchedEffect(areControlsVisible, isPlaying, videoGestures.controlsHideSeconds, controlsInteraction, chromeInteraction) {
+        if (areControlsVisible && isPlaying && !chromeInteraction) {
             delay(if (dpadControls) 6000 else videoGestures.controlsHideSeconds * 1_000L)
             areControlsVisible = false
         }
@@ -1716,11 +1718,12 @@ fun ExoPlayerView(
                 } else {
                     captionEdgePadding(
                         // The bottom default clears the seek bar; the top one the title bar.
-                        base = when {
-                            atTop && isFullscreen -> 56.dp
-                            atTop -> 16.dp
-                            isFullscreen -> 64.dp
-                            else -> 40.dp
+                        base = if (!dpadControls && (if (atTop) touchHeaderHeight else touchFooterHeight) > 0.dp) {
+                            (if (atTop) touchHeaderHeight else touchFooterHeight) + 4.dp
+                        } else if (atTop) {
+                            if (isFullscreen) 56.dp else 16.dp
+                        } else {
+                            if (isFullscreen) 64.dp else 40.dp
                         },
                         height = maxHeight,
                         offset = captionSettings.verticalOffset
@@ -1827,7 +1830,9 @@ fun ExoPlayerView(
             shaderLookShown = !videoShaderHidden,
             currentTime = currentTime,
             totalTime = totalTime,
-            onTimelineDrag = { timelineDrag = it },
+            onChromeInteraction = { chromeInteraction = it },
+            onHeaderHeight = { touchHeaderHeight = it },
+            onFooterHeight = { touchFooterHeight = it },
             onPauseToggle = {
                 if (exoPlayer.isPlaying) {
                     exoPlayer.pause()
@@ -2102,7 +2107,12 @@ fun ExoPlayerView(
                 .align(Alignment.BottomEnd)
                 .padding(
                     end = if (dpadControls) 56.dp else if (isFullscreen) 24.dp else 12.dp,
-                    bottom = if (dpadControls) tvSkipBottom else if (isFullscreen) 88.dp else 56.dp
+                    bottom = when {
+                        dpadControls -> tvSkipBottom
+                        touchFooterHeight > 0.dp && areControlsVisible -> touchFooterHeight + 8.dp
+                        isFullscreen -> 88.dp
+                        else -> 56.dp
+                    }
                 )
         ) {
             if (dpadControls) {

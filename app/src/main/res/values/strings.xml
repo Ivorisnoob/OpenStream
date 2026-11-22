@@ -193,6 +193,9 @@
     <string name="player_hosts_change">Streaming hosts change often. Search again for fresh links.</string>
     <string name="player_sources_change">Streams come from sources that change often, so some titles or episodes may not play yet.</string>
     <string name="player_not_everything">Not everything plays yet</string>
+    <string name="player_quality_action">Quality: %1$s</string>
+    <string name="player_hide_shader_look">Hide picture preset</string>
+    <string name="player_show_shader_look">Show picture preset</string>
     <string name="player_quality_unknown">Quality unknown</string>
     <string name="player_quality_once_started">Quality options appear once the stream starts.</string>
     <string name="player_fixed_quality">This source has one fixed quality</string>
