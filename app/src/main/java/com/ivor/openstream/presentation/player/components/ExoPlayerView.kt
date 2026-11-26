@@ -1830,6 +1830,7 @@ fun ExoPlayerView(
             shaderLookShown = !videoShaderHidden,
             currentTime = currentTime,
             totalTime = totalTime,
+            playbackSpeed = playbackSpeed,
             onChromeInteraction = { chromeInteraction = it },
             onHeaderHeight = { touchHeaderHeight = it },
             onFooterHeight = { touchFooterHeight = it },

@@ -58,8 +58,9 @@ import com.ivor.openstream.ui.theme.ExpressiveShapes
 private const val UP_NEXT_COUNTDOWN_MS = 8_000
 
 /**
- * Shown when an episode ends. Counts down and continues automatically, the way every streaming
- * app does; the ring around the play button is the countdown so no extra number is needed.
+ * Shown when an episode ends. On touch it counts down and continues automatically, the way every
+ * streaming app does; the ring around the play button is the countdown so no extra number is
+ * needed. With [autoAdvance] off (TV) it waits for the viewer and shows no ring.
  */
 @Composable
 fun UpNextOverlay(
@@ -161,17 +162,21 @@ fun UpNextOverlay(
             }
 
             Box(contentAlignment = Alignment.Center, modifier = Modifier.size(64.dp)) {
-                CircularProgressIndicator(
-                    progress = { countdown.value },
-                    modifier = Modifier.fillMaxSize(),
-                    strokeWidth = 4.dp,
-                    strokeCap = StrokeCap.Round,
-                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
-                )
+                // The ring is the countdown. Without one (a TV, where the viewer chooses) it would
+                // sit full and never move, so the button takes the space on its own.
+                if (autoAdvance) {
+                    CircularProgressIndicator(
+                        progress = { countdown.value },
+                        modifier = Modifier.fillMaxSize(),
+                        strokeWidth = 4.dp,
+                        strokeCap = StrokeCap.Round,
+                        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                    )
+                }
                 FilledIconButton(
                     onClick = onPlayNow,
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(if (autoAdvance) 48.dp else 56.dp)
                         .focusRequester(playFocus)
                         .tvFocusRing(dpadControls, MaterialTheme.colorScheme.onSurface, CircleShape),
                     colors = IconButtonDefaults.filledIconButtonColors(

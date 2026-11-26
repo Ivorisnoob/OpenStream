@@ -169,6 +169,9 @@
     <string name="player_up_next">A seguir</string>
     <string name="player_next_prefix">Próximo: %1$s</string>
     <string name="player_no_source_ready">Nenhuma fonte pronta</string>
+    <string name="player_no_source_matches_filters">Nenhuma fonte corresponde a estes filtros</string>
+    <string name="player_no_source_matches_filters_hint">Escolha outra qualidade ou outro áudio, ou limpe os filtros para ver todas as fontes.</string>
+    <string name="player_ends_at">Termina às %1$s</string>
     <string name="player_no_source_responded">Nenhuma fonte respondeu</string>
     <string name="player_no_servers">Nenhum servidor respondeu</string>
     <string name="player_no_healthy_servers">Sem mais servidores íntegros</string>

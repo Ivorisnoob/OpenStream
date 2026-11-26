@@ -50,6 +50,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -416,7 +417,12 @@ private fun PanelTile(
 
 @Composable
 private fun ExpandableText(text: String) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
+    // A new episode's overview starts collapsed again.
+    var expanded by rememberSaveable(text) { mutableStateOf(false) }
+    // Whether three lines actually cut the text off at this width and font size. A character
+    // count guesses wrong both ways: short text wraps past three lines on a narrow phone, and
+    // long text fits on a tablet.
+    var truncated by remember(text) { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .padding(start = 20.dp, end = 20.dp, top = 20.dp)
@@ -426,9 +432,10 @@ private fun ExpandableText(text: String) {
             text = text,
             style = MaterialTheme.typography.bodyLarge,
             maxLines = if (expanded) Int.MAX_VALUE else 3,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            onTextLayout = { layout -> if (!expanded) truncated = layout.hasVisualOverflow }
         )
-        if (text.length > 160) {
+        if (truncated || expanded) {
             TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(0.dp)) {
                 Text(if (expanded) stringResource(R.string.action_show_less) else stringResource(R.string.more_short))
             }

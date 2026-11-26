@@ -184,6 +184,9 @@
     <string name="player_up_next">다음 콘텐츠</string>
     <string name="player_next_prefix">다음: %1$s</string>
     <string name="player_no_source_ready">준비된 소스가 없어요</string>
+    <string name="player_no_source_matches_filters">이 필터에 맞는 소스가 없어요</string>
+    <string name="player_no_source_matches_filters_hint">다른 화질이나 오디오를 고르거나, 필터를 지워 모든 소스를 보세요.</string>
+    <string name="player_ends_at">%1$s에 종료</string>
     <string name="player_no_source_responded">응답한 소스가 없어요</string>
     <string name="player_no_servers">응답한 서버가 없어요</string>
     <string name="player_no_healthy_servers">사용 가능한 서버가 더 없어요</string>

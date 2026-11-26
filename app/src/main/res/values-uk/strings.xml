@@ -169,6 +169,9 @@
     <string name="player_up_next">Далі</string>
     <string name="player_next_prefix">Далі: %1$s</string>
     <string name="player_no_source_ready">Немає готового джерела</string>
+    <string name="player_no_source_matches_filters">Немає джерел під ці фільтри</string>
+    <string name="player_no_source_matches_filters_hint">Виберіть іншу якість або озвучення чи очистьте фільтри, щоб побачити всі джерела.</string>
+    <string name="player_ends_at">Закінчиться о %1$s</string>
     <string name="player_no_source_responded">Джерела не відповідають</string>
     <string name="player_no_servers">Сервери не відповідають</string>
     <string name="player_no_healthy_servers">Немає доступних серверів</string>

@@ -184,6 +184,9 @@
     <string name="player_up_next">आगे आ रहा है</string>
     <string name="player_next_prefix">अगला: %1$s</string>
     <string name="player_no_source_ready">कोई स्रोत तैयार नहीं है</string>
+    <string name="player_no_source_matches_filters">इन फ़िल्टर से कोई स्रोत मेल नहीं खाता</string>
+    <string name="player_no_source_matches_filters_hint">कोई दूसरी क्वालिटी या ऑडियो चुनें, या सभी स्रोत देखने के लिए फ़िल्टर साफ़ करें।</string>
+    <string name="player_ends_at">%1$s पर खत्म होगा</string>
     <string name="player_no_source_responded">किसी स्रोत ने जवाब नहीं दिया</string>
     <string name="player_no_servers">किसी सर्वर ने जवाब नहीं दिया</string>
     <string name="player_no_healthy_servers">कोई स्वस्थ सर्वर नहीं बचा</string>

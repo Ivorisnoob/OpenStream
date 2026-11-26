@@ -184,6 +184,9 @@
     <string name="player_up_next">Up next</string>
     <string name="player_next_prefix">Next: %1$s</string>
     <string name="player_no_source_ready">No source is ready</string>
+    <string name="player_no_source_matches_filters">No source matches these filters</string>
+    <string name="player_no_source_matches_filters_hint">Pick another quality or audio, or clear the filters to see every source.</string>
+    <string name="player_ends_at">Ends at %1$s</string>
     <string name="player_no_source_responded">No source responded</string>
     <string name="player_no_servers">No servers responded</string>
     <string name="player_no_healthy_servers">No more healthy servers</string>

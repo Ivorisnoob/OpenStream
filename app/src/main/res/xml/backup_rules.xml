@@ -1,13 +1,18 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Auto Backup on Android 11 and older (Android 12+ reads data_extraction_rules.xml).
+
+   Only the library and the settings are kept: the database (profiles, Watch Later, lists, watch
+   progress, the download list) and the preferences file. Everything else is left out on purpose.
+   Downloads alone are usually far over Auto Backup's 25 MB limit, and a backup over the limit is
+   not taken at all. Downloaded video, saved subtitles, the extension cache, crash reports, the
+   media caches and WebView data are either large, rebuilt on demand, or only make sense on the
+   device that made them. A restored download whose video did not come along shows as missing
+   and can be downloaded again from the list.
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <include domain="sharedpref" path="open_stream_prefs.xml" />
+    <include domain="database" path="open_stream_db" />
+    <include domain="database" path="open_stream_db-wal" />
+    <include domain="database" path="open_stream_db-shm" />
 </full-backup-content>

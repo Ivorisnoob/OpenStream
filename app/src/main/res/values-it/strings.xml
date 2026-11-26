@@ -169,6 +169,9 @@
     <string name="player_up_next">A seguire</string>
     <string name="player_next_prefix">Successivo: %1$s</string>
     <string name="player_no_source_ready">Nessuna sorgente pronta</string>
+    <string name="player_no_source_matches_filters">Nessuna sorgente corrisponde a questi filtri</string>
+    <string name="player_no_source_matches_filters_hint">Scegli un\'altra qualità o un altro audio, oppure cancella i filtri per vedere tutte le sorgenti.</string>
+    <string name="player_ends_at">Finisce alle %1$s</string>
     <string name="player_no_source_responded">Nessuna sorgente ha risposto</string>
     <string name="player_no_servers">Nessun server ha risposto</string>
     <string name="player_no_healthy_servers">Nessun altro server integro</string>

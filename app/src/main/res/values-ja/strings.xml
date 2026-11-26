@@ -169,6 +169,9 @@
     <string name="player_up_next">次に再生</string>
     <string name="player_next_prefix">次：%1$s</string>
     <string name="player_no_source_ready">準備できたソースがありません</string>
+    <string name="player_no_source_matches_filters">このフィルターに合うソースがありません</string>
+    <string name="player_no_source_matches_filters_hint">別の画質か音声を選ぶか、フィルターをクリアしてすべてのソースを表示してください。</string>
+    <string name="player_ends_at">%1$sに終了</string>
     <string name="player_no_source_responded">応答したソースがありません</string>
     <string name="player_no_servers">応答したサーバーがありません</string>
     <string name="player_no_healthy_servers">利用可能なサーバーがありません</string>

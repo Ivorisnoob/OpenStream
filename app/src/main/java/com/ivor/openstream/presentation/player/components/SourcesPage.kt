@@ -236,6 +236,22 @@ fun LazyListScope.sourcesPage(
         }
     }
 
+    // Both filters can be set to a pair no source offers (1080p only in Sub, say). Say so and
+    // offer the way out, rather than leaving an empty list under two selected chips.
+    if (servers.isNotEmpty() && visibleServers.isEmpty()) {
+        item(key = "filtered-out") {
+            PanelNotice(
+                title = stringResource(R.string.player_no_source_matches_filters),
+                body = stringResource(R.string.player_no_source_matches_filters_hint),
+                actionLabel = stringResource(R.string.search_clear_filters),
+                onAction = {
+                    filter.quality.value = null
+                    filter.audio.value = null
+                }
+            )
+        }
+    }
+
     itemsIndexed(visibleServers, key = { _, server -> server.id }) { index, server ->
         SourceRow(
             server = server,

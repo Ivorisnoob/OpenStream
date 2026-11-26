@@ -714,10 +714,14 @@ class PlaybackSession @Inject constructor(
         return ended
     }
 
-    /** Ends the session: saves where the user stopped and unloads the stream (on the TV too). */
-    fun stop() {
+    /**
+     * Ends the session: saves where the user stopped and unloads the stream (on the TV too).
+     * [keepSleepTimer] is for moving to another title or episode: the old one stops, but a timer
+     * the viewer set still applies to what they watch next.
+     */
+    fun stop(keepSleepTimer: Boolean = false) {
         reconnectJob?.cancel()
-        setSleepTimer(null)
+        if (!keepSleepTimer) setSleepTimer(null)
         recordProgress(force = true)
         if (castConnected) {
             castLoadJob?.cancel()

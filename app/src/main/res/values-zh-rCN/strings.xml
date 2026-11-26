@@ -169,6 +169,9 @@
     <string name="player_up_next">接下来</string>
     <string name="player_next_prefix">下一个：%1$s</string>
     <string name="player_no_source_ready">暂无可用来源</string>
+    <string name="player_no_source_matches_filters">没有符合这些筛选条件的来源</string>
+    <string name="player_no_source_matches_filters_hint">换一个画质或音轨，或清除筛选以查看全部来源。</string>
+    <string name="player_ends_at">%1$s 结束</string>
     <string name="player_no_source_responded">没有来源响应</string>
     <string name="player_no_servers">没有服务器响应</string>
     <string name="player_no_healthy_servers">没有可用的健康服务器</string>

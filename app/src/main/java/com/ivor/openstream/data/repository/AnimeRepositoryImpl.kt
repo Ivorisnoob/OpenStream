@@ -6,6 +6,7 @@ import com.ivor.openstream.data.remote.TmdbApi
 import com.ivor.openstream.data.remote.model.AnimeDetailsDto
 import com.ivor.openstream.data.remote.model.AnimeDto
 import com.ivor.openstream.data.remote.model.SeasonDetailsDto
+import com.ivor.openstream.data.settings.AppSettingsStore
 import com.ivor.openstream.domain.repository.AnimeRepository
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -27,7 +28,8 @@ class AnimeRepositoryImpl @Inject constructor(
     @Named(NetworkModule.FRESH_TMDB) private val freshApi: TmdbApi,
     private val sharedPreferences: SharedPreferences,
     private val json: Json,
-    private val kids: KidsContentFilter
+    private val kids: KidsContentFilter,
+    private val appSettings: AppSettingsStore
 ) : AnimeRepository {
 
     private val HISTORY_KEY = "watch_history_list"
@@ -246,6 +248,9 @@ class AnimeRepositoryImpl @Inject constructor(
     }
 
     override suspend fun addToWatchHistory(anime: AnimeDto) {
+        // "Pause watch history" covers everything that records a title, so it is checked here
+        // rather than at each caller (Details, the player).
+        if (appSettings.current.pauseWatchHistory) return
         val history = getWatchHistory().toMutableList()
         history.removeIf { it.id == anime.id }
         history.add(0, anime)

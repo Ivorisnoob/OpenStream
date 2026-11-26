@@ -460,6 +460,7 @@ class PlayerViewModel @Inject constructor(
     fun loadLocalMedia(id: Long) {
         loadJob?.cancel()
         resolutionJob?.cancel()
+        stopOtherTitle(LOCAL_MEDIA_TYPE, id.toInt(), season = 1, episode = 1)
         _mediaType.value = LOCAL_MEDIA_TYPE
         currentSeason = 1
         currentEpisodeNumber = 1
@@ -548,6 +549,17 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Opening something other than what is playing: stop the old title now (its progress is
+     * saved) instead of letting its audio run on until the new one finds a source. The same
+     * episode reopened from the mini player is left alone so it carries on where it is.
+     */
+    private fun stopOtherTitle(mediaType: String, tmdbId: Int, season: Int, episode: Int) {
+        val playing = playbackSession.nowPlaying.value ?: return
+        if (playing.matches(mediaType, tmdbId, season, episode)) return
+        playbackSession.stop(keepSleepTimer = true)
+    }
+
     fun loadSeasonDetails(
         mediaType: String,
         tmdbId: Int,
@@ -581,6 +593,7 @@ class PlayerViewModel @Inject constructor(
 
         val continuing = playbackSession.nowPlaying.value
             ?.takeIf { it.matches(mediaType, tmdbId, seasonNumber, currentEpisodeNumber) }
+        if (continuing == null) stopOtherTitle(mediaType, tmdbId, seasonNumber, currentEpisodeNumber)
         adoptedServer = continuing?.server?.takeIf { continuing.downloadId == null }
         userChosenServerId = adoptedServer?.id
         playbackStarted = adoptedServer != null

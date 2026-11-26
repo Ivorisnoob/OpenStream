@@ -117,6 +117,15 @@ import androidx.compose.ui.unit.dp
 import com.ivor.openstream.presentation.components.ExpressiveBackButton
 import com.ivor.openstream.presentation.components.ExpressiveMotion
 import com.ivor.openstream.ui.theme.ExpressiveShapes
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.delay
+import java.util.Date
 import java.util.Locale
 
 /** Sizing for the two layouts: the compact inline player and the immersive fullscreen one. */
@@ -171,6 +180,8 @@ fun PlayerControls(
     shaderLookShown: Boolean = true,
     currentTime: Long,
     totalTime: Long,
+    /** The chosen playback speed, so "Ends at" accounts for it. */
+    playbackSpeed: Float = 1f,
     onPauseToggle: () -> Unit,
     onChromeInteraction: (Boolean) -> Unit = {},
     onHeaderHeight: (Dp) -> Unit = {},
@@ -202,9 +213,19 @@ fun PlayerControls(
     val latestInteraction by rememberUpdatedState(onChromeInteraction)
     var overflowOpen by remember { mutableStateOf(false) }
     var draggingTimeline by remember { mutableStateOf(false) }
-    LaunchedEffect(overflowOpen, draggingTimeline, isVisible) {
-        latestInteraction(isVisible && (overflowOpen || draggingTimeline))
-        if (!isVisible) overflowOpen = false
+    // Fingers currently down on the header, the transport buttons or the footer. Holding the
+    // chrome keeps it up, and letting go starts the hide countdown over, so a row of quick taps
+    // on rewind never ends with the buttons vanishing under the next one.
+    var pressesOnChrome by remember { mutableIntStateOf(0) }
+    val trackPress: (Boolean) -> Unit = { down -> pressesOnChrome = (pressesOnChrome + if (down) 1 else -1).coerceAtLeast(0) }
+    // Where the timeline is being dragged to, so "Ends at" follows the scrub.
+    var scrubTime by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(overflowOpen, draggingTimeline, pressesOnChrome > 0, isVisible) {
+        latestInteraction(isVisible && (overflowOpen || draggingTimeline || pressesOnChrome > 0))
+        if (!isVisible) {
+            overflowOpen = false
+            pressesOnChrome = 0
+        }
     }
     DisposableEffect(Unit) { onDispose { latestInteraction(false) } }
     val density = LocalDensity.current
@@ -235,6 +256,8 @@ fun PlayerControls(
             val footerHasToolbar = maxHeight >= 248.dp
             val expanded = isFullscreen && footerHasToolbar
             val showTextActions = footerHasToolbar && maxWidth >= 640.dp
+            // "Ends at" only where the toolbar has room to spare beside its buttons.
+            val showEndsAt = maxWidth >= 480.dp
             val metrics = if (expanded) FullscreenMetrics else InlineMetrics
             val captionIcon = if (subtitlesEnabled) Icons.Default.ClosedCaption else Icons.Default.ClosedCaptionDisabled
             val fullscreenIcon = if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen
@@ -262,6 +285,7 @@ fun PlayerControls(
                     onBackClick = onBackClick,
                     modifier = Modifier
                         .onSizeChanged { onHeaderHeight(with(density) { it.height.toDp() }) }
+                        .observePresses(trackPress)
                         .padding(horizontal = metrics.edgePadding)
                 ) {
                     if (!footerHasToolbar && hasSubtitles) {
@@ -313,13 +337,15 @@ fun PlayerControls(
                         isBuffering = isBuffering,
                         onRewind = onRewind,
                         onPauseToggle = onPauseToggle,
-                        onForward = onForward
+                        onForward = onForward,
+                        modifier = Modifier.observePresses(trackPress)
                     )
                 }
 
                 Column(
                     Modifier.fillMaxWidth()
                         .onSizeChanged { onFooterHeight(with(density) { it.height.toDp() }) }
+                        .observePresses(trackPress)
                         .padding(horizontal = metrics.edgePadding, vertical = if (expanded) 8.dp else 0.dp)
                 ) {
                     Timeline(
@@ -327,7 +353,8 @@ fun PlayerControls(
                         currentTime = currentTime,
                         totalTime = totalTime,
                         onSeek = onSeek,
-                        onTimelineDrag = { draggingTimeline = it }
+                        onTimelineDrag = { draggingTimeline = it },
+                        onScrub = { scrubTime = it }
                     ) {
                         if (!footerHasToolbar) {
                             onNextClick?.let { HudIconButton(Icons.Default.SkipNext, stringResource(R.string.action_next_episode), it) }
@@ -351,6 +378,11 @@ fun PlayerControls(
                                 HudIconToggleButton(shaderIcon, shaderLabel, shaderLookShown) { _ -> it() }
                             }
                             Spacer(Modifier.weight(1f))
+                            if (showEndsAt) EndsAtLabel(
+                                positionMs = scrubTime ?: currentTime,
+                                durationMs = totalTime,
+                                speed = playbackSpeed
+                            )
                             onNextClick?.let { HudIconButton(Icons.Default.SkipNext, stringResource(R.string.action_next_episode), it) }
                             if (isFullscreen) {
                                 val label = stringResource(R.string.cd_video_size, stringResource(videoScale.labelRes))
@@ -533,6 +565,7 @@ private fun Timeline(
     totalTime: Long,
     onSeek: (Long) -> Unit,
     onTimelineDrag: (Boolean) -> Unit,
+    onScrub: (Long?) -> Unit,
     actions: @Composable RowScope.() -> Unit
 ) {
     val duration = totalTime.coerceAtLeast(0L)
@@ -541,7 +574,13 @@ private fun Timeline(
     var dragOrigin by remember { mutableLongStateOf(0L) }
     val haptics = LocalHapticFeedback.current
     val dragStateChanged by rememberUpdatedState(onTimelineDrag)
-    DisposableEffect(Unit) { onDispose { dragStateChanged(false) } }
+    val scrubChanged by rememberUpdatedState(onScrub)
+    DisposableEffect(Unit) {
+        onDispose {
+            dragStateChanged(false)
+            scrubChanged(null)
+        }
+    }
     val playedProgress = if (duration > 0) (currentTime.toFloat() / duration).coerceIn(0f, 1f) else 0f
     val shownTime = if (isDragging) dragTarget else currentTime
 
@@ -576,11 +615,13 @@ private fun Timeline(
                     sliderState.value = target.toFloat() / duration
                 }
                 dragTarget = target
+                onScrub(target)
             },
             onValueChangeFinished = {
                 if (isDragging && duration > 0) onSeek(dragTarget)
                 isDragging = false
                 onTimelineDrag(false)
+                onScrub(null)
             },
             enabled = duration > 0,
             colors = colors,
@@ -621,6 +662,53 @@ private fun Timeline(
         )
         if (expanded) TimelineTime(formatTime(duration))
         actions()
+    }
+}
+
+/**
+ * "Ends at 10:42": the wall-clock time the title finishes if watched from here, at the chosen
+ * speed. It follows a scrub, keeps moving while paused (the clock does), and uses the device's
+ * 12/24-hour setting. Nothing is shown until the duration is known.
+ */
+@Composable
+private fun EndsAtLabel(positionMs: Long, durationMs: Long, speed: Float) {
+    if (durationMs <= 0L) return
+    val context = LocalContext.current
+    val timeFormat = remember(context) { android.text.format.DateFormat.getTimeFormat(context) }
+    val now by produceState(System.currentTimeMillis()) {
+        while (true) {
+            delay(1_000)
+            value = System.currentTimeMillis()
+        }
+    }
+    val remainingMs = ((durationMs - positionMs).coerceAtLeast(0L) / speed.coerceAtLeast(0.1f)).toLong()
+    // Rounded to the minute shown, and formatted only when that minute changes.
+    val endsAtMinute = (now + remainingMs + 30_000L) / 60_000L
+    val clock = remember(endsAtMinute, timeFormat) { timeFormat.format(Date(endsAtMinute * 60_000L)) }
+    Text(
+        text = stringResource(R.string.player_ends_at, clock),
+        style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+        color = MaterialTheme.colorScheme.onScrim.copy(alpha = 0.82f),
+        maxLines = 1,
+        modifier = Modifier.padding(horizontal = 8.dp)
+    )
+}
+
+/**
+ * Reports fingers going down on and lifting off this part of the chrome, without taking the
+ * touch from the buttons inside it.
+ */
+private fun Modifier.observePresses(onPressChange: (Boolean) -> Unit): Modifier = pointerInput(Unit) {
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        onPressChange(true)
+        try {
+            do {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+            } while (event.changes.any { it.pressed })
+        } finally {
+            onPressChange(false)
+        }
     }
 }
 

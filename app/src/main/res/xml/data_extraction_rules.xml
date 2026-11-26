@@ -1,19 +1,19 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Cloud backup and device-to-device transfer on Android 12+. The same choice as backup_rules.xml:
+   the library database and the settings, nothing large or tied to this device.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <include domain="sharedpref" path="open_stream_prefs.xml" />
+        <include domain="database" path="open_stream_db" />
+        <include domain="database" path="open_stream_db-wal" />
+        <include domain="database" path="open_stream_db-shm" />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <include domain="sharedpref" path="open_stream_prefs.xml" />
+        <include domain="database" path="open_stream_db" />
+        <include domain="database" path="open_stream_db-wal" />
+        <include domain="database" path="open_stream_db-shm" />
     </device-transfer>
-    -->
 </data-extraction-rules>

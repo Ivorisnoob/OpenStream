@@ -184,6 +184,9 @@
     <string name="player_up_next">التالي</string>
     <string name="player_next_prefix">التالي: %1$s</string>
     <string name="player_no_source_ready">لا يوجد مصدر جاهز</string>
+    <string name="player_no_source_matches_filters">لا يوجد مصدر يطابق عوامل التصفية هذه</string>
+    <string name="player_no_source_matches_filters_hint">اختر جودة أو صوتًا آخر، أو امسح عوامل التصفية لرؤية كل المصادر.</string>
+    <string name="player_ends_at">ينتهي في %1$s</string>
     <string name="player_no_source_responded">لم يستجب أي مصدر</string>
     <string name="player_no_servers">لم يستجب أي خادم</string>
     <string name="player_no_healthy_servers">لا توجد خوادم سليمة بعد</string>

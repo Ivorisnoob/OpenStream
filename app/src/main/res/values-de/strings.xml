@@ -169,6 +169,9 @@
     <string name="player_up_next">Als Nächstes</string>
     <string name="player_next_prefix">Weiter: %1$s</string>
     <string name="player_no_source_ready">Keine Quelle bereit</string>
+    <string name="player_no_source_matches_filters">Keine Quelle passt zu diesen Filtern</string>
+    <string name="player_no_source_matches_filters_hint">Wähle eine andere Qualität oder Tonspur oder lösche die Filter, um alle Quellen zu sehen.</string>
+    <string name="player_ends_at">Endet um %1$s</string>
     <string name="player_no_source_responded">Keine Quelle hat geantwortet</string>
     <string name="player_no_servers">Keine Server haben geantwortet</string>
     <string name="player_no_healthy_servers">Keine weiteren funktionierenden Server</string>
